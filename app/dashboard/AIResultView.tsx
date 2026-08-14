@@ -28,7 +28,9 @@ export default function AIResultView({ result, mode, clientId, clientName, goal,
     if (clientId < 1) { setMessage("Add a real client before saving this programme"); return; }
     setMessage("Saving…");
     const response = await fetch("/api/programmes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ clientId, title: text(data.title, "AI programme"), goal, sessionsPerWeek, content: result }) });
-    const payload = await response.json(); setMessage(response.ok ? `Approved and saved for ${clientName}` : payload.error ?? "Could not save programme");
+    const payload = await response.json();
+    if (response.ok) window.dispatchEvent(new CustomEvent("jonas-programme-saved", { detail: { clientId } }));
+    setMessage(response.ok ? `Approved and saved for ${clientName}` : payload.error ?? "Could not save programme");
   }
 
   if (mode === "programme") {

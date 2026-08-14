@@ -4,6 +4,7 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import AIResultView from "./AIResultView";
+import ProgrammeLibrary from "./ProgrammeLibrary";
 
 type Client={id:number;name:string;email:string;goal:string;sessionsPerWeek:number;currentWeight:number|null;adherence:number;nextCheckIn:string|null;status:string};
 type CoachingSession={id:number;clientId:number;clientName:string;startAt:string;durationMinutes:number;status:string;pulsePath:string;readinessLevel:"pending"|"green"|"amber"|"red";readinessScore:number|null;aiSummary:string;coachAction:string;respondedAt:string|null};
@@ -32,7 +33,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
   return <main className="dash-shell">
     <aside className="sidebar">
       <Link className="brand dash-brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link>
-      <nav className="side-nav"><a className="active" href="#overview"><i>⌂</i>Overview</a><a href="#clients"><i>◎</i>Clients</a><a href="#studio"><i>✦</i>AI Studio</a><a href="#calendar"><i>□</i>Calendar</a></nav>
+      <nav className="side-nav"><a className="active" href="#overview"><i>⌂</i>Overview</a><a href="#clients"><i>◎</i>Clients</a><a href="#programmes"><i>▤</i>Programmes</a><a href="#studio"><i>✦</i>AI Studio</a><a href="#calendar"><i>□</i>Calendar</a></nav>
       <div className="side-bottom"><span className="coach-avatar">{coachName.slice(0,2).toUpperCase()}</span><div><strong>{coachName}</strong><small>Coach workspace</small></div><UserButton /></div>
     </aside>
     <section className="dash-main" id="overview">
@@ -44,6 +45,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
         </section>
         <aside className="dash-card focus-card"><div className="card-title"><div><p>CLIENT FOCUS</p><h2>{selected.name}</h2></div><span className="status-dot">Active</span></div><div className="focus-metric"><span>Current weight<strong>{selected.currentWeight?`${selected.currentWeight} kg`:"—"}</strong></span><span>Sessions<strong>{selected.sessionsPerWeek}/wk</strong></span></div><div className="readiness"><p>Readiness signal <strong>{selected.adherence>=85?"Ready to progress":"Needs review"}</strong></p><div><i style={{width:`${selected.adherence}%`}} /></div></div><button className="wide-action" onClick={()=>setShowCheckIn(true)}>Record weekly check-in <span>＋</span></button><button className="wide-action secondary-action" onClick={()=>{setAiMode("programme");document.querySelector("#studio")?.scrollIntoView()}}>Build next programme <span>→</span></button></aside>
       </div>
+      <ProgrammeLibrary client={selected} />
       <section className="calendar-board" id="calendar"><div className="calendar-heading"><div><p>SESSION CALENDAR</p><h2>Prepare every session.</h2><span>Schedule a client, share their private Pulse Check, then review readiness before they arrive.</span></div><div><button className="refresh-button" onClick={loadSessions}>Refresh</button><button className="dark-button" onClick={()=>{setSessionError("");setShowSchedule(true)}}>+ Schedule session</button></div></div>{sessionNotice&&<p className="calendar-notice">✓ {sessionNotice}</p>}
         <div className="session-list">{upcomingSessions.length===0?<article className="empty-session"><i>◎</i><h3>No upcoming sessions.</h3><p>Schedule your first appointment to create a client Pulse link.</p></article>:upcomingSessions.map(session=><article className={`calendar-session ${session.readinessLevel}`} key={session.id}><div className="session-date"><strong>{new Date(session.startAt).toLocaleDateString(undefined,{day:"2-digit"})}</strong><span>{new Date(session.startAt).toLocaleDateString(undefined,{month:"short"}).toUpperCase()}</span></div><div className="session-person"><small>{formatSessionTime(session.startAt)} · {session.durationMinutes} MIN</small><h3>{session.clientName}</h3><p>{session.readinessLevel==="pending"?"Waiting for the client’s Pulse Check.":session.aiSummary}</p>{session.readinessLevel!=="pending"&&<div className="coach-action"><b>COACH ACTION</b><span>{session.coachAction}</span></div>}</div><div className="session-readiness"><span className={`readiness-badge ${session.readinessLevel}`}>{session.readinessLevel==="pending"?"PULSE PENDING":`${session.readinessLevel.toUpperCase()} · ${session.readinessScore}%`}</span><div><a href={session.pulsePath} target="_blank" rel="noreferrer">Preview</a><button onClick={()=>copyPulse(session)}>Copy link</button><button className="whatsapp-button" onClick={()=>sendPulse(session)}>WhatsApp ↗</button></div></div></article>)}</div>
       </section>
