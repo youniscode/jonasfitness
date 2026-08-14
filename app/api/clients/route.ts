@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const name = String(body.name ?? "").trim();
   if (!name) return Response.json({ error: "Client name is required" }, { status: 400 });
   const [client] = await getDb().insert(clients).values({
-    ownerId, name, email: String(body.email ?? "").trim(), goal: String(body.goal ?? "Build muscle"),
+    ownerId, name, email: String(body.email ?? "").trim().toLowerCase(), goal: String(body.goal ?? "Build muscle"),
     sessionsPerWeek: Math.min(7, Math.max(2, Number(body.sessionsPerWeek) || 4)), currentWeight: body.currentWeight ? Number(body.currentWeight) : null,
     nextCheckIn: String(body.nextCheckIn ?? ""),
   }).returning();

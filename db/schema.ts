@@ -76,3 +76,22 @@ export const sessions = pgTable("sessions", {
   index("sessions_owner_start_idx").on(table.ownerId, table.startAt),
   index("sessions_client_idx").on(table.clientId),
 ]);
+
+export const progressEntries = pgTable("progress_entries", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  submittedBy: text("submitted_by").notNull().default("client"),
+  weight: doublePrecision("weight"),
+  waist: doublePrecision("waist"),
+  chest: doublePrecision("chest"),
+  hips: doublePrecision("hips"),
+  arm: doublePrecision("arm"),
+  thigh: doublePrecision("thigh"),
+  energy: integer("energy").notNull().default(5),
+  sleep: integer("sleep").notNull().default(5),
+  adherence: integer("adherence").notNull().default(0),
+  notes: text("notes").notNull().default(""),
+  photoData: text("photo_data").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [index("progress_entries_client_owner_idx").on(table.clientId, table.ownerId, table.createdAt)]);
