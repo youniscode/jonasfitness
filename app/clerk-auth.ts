@@ -1,0 +1,29 @@
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+
+export type CoachUser = {
+  id: string;
+  displayName: string;
+};
+
+export async function getCoachId(): Promise<string | null> {
+  const { userId } = await auth();
+  return userId;
+}
+
+export async function getCoachUser(): Promise<CoachUser | null> {
+  const userId = await getCoachId();
+  if (!userId) return null;
+
+  const user = await currentUser();
+  return {
+    id: userId,
+    displayName: user?.firstName || user?.fullName || user?.username || "Coach",
+  };
+}
+
+export async function requireCoachUser(): Promise<CoachUser> {
+  const user = await getCoachUser();
+  if (user) return user;
+  redirect("/sign-in?redirect_url=/dashboard");
+}

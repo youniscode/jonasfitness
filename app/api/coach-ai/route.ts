@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getCoachId } from "../../clerk-auth";
 import { askOllamaJson, getOllamaStatus, OLLAMA_MODEL } from "../../lib/local-ai";
 
 function fallbackProgramme(goal: string, days: number) {
@@ -37,14 +37,14 @@ function fallbackChat(prompt: string) {
 }
 
 export async function GET() {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const ownerId = await getCoachId();
+  if (!ownerId) return Response.json({ error: "Sign in required" }, { status: 401 });
   return Response.json(await getOllamaStatus());
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const ownerId = await getCoachId();
+  if (!ownerId) return Response.json({ error: "Sign in required" }, { status: 401 });
 
   const body = (await request.json()) as Record<string, unknown>;
   const action = String(body.action ?? "chat");

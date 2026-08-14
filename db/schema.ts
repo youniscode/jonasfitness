@@ -1,30 +1,78 @@
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  boolean,
+  doublePrecision,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
-export const clients = sqliteTable("clients", {
-  id: integer("id").primaryKey({ autoIncrement: true }), ownerEmail: text("owner_email").notNull(),
-  name: text("name").notNull(), email: text("email").notNull().default(""), goal: text("goal").notNull().default("Build muscle"),
-  status: text("status").notNull().default("active"), sessionsPerWeek: integer("sessions_per_week").notNull().default(4),
-  currentWeight: real("current_weight"), adherence: integer("adherence").notNull().default(0), nextCheckIn: text("next_check_in"),
-  createdAt: text("created_at").notNull(),
-});
+const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
-export const checkIns = sqliteTable("check_ins", {
-  id: integer("id").primaryKey({ autoIncrement: true }), clientId: integer("client_id").notNull(), ownerEmail: text("owner_email").notNull(),
-  weight: real("weight"), energy: integer("energy").notNull(), sleep: integer("sleep").notNull(), stress: integer("stress").notNull(),
-  adherence: integer("adherence").notNull(), notes: text("notes").notNull().default(""), aiSummary: text("ai_summary").notNull().default(""), createdAt: text("created_at").notNull(),
-});
+export const clients = pgTable("clients", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull().default(""),
+  goal: text("goal").notNull().default("Build muscle"),
+  status: text("status").notNull().default("active"),
+  sessionsPerWeek: integer("sessions_per_week").notNull().default(4),
+  currentWeight: doublePrecision("current_weight"),
+  adherence: integer("adherence").notNull().default(0),
+  nextCheckIn: text("next_check_in"),
+  createdAt: createdAt(),
+}, (table) => [index("clients_owner_id_idx").on(table.ownerId)]);
 
-export const programmes = sqliteTable("programmes", {
-  id: integer("id").primaryKey({ autoIncrement: true }), clientId: integer("client_id").notNull(), ownerEmail: text("owner_email").notNull(),
-  title: text("title").notNull(), goal: text("goal").notNull(), sessionsPerWeek: integer("sessions_per_week").notNull(),
-  content: text("content").notNull(), status: text("status").notNull().default("draft"), createdAt: text("created_at").notNull(),
-});
+export const checkIns = pgTable("check_ins", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  weight: doublePrecision("weight"),
+  energy: integer("energy").notNull(),
+  sleep: integer("sleep").notNull(),
+  stress: integer("stress").notNull(),
+  adherence: integer("adherence").notNull(),
+  notes: text("notes").notNull().default(""),
+  aiSummary: text("ai_summary").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [index("check_ins_client_owner_idx").on(table.clientId, table.ownerId)]);
 
-export const sessions = sqliteTable("sessions", {
-  id: integer("id").primaryKey({ autoIncrement: true }), clientId: integer("client_id").notNull(), ownerEmail: text("owner_email").notNull(),
-  startAt: text("start_at").notNull(), durationMinutes: integer("duration_minutes").notNull().default(60), status: text("status").notNull().default("scheduled"),
-  pulseToken: text("pulse_token").notNull().unique(), readinessLevel: text("readiness_level").notNull().default("pending"), readinessScore: integer("readiness_score"),
-  energy: integer("energy"), sleep: integer("sleep"), soreness: integer("soreness"), stress: integer("stress"), pain: integer("pain").notNull().default(0),
-  painArea: text("pain_area").notNull().default(""), note: text("note").notNull().default(""), aiSummary: text("ai_summary").notNull().default(""),
-  coachAction: text("coach_action").notNull().default(""), respondedAt: text("responded_at"), createdAt: text("created_at").notNull(),
-});
+export const programmes = pgTable("programmes", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  title: text("title").notNull(),
+  goal: text("goal").notNull(),
+  sessionsPerWeek: integer("sessions_per_week").notNull(),
+  content: text("content").notNull(),
+  status: text("status").notNull().default("draft"),
+  createdAt: createdAt(),
+}, (table) => [index("programmes_client_owner_idx").on(table.clientId, table.ownerId)]);
+
+export const sessions = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+  durationMinutes: integer("duration_minutes").notNull().default(60),
+  status: text("status").notNull().default("scheduled"),
+  pulseToken: text("pulse_token").notNull().unique(),
+  readinessLevel: text("readiness_level").notNull().default("pending"),
+  readinessScore: integer("readiness_score"),
+  energy: integer("energy"),
+  sleep: integer("sleep"),
+  soreness: integer("soreness"),
+  stress: integer("stress"),
+  pain: boolean("pain").notNull().default(false),
+  painArea: text("pain_area").notNull().default(""),
+  note: text("note").notNull().default(""),
+  aiSummary: text("ai_summary").notNull().default(""),
+  coachAction: text("coach_action").notNull().default(""),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [
+  index("sessions_owner_start_idx").on(table.ownerId, table.startAt),
+  index("sessions_client_idx").on(table.clientId),
+]);

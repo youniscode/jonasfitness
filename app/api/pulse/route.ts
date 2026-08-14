@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { ensureDatabaseSchema, getDb } from "../../../db";
+import { getDb } from "../../../db";
 import { clients, sessions } from "../../../db/schema";
 import { askOllamaJson } from "../../lib/local-ai";
 
@@ -9,7 +9,7 @@ function clamp(value: unknown, min: number, max: number) {
   return Math.min(max, Math.max(min, Number(value) || min));
 }
 
-function windowState(startAt: string) {
+function windowState(startAt: Date | string) {
   const start = new Date(startAt).getTime();
   const now = Date.now();
   return { opensAt: new Date(start - 24 * HOUR).toISOString(), expiresAt: new Date(start + 6 * HOUR).toISOString(), available: now >= start - 24 * HOUR && now <= start + 6 * HOUR };
@@ -26,14 +26,13 @@ async function findPulse(token: string) {
       respondedAt: sessions.respondedAt,
     })
     .from(sessions)
-    .innerJoin(clients, and(eq(clients.id, sessions.clientId), eq(clients.ownerEmail, sessions.ownerEmail)))
+    .innerJoin(clients, and(eq(clients.id, sessions.clientId), eq(clients.ownerId, sessions.ownerId)))
     .where(eq(sessions.pulseToken, token))
     .limit(1);
   return row;
 }
 
 export async function GET(request: Request) {
-  await ensureDatabaseSchema();
   const token = new URL(request.url).searchParams.get("token") ?? "";
   if (!/^[a-f0-9]{32}$/i.test(token)) return Response.json({ error: "This Pulse link is invalid." }, { status: 404 });
   const session = await findPulse(token);
@@ -42,7 +41,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  await ensureDatabaseSchema();
   const body = (await request.json()) as Record<string, unknown>;
   const token = String(body.token ?? "");
   if (!/^[a-f0-9]{32}$/i.test(token)) return Response.json({ error: "This Pulse link is invalid." }, { status: 404 });
@@ -73,7 +71,7 @@ export async function POST(request: Request) {
   );
   const aiSummary = ai?.summary?.trim() || fallback.summary;
   const coachAction = ai?.action?.trim() || fallback.action;
-  const respondedAt = new Date().toISOString();
-  await getDb().update(sessions).set({ energy, sleep, soreness, stress, pain: pain ? 1 : 0, painArea, note, readinessScore: score, readinessLevel, aiSummary, coachAction, respondedAt }).where(eq(sessions.id, session.id));
+  const respondedAt = new Date();
+  await getDb().update(sessions).set({ energy, sleep, soreness, stress, pain, painArea, note, readinessScore: score, readinessLevel, aiSummary, coachAction, respondedAt }).where(eq(sessions.id, session.id));
   return Response.json({ ok: true, respondedAt });
 }
