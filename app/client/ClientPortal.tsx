@@ -29,17 +29,23 @@ const text = {
   }
 } as const;
 
-function readDays(programme: Programme | null, t: DayText): ProgrammeDay[] {
-  if (!programme) return [];
-  try {
-    const content = JSON.parse(programme.content) as Record<string, unknown>;
-    const raw = Array.isArray(content.sessions) ? content.sessions : Array.isArray(content.days) ? content.days : Array.isArray(content.workouts) ? content.workouts : [];
-    return raw.map((item, index) => {
-      const day = item as Record<string, unknown>;
-      const work = Array.isArray(day.work) ? day.work : Array.isArray(day.exercises) ? day.exercises : [];
-      return { name: String(day.name ?? day.title ?? t.defaultDay(index + 1)), focus: String(day.focus ?? day.description ?? t.defaultFocus), work: work.map(value => typeof value === "string" ? value : String((value as Record<string, unknown>).name ?? t.defaultExercise)) };
-    });
-  } catch { return []; }
+function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function stringValue(value: unknown, fallback = "") { return typeof value === "string" && value.trim() ? value : fallback; }
+function programmeCopy(programme: Programme | null, language: Lang) {
+  if (!programme) return null;
+  let content: Record<string, unknown> = {};
+  try { content = record(JSON.parse(programme.content)); } catch { /* Use stored title if legacy content cannot be parsed. */ }
+  const translation = record(record(content.translations)[language]);
+  const translatedContent = Object.keys(translation).length ? { ...content, ...translation } : content;
+  return { title: stringValue(translatedContent.title, stringValue(content.title, programme.title)), content: translatedContent };
+}
+function readDays(content: Record<string, unknown>, t: DayText): ProgrammeDay[] {
+  const raw = Array.isArray(content.sessions) ? content.sessions : Array.isArray(content.days) ? content.days : Array.isArray(content.workouts) ? content.workouts : [];
+  return raw.map((item, index) => {
+    const day = item as Record<string, unknown>;
+    const work = Array.isArray(day.work) ? day.work : Array.isArray(day.exercises) ? day.exercises : [];
+    return { name: String(day.name ?? day.title ?? t.defaultDay(index + 1)), focus: String(day.focus ?? day.description ?? t.defaultFocus), work: work.map(value => typeof value === "string" ? value : String((value as Record<string, unknown>).name ?? t.defaultExercise)) };
+  });
 }
 
 async function resizePhoto(file: File, t: PhotoText) {
@@ -75,7 +81,8 @@ export default function ClientPortal({ initialAccess, preview }: { initialAccess
     }).catch(() => { if (!cancelled) { setError("load"); setLoading(false); } });
     return () => { cancelled = true; };
   }, [initialAccess, query]);
-  const days = useMemo(() => readDays(data?.programme ?? null, t), [data?.programme, t]);
+  const clientProgramme = useMemo(() => programmeCopy(data?.programme ?? null, lang), [data?.programme, lang]);
+  const days = useMemo(() => readDays(clientProgramme?.content ?? {}, t), [clientProgramme, t]);
   const entries = data?.entries ?? []; const latest = entries[0]; const chartEntries = [...entries].filter(entry => entry.weight !== null).reverse();
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; setPhotoError(""); try { setPhotoData(await resizePhoto(file, t)); } catch (photoIssue) { setPhotoData(""); setPhotoError(photoIssue instanceof Error ? photoIssue.message : t.photoPrepare); } }
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (preview) return; setSaving(true); setNotice(""); const form = new FormData(event.currentTarget); const payload = { ...Object.fromEntries(form), photoData }; const response = await fetch("/api/client-progress", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json().catch(() => ({})); if (!response.ok) { setNotice(result.error ?? t.saveFailed); } else { setNotice(t.shared); setShowForm(false); setPhotoData(""); await load(); } setSaving(false); }
@@ -87,7 +94,7 @@ export default function ClientPortal({ initialAccess, preview }: { initialAccess
     <div className="client-welcome"><div><p>{t.space}</p><h1>{t.hello(data.client.name.split(" ")[0])}</h1><span>{t.intro}</span></div><button className="portal-button" onClick={() => setShowForm(true)} disabled={preview}>{preview ? t.previewMode : t.weeklyUpdate}<span>{t.arrow}</span></button></div>
     {notice && <p className="portal-notice">✓ {notice}</p>}
     <section className="portal-overview"><article><small>{t.currentGoal}</small><strong>{data.client.goal}</strong><span>{t.sessions(data.client.sessionsPerWeek)}</span></article><article><small>{t.latestWeight}</small><strong>{latest?.weight ? `${latest.weight} kg` : data.client.currentWeight ? `${data.client.currentWeight} kg` : "—"}</strong><span>{latest ? t.updated(date(latest.createdAt)) : t.firstUpdate}</span></article><article><small>{t.nextSession}</small><strong>{nextSession ? date(nextSession.startAt, { weekday: "short", day: "numeric", month: "short" }) : t.notScheduled}</strong><span>{nextSession ? t.minutes(nextSession.durationMinutes) : t.coachConfirm}</span></article></section>
-    <section className="portal-grid"><article className="portal-card plan-card"><div className="portal-card-head"><div><p>{t.currentProgramme}</p><h2>{data.programme?.title ?? t.programmePending}</h2></div><span>{days.length || data.client.sessionsPerWeek} {t.days}</span></div>{days.length ? <div className="portal-days">{days.map((day, index) => <details key={`${day.name}-${index}`} open={index === 0}><summary><span>{t.day} {String(index + 1).padStart(2, "0")}</span><strong>{day.name}</strong><small>{day.focus}</small></summary><ul>{day.work.map((exercise, workIndex) => <li key={`${exercise}-${workIndex}`}><i>{String(workIndex + 1).padStart(2, "0")}</i>{exercise}</li>)}</ul></details>)}</div> : <p className="portal-empty">{t.programmeHint}</p>}</article>
+    <section className="portal-grid"><article className="portal-card plan-card"><div className="portal-card-head"><div><p>{t.currentProgramme}</p><h2>{clientProgramme?.title ?? t.programmePending}</h2></div><span>{days.length || data.client.sessionsPerWeek} {t.days}</span></div>{days.length ? <div className="portal-days">{days.map((day, index) => <details key={`${day.name}-${index}`} open={index === 0}><summary><span>{t.day} {String(index + 1).padStart(2, "0")}</span><strong>{day.name}</strong><small>{day.focus}</small></summary><ul>{day.work.map((exercise, workIndex) => <li key={`${exercise}-${workIndex}`}><i>{String(workIndex + 1).padStart(2, "0")}</i>{exercise}</li>)}</ul></details>)}</div> : <p className="portal-empty">{t.programmeHint}</p>}</article>
       <article className="portal-card progress-card"><div className="portal-card-head"><div><p>{t.progress}</p><h2>{t.progressTitle}</h2></div><span>{t.updates(entries.length)}</span></div><WeightChart entries={chartEntries} t={t} />{latest && <div className="latest-metrics"><span>{t.energy}<b>{latest.energy}/10</b></span><span>{t.sleep}<b>{latest.sleep}/10</b></span><span>{t.adherence}<b>{latest.adherence}%</b></span></div>}<button className="text-action" onClick={() => setShowForm(true)} disabled={preview}>{t.addUpdate}<span>{t.arrow}</span></button></article>
     </section>
     <section className="portal-card progress-history"><div className="portal-card-head"><div><p>{t.history}</p><h2>{t.historyTitle}</h2></div></div>{entries.length === 0 ? <p className="portal-empty">{t.historyEmpty}</p> : <div className="history-list">{entries.map(entry => <article key={entry.id}><div className="history-date"><strong>{date(entry.createdAt, { day: "2-digit" })}</strong><span>{date(entry.createdAt, { month: "short" }).toUpperCase()}</span></div>{entry.photoData && <img src={entry.photoData} alt={t.progressPhoto(date(entry.createdAt))} />}<div><strong>{entry.weight ? `${entry.weight} kg` : t.progressUpdate}</strong><p>{entry.notes || t.noNote}</p><small>{t.energy} {entry.energy}/10 · {t.sleep} {entry.sleep}/10 · {t.adherence} {entry.adherence}%</small></div></article>)}</div>}</section>
