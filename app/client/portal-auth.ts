@@ -24,7 +24,11 @@ export async function getPortalAccess(previewClientId?: number | null): Promise<
   }
 
   const user = await currentUser();
-  const email = user?.primaryEmailAddress?.emailAddress?.trim();
+  const primaryEmail = user?.primaryEmailAddress;
+  // Do not grant a portal merely because somebody typed a matching email during
+  // sign-up. Clerk must have verified that address first.
+  if (!primaryEmail || primaryEmail.verification?.status !== "verified") return null;
+  const email = primaryEmail.emailAddress.trim();
   if (!email) return null;
 
   const [client] = await db.select().from(clients)
@@ -32,4 +36,3 @@ export async function getPortalAccess(previewClientId?: number | null): Promise<
     .limit(1);
   return client ? { client, preview: false } : null;
 }
-
