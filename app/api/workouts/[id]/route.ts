@@ -16,10 +16,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const [existing] = await ownedWorkout(id, ownerId);
   if (!existing) return Response.json({ error: "Workout not found." }, { status: 404 });
   const body = await request.json() as Record<string, unknown>;
-  const exercises = body.exercises === undefined ? parseExercises(existing.exercises) : parseExercises(body.exercises);
-  if (!exercises.length) return Response.json({ error: "A workout needs at least one exercise." }, { status: 400 });
   const requestedStatus = String(body.status ?? existing.status);
   const status = requestedStatus === "completed" ? "completed" : requestedStatus === "discarded" ? "discarded" : "active";
+  const exercises = body.exercises === undefined ? parseExercises(existing.exercises) : parseExercises(body.exercises);
+  if (!exercises.length && status !== "discarded") return Response.json({ error: "A workout needs at least one exercise." }, { status: 400 });
   const [workout] = await getDb().update(workoutSessions).set({
     exercises: JSON.stringify(exercises),
     notes: typeof body.notes === "string" ? body.notes.trim().slice(0, 5000) : existing.notes,
