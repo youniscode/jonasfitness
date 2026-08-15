@@ -7,6 +7,7 @@ type WorkoutSet = { id: string; target: string; weight: number | null; reps: num
 type WorkoutExercise = { id: string; name: string; target: string; focus: string; note: string; status: "pending" | "completed" | "skipped"; sets: WorkoutSet[] };
 type Workout = { id: number; title: string; notes: string; status: string; startedAt: string; completedAt: string | null; exercises: WorkoutExercise[] };
 type Data = { active: Workout | null; history: Workout[]; programme: { title: string; days: { index: number; name: string; focus: string }[] } | null };
+const exerciseLibrary = ["Barbell bench press", "Dumbbell bench press", "Incline dumbbell press", "Cable fly", "Pull-up", "Lat pulldown", "Seated cable row", "Barbell squat", "Leg press", "Romanian deadlift", "Leg curl", "Shoulder press", "Lateral raise", "Barbell curl", "Triceps pressdown", "Plank"];
 
 function statsFor(exercises: WorkoutExercise[]) {
   const completed = exercises.flatMap((exercise) => exercise.sets).filter((set) => set.status === "completed");
@@ -14,6 +15,9 @@ function statsFor(exercises: WorkoutExercise[]) {
 }
 function sameExercise(a: string, b: string) {
   return a.toLowerCase().replace(/[^a-z0-9à-ÿ]/gi, "") === b.toLowerCase().replace(/[^a-z0-9à-ÿ]/gi, "");
+}
+function freshSet(target = ""): WorkoutSet {
+  return { id: crypto.randomUUID(), target, weight: null, reps: null, rpe: "", rir: "", note: "", status: "pending" };
 }
 
 export default function LiveSessionMode({ client, onClose }: { client: Client; onClose: () => void }) {
@@ -25,6 +29,10 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [language, setLanguage] = useState<"en" | "fr">("en");
+  const [restSeconds, setRestSeconds] = useState(0);
+  const [restRunning, setRestRunning] = useState(false);
+  const [restPreset, setRestPreset] = useState(90);
+  const [exerciseToAdd, setExerciseToAdd] = useState(exerciseLibrary[0]);
   const saveTimer = useRef<number | null>(null);
   const t = (english: string, french: string) => language === "fr" ? french : english;
 
@@ -90,6 +98,12 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
   }, [workout, mode, save]);
 
+  useEffect(() => {
+    if (!restRunning || restSeconds <= 0) return;
+    const interval = window.setInterval(() => setRestSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(interval);
+  }, [restRunning, restSeconds]);
+
   async function start() {
     const response = await fetch("/api/workouts", {
       method: "POST",
@@ -120,6 +134,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
     }));
   }
   function toggleSet(setIndex: number) {
+    const isCompleting = workout?.exercises[exerciseIndex]?.sets[setIndex]?.status !== "completed";
     update((current) => ({
       ...current,
       exercises: current.exercises.map((exercise, index) => {
@@ -131,15 +146,44 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         return { ...exercise, sets, status: sets.every((set) => set.status !== "pending") ? "completed" as const : "pending" as const };
       }),
     }));
+    if (isCompleting) {
+      setRestSeconds(restPreset);
+      setRestRunning(true);
+    }
   }
   function addSet() {
     update((current) => ({
       ...current,
       exercises: current.exercises.map((exercise, index) => index !== exerciseIndex ? exercise : {
         ...exercise,
-        sets: [...exercise.sets, { id: crypto.randomUUID(), target: "", weight: null, reps: null, rpe: "", rir: "", note: "", status: "pending" }],
+        sets: [...exercise.sets, freshSet()],
       }),
     }));
+  }
+  function updateCurrentExercise(patch: Partial<WorkoutExercise>) {
+    update((current) => ({ ...current, exercises: current.exercises.map((exercise, index) => index === exerciseIndex ? { ...exercise, ...patch } : exercise) }));
+  }
+  function moveExercise(direction: -1 | 1) {
+    const targetIndex = exerciseIndex + direction;
+    if (!workout || targetIndex < 0 || targetIndex >= workout.exercises.length) return;
+    update((current) => {
+      const exercises = [...current.exercises];
+      [exercises[exerciseIndex], exercises[targetIndex]] = [exercises[targetIndex], exercises[exerciseIndex]];
+      return { ...current, exercises };
+    });
+    setExerciseIndex(targetIndex);
+  }
+  function removeCurrentExercise() {
+    if (!workout || workout.exercises.length < 2 || !window.confirm(t("Remove this exercise from today’s workout?", "Retirer cet exercice de l’entraînement du jour ?"))) return;
+    update((current) => ({ ...current, exercises: current.exercises.filter((_, index) => index !== exerciseIndex) }));
+    setExerciseIndex((index) => Math.max(0, index - 1));
+  }
+  function addExercise() {
+    const name = exerciseToAdd.trim();
+    if (!name) return;
+    const next: WorkoutExercise = { id: crypto.randomUUID(), name, target: "3×8–12", focus: t("Coach adjustment", "Ajustement coach"), note: "", status: "pending", sets: [freshSet("8–12"), freshSet("8–12"), freshSet("8–12")] };
+    update((current) => ({ ...current, exercises: [...current.exercises, next] }));
+    setExerciseIndex(workout?.exercises.length ?? 0);
   }
   async function finish() {
     if (!workout) return;
@@ -211,7 +255,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       </> : <p className="workout-message">{t("Assign an approved programme before starting a live session.", "Attribuez un programme approuvé avant de démarrer une séance.")}</p>}
       <section className="workout-history">
         <p>{t("RECENT TRAINING HISTORY", "HISTORIQUE RÉCENT")}</p>
-        {data?.history.length ? data.history.slice(0, 4).map((item) => <article key={item.id}><strong>{item.title}</strong><span>{item.completedAt ? new Date(item.completedAt).toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB") : ""}</span></article>) : <span>{t("No completed workouts yet.", "Aucune séance terminée pour le moment.")}</span>}
+        {data?.history.length ? data.history.slice(0, 4).map((item) => { const itemStats = statsFor(item.exercises); return <article key={item.id}><strong>{item.title}<small>{itemStats.sets} {t("sets", "séries")} · {itemStats.volume.toLocaleString()} kg</small></strong><span>{item.completedAt ? new Date(item.completedAt).toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB") : ""}</span></article>; }) : <span>{t("No completed workouts yet.", "Aucune séance terminée pour le moment.")}</span>}
       </section>
     </main>}
 
@@ -220,27 +264,45 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         <div><p>{t("LIVE SESSION", "SÉANCE EN DIRECT")} · {client.name}</p><h1>{workout.title}</h1><span>{t("Exercise", "Exercice")} {exerciseIndex + 1} {t("of", "sur")} {workout.exercises.length}</span></div>
         <button className="live-primary" onClick={() => void finish()}>{t("Finish & save", "Terminer et enregistrer")} ✓</button>
       </header>
+      <section className="rest-timer" aria-live="polite">
+        <div><small>{t("REST TIMER", "CHRONO DE REPOS")}</small><strong>{String(Math.floor(restSeconds / 60)).padStart(2, "0")}:{String(restSeconds % 60).padStart(2, "0")}</strong></div>
+        <div className="rest-controls">
+          <select aria-label={t("Rest duration", "Durée de repos")} value={restPreset} onChange={(event) => setRestPreset(Number(event.target.value))}><option value={60}>1:00</option><option value={90}>1:30</option><option value={120}>2:00</option><option value={180}>3:00</option></select>
+          <button className="live-secondary" onClick={() => { setRestSeconds(restPreset); setRestRunning(true); }}>{t("Start", "Démarrer")}</button>
+          <button className="live-secondary" onClick={() => setRestRunning((value) => !value)} disabled={restSeconds === 0}>{restRunning ? t("Pause", "Pause") : t("Resume", "Reprendre")}</button>
+          <button className="live-secondary" onClick={() => { setRestSeconds(0); setRestRunning(false); }}>{t("Skip", "Passer")}</button>
+        </div>
+      </section>
       <nav className="workout-exercise-nav" aria-label={t("Exercise navigation", "Navigation des exercices")}>
         {workout.exercises.map((exercise, index) => <button key={exercise.id} className={index === exerciseIndex ? "active" : exercise.status === "completed" ? "done" : ""} onClick={() => setExerciseIndex(index)}>{index + 1}{exercise.status === "completed" ? " ✓" : ""}</button>)}
       </nav>
       <section className="exercise-stage">
-        <div className="exercise-heading"><div><p>{current.focus}</p><h2>{current.name}</h2><span>{current.target}</span></div></div>
+        <div className="exercise-heading"><div><p>{current.focus}</p><input className="exercise-name-input" aria-label={t("Exercise name", "Nom de l’exercice")} value={current.name} onChange={(event) => updateCurrentExercise({ name: event.target.value })} /><input className="exercise-target-input" aria-label={t("Prescription", "Prescription")} value={current.target} onChange={(event) => updateCurrentExercise({ target: event.target.value })} /></div></div>
         <div className="performance-panel"><article><small>{t("LAST TIME", "DERNIÈRE FOIS")}</small>{previous ? <p>{previous.sets.filter((set) => set.status === "completed").map((set) => <span key={set.id}>{set.weight ?? "—"} kg × {set.reps ?? "—"}</span>)}</p> : <p>{t("No previous performance logged.", "Aucune performance précédente.")}</p>}</article></div>
         <div className="live-set-table">
-          <div className="live-set-head"><span>{t("SET", "SÉRIE")}</span><span>{t("WEIGHT", "CHARGE")}</span><span>{t("REPS", "RÉP.")}</span><span>RPE</span><span>RIR</span><span /></div>
+          <div className="live-set-head"><span>{t("SET", "SÉRIE")}</span><span>{t("WEIGHT", "CHARGE")}</span><span>{t("REPS", "RÉP.")}</span><span>RPE</span><span>RIR</span><span>{t("LAST", "AVANT")}</span><span /></div>
           {current.sets.map((set, index) => <div className="live-set-row" key={set.id}>
             <strong>{index + 1}</strong>
             <input aria-label={t("Weight", "Charge")} inputMode="decimal" type="number" placeholder="kg" value={set.weight ?? ""} onChange={(event) => updateSet(index, { weight: event.target.value === "" ? null : Number(event.target.value) })} />
             <input aria-label={t("Repetitions", "Répétitions")} inputMode="numeric" type="number" placeholder={set.target || t("reps", "rép.")} value={set.reps ?? ""} onChange={(event) => updateSet(index, { reps: event.target.value === "" ? null : Number(event.target.value) })} />
             <input aria-label="RPE" placeholder="—" value={set.rpe} onChange={(event) => updateSet(index, { rpe: event.target.value })} />
             <input aria-label="RIR" placeholder="—" value={set.rir} onChange={(event) => updateSet(index, { rir: event.target.value })} />
+            <span className="previous-set-value">{previous?.sets[index]?.status === "completed" ? <>{previous.sets[index].weight ?? "—"} × {previous.sets[index].reps ?? "—"}</> : "—"}</span>
             <button className={set.status === "completed" ? "set-complete done" : "set-complete"} onClick={() => toggleSet(index)}>{set.status === "completed" ? "✓" : t("Done", "Fait")}</button>
           </div>)}
         </div>
         <div className="exercise-actions">
           <button className="live-secondary" onClick={addSet}>+ {t("Add set", "Ajouter une série")}</button>
+          <button className="live-secondary" disabled={exerciseIndex === 0} onClick={() => moveExercise(-1)}>↑</button>
+          <button className="live-secondary" disabled={exerciseIndex === workout.exercises.length - 1} onClick={() => moveExercise(1)}>↓</button>
+          <button className="live-secondary danger-button" disabled={workout.exercises.length < 2} onClick={removeCurrentExercise}>{t("Remove", "Retirer")}</button>
           <label>{t("Exercise note", "Note d’exercice")}<input value={current.note} onChange={(event) => update((currentWorkout) => ({ ...currentWorkout, exercises: currentWorkout.exercises.map((exercise, index) => index === exerciseIndex ? { ...exercise, note: event.target.value } : exercise) }))} /></label>
         </div>
+      </section>
+      <section className="exercise-library">
+        <div><small>{t("EXERCISE LIBRARY", "BIBLIOTHÈQUE D’EXERCICES")}</small><strong>{t("Add a coach adjustment for today only.", "Ajoutez un ajustement coach pour aujourd’hui seulement.")}</strong></div>
+        <select value={exerciseToAdd} onChange={(event) => setExerciseToAdd(event.target.value)}>{exerciseLibrary.map((exercise) => <option key={exercise} value={exercise}>{exercise}</option>)}</select>
+        <button className="live-secondary" onClick={addExercise}>+ {t("Add exercise", "Ajouter l’exercice")}</button>
       </section>
       <footer className="workout-footer">
         <button className="live-secondary" disabled={exerciseIndex === 0} onClick={() => setExerciseIndex((value) => value - 1)}>← {t("Previous exercise", "Exercice précédent")}</button>
