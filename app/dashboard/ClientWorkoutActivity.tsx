@@ -183,7 +183,6 @@ export default function ClientWorkoutActivity({ client }: { client: Client }) {
                                   <th>Set</th>
                                   <th>Weight</th>
                                   <th>Reps</th>
-                                  <th>RPE</th>
                                   <th>RIR</th>
                                   <th>Vs previous</th>
                                   <th>Set note</th>
@@ -195,7 +194,6 @@ export default function ClientWorkoutActivity({ client }: { client: Client }) {
                                     <td>{setIndex + 1}</td>
                                     <td>{set.weight ?? "—"} kg</td>
                                     <td>{set.reps ?? "—"}</td>
-                                    <td>{set.rpe || "—"}</td>
                                     <td>{set.rir || "—"}</td>
                                     <td>{isCompletedWorkoutSet(set) ? setComparison(set, previousExercise?.sets[setIndex]) : "Not completed"}</td>
                                     <td>{set.note || "—"}</td>

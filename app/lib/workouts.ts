@@ -3,7 +3,6 @@ export type WorkoutSet = {
   target: string;
   weight: number | null;
   reps: number | null;
-  rpe: string;
   rir: string;
   note: string;
   status: "pending" | "completed" | "skipped";
@@ -14,12 +13,27 @@ export type WorkoutExercise = {
   name: string;
   target: string;
   focus: string;
+  instructions: string;
+  imageUrl: string;
+  videoUrl: string;
+  restSeconds: number;
   note: string;
   status: "pending" | "completed" | "skipped";
   sets: WorkoutSet[];
 };
 
-type ProgrammeDay = { name: string; focus: string; work: string[] };
+type ProgrammePrescription = {
+  name: string;
+  sets: number;
+  reps: string;
+  rir: number;
+  restSeconds: number;
+  notes: string;
+  instructions: string;
+  imageUrl: string;
+  videoUrl: string;
+};
+type ProgrammeDay = { name: string; focus: string; work: ProgrammePrescription[] };
 type ProgrammeLanguage = "fr" | "en" | "ar";
 const uid = () => crypto.randomUUID();
 const clampText = (value: unknown, limit = 500) => typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -53,19 +67,22 @@ export function parseExercises(value: unknown): WorkoutExercise[] {
         target: clampText(row.target, 120),
         weight: numeric(row.weight),
         reps: numeric(row.reps),
-        rpe: clampText(row.rpe, 20),
         rir: clampText(row.rir, 20),
         note: clampText(row.note, 500),
         status: setStatuses.has(status) ? status : "pending",
       };
     });
-    if (!sets.length) sets.push({ id: `${exerciseIndex + 1}-1`, target: "", weight: null, reps: null, rpe: "", rir: "", note: "", status: "pending" });
+    if (!sets.length) sets.push({ id: `${exerciseIndex + 1}-1`, target: "", weight: null, reps: null, rir: "", note: "", status: "pending" });
     const exerciseStatus = clampText(source.status, 20) as WorkoutExercise["status"];
     return [{
       id: clampText(source.id, 80) || uid(),
       name,
       target: clampText(source.target, 180),
       focus: clampText(source.focus, 240),
+      instructions: clampText(source.instructions, 1000),
+      imageUrl: clampText(source.imageUrl, 1000),
+      videoUrl: clampText(source.videoUrl, 1000),
+      restSeconds: Math.min(600, Math.max(30, Number(source.restSeconds) || 90)),
       note: clampText(source.note, 1000),
       status: setStatuses.has(exerciseStatus) ? exerciseStatus : "pending",
       sets,
@@ -82,16 +99,20 @@ export function programmeDays(value: string, language?: ProgrammeLanguage): Prog
     const translated = language && translations[language] && typeof translations[language] === "object" && !Array.isArray(translations[language])
       ? translations[language] as Record<string, unknown>
       : {};
-    const content = { ...source, ...translated };
-    const raw = [content.sessions, content.days, content.workouts].find(Array.isArray);
+    const raw = [source.sessions, source.days, source.workouts].find(Array.isArray);
+    const translatedRaw = [translated.sessions, translated.days, translated.workouts].find(Array.isArray);
     if (!Array.isArray(raw)) return [];
     return raw.map((item, index) => {
       const day = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
-      const work = Array.isArray(day.work) ? day.work : Array.isArray(day.exercises) ? day.exercises : [];
+      const translatedDay = Array.isArray(translatedRaw) && translatedRaw[index] && typeof translatedRaw[index] === "object" && !Array.isArray(translatedRaw[index])
+        ? translatedRaw[index] as Record<string, unknown>
+        : {};
+      const work = Array.isArray(day.exercises) ? day.exercises : Array.isArray(day.work) ? day.work : [];
+      const translatedWork = Array.isArray(translatedDay.work) ? translatedDay.work : [];
       return {
-        name: clampText(day.name, 120) || clampText(day.title, 120) || `Session ${index + 1}`,
-        focus: clampText(day.focus, 240) || clampText(day.description, 240),
-        work: work.filter((exercise): exercise is string => typeof exercise === "string").slice(0, 30),
+        name: clampText(translatedDay.name, 120) || clampText(day.name, 120) || clampText(day.title, 120) || `Session ${index + 1}`,
+        focus: clampText(translatedDay.focus, 240) || clampText(day.focus, 240) || clampText(day.description, 240),
+        work: work.slice(0, 30).map((exercise, exerciseIndex) => programmePrescription(exercise, translatedWork[exerciseIndex], exerciseIndex)),
       };
     }).filter((day) => day.work.length > 0);
   } catch { return []; }
@@ -99,30 +120,53 @@ export function programmeDays(value: string, language?: ProgrammeLanguage): Prog
 
 export function createExercises(day: ProgrammeDay): WorkoutExercise[] {
   return day.work.map((prescription, index) => {
-    const [rawName, ...rest] = prescription.split(/[·•]/);
-    const target = rest.join("·").trim();
-    const match = prescription.match(/(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
-    const setCount = Math.min(12, Math.max(1, Number(match?.[1]) || 3));
-    const reps = match?.[2]?.replace(/\s/g, "") ?? "";
     return {
       id: uid(),
-      name: rawName.trim() || `Exercise ${index + 1}`,
-      target,
+      name: prescription.name || `Exercise ${index + 1}`,
+      target: `${prescription.sets}×${prescription.reps} · RIR ${prescription.rir}`,
       focus: day.focus,
-      note: "",
+      instructions: prescription.instructions,
+      imageUrl: prescription.imageUrl,
+      videoUrl: prescription.videoUrl,
+      restSeconds: prescription.restSeconds,
+      note: prescription.notes,
       status: "pending" as const,
-      sets: Array.from({ length: setCount }, () => ({
+      sets: Array.from({ length: prescription.sets }, () => ({
         id: uid(),
-        target: reps,
+        target: prescription.reps,
         weight: null,
         reps: null,
-        rpe: "",
-        rir: "",
+        rir: String(prescription.rir),
         note: "",
         status: "pending" as const,
       })),
     };
   });
+}
+
+function programmePrescription(value: unknown, translatedValue: unknown, index: number): ProgrammePrescription {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const legacy = typeof value === "string" ? value : "";
+  const translated = typeof translatedValue === "string" ? translatedValue : "";
+  const setRepMatch = legacy.match(/(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
+  const rirMatch = legacy.match(/RIR\s*(\d+)/i);
+  const restMatch = legacy.match(/(?:rest|repos)\s*(\d+)\s*(?:s|sec)/i);
+  const legacyName = legacy.split(/[·•]/)[0]?.trim();
+  const translatedName = translated.split(/[·•]/)[0]?.trim();
+  const sourceRir = Number(source.rir);
+  const legacyRir = Number(rirMatch?.[1]);
+  const targetRir = Number.isFinite(sourceRir) ? sourceRir : Number.isFinite(legacyRir) ? legacyRir : 2;
+  return {
+    name: translatedName || clampText(source.name, 120) || legacyName || `Exercise ${index + 1}`,
+    sets: Math.min(12, Math.max(1, Number(source.sets) || Number(setRepMatch?.[1]) || 3)),
+    reps: clampText(source.reps, 30) || setRepMatch?.[2]?.replace(/\s/g, "") || "8–12",
+    rir: Math.min(6, Math.max(0, targetRir)),
+    restSeconds: Math.min(600, Math.max(30, Number(source.restSeconds) || Number(restMatch?.[1]) || 90)),
+    notes: clampText(source.notes, 500),
+    instructions: clampText(source.instructions, 1000),
+    imageUrl: clampText(source.imageUrl, 1000),
+    videoUrl: clampText(source.videoUrl, 1000),
+  };
 }
 
 export function isCompletedWorkoutSet(set: Pick<WorkoutSet, "status" | "weight" | "reps">) {

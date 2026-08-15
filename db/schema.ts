@@ -51,6 +51,18 @@ export const programmes = pgTable("programmes", {
   createdAt: createdAt(),
 }, (table) => [index("programmes_client_owner_idx").on(table.clientId, table.ownerId)]);
 
+export const exerciseLibrary = pgTable("exercise_library", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  name: text("name").notNull(),
+  muscleGroup: text("muscle_group").notNull().default("Other"),
+  equipment: text("equipment").notNull().default("Other"),
+  instructions: text("instructions").notNull().default(""),
+  imageUrl: text("image_url").notNull().default(""),
+  videoUrl: text("video_url").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [index("exercise_library_owner_name_idx").on(table.ownerId, table.name)]);
+
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),

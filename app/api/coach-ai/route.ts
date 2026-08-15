@@ -9,15 +9,20 @@ function fallbackProgramme(goal: string, days: number) {
     5: ["Push", "Pull", "Legs", "Upper", "Lower"],
   };
   const sessions = splits[Math.min(5, Math.max(2, days))] ?? splits[4];
+  const exercisePools = [
+    ["Barbell bench press · 3×6–8 · RIR 2 · Rest 150s", "Seated cable row · 3×8–12 · RIR 2 · Rest 120s", "Leg press · 3×8–12 · RIR 2 · Rest 150s", "Romanian deadlift · 3×8–10 · RIR 2 · Rest 150s"],
+    ["Barbell back squat · 3×5–8 · RIR 2 · Rest 180s", "Lat pulldown · 3×8–12 · RIR 2 · Rest 120s", "Incline dumbbell press · 3×8–12 · RIR 2 · Rest 120s", "Seated leg curl · 3×10–15 · RIR 2 · Rest 90s"],
+    ["Overhead press · 3×6–10 · RIR 2 · Rest 120s", "Bulgarian split squat · 3×8–12 · RIR 2 · Rest 120s", "Dumbbell lateral raise · 3×12–20 · RIR 2 · Rest 75s", "Cable crunch · 3×10–15 · RIR 2 · Rest 75s"],
+    ["Pull-up · 3×6–10 · RIR 2 · Rest 150s", "Barbell hip thrust · 3×8–12 · RIR 2 · Rest 120s", "Rear-delt fly · 3×12–20 · RIR 2 · Rest 75s", "Triceps pressdown · 3×10–15 · RIR 2 · Rest 75s"],
+    ["Barbell row · 3×6–10 · RIR 2 · Rest 150s", "Leg press · 3×10–15 · RIR 2 · Rest 150s", "Incline dumbbell curl · 3×10–15 · RIR 2 · Rest 75s", "Standing calf raise · 3×10–15 · RIR 2 · Rest 75s"],
+  ];
   return {
     title: `${days}-day ${goal} foundation`,
     overview: `A balanced ${days}-session plan using progressive overload, 1–3 reps in reserve and weekly recovery review.`,
     sessions: sessions.map((name, index) => ({
       name,
       focus: index < 2 ? "Primary compounds + controlled volume" : "Hypertrophy volume + weak-point work",
-      work: index < 2
-        ? ["Main lift · 3×5–8", "Secondary compound · 3×8–10", "Accessory pair · 3×10–15"]
-        : ["Primary movement · 4×8–12", "Accessory tri-set · 3×12–15", "Loaded carry or core · 3 rounds"],
+      work: exercisePools[index % exercisePools.length],
     })),
   };
 }
@@ -66,7 +71,7 @@ export async function POST(request: Request) {
   if (action === "programme") {
     const result = await askOllamaJson<Record<string, unknown>>(
       system,
-      `Create a ${days}-day programme for the goal "${goal}". Return exactly: {"title":string,"overview":string,"sessions":[{"name":string,"focus":string,"work":[string,string,string,string]}]}. Use RIR or RPE, sensible weekly volume and no unsupported claims.`,
+      `Create a ${days}-day programme for the goal "${goal}". Return exactly: {"title":string,"overview":string,"sessions":[{"name":string,"focus":string,"work":[string,string,string,string]}]}. Every work line must include a real exercise name, sets, reps, target RIR and rest time. Use RIR only, sensible weekly volume and no unsupported claims.`,
     );
     return Response.json({
       result: result ?? fallbackProgramme(goal, days),

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Client = { id: number; name: string };
-type WorkoutSet = { id: string; target: string; weight: number | null; reps: number | null; rpe: string; rir: string; note: string; status: "pending" | "completed" | "skipped" };
-type WorkoutExercise = { id: string; name: string; target: string; focus: string; note: string; status: "pending" | "completed" | "skipped"; sets: WorkoutSet[] };
+type WorkoutSet = { id: string; target: string; weight: number | null; reps: number | null; rir: string; note: string; status: "pending" | "completed" | "skipped" };
+type WorkoutExercise = { id: string; name: string; target: string; focus: string; instructions: string; imageUrl: string; videoUrl: string; restSeconds: number; note: string; status: "pending" | "completed" | "skipped"; sets: WorkoutSet[] };
 type Workout = { id: number; title: string; notes: string; status: string; startedAt: string; completedAt: string | null; exercises: WorkoutExercise[] };
 type Readiness = { id: number; startAt: string; durationMinutes: number; pulsePath: string; readinessLevel: "pending" | "green" | "amber" | "red"; readinessScore: number | null; energy: number | null; sleep: number | null; soreness: number | null; stress: number | null; pain: boolean; painArea: string; note: string; aiSummary: string; coachAction: string; respondedAt: string | null };
 type Data = { active: Workout | null; history: Workout[]; programme: { title: string; days: { index: number; name: string; focus: string }[] } | null; readiness: Readiness | null };
@@ -18,7 +18,7 @@ function sameExercise(a: string, b: string) {
   return a.toLowerCase().replace(/[^a-z0-9à-ÿ]/gi, "") === b.toLowerCase().replace(/[^a-z0-9à-ÿ]/gi, "");
 }
 function freshSet(target = ""): WorkoutSet {
-  return { id: crypto.randomUUID(), target, weight: null, reps: null, rpe: "", rir: "", note: "", status: "pending" };
+  return { id: crypto.randomUUID(), target, weight: null, reps: null, rir: "2", note: "", status: "pending" };
 }
 
 export default function LiveSessionMode({ client, onClose }: { client: Client; onClose: () => void }) {
@@ -205,7 +205,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       }),
     }));
     if (isCompleting) {
-      setRestSeconds(restPreset);
+      setRestSeconds(current?.restSeconds || restPreset);
       setRestRunning(true);
     }
   }
@@ -239,7 +239,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
   function addExercise() {
     const name = exerciseToAdd.trim();
     if (!name) return;
-    const next: WorkoutExercise = { id: crypto.randomUUID(), name, target: "3×8–12", focus: t("Coach adjustment", "Ajustement coach"), note: "", status: "pending", sets: [freshSet("8–12"), freshSet("8–12"), freshSet("8–12")] };
+    const next: WorkoutExercise = { id: crypto.randomUUID(), name, target: "3×8–12 · RIR 2", focus: t("Coach adjustment", "Ajustement coach"), instructions: "", imageUrl: "", videoUrl: "", restSeconds: 90, note: "", status: "pending", sets: [freshSet("8–12"), freshSet("8–12"), freshSet("8–12")] };
     update((current) => ({ ...current, exercises: [...current.exercises, next] }));
     setExerciseIndex(workout?.exercises.length ?? 0);
   }
@@ -343,15 +343,14 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         {workout.exercises.map((exercise, index) => <button key={exercise.id} className={index === exerciseIndex ? "active" : exercise.status === "completed" ? "done" : ""} onClick={() => setExerciseIndex(index)}>{index + 1}{exercise.status === "completed" ? " ✓" : ""}</button>)}
       </nav>
       <section className="exercise-stage">
-        <div className="exercise-heading"><div><p>{current.focus}</p><input className="exercise-name-input" aria-label={t("Exercise name", "Nom de l’exercice")} value={current.name} onChange={(event) => updateCurrentExercise({ name: event.target.value })} /><input className="exercise-target-input" aria-label={t("Prescription", "Prescription")} value={current.target} onChange={(event) => updateCurrentExercise({ target: event.target.value })} /></div></div>
+        <div className="exercise-heading"><div><p>{current.focus}</p>{current.imageUrl && <div className="live-exercise-image" role="img" aria-label={current.name} style={{ backgroundImage: `url(${current.imageUrl})` }} />}<input className="exercise-name-input" aria-label={t("Exercise name", "Nom de l’exercice")} value={current.name} onChange={(event) => updateCurrentExercise({ name: event.target.value })} /><input className="exercise-target-input" aria-label={t("Prescription", "Prescription")} value={current.target} onChange={(event) => updateCurrentExercise({ target: event.target.value })} />{current.instructions && <p className="live-exercise-instructions">{current.instructions}</p>}{current.videoUrl && <a className="live-exercise-demo" href={current.videoUrl} target="_blank" rel="noreferrer">{t("Open demonstration", "Voir la démonstration")} ↗</a>}</div></div>
         <div className="performance-panel"><article><small>{t("LAST TIME", "DERNIÈRE FOIS")}</small>{previous ? <p>{previous.sets.filter((set) => set.status === "completed").map((set) => <span key={set.id}>{set.weight ?? "—"} kg × {set.reps ?? "—"}</span>)}</p> : <p>{t("No previous performance logged.", "Aucune performance précédente.")}</p>}</article></div>
         <div className="live-set-table">
-          <div className="live-set-head"><span>{t("SET", "SÉRIE")}</span><span>{t("WEIGHT", "CHARGE")}</span><span>{t("REPS", "RÉP.")}</span><span>RPE</span><span>RIR</span><span>{t("LAST", "AVANT")}</span><span /></div>
+          <div className="live-set-head"><span>{t("SET", "SÉRIE")}</span><span>{t("WEIGHT", "CHARGE")}</span><span>{t("REPS", "RÉP.")}</span><span>RIR</span><span>{t("LAST", "AVANT")}</span><span /></div>
           {current.sets.map((set, index) => <div className="live-set-row" key={set.id}>
             <strong>{index + 1}</strong>
             <input aria-label={t("Weight", "Charge")} inputMode="decimal" type="number" placeholder="kg" value={set.weight ?? ""} onChange={(event) => updateSet(index, { weight: event.target.value === "" ? null : Number(event.target.value) })} />
             <input aria-label={t("Repetitions", "Répétitions")} inputMode="numeric" type="number" placeholder={set.target || t("reps", "rép.")} value={set.reps ?? ""} onChange={(event) => updateSet(index, { reps: event.target.value === "" ? null : Number(event.target.value) })} />
-            <input aria-label="RPE" placeholder="—" value={set.rpe} onChange={(event) => updateSet(index, { rpe: event.target.value })} />
             <input aria-label="RIR" placeholder="—" value={set.rir} onChange={(event) => updateSet(index, { rir: event.target.value })} />
             <span className="previous-set-value">{previous?.sets[index]?.status === "completed" ? <>{previous.sets[index].weight ?? "—"} × {previous.sets[index].reps ?? "—"}</> : "—"}</span>
             <button className={set.status === "completed" ? "set-complete done" : "set-complete"} onClick={() => toggleSet(index)}>{set.status === "completed" ? "✓" : t("Done", "Fait")}</button>

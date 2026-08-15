@@ -18,7 +18,13 @@ function programmeSessions(data: Data, days: number) {
     work: strings(session.work).length ? strings(session.work) : strings(session.exercises).length ? strings(session.exercises) : strings(session.movements),
   })) : [];
   if (sessions.length) return sessions;
-  return Array.from({ length: days }, (_, index) => ({ name: `Session ${index + 1}`, focus: "Coach-selected progression", work: ["Main movement · 3×5–8", "Secondary movement · 3×8–12", "Accessory work · 3×10–15"] }));
+  const templates = [
+    { name: "Upper body", focus: "Strength and controlled volume", work: ["Barbell bench press · 3×5–8 · RIR 2 · Rest 150 sec", "Chest-supported row · 3×8–10 · RIR 2 · Rest 120 sec", "Cable lateral raise · 3×12–15 · RIR 2 · Rest 75 sec"] },
+    { name: "Lower body", focus: "Strength and posterior chain", work: ["Back squat · 3×5–8 · RIR 2 · Rest 180 sec", "Romanian deadlift · 3×8–10 · RIR 2 · Rest 150 sec", "Leg curl · 3×10–15 · RIR 2 · Rest 90 sec"] },
+    { name: "Upper hypertrophy", focus: "Balanced hypertrophy", work: ["Incline dumbbell press · 3×8–12 · RIR 2 · Rest 120 sec", "Lat pulldown · 3×8–12 · RIR 2 · Rest 120 sec", "Cable curl · 3×10–15 · RIR 2 · Rest 75 sec"] },
+    { name: "Lower hypertrophy", focus: "Quads, glutes and calves", work: ["Leg press · 3×10–15 · RIR 2 · Rest 150 sec", "Bulgarian split squat · 3×8–12 · RIR 2 · Rest 120 sec", "Standing calf raise · 3×12–20 · RIR 2 · Rest 75 sec"] },
+  ];
+  return Array.from({ length: days }, (_, index) => templates[index % templates.length]);
 }
 
 export default function AIResultView({ result, mode, clientId, clientName, goal, sessionsPerWeek, notice }: Props) {
