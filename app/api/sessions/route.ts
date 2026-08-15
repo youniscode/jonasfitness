@@ -23,7 +23,7 @@ export async function GET() {
     })
     .from(sessions)
     .innerJoin(clients, and(eq(clients.id, sessions.clientId), eq(clients.ownerId, ownerId)))
-    .where(eq(sessions.ownerId, ownerId))
+    .where(and(eq(sessions.ownerId, ownerId), eq(sessions.status, "scheduled")))
     .orderBy(asc(sessions.startAt));
   return Response.json({ sessions: rows.map((row) => ({ ...row, pulsePath: `/pulse/${row.pulseToken}` })) });
 }
@@ -52,4 +52,24 @@ export async function POST(request: Request) {
   }).returning();
 
   return Response.json({ session: { ...session, clientName: client.name, pulsePath: `/pulse/${pulseToken}` } }, { status: 201 });
+}
+
+export async function DELETE(request: Request) {
+  const ownerId = await getCoachId();
+  if (!ownerId) return Response.json({ error: "Sign in required" }, { status: 401 });
+
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const sessionId = Number(body.sessionId);
+  if (!Number.isInteger(sessionId) || sessionId < 1) {
+    return Response.json({ error: "Choose a valid session to cancel." }, { status: 400 });
+  }
+
+  const [cancelled] = await getDb()
+    .update(sessions)
+    .set({ status: "cancelled" })
+    .where(and(eq(sessions.id, sessionId), eq(sessions.ownerId, ownerId), eq(sessions.status, "scheduled")))
+    .returning({ id: sessions.id });
+
+  if (!cancelled) return Response.json({ error: "This session was not found or is already cancelled." }, { status: 404 });
+  return Response.json({ cancelledId: cancelled.id });
 }

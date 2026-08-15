@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     .orderBy(desc(progressEntries.createdAt)).limit(12);
   const upcoming = await db.select({ id: sessions.id, startAt: sessions.startAt, durationMinutes: sessions.durationMinutes, readinessLevel: sessions.readinessLevel })
     .from(sessions)
-    .where(and(eq(sessions.clientId, access.client.id), eq(sessions.ownerId, access.client.ownerId), gt(sessions.startAt, new Date())))
+    .where(and(eq(sessions.clientId, access.client.id), eq(sessions.ownerId, access.client.ownerId), eq(sessions.status, "scheduled"), gt(sessions.startAt, new Date())))
     .orderBy(asc(sessions.startAt)).limit(8);
 
   return Response.json({ client: access.client, programme: programme ?? null, entries, sessions: upcoming, preview: access.preview });

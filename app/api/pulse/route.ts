@@ -27,7 +27,7 @@ async function findPulse(token: string) {
     })
     .from(sessions)
     .innerJoin(clients, and(eq(clients.id, sessions.clientId), eq(clients.ownerId, sessions.ownerId)))
-    .where(eq(sessions.pulseToken, token))
+    .where(and(eq(sessions.pulseToken, token), eq(sessions.status, "scheduled")))
     .limit(1);
   return row;
 }
@@ -72,6 +72,10 @@ export async function POST(request: Request) {
   const aiSummary = ai?.summary?.trim() || fallback.summary;
   const coachAction = ai?.action?.trim() || fallback.action;
   const respondedAt = new Date();
-  await getDb().update(sessions).set({ energy, sleep, soreness, stress, pain, painArea, note, readinessScore: score, readinessLevel, aiSummary, coachAction, respondedAt }).where(eq(sessions.id, session.id));
+  const [saved] = await getDb().update(sessions)
+    .set({ energy, sleep, soreness, stress, pain, painArea, note, readinessScore: score, readinessLevel, aiSummary, coachAction, respondedAt })
+    .where(and(eq(sessions.id, session.id), eq(sessions.status, "scheduled")))
+    .returning({ id: sessions.id });
+  if (!saved) return Response.json({ error: "This Pulse Check has been cancelled." }, { status: 409 });
   return Response.json({ ok: true, respondedAt });
 }
