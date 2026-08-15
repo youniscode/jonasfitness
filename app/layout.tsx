@@ -7,6 +7,7 @@ import "./live-session.css";
 import "./live-session-phase2.css";
 import "./live-session-phase3.css";
 import "./live-session-phase4.css";
+import "./client-workout.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });

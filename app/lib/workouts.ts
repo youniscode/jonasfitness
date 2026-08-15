@@ -20,6 +20,7 @@ export type WorkoutExercise = {
 };
 
 type ProgrammeDay = { name: string; focus: string; work: string[] };
+type ProgrammeLanguage = "fr" | "en" | "ar";
 const uid = () => crypto.randomUUID();
 const clampText = (value: unknown, limit = 500) => typeof value === "string" ? value.trim().slice(0, limit) : "";
 const numeric = (value: unknown) => {
@@ -64,9 +65,16 @@ export function parseExercises(value: unknown): WorkoutExercise[] {
   });
 }
 
-export function programmeDays(value: string): ProgrammeDay[] {
+export function programmeDays(value: string, language?: ProgrammeLanguage): ProgrammeDay[] {
   try {
-    const content = JSON.parse(value) as Record<string, unknown>;
+    const source = JSON.parse(value) as Record<string, unknown>;
+    const translations = source.translations && typeof source.translations === "object" && !Array.isArray(source.translations)
+      ? source.translations as Record<string, unknown>
+      : {};
+    const translated = language && translations[language] && typeof translations[language] === "object" && !Array.isArray(translations[language])
+      ? translations[language] as Record<string, unknown>
+      : {};
+    const content = { ...source, ...translated };
     const raw = [content.sessions, content.days, content.workouts].find(Array.isArray);
     if (!Array.isArray(raw)) return [];
     return raw.map((item, index) => {

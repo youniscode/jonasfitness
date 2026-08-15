@@ -18,11 +18,11 @@ export async function GET(request: Request) {
   const [client] = await db.select().from(clients).where(and(eq(clients.id, clientId), eq(clients.ownerId, ownerId))).limit(1);
   if (!client) return Response.json({ error: "Client not found." }, { status: 404 });
   const [active] = await db.select().from(workoutSessions)
-    .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.clientId, clientId), eq(workoutSessions.status, "active")))
+    .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.clientId, clientId), eq(workoutSessions.startedBy, "coach"), eq(workoutSessions.status, "active")))
     .orderBy(desc(workoutSessions.updatedAt)).limit(1);
   const history = await db.select().from(workoutSessions)
     .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.clientId, clientId), eq(workoutSessions.status, "completed")))
-    .orderBy(desc(workoutSessions.completedAt)).limit(12);
+    .orderBy(desc(workoutSessions.completedAt)).limit(30);
   const [programme] = await db.select().from(programmes)
     .where(and(eq(programmes.ownerId, ownerId), eq(programmes.clientId, clientId), eq(programmes.status, "approved")))
     .orderBy(desc(programmes.createdAt)).limit(1);
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     const [client] = await db.select().from(clients).where(and(eq(clients.id, clientId), eq(clients.ownerId, ownerId))).limit(1);
     if (!client) return Response.json({ error: "Client not found." }, { status: 404 });
     const [active] = await db.select({ id: workoutSessions.id }).from(workoutSessions)
-      .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.clientId, clientId), eq(workoutSessions.status, "active"))).limit(1);
+      .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.clientId, clientId), eq(workoutSessions.startedBy, "coach"), eq(workoutSessions.status, "active"))).limit(1);
     if (active) return Response.json({ error: "Active session found.", activeId: active.id }, { status: 409 });
     const [programme] = await db.select().from(programmes)
       .where(and(eq(programmes.ownerId, ownerId), eq(programmes.clientId, clientId), eq(programmes.status, "approved")))
@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       exercises: JSON.stringify(exercises),
       notes: "",
       status: "active",
+      startedBy: "coach",
       startedAt: now,
       updatedAt: now,
     }).returning();

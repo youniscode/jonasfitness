@@ -124,6 +124,7 @@ export const workoutSessions = pgTable("workout_sessions", {
   exercises: text("exercises").notNull().default("[]"),
   notes: text("notes").notNull().default(""),
   status: text("status").notNull().default("active"),
+  startedBy: text("started_by").notNull().default("coach"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
