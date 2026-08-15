@@ -178,10 +178,10 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
     <header className="workout-topbar">
       <button type="button" onClick={onClose}>← {t("Back to dashboard", "Retour au tableau de bord")}</button>
       <strong>JONAS FITNESS</strong>
-      <div className="workout-top-actions">
+      <div className="workout-top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         <button type="button" onClick={() => setLanguage("en")} aria-pressed={language === "en"}>EN</button>
         <button type="button" onClick={() => setLanguage("fr")} aria-pressed={language === "fr"}>FR</button>
-        <span>{saving ? t("Saving…", "Enregistrement…") : message}</span>
+        <span style={{ marginLeft: "8px" }}>{saving ? t("Saving…", "Enregistrement…") : message}</span>
       </div>
     </header>
 
