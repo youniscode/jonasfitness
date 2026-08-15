@@ -18,6 +18,7 @@ const isProtectedRoute = createRouteMatcher([
   "/api/acquisition(.*)",
   "/api/client-attribution(.*)",
   "/api/leads(.*)",
+  "/api/consultations(.*)",
   "/api/client-portal(.*)",
   "/api/client-progress(.*)",
 ]);

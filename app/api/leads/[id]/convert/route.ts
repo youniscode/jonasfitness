@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getCoachId } from "../../../../clerk-auth";
 import { getDb } from "../../../../../db";
-import { clients, leads } from "../../../../../db/schema";
+import { clients, leadActivities, leads } from "../../../../../db/schema";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await getCoachId();
@@ -37,7 +37,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const [convertedLead] = await db.update(leads).set({
     status: "client",
     convertedClientId: client.id,
+    nextFollowUpAt: null,
     updatedAt: new Date(),
   }).where(eq(leads.id, id)).returning();
+  await db.insert(leadActivities).values({
+    leadId: id,
+    ownerId,
+    type: "status",
+    title: "Converted to client",
+    detail: client.name,
+  });
   return Response.json({ lead: convertedLead, client }, { status: 201 });
 }

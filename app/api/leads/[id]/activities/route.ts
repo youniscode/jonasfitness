@@ -1,0 +1,51 @@
+import { eq } from "drizzle-orm";
+import { getCoachId } from "../../../../clerk-auth";
+import { getDb } from "../../../../../db";
+import { leadActivities, leads } from "../../../../../db/schema";
+import { safeText } from "../../../../lib/attribution";
+import { isActivityType, optionalDate } from "../../../../lib/lead-follow-up";
+
+const defaultTitles: Record<string, string> = {
+  note: "Note added",
+  phone: "Phone contact recorded",
+  email: "Email message prepared",
+  whatsapp: "WhatsApp message prepared",
+};
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const ownerId = await getCoachId();
+  if (!ownerId) return Response.json({ error: "Coach access required." }, { status: 403 });
+  const leadId = Number((await params).id);
+  if (!Number.isInteger(leadId) || leadId < 1) return Response.json({ error: "Invalid lead." }, { status: 400 });
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  if (!isActivityType(body.type) || !["note", "phone", "email", "whatsapp"].includes(body.type)) {
+    return Response.json({ error: "Choose a valid interaction type." }, { status: 400 });
+  }
+  const db = getDb();
+  const [existing] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+  if (!existing) return Response.json({ error: "Lead not found." }, { status: 404 });
+
+  const nextFollowUpAt = body.nextFollowUpAt === undefined ? undefined : optionalDate(body.nextFollowUpAt);
+  if (nextFollowUpAt === undefined && body.nextFollowUpAt !== undefined) {
+    return Response.json({ error: "Choose a valid follow-up date." }, { status: 400 });
+  }
+  const title = safeText(body.title, 140) || defaultTitles[body.type];
+  const detail = safeText(body.detail, 1000);
+  const occurredAt = optionalDate(body.occurredAt) ?? new Date();
+  const [activity] = await db.insert(leadActivities).values({
+    leadId,
+    ownerId,
+    type: body.type,
+    title,
+    detail,
+    occurredAt,
+  }).returning();
+  const contactActivity = ["phone", "email", "whatsapp"].includes(body.type);
+  const [lead] = await db.update(leads).set({
+    status: contactActivity && existing.status === "new" ? "contacted" : existing.status,
+    contactedAt: contactActivity ? new Date() : existing.contactedAt,
+    nextFollowUpAt: nextFollowUpAt === undefined ? existing.nextFollowUpAt : nextFollowUpAt,
+    updatedAt: new Date(),
+  }).where(eq(leads.id, leadId)).returning();
+  return Response.json({ activity, lead }, { status: 201 });
+}

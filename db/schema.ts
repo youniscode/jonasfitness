@@ -58,11 +58,39 @@ export const leads = pgTable("leads", {
   convertedClientId: integer("converted_client_id").references(() => clients.id, { onDelete: "set null" }),
   consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),
   contactedAt: timestamp("contacted_at", { withTimezone: true }),
+  nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: createdAt(),
 }, (table) => [
   index("leads_status_created_idx").on(table.status, table.createdAt),
   index("leads_fingerprint_created_idx").on(table.fingerprint, table.createdAt),
+]);
+
+export const leadActivities = pgTable("lead_activities", {
+  id: serial("id").primaryKey(),
+  leadId: integer("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  type: text("type").notNull().default("note"),
+  title: text("title").notNull(),
+  detail: text("detail").notNull().default(""),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [index("lead_activities_lead_created_idx").on(table.leadId, table.createdAt)]);
+
+export const leadConsultations = pgTable("lead_consultations", {
+  id: serial("id").primaryKey(),
+  leadId: integer("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+  status: text("status").notNull().default("scheduled"),
+  outcome: text("outcome").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("lead_consultations_owner_start_idx").on(table.ownerId, table.startAt),
+  index("lead_consultations_lead_idx").on(table.leadId),
 ]);
 
 export const checkIns = pgTable("check_ins", {
