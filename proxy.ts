@@ -13,6 +13,10 @@ const isProtectedRoute = createRouteMatcher([
   "/api/coach-ai(.*)",
   "/api/progress(.*)",
   "/api/progression-suggestions(.*)",
+  "/api/exercise-history(.*)",
+  "/api/client-exercise-history(.*)",
+  "/api/acquisition(.*)",
+  "/api/client-attribution(.*)",
   "/api/client-portal(.*)",
   "/api/client-progress(.*)",
 ]);

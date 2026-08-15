@@ -22,6 +22,12 @@ export const clients = pgTable("clients", {
   currentWeight: doublePrecision("current_weight"),
   adherence: integer("adherence").notNull().default(0),
   nextCheckIn: text("next_check_in"),
+  acquisitionSource: text("acquisition_source").notNull().default("Unknown"),
+  acquisitionMedium: text("acquisition_medium").notNull().default(""),
+  acquisitionCampaign: text("acquisition_campaign").notNull().default(""),
+  acquisitionReferrer: text("acquisition_referrer").notNull().default(""),
+  acquisitionLandingPage: text("acquisition_landing_page").notNull().default(""),
+  acquisitionCapturedAt: timestamp("acquisition_captured_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (table) => [index("clients_owner_id_idx").on(table.ownerId)]);
 
