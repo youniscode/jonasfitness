@@ -95,3 +95,23 @@ export const progressEntries = pgTable("progress_entries", {
   photoData: text("photo_data").notNull().default(""),
   createdAt: createdAt(),
 }, (table) => [index("progress_entries_client_owner_idx").on(table.clientId, table.ownerId, table.createdAt)]);
+
+// A completed workout is intentionally separate from an appointment/Pulse session.
+// The JSON snapshot keeps every set, note and exercise adjustment exactly as coached that day.
+export const workoutSessions = pgTable("workout_sessions", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  programmeId: integer("programme_id").references(() => programmes.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  exercises: text("exercises").notNull().default("[]"),
+  notes: text("notes").notNull().default(""),
+  status: text("status").notNull().default("active"),
+  startedAt: createdAt(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  updatedAt: createdAt(),
+}, (table) => [
+  index("workout_sessions_owner_client_idx").on(table.ownerId, table.clientId),
+  index("workout_sessions_active_idx").on(table.ownerId, table.clientId, table.status),
+  index("workout_sessions_completed_idx").on(table.clientId, table.completedAt),
+]);
