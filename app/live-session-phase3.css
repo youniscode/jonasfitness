@@ -1,0 +1,1 @@
+.connection-status{border:1px solid #596350;padding:4px 7px;font-size:10px;font-weight:800;letter-spacing:.06em;white-space:nowrap}.connection-status.online{color:#c4ff36}.connection-status.offline{border-color:#d79b37;color:#ffd993}@media(max-width:760px){.connection-status{display:none}}

@@ -33,6 +33,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
   const [restRunning, setRestRunning] = useState(false);
   const [restPreset, setRestPreset] = useState(90);
   const [exerciseToAdd, setExerciseToAdd] = useState(exerciseLibrary[0]);
+  const [isOnline, setIsOnline] = useState(true);
   const saveTimer = useRef<number | null>(null);
   const t = (english: string, french: string) => language === "fr" ? french : english;
 
@@ -44,6 +45,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not load the live session.");
       setData(payload);
+      let safeWorkout: Workout | null = null;
       if (payload.active) {
         const local = localStorage.getItem("jonas-workout-" + payload.active.id);
         try {
@@ -51,17 +53,29 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
           const safeExercises = Array.isArray(draft?.exercises) && draft.exercises.length
             ? draft.exercises
             : payload.active.exercises;
-          setWorkout({ ...payload.active, ...draft, exercises: safeExercises });
-        } catch { setWorkout(payload.active); }
+          safeWorkout = { ...payload.active, ...draft, exercises: safeExercises };
+        } catch { safeWorkout = payload.active; }
+        setWorkout(safeWorkout);
       } else {
         setWorkout(null);
       }
+      localStorage.setItem("jonas-live-client-" + client.id, JSON.stringify({ data: payload, workout: safeWorkout }));
       setMode("choose");
     } catch (error) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("jonas-live-client-" + client.id) ?? "") as { data?: Data; workout?: Workout | null };
+        if (cached.data && cached.workout?.exercises?.length) {
+          setData(cached.data);
+          setWorkout(cached.workout);
+          setMessage(language === "fr" ? "Mode hors ligne : brouillon de séance récupéré sur cet appareil." : "Offline mode: workout draft recovered on this device.");
+          setMode("live");
+          return;
+        }
+      } catch {}
       setMessage(error instanceof Error ? error.message : "Could not load the live session.");
       setMode("choose");
     }
-  }, [client.id]);
+  }, [client.id, language]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => { void load(); }, 0);
@@ -70,6 +84,17 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
     };
   }, [load]);
+
+  useEffect(() => {
+    const updateConnection = () => setIsOnline(navigator.onLine);
+    updateConnection();
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+    };
+  }, []);
 
   const save = useCallback(async (next: Workout) => {
     setSaving(true);
@@ -99,12 +124,24 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
   }, [workout, mode, save]);
 
   useEffect(() => {
+    const syncWhenBackOnline = () => {
+      if (workout && mode === "live") void save(workout);
+    };
+    window.addEventListener("online", syncWhenBackOnline);
+    return () => window.removeEventListener("online", syncWhenBackOnline);
+  }, [workout, mode, save]);
+
+  useEffect(() => {
     if (!restRunning || restSeconds <= 0) return;
     const interval = window.setInterval(() => setRestSeconds((value) => Math.max(0, value - 1)), 1000);
     return () => window.clearInterval(interval);
   }, [restRunning, restSeconds]);
 
   async function start() {
+    if (!navigator.onLine) {
+      setMessage(t("Reconnect before starting a new session. Your current active draft can still be continued offline.", "Reconnectez-vous avant de démarrer une nouvelle séance. Un brouillon actif peut continuer hors ligne."));
+      return;
+    }
     const response = await fetch("/api/workouts", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -228,6 +265,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       <div className="workout-top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         <button type="button" onClick={() => setLanguage("en")} aria-pressed={language === "en"}>EN</button>
         <button type="button" onClick={() => setLanguage("fr")} aria-pressed={language === "fr"}>FR</button>
+        <span className={isOnline ? "connection-status online" : "connection-status offline"}>{isOnline ? t("Online", "En ligne") : t("Offline · draft protected", "Hors ligne · brouillon protégé")}</span>
         <span style={{ marginLeft: "8px" }}>{saving ? t("Saving…", "Enregistrement…") : message}</span>
       </div>
     </header>
