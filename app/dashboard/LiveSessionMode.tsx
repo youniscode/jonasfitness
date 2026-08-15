@@ -39,10 +39,12 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       if (payload.active) {
         const local = localStorage.getItem("jonas-workout-" + payload.active.id);
         try {
-          setWorkout(local ? { ...payload.active, ...JSON.parse(local) } : payload.active);
-        } catch {
-          setWorkout(payload.active);
-        }
+          const draft = local ? JSON.parse(local) as Partial<Workout> : null;
+          const safeExercises = Array.isArray(draft?.exercises) && draft.exercises.length
+            ? draft.exercises
+            : payload.active.exercises;
+          setWorkout({ ...payload.active, ...draft, exercises: safeExercises });
+        } catch { setWorkout(payload.active); }
       } else {
         setWorkout(null);
       }
@@ -100,6 +102,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       return;
     }
     setWorkout(payload.workout);
+    localStorage.removeItem("jonas-workout-" + payload.workout.id);
     setExerciseIndex(0);
     setMode("live");
   }
@@ -195,7 +198,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         <small>{t("ACTIVE SESSION FOUND", "SÉANCE ACTIVE TROUVÉE")}</small>
         <h2>{workout.title}</h2>
         <p>{t("Started", "Démarrée à")} {new Date(workout.startedAt).toLocaleTimeString(language === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })}</p>
-        <button className="live-primary" onClick={() => setMode("live")}>{t("Resume session", "Reprendre la séance")} →</button>
+        <button className="live-primary" onClick={() => { setExerciseIndex(0); setMode("live"); }}>{t("Resume session", "Reprendre la séance")} →</button>
         <button className="live-secondary" onClick={() => void discard()}>{t("Discard and start new", "Supprimer et recommencer")}</button>
       </section> : data?.programme ? <>
         <div className="workout-day-choice">
@@ -245,6 +248,13 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         <button className="live-primary" disabled={exerciseIndex === workout.exercises.length - 1} onClick={() => setExerciseIndex((value) => value + 1)}>{t("Next exercise", "Exercice suivant")} →</button>
       </footer>
       <label className="session-note-field">{t("Session note", "Note de séance")}<textarea value={workout.notes} onChange={(event) => update((currentWorkout) => ({ ...currentWorkout, notes: event.target.value }))} placeholder={t("Technique, readiness, pain, adjustments for next time…", "Technique, état du jour, douleur, ajustements pour la prochaine fois…")} /></label>
+    </main>}
+
+    {mode === "live" && workout && !current && <main className="workout-empty">
+      <p>{t("LIVE SESSION RECOVERY", "RÉCUPÉRATION DE SÉANCE")}</p>
+      <h1>{t("This saved draft has no exercises.", "Ce brouillon ne contient aucun exercice.")}</h1>
+      <p>{t("The server copy remains safe. Reload it to continue the session.", "La copie serveur reste en sécurité. Rechargez-la pour continuer la séance.")}</p>
+      <button className="live-primary" onClick={() => { localStorage.removeItem("jonas-workout-" + workout.id); void load(); }}>{t("Reload safe session", "Recharger la séance sécurisée")} →</button>
     </main>}
 
     {mode === "summary" && workout && <main className="workout-summary">
