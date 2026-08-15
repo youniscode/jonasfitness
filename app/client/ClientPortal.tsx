@@ -5,12 +5,13 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import ClientOnboarding from "./ClientOnboarding";
 
 type Lang = "fr" | "en" | "ar";
 type Entry = { id: number; weight: number | null; waist: number | null; chest: number | null; hips: number | null; arm: number | null; thigh: number | null; energy: number; sleep: number; adherence: number; notes: string; photoData: string; createdAt: string };
 type Session = { id: number; startAt: string; durationMinutes: number; readinessLevel: string };
 type Programme = { title: string; goal: string; sessionsPerWeek: number; content: string };
-type PortalData = { client: { name: string; goal: string; sessionsPerWeek: number; currentWeight: number | null }; programme: Programme | null; entries: Entry[]; sessions: Session[]; preview: boolean };
+type PortalData = { client: { id: number; name: string; goal: string; sessionsPerWeek: number; currentWeight: number | null }; programme: Programme | null; entries: Entry[]; sessions: Session[]; preview: boolean };
 type ProgrammeDay = { name: string; focus: string; work: string[] };
 type DayText = { defaultDay: (count: number) => string; defaultFocus: string; defaultExercise: string };
 type PhotoText = { photoType: string; photoSize: string; photoRead: string; photoProcess: string; photoLarge: string };
@@ -93,6 +94,7 @@ export default function ClientPortal({ initialAccess, preview }: { initialAccess
   return <main dir={lang === "ar" ? "rtl" : "ltr"} className={`client-portal-page ${lang === "ar" ? "rtl-site" : ""}`}><header className="client-portal-header"><Link className="brand dash-brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link><div>{languageSwitch}{preview && <span className="preview-pill">{t.preview}</span>}<UserButton /></div></header><section className="client-portal-content">
     <div className="client-welcome"><div><p>{t.space}</p><h1>{t.hello(data.client.name.split(" ")[0])}</h1><span>{t.intro}</span></div><button className="portal-button" onClick={() => setShowForm(true)} disabled={preview}>{preview ? t.previewMode : t.weeklyUpdate}<span>{t.arrow}</span></button></div>
     {notice && <p className="portal-notice">✓ {notice}</p>}
+    <ClientOnboarding lang={lang} preview={preview} previewClientId={data.client.id} />
     <section className="portal-overview"><article><small>{t.currentGoal}</small><strong>{data.client.goal}</strong><span>{t.sessions(data.client.sessionsPerWeek)}</span></article><article><small>{t.latestWeight}</small><strong>{latest?.weight ? `${latest.weight} kg` : data.client.currentWeight ? `${data.client.currentWeight} kg` : "—"}</strong><span>{latest ? t.updated(date(latest.createdAt)) : t.firstUpdate}</span></article><article><small>{t.nextSession}</small><strong>{nextSession ? date(nextSession.startAt, { weekday: "short", day: "numeric", month: "short" }) : t.notScheduled}</strong><span>{nextSession ? t.minutes(nextSession.durationMinutes) : t.coachConfirm}</span></article></section>
     <section className="portal-grid"><article className="portal-card plan-card"><div className="portal-card-head"><div><p>{t.currentProgramme}</p><h2>{clientProgramme?.title ?? t.programmePending}</h2></div><span>{days.length || data.client.sessionsPerWeek} {t.days}</span></div>{days.length ? <div className="portal-days">{days.map((day, index) => <details key={`${day.name}-${index}`} open={index === 0}><summary><span>{t.day} {String(index + 1).padStart(2, "0")}</span><strong>{day.name}</strong><small>{day.focus}</small></summary><ul>{day.work.map((exercise, workIndex) => <li key={`${exercise}-${workIndex}`}><i>{String(workIndex + 1).padStart(2, "0")}</i>{exercise}</li>)}</ul></details>)}</div> : <p className="portal-empty">{t.programmeHint}</p>}</article>
       <article className="portal-card progress-card"><div className="portal-card-head"><div><p>{t.progress}</p><h2>{t.progressTitle}</h2></div><span>{t.updates(entries.length)}</span></div><WeightChart entries={chartEntries} t={t} />{latest && <div className="latest-metrics"><span>{t.energy}<b>{latest.energy}/10</b></span><span>{t.sleep}<b>{latest.sleep}/10</b></span><span>{t.adherence}<b>{latest.adherence}%</b></span></div>}<button className="text-action" onClick={() => setShowForm(true)} disabled={preview}>{t.addUpdate}<span>{t.arrow}</span></button></article>

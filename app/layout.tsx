@@ -12,8 +12,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Jonas Fitness | Intelligent personal coaching in Toulon",
-  description: "Human-led personal coaching with intelligent training, progress and nutrition tracking. Jonas Fitness, Toulon.",
+  title: "Jonas Fitness | Worldwide personal coaching",
+  description: "Human-led personal coaching with intelligent training, progress and nutrition tracking for clients worldwide.",
   icons: { icon: "/icon", apple: "/icon", shortcut: "/favicon.svg" },
   applicationName: "Jonas Fitness",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Jonas Fitness" },

@@ -96,6 +96,23 @@ export const progressEntries = pgTable("progress_entries", {
   createdAt: createdAt(),
 }, (table) => [index("progress_entries_client_owner_idx").on(table.clientId, table.ownerId, table.createdAt)]);
 
+// Kept deliberately small: this is coaching context, not a medical record.
+// Clients may share only what they choose; explicit consent is required before saving.
+export const clientIntakes = pgTable("client_intakes", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().unique().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  preferredLanguage: text("preferred_language").notNull().default("fr"),
+  trainingExperience: text("training_experience").notNull().default(""),
+  availability: text("availability").notNull().default(""),
+  equipment: text("equipment").notNull().default(""),
+  goalsDetail: text("goals_detail").notNull().default(""),
+  trainingConsiderations: text("training_considerations").notNull().default(""),
+  consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [index("client_intakes_owner_client_idx").on(table.ownerId, table.clientId)]);
+
 // A completed workout is intentionally separate from an appointment/Pulse session.
 // The JSON snapshot keeps every set, note and exercise adjustment exactly as coached that day.
 export const workoutSessions = pgTable("workout_sessions", {
