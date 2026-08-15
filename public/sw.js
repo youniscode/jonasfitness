@@ -1,5 +1,6 @@
-const SHELL_CACHE = "jonas-fitness-shell-v1";
-const STATIC_CACHE = "jonas-fitness-static-v1";
+const SHELL_CACHE = "jonas-fitness-shell-v2";
+const STATIC_CACHE = "jonas-fitness-static-v2";
+const ACTIVE_CACHES = new Set([SHELL_CACHE, STATIC_CACHE]);
 const SHELL_FILES = ["/", "/offline.html"];
 
 self.addEventListener("install", (event) => {
@@ -8,7 +9,11 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => !ACTIVE_CACHES.has(key)).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
+  );
 });
 
 self.addEventListener("fetch", (event) => {
@@ -20,12 +25,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.pathname.startsWith("/_next/") || /\.(?:css|js|svg|png|woff2?)$/.test(url.pathname)) {
-    event.respondWith(caches.match(request).then((cached) => {
-      const fresh = fetch(request).then((response) => {
+    event.respondWith(
+      fetch(request).then((response) => {
         if (response.ok) void caches.open(STATIC_CACHE).then((cache) => cache.put(request, response.clone()));
         return response;
-      });
-      return cached || fresh;
-    }));
+      }).catch(() => caches.match(request)),
+    );
   }
 });

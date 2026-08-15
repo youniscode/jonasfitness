@@ -31,8 +31,16 @@ const numeric = (value: unknown) => {
 const setStatuses = new Set<WorkoutSet["status"]>(["pending", "completed", "skipped"]);
 
 export function parseExercises(value: unknown): WorkoutExercise[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 30).flatMap((item, exerciseIndex) => {
+  let sourceValue = value;
+  if (typeof sourceValue === "string") {
+    try {
+      sourceValue = JSON.parse(sourceValue) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(sourceValue)) return [];
+  return sourceValue.slice(0, 30).flatMap((item, exerciseIndex) => {
     const source = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
     const name = clampText(source.name, 120);
     if (!name) return [];
