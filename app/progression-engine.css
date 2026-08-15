@@ -1,0 +1,50 @@
+/* Free, brand-consistent exercise visuals */
+.exercise-visual-svg,.exercise-visual-image{width:100%;height:100%;min-height:150px;position:relative;overflow:hidden;background:#171a15;color:var(--lime)}
+.exercise-visual-svg svg{display:block;width:100%;height:100%;min-height:150px;padding:7px;box-sizing:border-box}
+.exercise-visual-svg .visual-grid{fill:none;stroke:#2e3429;stroke-width:1}
+.exercise-visual-svg>span{position:absolute;left:8px;right:8px;bottom:6px;color:#c9d1bb;font-size:6px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exercise-visual-image{background-position:center;background-size:cover}
+.exercise-visual-svg.compact,.exercise-visual-image.compact{min-height:92px;height:92px}
+.exercise-visual-svg.compact svg{min-height:92px;padding:2px}
+.exercise-visual-svg.compact>span{display:none}
+.exercise-library-visual{display:block;font-size:inherit;font-weight:inherit}
+.exercise-library-visual>.exercise-visual-svg,.exercise-library-visual>.exercise-visual-image{position:absolute;inset:0}
+.programme-exercise-row{grid-template-columns:108px minmax(0,1fr)!important;padding:0!important;overflow:hidden}
+.programme-exercise-visual{min-width:0;background:#171a15}
+.programme-exercise-body{padding:12px}
+.prescription-grid{grid-template-columns:80px minmax(95px,1fr) 80px 100px 110px!important}
+.client-exercise-title>.exercise-visual-svg,.client-exercise-title>.exercise-visual-image{height:170px;margin:12px 0}
+
+/* RIR progression engine */
+.progression-engine{margin-top:12px;background:#fff;border:1px solid #e2e1d9;padding:30px}
+.progression-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.progression-heading p{margin:0;color:#6c7848;font-size:8px;letter-spacing:.18em;font-weight:800}
+.progression-heading h2{font-size:29px;letter-spacing:-.05em;margin:8px 0 6px}
+.progression-heading span{display:block;color:#73776e;font-size:10px;line-height:1.6}
+.progression-notice,.progression-error{padding:11px 13px;margin:18px 0 0;font-size:9px}
+.progression-notice{background:#eaffb3;color:#405118}.progression-error{background:#ffe8e3;color:#902f25}
+.progression-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:22px}
+.progression-card{display:grid;grid-template-columns:145px minmax(0,1fr);border:1px solid #d9dbd2;background:#f8f8f3;overflow:hidden}
+.progression-card.increase{border-top:3px solid var(--lime)}.progression-card.decrease{border-top:3px solid #d76154}.progression-card.maintain{border-top:3px solid #98a08f}
+.progression-card>.exercise-visual-svg{height:100%;min-height:255px}.progression-card>.exercise-visual-svg svg{min-height:210px}
+.progression-card-body{padding:17px;min-width:0}
+.progression-card-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.progression-card-title small{color:#687642;font-size:7px;font-weight:800;letter-spacing:.13em}
+.progression-card-title h3{font-size:18px;letter-spacing:-.035em;margin:6px 0 3px}
+.progression-card-title span{color:#787c72;font-size:8px}
+.progression-card-title>b{background:#171a15;color:var(--lime);padding:7px;font-size:10px;white-space:nowrap}
+.progression-card.decrease .progression-card-title>b{color:#ff8d80}
+.progression-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#dfe1d8;margin:15px 0}
+.progression-metrics span{background:#fff;padding:9px;color:#74786e;font-size:7px}
+.progression-metrics strong{display:block;color:#171914;font-size:12px;margin-top:4px}
+.progression-card-body>p{color:#62675d;font-size:9px;line-height:1.55;margin:0}
+.progression-prescription{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #dfe0d8;margin-top:12px;padding-top:10px;color:#74786e;font-size:7px}
+.progression-approve{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:var(--lime);padding:11px 12px;margin-top:13px;font-size:9px;font-weight:800;cursor:pointer}
+.progression-approve:disabled{opacity:.58;cursor:wait}
+.progression-empty{border:1px dashed #c8cac0;margin-top:22px;padding:33px;text-align:center;display:grid;gap:8px}
+.progression-empty strong{font-size:18px}.progression-empty span{color:#74786e;font-size:9px}.progression-empty.up-to-date{background:#f3f6e9}
+.progression-engine>footer{display:flex;justify-content:space-between;gap:18px;border-top:1px solid #e1e2da;margin-top:20px;padding-top:13px;color:#757970;font-size:8px}
+.progression-engine>footer a{color:#3f5317;font-weight:800;text-decoration:none}
+
+@media(max-width:1050px){.progression-grid{grid-template-columns:1fr}.progression-card>.exercise-visual-svg{min-height:230px}.prescription-grid{grid-template-columns:repeat(3,1fr)!important}}
+@media(max-width:620px){.progression-engine{padding:20px}.progression-heading{display:block}.progression-heading button{margin-top:14px}.progression-card{grid-template-columns:95px minmax(0,1fr)}.progression-card>.exercise-visual-svg{min-height:300px}.progression-metrics{grid-template-columns:1fr 1fr}.progression-prescription,.progression-engine>footer{align-items:flex-start;flex-direction:column}.programme-exercise-row{grid-template-columns:82px minmax(0,1fr)!important}.prescription-grid{grid-template-columns:1fr 1fr!important}}

@@ -13,13 +13,20 @@ export type ProgrammeExercise = {
   reps: string;
   rir: number;
   restSeconds: number;
+  targetWeight: number | null;
   notes: string;
+  progressionWorkoutId: number | null;
+  progressionUpdatedAt: string;
 };
 
 const clean = (value: unknown, fallback = "") => typeof value === "string" && value.trim() ? value.trim() : fallback;
 const numberBetween = (value: unknown, fallback: number, minimum: number, maximum: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, Math.round(parsed))) : fallback;
+};
+const decimalBetween = (value: unknown, fallback: number, minimum: number, maximum: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, Math.round(parsed * 2) / 2)) : fallback;
 };
 
 export function exerciseFromDefinition(exercise: ExerciseDefinition): ProgrammeExercise {
@@ -36,7 +43,10 @@ export function exerciseFromDefinition(exercise: ExerciseDefinition): ProgrammeE
     reps: "8–12",
     rir: 2,
     restSeconds: 90,
+    targetWeight: null,
     notes: "",
+    progressionWorkoutId: null,
+    progressionUpdatedAt: "",
   };
 }
 
@@ -59,7 +69,10 @@ export function exerciseFromLegacy(value: string, index = 0): ProgrammeExercise 
     reps: clean(setRepMatch?.[2]?.replace(/\s/g, ""), "8–12"),
     rir: numberBetween(rirMatch?.[1], 2, 0, 6),
     restSeconds: numberBetween(restMatch?.[1], 90, 30, 600),
+    targetWeight: null,
     notes: parts.slice(1).filter((part) => !/[x×]|RIR|rest|repos/i.test(part)).join(" · "),
+    progressionWorkoutId: null,
+    progressionUpdatedAt: "",
   };
 }
 
@@ -79,10 +92,13 @@ export function programmeExercise(value: unknown, index = 0): ProgrammeExercise 
     reps: clean(source.reps, "8–12").slice(0, 30),
     rir: numberBetween(source.rir, 2, 0, 6),
     restSeconds: numberBetween(source.restSeconds, 90, 30, 600),
+    targetWeight: source.targetWeight === null || source.targetWeight === undefined || source.targetWeight === "" ? null : decimalBetween(source.targetWeight, 0, 0, 1000),
     notes: clean(source.notes).slice(0, 500),
+    progressionWorkoutId: source.progressionWorkoutId === null || source.progressionWorkoutId === undefined ? null : numberBetween(source.progressionWorkoutId, 0, 0, Number.MAX_SAFE_INTEGER),
+    progressionUpdatedAt: clean(source.progressionUpdatedAt),
   };
 }
 
 export function formatProgrammeExercise(exercise: ProgrammeExercise) {
-  return `${exercise.name} · ${exercise.sets}×${exercise.reps} · RIR ${exercise.rir} · Rest ${exercise.restSeconds}s${exercise.notes ? ` · ${exercise.notes}` : ""}`;
+  return `${exercise.name} · ${exercise.sets}×${exercise.reps} · RIR ${exercise.rir} · Rest ${exercise.restSeconds}s${exercise.targetWeight === null ? "" : ` · ${exercise.targetWeight}kg`}${exercise.notes ? ` · ${exercise.notes}` : ""}`;
 }

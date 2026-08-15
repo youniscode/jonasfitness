@@ -10,6 +10,8 @@ export type WorkoutSet = {
 
 export type WorkoutExercise = {
   id: string;
+  programmeExerciseId: string;
+  libraryId: string;
   name: string;
   target: string;
   focus: string;
@@ -23,11 +25,14 @@ export type WorkoutExercise = {
 };
 
 type ProgrammePrescription = {
+  id: string;
+  libraryId: string;
   name: string;
   sets: number;
   reps: string;
   rir: number;
   restSeconds: number;
+  targetWeight: number | null;
   notes: string;
   instructions: string;
   imageUrl: string;
@@ -76,6 +81,8 @@ export function parseExercises(value: unknown): WorkoutExercise[] {
     const exerciseStatus = clampText(source.status, 20) as WorkoutExercise["status"];
     return [{
       id: clampText(source.id, 80) || uid(),
+      programmeExerciseId: clampText(source.programmeExerciseId, 80),
+      libraryId: clampText(source.libraryId, 80),
       name,
       target: clampText(source.target, 180),
       focus: clampText(source.focus, 240),
@@ -122,6 +129,8 @@ export function createExercises(day: ProgrammeDay): WorkoutExercise[] {
   return day.work.map((prescription, index) => {
     return {
       id: uid(),
+      programmeExerciseId: prescription.id,
+      libraryId: prescription.libraryId,
       name: prescription.name || `Exercise ${index + 1}`,
       target: `${prescription.sets}×${prescription.reps} · RIR ${prescription.rir}`,
       focus: day.focus,
@@ -134,7 +143,7 @@ export function createExercises(day: ProgrammeDay): WorkoutExercise[] {
       sets: Array.from({ length: prescription.sets }, () => ({
         id: uid(),
         target: prescription.reps,
-        weight: null,
+        weight: prescription.targetWeight,
         reps: null,
         rir: String(prescription.rir),
         note: "",
@@ -157,11 +166,14 @@ function programmePrescription(value: unknown, translatedValue: unknown, index: 
   const legacyRir = Number(rirMatch?.[1]);
   const targetRir = Number.isFinite(sourceRir) ? sourceRir : Number.isFinite(legacyRir) ? legacyRir : 2;
   return {
+    id: clampText(source.id, 80),
+    libraryId: clampText(source.libraryId, 80),
     name: translatedName || clampText(source.name, 120) || legacyName || `Exercise ${index + 1}`,
     sets: Math.min(12, Math.max(1, Number(source.sets) || Number(setRepMatch?.[1]) || 3)),
     reps: clampText(source.reps, 30) || setRepMatch?.[2]?.replace(/\s/g, "") || "8–12",
     rir: Math.min(6, Math.max(0, targetRir)),
     restSeconds: Math.min(600, Math.max(30, Number(source.restSeconds) || Number(restMatch?.[1]) || 90)),
+    targetWeight: source.targetWeight === null || source.targetWeight === undefined || source.targetWeight === "" ? null : numeric(source.targetWeight),
     notes: clampText(source.notes, 500),
     instructions: clampText(source.instructions, 1000),
     imageUrl: clampText(source.imageUrl, 1000),

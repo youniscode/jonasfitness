@@ -5,7 +5,7 @@ import { isCompletedWorkoutSet, normaliseCompletedExercises } from "../lib/worko
 
 type Lang = "fr" | "en" | "ar";
 type WorkoutSet = { id: string; target: string; weight: number | null; reps: number | null; rir: string; note: string; status: "pending" | "completed" | "skipped" };
-type WorkoutExercise = { id: string; name: string; target: string; focus: string; instructions: string; imageUrl: string; videoUrl: string; restSeconds: number; note: string; status: "pending" | "completed" | "skipped"; sets: WorkoutSet[] };
+type WorkoutExercise = { id: string; programmeExerciseId: string; libraryId: string; name: string; target: string; focus: string; instructions: string; imageUrl: string; videoUrl: string; restSeconds: number; note: string; status: "pending" | "completed" | "skipped"; sets: WorkoutSet[] };
 type WorkoutStats = { exercises: number; completedSets: number; totalVolume: number };
 type Workout = { id: number; title: string; notes: string; status: string; startedAt: string; completedAt: string | null; exercises: WorkoutExercise[]; stats?: WorkoutStats };
 type WorkoutData = { active: Workout | null; history: Workout[]; programme: { id: number; title: string; days: { index: number; name: string; focus: string }[] } | null; preview: boolean };
