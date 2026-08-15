@@ -6,7 +6,8 @@ type Client = { id: number; name: string };
 type WorkoutSet = { id: string; target: string; weight: number | null; reps: number | null; rpe: string; rir: string; note: string; status: "pending" | "completed" | "skipped" };
 type WorkoutExercise = { id: string; name: string; target: string; focus: string; note: string; status: "pending" | "completed" | "skipped"; sets: WorkoutSet[] };
 type Workout = { id: number; title: string; notes: string; status: string; startedAt: string; completedAt: string | null; exercises: WorkoutExercise[] };
-type Data = { active: Workout | null; history: Workout[]; programme: { title: string; days: { index: number; name: string; focus: string }[] } | null };
+type Readiness = { id: number; startAt: string; durationMinutes: number; pulsePath: string; readinessLevel: "pending" | "green" | "amber" | "red"; readinessScore: number | null; energy: number | null; sleep: number | null; soreness: number | null; stress: number | null; pain: boolean; painArea: string; note: string; aiSummary: string; coachAction: string; respondedAt: string | null };
+type Data = { active: Workout | null; history: Workout[]; programme: { title: string; days: { index: number; name: string; focus: string }[] } | null; readiness: Readiness | null };
 const exerciseLibrary = ["Barbell bench press", "Dumbbell bench press", "Incline dumbbell press", "Cable fly", "Pull-up", "Lat pulldown", "Seated cable row", "Barbell squat", "Leg press", "Romanian deadlift", "Leg curl", "Shoulder press", "Lateral raise", "Barbell curl", "Triceps pressdown", "Plank"];
 
 function statsFor(exercises: WorkoutExercise[]) {
@@ -36,6 +37,26 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
   const [isOnline, setIsOnline] = useState(true);
   const saveTimer = useRef<number | null>(null);
   const t = (english: string, french: string) => language === "fr" ? french : english;
+
+  async function copyPulseLink(readiness: Readiness) {
+    const link = `${window.location.origin}${readiness.pulsePath}`;
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(link);
+      else {
+        const input = document.createElement("textarea");
+        input.value = link;
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      setMessage(t("Pulse link copied — send it to the client before the session.", "Lien Pulse copié — envoyez-le au client avant la séance."));
+    } catch {
+      setMessage(t("Open the Pulse preview from Calendar to share the link.", "Ouvrez l’aperçu Pulse depuis le calendrier pour partager le lien."));
+    }
+  }
 
   const load = useCallback(async () => {
     setMode("loading");
@@ -257,6 +278,8 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
     ? data.history.flatMap((item) => item.exercises).find((exercise) => sameExercise(exercise.name, current.name)) ?? null
     : null, [current, data]);
   const stats = workout ? statsFor(workout.exercises) : { sets: 0, volume: 0 };
+  const readiness = data?.readiness ?? null;
+  const readinessLabel = readiness?.readinessLevel === "green" ? t("Ready", "Prêt") : readiness?.readinessLevel === "amber" ? t("Adjust", "À adapter") : readiness?.readinessLevel === "red" ? t("Review first", "À revoir") : t("Pulse pending", "Pulse en attente");
 
   return <section className="workout-mode" role="dialog" aria-modal="true">
     <header className="workout-topbar">
@@ -276,6 +299,10 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       <p>{t("LIVE SESSION", "SÉANCE EN DIRECT")} · {client.name}</p>
       <h1>{t("Choose today’s workout.", "Choisissez l’entraînement du jour.")}</h1>
       {message && <p className="workout-message">{message}</p>}
+      {readiness && <section className={`live-readiness ${readiness.readinessLevel}`}>
+        <div className="live-readiness-top"><div><small>{t("PRE-SESSION READINESS", "ÉTAT AVANT SÉANCE")}</small><strong>{readinessLabel}</strong><span>{new Date(readiness.startAt).toLocaleString(language === "fr" ? "fr-FR" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div><b>{readiness.readinessScore ? `${readiness.readinessScore}%` : "—"}</b></div>
+        {readiness.readinessLevel === "pending" ? <div className="live-readiness-pending"><p>{t("The client has not sent their 30-second Pulse Check yet. Copy the private link and send it before you begin.", "Le client n’a pas encore envoyé son Pulse de 30 secondes. Copiez le lien privé et envoyez-le avant de commencer.")}</p><button className="live-secondary" onClick={() => void copyPulseLink(readiness)}>{t("Copy Pulse link", "Copier le lien Pulse")} ↗</button></div> : <><div className="live-readiness-metrics"><span>{t("Energy", "Énergie")}<b>{readiness.energy}/5</b></span><span>{t("Sleep", "Sommeil")}<b>{readiness.sleep}/5</b></span><span>{t("Soreness", "Courbatures")}<b>{readiness.soreness}/3</b></span><span>{t("Stress", "Stress")}<b>{readiness.stress}/3</b></span></div>{readiness.pain && <p className="live-readiness-pain">{t("Pain flagged", "Douleur signalée")}{readiness.painArea ? ` · ${readiness.painArea}` : ""}</p>}{readiness.note && <p className="live-readiness-note">“{readiness.note}”</p>}<div className="live-readiness-action"><small>{t("COACH ACTION", "ACTION COACH")}</small><p>{readiness.coachAction}</p></div></>}
+      </section>}
       {workout ? <section className="active-workout-found">
         <small>{t("ACTIVE SESSION FOUND", "SÉANCE ACTIVE TROUVÉE")}</small>
         <h2>{workout.title}</h2>
@@ -302,6 +329,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         <div><p>{t("LIVE SESSION", "SÉANCE EN DIRECT")} · {client.name}</p><h1>{workout.title}</h1><span>{t("Exercise", "Exercice")} {exerciseIndex + 1} {t("of", "sur")} {workout.exercises.length}</span></div>
         <button className="live-primary" onClick={() => void finish()}>{t("Finish & save", "Terminer et enregistrer")} ✓</button>
       </header>
+      {readiness && readiness.readinessLevel !== "pending" && <section className={`live-readiness live-readiness-compact ${readiness.readinessLevel}`}><div><small>{t("TODAY’S READINESS", "ÉTAT DU JOUR")}</small><strong>{readinessLabel}{readiness.readinessScore ? ` · ${readiness.readinessScore}%` : ""}</strong></div><p>{readiness.pain ? `${t("Pain flagged", "Douleur signalée")}${readiness.painArea ? ` · ${readiness.painArea}` : ""}` : readiness.coachAction}</p></section>}
       <section className="rest-timer" aria-live="polite">
         <div><small>{t("REST TIMER", "CHRONO DE REPOS")}</small><strong>{String(Math.floor(restSeconds / 60)).padStart(2, "0")}:{String(restSeconds % 60).padStart(2, "0")}</strong></div>
         <div className="rest-controls">

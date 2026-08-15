@@ -1,8 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { createExercises, parseExercises, programmeDays } from "../../lib/workouts";
 import { getDb } from "../../../db";
-import { clients, programmes, workoutSessions } from "../../../db/schema";
+import { clients, programmes, sessions, workoutSessions } from "../../../db/schema";
 
 function clientIdFrom(request: Request) {
   const value = Number(new URL(request.url).searchParams.get("clientId"));
@@ -26,11 +26,37 @@ export async function GET(request: Request) {
   const [programme] = await db.select().from(programmes)
     .where(and(eq(programmes.ownerId, ownerId), eq(programmes.clientId, clientId), eq(programmes.status, "approved")))
     .orderBy(desc(programmes.createdAt)).limit(1);
+  const [nextSession] = await db.select({
+    id: sessions.id,
+    startAt: sessions.startAt,
+    durationMinutes: sessions.durationMinutes,
+    pulseToken: sessions.pulseToken,
+    readinessLevel: sessions.readinessLevel,
+    readinessScore: sessions.readinessScore,
+    energy: sessions.energy,
+    sleep: sessions.sleep,
+    soreness: sessions.soreness,
+    stress: sessions.stress,
+    pain: sessions.pain,
+    painArea: sessions.painArea,
+    note: sessions.note,
+    aiSummary: sessions.aiSummary,
+    coachAction: sessions.coachAction,
+    respondedAt: sessions.respondedAt,
+  }).from(sessions)
+    .where(and(
+      eq(sessions.ownerId, ownerId),
+      eq(sessions.clientId, clientId),
+      eq(sessions.status, "scheduled"),
+      gte(sessions.startAt, new Date(Date.now() - 6 * 60 * 60 * 1000)),
+    ))
+    .orderBy(asc(sessions.startAt)).limit(1);
   const days = programme ? programmeDays(programme.content) : [];
   return Response.json({
     active: active ? { ...active, exercises: parseExercises(active.exercises) } : null,
     history: history.map((session) => ({ ...session, exercises: parseExercises(session.exercises) })),
     programme: programme ? { id: programme.id, title: programme.title, days: days.map((day, index) => ({ index, name: day.name, focus: day.focus })) } : null,
+    readiness: nextSession ? { ...nextSession, pulsePath: `/pulse/${nextSession.pulseToken}` } : null,
   });
 }
 
