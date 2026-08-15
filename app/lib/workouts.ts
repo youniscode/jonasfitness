@@ -117,9 +117,25 @@ export function createExercises(day: ProgrammeDay): WorkoutExercise[] {
   });
 }
 
+export function isCompletedWorkoutSet(set: Pick<WorkoutSet, "status" | "weight" | "reps">) {
+  return set.status === "completed" || (set.weight !== null && set.reps !== null && set.reps > 0);
+}
+
+export function normaliseCompletedExercises(exercises: WorkoutExercise[]): WorkoutExercise[] {
+  return exercises.map((exercise) => {
+    const sets = exercise.sets.map((set) => isCompletedWorkoutSet(set) ? { ...set, status: "completed" as const } : set);
+    const completedSets = sets.filter(isCompletedWorkoutSet).length;
+    return {
+      ...exercise,
+      sets,
+      status: sets.length > 0 && completedSets === sets.length ? "completed" as const : exercise.status,
+    };
+  });
+}
+
 export function workoutStats(exercises: WorkoutExercise[]) {
   const sets = exercises.flatMap((exercise) => exercise.sets);
-  const completed = sets.filter((set) => set.status === "completed");
+  const completed = sets.filter(isCompletedWorkoutSet);
   return {
     exercises: exercises.length,
     completedSets: completed.length,

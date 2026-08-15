@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { workoutSessions } from "../../../../db/schema";
 import { getPortalAccess } from "../../../client/portal-auth";
-import { parseExercises, workoutStats } from "../../../lib/workouts";
+import { normaliseCompletedExercises, parseExercises, workoutStats } from "../../../lib/workouts";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const access = await getPortalAccess();
@@ -23,8 +23,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const requestedStatus = String(body.status ?? "active");
   const status = requestedStatus === "completed" ? "completed" : requestedStatus === "discarded" ? "discarded" : "active";
-  const exercises = body.exercises === undefined ? parseExercises(existing.exercises) : parseExercises(body.exercises);
+  const parsedExercises = body.exercises === undefined ? parseExercises(existing.exercises) : parseExercises(body.exercises);
+  const exercises = status === "completed" ? normaliseCompletedExercises(parsedExercises) : parsedExercises;
   if (!exercises.length && status !== "discarded") return Response.json({ error: "A workout needs at least one exercise." }, { status: 400 });
+  const stats = workoutStats(exercises);
+  if (status === "completed" && stats.completedSets === 0) {
+    return Response.json({ error: "Mark at least one set as done before completing the workout." }, { status: 400 });
+  }
   const now = new Date();
   const [workout] = await db.update(workoutSessions).set({
     exercises: JSON.stringify(exercises),
@@ -34,5 +39,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updatedAt: now,
   }).where(and(ownership, eq(workoutSessions.status, "active"))).returning();
   if (!workout) return Response.json({ error: "This workout changed on another device. Reload it before continuing." }, { status: 409 });
-  return Response.json({ workout: { ...workout, exercises, stats: workoutStats(exercises) } });
+  if (status === "completed") {
+    console.info("[client-workout:completed]", { workoutId: id, clientId: access.client.id, completedSets: stats.completedSets, totalVolume: stats.totalVolume });
+  }
+  return Response.json({ workout: { ...workout, exercises, stats } });
 }
