@@ -173,6 +173,7 @@ export const progressEntries = pgTable("progress_entries", {
   adherence: integer("adherence").notNull().default(0),
   notes: text("notes").notNull().default(""),
   photoData: text("photo_data").notNull().default(""),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (table) => [index("progress_entries_client_owner_idx").on(table.clientId, table.ownerId, table.createdAt)]);
 
@@ -207,6 +208,7 @@ export const workoutSessions = pgTable("workout_sessions", {
   startedBy: text("started_by").notNull().default("coach"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("workout_sessions_owner_client_idx").on(table.ownerId, table.clientId),

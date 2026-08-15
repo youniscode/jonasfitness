@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import AIResultView from "./AIResultView";
 import LiveSessionMode from "./LiveSessionMode";
 import ProgrammeLibrary from "./ProgrammeLibrary";
@@ -13,6 +13,7 @@ import ProgressionEngine from "./ProgressionEngine";
 import ExerciseHistory from "./ExerciseHistory";
 import AcquisitionDashboard from "./AcquisitionDashboard";
 import LeadPipeline from "./LeadPipeline";
+import CoachCommandCenter from "./CoachCommandCenter";
 
 type Client={id:number;name:string;email:string;phone:string;goal:string;sessionsPerWeek:number;currentWeight:number|null;adherence:number;nextCheckIn:string|null;status:string;acquisitionSource:string};
 type CoachingSession={id:number;clientId:number;clientName:string;startAt:string;durationMinutes:number;status:string;pulsePath:string;readinessLevel:"pending"|"green"|"amber"|"red";readinessScore:number|null;aiSummary:string;coachAction:string;respondedAt:string|null};
@@ -27,6 +28,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
   const [clients,setClients]=useState<Client[]>(demo); const [demoMode,setDemoMode]=useState(true); const [showAdd,setShowAdd]=useState(false); const [showCheckIn,setShowCheckIn]=useState(false); const [showSchedule,setShowSchedule]=useState(false); const [showPortalAccess,setShowPortalAccess]=useState(false); const [showDelete,setShowDelete]=useState(false); const [showLiveSession,setShowLiveSession]=useState(false); const [selected,setSelected]=useState<Client>(demo[0]); const [clientFormError,setClientFormError]=useState(""); const [portalError,setPortalError]=useState(""); const [portalNotice,setPortalNotice]=useState(""); const [deleteError,setDeleteError]=useState(""); const [deleting,setDeleting]=useState(false);
   const [sessions,setSessions]=useState<CoachingSession[]>([]); const [sessionError,setSessionError]=useState(""); const [sessionNotice,setSessionNotice]=useState(""); const [cancellingSessionId,setCancellingSessionId]=useState<number|null>(null);
   const [aiMode,setAiMode]=useState<"programme"|"nutrition"|"chat">("programme"); const [aiResult,setAiResult]=useState<unknown>(null); const [aiNotice,setAiNotice]=useState(""); const [aiProvider,setAiProvider]=useState("CHECKING LOCAL AI"); const [loading,setLoading]=useState(false);
+  const selectClientAndOpen=useCallback((clientId:number,target:string)=>{const client=clients.find(item=>item.id===clientId);if(client)setSelected(client);window.requestAnimationFrame(()=>document.querySelector(target)?.scrollIntoView({behavior:"smooth",block:"start"}))},[clients]);
   useEffect(()=>{fetch("/api/clients").then(r=>r.ok?r.json():Promise.reject()).then(data=>{if(data.clients.length){setClients(data.clients);setSelected(data.clients[0]);setDemoMode(false)}}).catch(()=>{})},[]);
   useEffect(()=>{loadSessions()},[]);
   useEffect(()=>{fetch("/api/coach-ai").then(r=>r.ok?r.json():Promise.reject()).then(data=>setAiProvider(data.connected?`OLLAMA · ${data.model}`:"BUILT-IN FALLBACK")).catch(()=>setAiProvider("BUILT-IN FALLBACK"))},[]);
@@ -52,6 +54,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
     </aside>
     <section className="dash-main" id="overview">
       <header className="dash-header"><div><p>COACH OPERATING SYSTEM</p><h1>Good afternoon, {coachName}.</h1></div><div className="header-actions"><span className="demo-tag">{demoMode?"DEMO DATA":"LIVE DATA"}</span><button className="dark-button" onClick={()=>setShowAdd(true)}>+ Add client</button></div></header>
+      {!demoMode&&<CoachCommandCenter onSelectClient={selectClientAndOpen} />}
       <div className="kpi-grid"><article><small>Active clients</small><strong>{clients.length}</strong><span>Client capacity ready</span></article><article><small>Average adherence</small><strong>{avg}%</strong><span className="positive">↗ Strong this week</span></article><article><small>Check-ins due</small><strong>{Math.min(2,clients.length)}</strong><span>Review queue</span></article><article className="lime-kpi"><small>AI actions</small><strong>4</strong><span>Tools ready</span></article></div>
       <div className="dash-grid">
         <section className="dash-card client-card" id="clients"><div className="card-title"><div><p>CLIENT ROSTER</p><h2>People you coach</h2></div><button onClick={()=>setShowAdd(true)}>Add new</button></div>

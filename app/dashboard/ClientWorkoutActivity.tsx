@@ -88,7 +88,7 @@ export default function ClientWorkoutActivity({ client }: { client: Client }) {
   if (client.id < 1) return null;
 
   return (
-    <section className="client-workout-activity">
+    <section className="client-workout-activity" id="client-workouts">
       <header>
         <div>
           <p>CLIENT WORKOUTS</p>
