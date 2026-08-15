@@ -16,6 +16,7 @@ export const clients = pgTable("clients", {
   ownerId: text("owner_id").notNull(),
   name: text("name").notNull(),
   email: text("email").notNull().default(""),
+  phone: text("phone").notNull().default(""),
   goal: text("goal").notNull().default("Build muscle"),
   status: text("status").notNull().default("active"),
   sessionsPerWeek: integer("sessions_per_week").notNull().default(4),
@@ -30,6 +31,39 @@ export const clients = pgTable("clients", {
   acquisitionCapturedAt: timestamp("acquisition_captured_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (table) => [index("clients_owner_id_idx").on(table.ownerId)]);
+
+// Public coaching applications are deliberately separate from clients. A lead
+// becomes a client only after the coach explicitly approves the conversion.
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull().default(""),
+  country: text("country").notNull().default(""),
+  goal: text("goal").notNull().default("General fitness"),
+  experience: text("experience").notNull().default(""),
+  trainingDays: integer("training_days").notNull().default(3),
+  coachingFormat: text("coaching_format").notNull().default("Online"),
+  contactPreference: text("contact_preference").notNull().default("WhatsApp"),
+  preferredLanguage: text("preferred_language").notNull().default("fr"),
+  message: text("message").notNull().default(""),
+  status: text("status").notNull().default("new"),
+  coachNotes: text("coach_notes").notNull().default(""),
+  acquisitionSource: text("acquisition_source").notNull().default("Direct"),
+  acquisitionMedium: text("acquisition_medium").notNull().default("direct"),
+  acquisitionCampaign: text("acquisition_campaign").notNull().default(""),
+  acquisitionReferrer: text("acquisition_referrer").notNull().default(""),
+  acquisitionLandingPage: text("acquisition_landing_page").notNull().default(""),
+  fingerprint: text("fingerprint").notNull().default(""),
+  convertedClientId: integer("converted_client_id").references(() => clients.id, { onDelete: "set null" }),
+  consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),
+  contactedAt: timestamp("contacted_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("leads_status_created_idx").on(table.status, table.createdAt),
+  index("leads_fingerprint_created_idx").on(table.fingerprint, table.createdAt),
+]);
 
 export const checkIns = pgTable("check_ins", {
   id: serial("id").primaryKey(),

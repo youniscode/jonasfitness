@@ -1,5 +1,6 @@
 export const acquisitionSources = ["Unknown", "Instagram", "TikTok", "Facebook", "Google Search", "YouTube", "WhatsApp", "Referral", "Website", "Direct", "Other"] as const;
 export type AcquisitionSource = typeof acquisitionSources[number];
+export const attributionStorageKey = "jonas:first-touch:v1";
 
 export type Attribution = {
   source: AcquisitionSource;

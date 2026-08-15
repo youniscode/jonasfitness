@@ -12,6 +12,7 @@ import "./client-workout.css";
 import "./programme-builder.css";
 import "./progression-engine.css";
 import "./history-acquisition.css";
+import "./lead-pipeline.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });

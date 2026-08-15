@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const requestedSource = String(body.acquisitionSource ?? "Unknown").trim();
   const acquisitionSource = allowedSources.has(requestedSource) ? requestedSource : "Other";
   const [client] = await getDb().insert(clients).values({
-    ownerId, name, email: String(body.email ?? "").trim().toLowerCase(), goal: String(body.goal ?? "Build muscle"),
+    ownerId, name, email: String(body.email ?? "").trim().toLowerCase(), phone: String(body.phone ?? "").trim().slice(0, 40), goal: String(body.goal ?? "Build muscle"),
     sessionsPerWeek: Math.min(7, Math.max(2, Number(body.sessionsPerWeek) || 4)), currentWeight: body.currentWeight ? Number(body.currentWeight) : null,
     nextCheckIn: String(body.nextCheckIn ?? ""),
     acquisitionSource,

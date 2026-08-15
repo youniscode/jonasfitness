@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import CoachingApplication from "./CoachingApplication";
 
 type Lang="fr"|"en"|"ar";
 const copy={
@@ -18,6 +19,6 @@ export default function Home(){const[lang,setLang]=useState<Lang>("fr");const lo
   <section className="method-section" id="method"><div className="section-heading"><p className="eyebrow dark"><span/>{t.method}</p><h2>{t.methodTitle[0]}<br/><em>{t.methodTitle[1]}</em></h2><p>{t.methodText}</p></div><div className="method-image-band"><Image src="/jonas-method-detail.png" alt={lang==="fr"?"Préparation attentive d’un entraînement":lang==="ar"?"تحضير دقيق لجلسة تدريب":"Thoughtful training preparation"} fill sizes="(max-width: 900px) 100vw, 86vw"/><span>DISCIPLINE · SYSTEM · PROGRESS</span></div><div className="pillar-grid">{t.pillars.map(([title,text],i)=><article className="pillar" key={title}><span>0{i+1}</span><h3>{title}</h3><p>{text}</p></article>)}</div></section>
   <section className="coaching-section" id="coaching"><div><p className="eyebrow"><span/>{t.system}</p><h2>{t.journey}</h2></div><div className="feature-list">{t.features.map(([a,b])=><p key={a}><span>{a}</span><strong>{b}</strong></p>)}</div></section>
   <section className="story-section" id="about"><div className="story-layout"><div><p className="story-kicker">{t.story}</p><blockquote>“{t.quote}”</blockquote><div className="story-footer"><p><strong>Jonas</strong><span>Founder · Jonas Fitness</span></p><p>{t.bio}</p></div></div><div className="story-image"><Image src="/jonas-coaching-notes.png" alt={lang==="fr"?"Préparation d’un coaching personnalisé":lang==="ar"?"تحضير تدريب شخصي":"Personal coaching preparation"} fill sizes="(max-width: 900px) 86vw, 31vw"/><span>HUMAN-LED</span></div></div></section>
-  <section className="early-section" id="early-access"><p className="eyebrow"><span/>{t.soon}</p><h2>{t.ready[0]}<br/><em>{t.ready[1]}</em></h2><p>{t.readyText}</p><a className="button button-light" href="mailto:youniscode@gmail.com?subject=Jonas%20Fitness%20early%20access">{t.join}<span>→</span></a><small>{t.legal}</small></section>
+  <CoachingApplication lang={lang}/>
   <footer><Link className="brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link><p>Online coaching · © 2026 Jonas Fitness</p><a href="mailto:youniscode@gmail.com">{t.contact}</a></footer>
  </main>}

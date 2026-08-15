@@ -2,14 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { sourceFromReferrer, sourceFromUtm, type Attribution } from "./lib/attribution";
+import { attributionStorageKey, sourceFromReferrer, sourceFromUtm, type Attribution } from "./lib/attribution";
 
-const storageKey = "jonas:first-touch:v1";
 const sentKey = "jonas:first-touch-sent:v1";
 
 function readAttribution(): Attribution | null {
   try {
-    const saved = localStorage.getItem(storageKey);
+    const saved = localStorage.getItem(attributionStorageKey);
     if (saved) return JSON.parse(saved) as Attribution;
   } catch { /* storage may be unavailable in private browsing */ }
   return null;
@@ -35,7 +34,7 @@ export default function AttributionCapture() {
     let attribution = readAttribution();
     if (!attribution) {
       attribution = captureAttribution();
-      try { localStorage.setItem(storageKey, JSON.stringify(attribution)); } catch { /* best effort */ }
+      try { localStorage.setItem(attributionStorageKey, JSON.stringify(attribution)); } catch { /* best effort */ }
     }
     let alreadySent = false;
     try { alreadySent = sessionStorage.getItem(sentKey) === "1"; } catch { /* best effort */ }
