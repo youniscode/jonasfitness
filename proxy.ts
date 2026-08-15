@@ -16,6 +16,9 @@ const isProtectedRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
+  if (request.nextUrl.pathname.startsWith("/__clerk/")) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
   if (!isProtectedRoute(request)) return;
   const { userId } = await auth();
   if (userId) return;
@@ -27,8 +30,6 @@ export default clerkMiddleware(async (auth, request) => {
   const signInUrl = new URL("/sign-in", request.url);
   signInUrl.searchParams.set("redirect_url", request.url);
   return NextResponse.redirect(signInUrl);
-}, {
-  frontendApiProxy: { enabled: true },
 });
 
 export const config = {
