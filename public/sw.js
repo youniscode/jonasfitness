@@ -1,5 +1,5 @@
-const SHELL_CACHE = "jonas-fitness-shell-v2";
-const STATIC_CACHE = "jonas-fitness-static-v2";
+const SHELL_CACHE = "jonas-fitness-shell-v3";
+const STATIC_CACHE = "jonas-fitness-static-v3";
 const ACTIVE_CACHES = new Set([SHELL_CACHE, STATIC_CACHE]);
 const SHELL_FILES = ["/", "/offline.html"];
 

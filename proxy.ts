@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
@@ -15,7 +16,19 @@ const isProtectedRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (isProtectedRoute(request)) await auth.protect();
+  if (!isProtectedRoute(request)) return;
+  const { userId } = await auth();
+  if (userId) return;
+
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  }
+
+  const signInUrl = new URL("/sign-in", request.url);
+  signInUrl.searchParams.set("redirect_url", request.url);
+  return NextResponse.redirect(signInUrl);
+}, {
+  frontendApiProxy: { enabled: true },
 });
 
 export const config = {

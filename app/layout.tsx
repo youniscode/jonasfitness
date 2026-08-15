@@ -21,5 +21,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body className={geistSans.variable + " " + geistMono.variable}><ClerkProvider><PwaRegister />{children}</ClerkProvider></body></html>;
+  return <html lang="en"><body className={geistSans.variable + " " + geistMono.variable}><ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" signInFallbackRedirectUrl="/client" signUpFallbackRedirectUrl="/client" afterSignOutUrl="/"><PwaRegister />{children}</ClerkProvider></body></html>;
 }
