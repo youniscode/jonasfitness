@@ -107,9 +107,9 @@ export const workoutSessions = pgTable("workout_sessions", {
   exercises: text("exercises").notNull().default("[]"),
   notes: text("notes").notNull().default(""),
   status: text("status").notNull().default("active"),
-  startedAt: createdAt(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
-  updatedAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("workout_sessions_owner_client_idx").on(table.ownerId, table.clientId),
   index("workout_sessions_active_idx").on(table.ownerId, table.clientId, table.status),
