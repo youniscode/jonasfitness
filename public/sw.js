@@ -1,5 +1,5 @@
-const SHELL_CACHE = "jonas-fitness-shell-v3";
-const STATIC_CACHE = "jonas-fitness-static-v3";
+const SHELL_CACHE = "jonas-fitness-shell-v4";
+const STATIC_CACHE = "jonas-fitness-static-v4";
 const ACTIVE_CACHES = new Set([SHELL_CACHE, STATIC_CACHE]);
 const SHELL_FILES = ["/", "/offline.html"];
 
@@ -32,4 +32,19 @@ self.addEventListener("fetch", (event) => {
       }).catch(() => caches.match(request)),
     );
   }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || "/dashboard#coach-notifications";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const existing = windows.find((client) => "focus" in client);
+      if (existing) {
+        existing.navigate(target);
+        return existing.focus();
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
 });

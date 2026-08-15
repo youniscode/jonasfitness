@@ -14,6 +14,7 @@ import ExerciseHistory from "./ExerciseHistory";
 import AcquisitionDashboard from "./AcquisitionDashboard";
 import LeadPipeline from "./LeadPipeline";
 import CoachCommandCenter from "./CoachCommandCenter";
+import CoachNotifications from "./CoachNotifications";
 
 type Client={id:number;name:string;email:string;phone:string;goal:string;sessionsPerWeek:number;currentWeight:number|null;adherence:number;nextCheckIn:string|null;status:string;acquisitionSource:string};
 type CoachingSession={id:number;clientId:number;clientName:string;startAt:string;durationMinutes:number;status:string;pulsePath:string;readinessLevel:"pending"|"green"|"amber"|"red";readinessScore:number|null;aiSummary:string;coachAction:string;respondedAt:string|null};
@@ -49,12 +50,13 @@ export default function DashboardClient({coachName}:{coachName:string}){
   return <main className="dash-shell">{showLiveSession&&selected.id>0&&<LiveSessionMode client={selected} onClose={()=>setShowLiveSession(false)} />}
     <aside className="sidebar">
       <Link className="brand dash-brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link>
-      <nav className="side-nav"><a className="active" href="#overview"><i>⌂</i>Overview</a><a href="#leads"><i>◇</i>Leads</a><a href="#clients"><i>◎</i>Clients</a><a href="#acquisition"><i>⌁</i>Sources</a><a href="#programmes"><i>▤</i>Programmes</a><a href="#exercise-history"><i>◫</i>Records</a><a href="#progression"><i>↗</i>Progression</a><a href="#progress"><i>◒</i>Progress</a><a href="#studio"><i>✦</i>AI Studio</a><a href="#calendar"><i>□</i>Calendar</a></nav>
+      <nav className="side-nav"><a className="active" href="#overview"><i>⌂</i>Overview</a><a href="#coach-notifications"><i>♢</i>Notifications</a><a href="#leads"><i>◇</i>Leads</a><a href="#clients"><i>◎</i>Clients</a><a href="#acquisition"><i>⌁</i>Sources</a><a href="#programmes"><i>▤</i>Programmes</a><a href="#exercise-history"><i>◫</i>Records</a><a href="#progression"><i>↗</i>Progression</a><a href="#progress"><i>◒</i>Progress</a><a href="#studio"><i>✦</i>AI Studio</a><a href="#calendar"><i>□</i>Calendar</a></nav>
       <div className="side-bottom"><span className="coach-avatar">{coachName.slice(0,2).toUpperCase()}</span><div><strong>{coachName}</strong><small>Coach workspace</small></div><UserButton /></div>
     </aside>
     <section className="dash-main" id="overview">
       <header className="dash-header"><div><p>COACH OPERATING SYSTEM</p><h1>Good afternoon, {coachName}.</h1></div><div className="header-actions"><span className="demo-tag">{demoMode?"DEMO DATA":"LIVE DATA"}</span><button className="dark-button" onClick={()=>setShowAdd(true)}>+ Add client</button></div></header>
       {!demoMode&&<CoachCommandCenter onSelectClient={selectClientAndOpen} />}
+      {!demoMode&&<CoachNotifications onSelectClient={selectClientAndOpen} />}
       <div className="kpi-grid"><article><small>Active clients</small><strong>{clients.length}</strong><span>Client capacity ready</span></article><article><small>Average adherence</small><strong>{avg}%</strong><span className="positive">↗ Strong this week</span></article><article><small>Check-ins due</small><strong>{Math.min(2,clients.length)}</strong><span>Review queue</span></article><article className="lime-kpi"><small>AI actions</small><strong>4</strong><span>Tools ready</span></article></div>
       <div className="dash-grid">
         <section className="dash-card client-card" id="clients"><div className="card-title"><div><p>CLIENT ROSTER</p><h2>People you coach</h2></div><button onClick={()=>setShowAdd(true)}>Add new</button></div>

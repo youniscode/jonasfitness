@@ -7,6 +7,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -214,4 +215,49 @@ export const workoutSessions = pgTable("workout_sessions", {
   index("workout_sessions_owner_client_idx").on(table.ownerId, table.clientId),
   index("workout_sessions_active_idx").on(table.ownerId, table.clientId, table.status),
   index("workout_sessions_completed_idx").on(table.clientId, table.completedAt),
+]);
+
+// Coach alerts are generated from existing coaching activity. The composite
+// unique key makes every alert idempotent, even when the dashboard refreshes.
+export const coachNotifications = pgTable("coach_notifications", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  dedupeKey: text("dedupe_key").notNull(),
+  kind: text("kind").notNull(),
+  severity: text("severity").notNull().default("info"),
+  title: text("title").notNull(),
+  message: text("message").notNull().default(""),
+  actionHref: text("action_href").notNull().default("#overview"),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("coach_notifications_owner_key_unique").on(table.ownerId, table.dedupeKey),
+  index("coach_notifications_owner_created_idx").on(table.ownerId, table.createdAt),
+]);
+
+// This is an operational contact history, not a copy of private conversations.
+// It records what was prepared/opened/sent so follow-ups are not duplicated.
+export const communicationLogs = pgTable("communication_logs", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "set null" }),
+  recipientName: text("recipient_name").notNull(),
+  recipientAddress: text("recipient_address").notNull().default(""),
+  channel: text("channel").notNull().default("whatsapp"),
+  language: text("language").notNull().default("fr"),
+  subject: text("subject").notNull(),
+  message: text("message").notNull().default(""),
+  status: text("status").notNull().default("prepared"),
+  relatedType: text("related_type").notNull().default("manual"),
+  relatedId: integer("related_id"),
+  relatedKey: text("related_key").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [
+  index("communication_logs_owner_created_idx").on(table.ownerId, table.createdAt),
+  index("communication_logs_related_idx").on(table.ownerId, table.relatedKey),
 ]);
