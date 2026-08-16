@@ -4,6 +4,8 @@ import { getDb } from "../../../db";
 import { leadActivities, leadConsultations, leads } from "../../../db/schema";
 import {
   escapeLike,
+  NEW_LEADS_ATTENTION_LIMIT,
+  newLeadsAttention,
   OPEN_LEAD_STATUSES,
   parseLeadListQuery,
   parisDayBounds,
@@ -110,13 +112,17 @@ export async function GET(request: Request) {
   // consultations. Bounded so the "sales today" panel stays fast regardless of
   // total lead volume.
   const { start, end } = parisDayBounds(new Date());
-  const [overdue, dueToday, upcomingConsultations, consultationsToday] = await Promise.all([
+  const [overdue, dueToday, newLeads, upcomingConsultations, consultationsToday] = await Promise.all([
     db.select(leadColumns).from(leads)
       .where(and(inArray(leads.status, OPEN_LEAD_STATUSES), lt(leads.nextFollowUpAt, start)))
       .orderBy(asc(leads.nextFollowUpAt)).limit(100),
     db.select(leadColumns).from(leads)
       .where(and(inArray(leads.status, OPEN_LEAD_STATUSES), gte(leads.nextFollowUpAt, start), lt(leads.nextFollowUpAt, end)))
       .orderBy(asc(leads.nextFollowUpAt)).limit(100),
+    // Brand-new leads waiting for first contact. Bounded like the other panels.
+    db.select(leadColumns).from(leads)
+      .where(eq(leads.status, "new"))
+      .orderBy(desc(leads.createdAt), desc(leads.id)).limit(NEW_LEADS_ATTENTION_LIMIT),
     db.select(consultationColumns).from(leadConsultations)
       .innerJoin(leads, eq(leads.id, leadConsultations.leadId))
       .where(and(eq(leadConsultations.status, "scheduled"), gte(leadConsultations.startAt, new Date(Date.now() - 30 * 60 * 1000))))
@@ -137,6 +143,6 @@ export async function GET(request: Request) {
     sources: sources.map((row) => row.source),
     activities,
     consultations,
-    today: { overdue, dueToday, upcomingConsultations, consultationsToday: consultationsToday[0]?.value ?? 0 },
+    today: { overdue, dueToday, newLeads: newLeadsAttention(newLeads), upcomingConsultations, consultationsToday: consultationsToday[0]?.value ?? 0 },
   });
 }

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { formatParisDateTime, formatParisShort, parisInDays, parisInputValue } from "../lib/paris-time";
 import { canTransitionConsultation, consultationStatuses } from "../lib/lead-follow-up";
+import { parisDateKey } from "../lib/notification-evaluation";
 
 type Status = "new" | "contacted" | "qualified" | "client" | "lost";
 type ActivityType = "note" | "phone" | "email" | "whatsapp" | "status" | "follow_up" | "consultation";
@@ -18,7 +19,7 @@ type Activity = { id: number; leadId: number; type: ActivityType; title: string;
 type Consultation = { id: number; leadId: number; leadName?: string; preferredLanguage?: string; startAt: string; durationMinutes: number; status: ConsultationStatus; outcome: string; notes: string; createdAt: string };
 type ConvertedClient = { id:number; name:string; email:string; phone:string; goal:string; sessionsPerWeek:number; currentWeight:number|null; adherence:number; nextCheckIn:string|null; status:string; acquisitionSource:string };
 type StageCounts = { new: number; contacted: number; qualified: number; client: number; lost: number };
-type TodayData = { overdue: Lead[]; dueToday: Lead[]; upcomingConsultations: Consultation[]; consultationsToday: number };
+type TodayData = { overdue: Lead[]; dueToday: Lead[]; newLeads: Lead[]; upcomingConsultations: Consultation[]; consultationsToday: number };
 
 const columns: { status: Status; label: string }[] = [
   { status: "new", label: "New" }, { status: "contacted", label: "Contacted" },
@@ -96,7 +97,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
   const [totalAll, setTotalAll] = useState(0);
   const [archivedCount, setArchivedCount] = useState(0);
   const [serverSources, setServerSources] = useState<string[]>([]);
-  const [today, setToday] = useState<TodayData>({ overdue: [], dueToday: [], upcomingConsultations: [], consultationsToday: 0 });
+  const [today, setToday] = useState<TodayData>({ overdue: [], dueToday: [], newLeads: [], upcomingConsultations: [], consultationsToday: 0 });
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -138,7 +139,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       setTotalAll(result.totalAll ?? 0);
       setArchivedCount(result.archived ?? 0);
       setServerSources(result.sources ?? []);
-      setToday(result.today ?? { overdue: [], dueToday: [], upcomingConsultations: [], consultationsToday: 0 });
+      setToday(result.today ?? { overdue: [], dueToday: [], newLeads: [], upcomingConsultations: [], consultationsToday: 0 });
       setTotal(result.total ?? 0);
       setHasMore(result.hasMore ?? false);
     } catch (issue) { setError(issue instanceof Error ? issue.message : "Leads could not be loaded."); }
@@ -264,6 +265,29 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     finally { setConverting(null); }
   }
 
+  // Brings the coach to a lead surfaced in the Sales Today attention area: if
+  // the lead is on the current board page, scroll to and expand its card;
+  // otherwise (filtered out by search/source/pagination) open its interaction
+  // modal directly so it is still actionable.
+  function openLead(lead: Lead) {
+    const card = document.getElementById(`lead-card-${lead.id}`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      (card as HTMLDetailsElement).open = true;
+    } else {
+      setActivityLead(lead);
+    }
+  }
+
+  // Compact "applied" label for the new-leads panel, on the Paris calendar.
+  // `clock` is the render-safe tick state (0 until the first tick, when the
+  // full date is shown instead of "Applied today").
+  function appliedLabel(value: string) {
+    const created = new Date(value);
+    const todayKey = clock ? parisDateKey(new Date(clock)) : "";
+    return todayKey && parisDateKey(created) === todayKey ? "Applied today" : `Applied ${formatParisShort(value)}`;
+  }
+
   function chosenTemplate(lead: Lead) { return templates[lead.id] ?? (lead.status === "new" ? "initial" : "followup"); }
   function latestScheduledConsultation(leadId: number) { return consultationsByLead.get(leadId)?.find((item) => item.status === "scheduled" && new Date(item.startAt).getTime() >= now - 30 * 60_000); }
   // Contextual next step for a lead based on its most recent consultation.
@@ -305,6 +329,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       <div className="sales-today-heading"><div><p>SALES TODAY</p><h3>What needs your attention.</h3></div><span>{clock ? new Intl.DateTimeFormat(undefined, { weekday:"long", day:"numeric", month:"long" }).format(new Date(clock)) : "Today"}</span></div>
       <div className="sales-metrics"><article className={today.overdue.length ? "urgent" : ""}><small>OVERDUE</small><strong>{today.overdue.length}</strong><span>follow-ups</span></article><article><small>DUE TODAY</small><strong>{today.dueToday.length}</strong><span>follow-ups</span></article><article><small>CONSULTATIONS</small><strong>{today.consultationsToday}</strong><span>today</span></article><article><small>NEW LEADS</small><strong>{counts.new}</strong><span>waiting</span></article></div>
       <div className="sales-task-grid">
+        <div><h4>NEW LEADS WAITING</h4>{today.newLeads.length === 0 ? <p className="pipeline-empty">No new leads waiting.</p> : today.newLeads.slice(0, 6).map((lead) => <article className="sales-task new-lead-task" key={lead.id}><span>{appliedLabel(lead.createdAt)}</span><div><strong>{lead.name}</strong><small>{lead.acquisitionSource} · {lead.goal}</small></div><button onClick={() => openLead(lead)}>Open →</button></article>)}</div>
         <div><h4>FOLLOW-UP QUEUE</h4>{followUpQueue.length === 0 ? <p className="pipeline-empty">Nothing overdue or due today.</p> : followUpQueue.map(({ lead, overdue }) => <article className="sales-task" key={lead.id}><span className={overdue ? "task-alert" : ""}>{lead.nextFollowUpAt ? formatDateTime(lead.nextFollowUpAt) : ""}</span><div><strong>{lead.name}</strong><small>{lead.goal} · {lead.acquisitionSource}</small></div><button onClick={() => setActivityLead(lead)}>Log contact →</button></article>)}</div>
         <div><h4>UPCOMING CONSULTATIONS</h4>{today.upcomingConsultations.length === 0 ? <p className="pipeline-empty">No consultations scheduled.</p> : today.upcomingConsultations.slice(0, 6).map((item) => <article className="sales-task consultation-task" key={item.id}><span>{formatDateTime(item.startAt)}</span><div><strong>{item.leadName ?? "Lead"}</strong><small>{item.durationMinutes} min · {(item.preferredLanguage ?? "fr").toUpperCase()}</small></div><button onClick={() => setManagedConsultation(item)}>Manage →</button></article>)}</div>
       </div>
@@ -315,7 +340,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     <div className="pipeline-board">{boardColumns.map((column) => <section className={`pipeline-column ${column.status}`} key={column.status}><header><span>{column.label}</span><b>{counts[column.status]}</b></header><div>
       {leads.filter((lead) => lead.status === column.status).map((lead) => {
         const leadActivities = activitiesByLead.get(lead.id) ?? []; const leadConsultations = consultationsByLead.get(lead.id) ?? []; const followUpTime = lead.nextFollowUpAt ? new Date(lead.nextFollowUpAt).getTime() : 0;
-        return <details className="lead-card" key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}{consultationBadge(leadConsultations, now)}</span><b>＋</b></summary><div className="lead-detail">
+        return <details className="lead-card" id={`lead-card-${lead.id}`} key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}{consultationBadge(leadConsultations, now)}</span><b>＋</b></summary><div className="lead-detail">
           <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "—"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.createdAt).toLocaleDateString()}</b></span></div>
           {lead.message ? <p>{lead.message}</p> : null}
           <div className="contact-workbench"><label>Message template<select value={chosenTemplate(lead)} onChange={(event) => setTemplates((current) => ({ ...current, [lead.id]: event.target.value as TemplateKey }))}><option value="initial">Initial reply · {lead.preferredLanguage.toUpperCase()}</option><option value="followup">Follow-up · {lead.preferredLanguage.toUpperCase()}</option><option value="consultation">Consultation · {lead.preferredLanguage.toUpperCase()}</option></select></label><div><button onClick={() => void copyTemplate(lead)}>Copy</button><button onClick={() => openContact(lead, "email")}>Email</button><button className="whatsapp-contact" onClick={() => openContact(lead, "whatsapp")}>WhatsApp ↗</button></div></div>

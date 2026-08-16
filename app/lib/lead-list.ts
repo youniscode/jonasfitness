@@ -17,6 +17,10 @@ export type LeadView = "active" | "archived";
 export const LEAD_PAGE_SIZE_DEFAULT = 50;
 export const LEAD_PAGE_SIZE_MAX = 100;
 
+// Number of brand-new leads surfaced in the Sales Today "NEW LEADS WAITING"
+// panel. Newest first; bounded so the panel stays fast at any lead volume.
+export const NEW_LEADS_ATTENTION_LIMIT = 100;
+
 export type LeadListQuery = {
   page: number;
   pageSize: number;
@@ -24,6 +28,29 @@ export type LeadListQuery = {
   search: string;
   source: string;
 };
+
+// Minimal shape the new-leads attention projection needs from a lead row.
+// Callers pass richer rows; the generic constraint preserves the extras.
+export type NewLeadAttentionRow = {
+  id: number;
+  name: string;
+  status: string;
+  acquisitionSource: string;
+  goal: string;
+  createdAt: Date;
+};
+
+// Pure projection of the leads waiting for first contact: status "new" only.
+// Contacted/qualified/client/lost leads drop out automatically once their
+// status changes — no separate state is kept. Deterministic (newest first,
+// bounded, input not mutated) so it is unit-testable and safe to run on every
+// dashboard poll.
+export function newLeadsAttention<T extends NewLeadAttentionRow>(rows: T[]): T[] {
+  return [...rows]
+    .filter((row) => row.status === "new")
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, NEW_LEADS_ATTENTION_LIMIT);
+}
 
 // Clamps an integer query param. Invalid/missing values fall back to a safe
 // default; out-of-range values are clamped. "abc" and 0 are invalid.

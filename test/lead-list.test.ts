@@ -6,11 +6,14 @@ import {
   escapeLike,
   LEAD_PAGE_SIZE_DEFAULT,
   LEAD_PAGE_SIZE_MAX,
+  NEW_LEADS_ATTENTION_LIMIT,
+  newLeadsAttention,
   OPEN_LEAD_STATUSES,
   parseLeadListQuery,
   parisDayBounds,
   viewStatuses,
 } from "../app/lib/lead-list.ts";
+import type { NewLeadAttentionRow } from "../app/lib/lead-list.ts";
 
 test("parseLeadListQuery applies default page and pageSize", () => {
   const query = parseLeadListQuery(new URLSearchParams());
@@ -78,4 +81,62 @@ test("parisDayBounds is deterministic and spans one Paris calendar day", () => {
   const summer = new Date("2026-08-15T22:00:00.000Z");
   const summerBounds = parisDayBounds(summer);
   assert.equal(summerBounds.start.toISOString(), "2026-08-15T22:00:00.000Z");
+});
+
+// ---------- New-leads attention (Sales Today "NEW LEADS WAITING" panel) ----------
+
+function leadRow(overrides: Partial<NewLeadAttentionRow> = {}): NewLeadAttentionRow {
+  return {
+    id: 1,
+    name: "Younis MOHAMMAD",
+    status: "new",
+    acquisitionSource: "Referral",
+    goal: "Fat loss",
+    createdAt: new Date("2026-08-16T08:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+test("newLeadsAttention surfaces only status=new leads, newest first", () => {
+  const rows = [
+    leadRow({ id: 1, name: "Older", createdAt: new Date("2026-08-15T08:00:00.000Z") }),
+    leadRow({ id: 2, name: "Newer", createdAt: new Date("2026-08-16T08:00:00.000Z") }),
+  ];
+  const result = newLeadsAttention(rows);
+  assert.deepEqual(result.map((row) => row.id), [2, 1]);
+});
+
+test("newLeadsAttention represents multiple new leads", () => {
+  const rows = [1, 2, 3, 4, 5].map((id) => leadRow({ id, createdAt: new Date(Date.UTC(2026, 7, 16, 0, 0, id)) }));
+  const result = newLeadsAttention(rows);
+  assert.equal(result.length, 5);
+  assert.deepEqual(new Set(result.map((row) => row.id)), new Set([1, 2, 3, 4, 5]));
+});
+
+test("contacted/qualified/client/lost leads never appear in attention", () => {
+  const rows = [
+    leadRow({ id: 1, status: "contacted" }),
+    leadRow({ id: 2, status: "qualified" }),
+    leadRow({ id: 3, status: "client" }),
+    leadRow({ id: 4, status: "lost" }),
+    leadRow({ id: 5, status: "new" }),
+  ];
+  const result = newLeadsAttention(rows);
+  assert.deepEqual(result.map((row) => row.id), [5]);
+});
+
+test("newLeadsAttention is bounded to the panel limit", () => {
+  const rows = Array.from({ length: NEW_LEADS_ATTENTION_LIMIT + 20 }, (_, index) =>
+    leadRow({ id: index + 1, createdAt: new Date(Date.UTC(2026, 7, 16, 0, 0, index)) }));
+  assert.equal(newLeadsAttention(rows).length, NEW_LEADS_ATTENTION_LIMIT);
+});
+
+test("newLeadsAttention does not mutate its input (concurrent-poll safe)", () => {
+  const rows = [
+    leadRow({ id: 1, createdAt: new Date("2026-08-15T08:00:00.000Z") }),
+    leadRow({ id: 2, createdAt: new Date("2026-08-16T08:00:00.000Z") }),
+  ];
+  const before = JSON.stringify(rows);
+  newLeadsAttention(rows);
+  assert.equal(JSON.stringify(rows), before);
 });
