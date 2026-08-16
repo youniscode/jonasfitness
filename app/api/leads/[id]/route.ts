@@ -4,7 +4,7 @@ import { getDb } from "../../../../db";
 import { leadActivities, leads } from "../../../../db/schema";
 import { isLeadStatus, planLeadDeletion } from "../../../lib/leads";
 import { safeText } from "../../../lib/attribution";
-import { optionalDate } from "../../../lib/lead-follow-up";
+import { followUpActivity, optionalDate } from "../../../lib/lead-follow-up";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await getCoachId();
@@ -44,12 +44,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     activityRows.push(activity);
   }
   if (body.nextFollowUpAt !== undefined) {
+    // `followUpAction: "done"` distinguishes an explicit completion from a plain
+    // clear on the timeline; changing an existing date is logged as a reschedule.
+    const action = body.followUpAction === "done" ? "done" : body.followUpAction === "clear" ? "clear" : undefined;
+    const info = followUpActivity(existing.nextFollowUpAt, updates.nextFollowUpAt ?? null, action);
     const [activity] = await db.insert(leadActivities).values({
       leadId: id,
       ownerId,
       type: "follow_up",
-      title: updates.nextFollowUpAt ? "Follow-up scheduled" : "Follow-up cleared",
-      detail: updates.nextFollowUpAt ? updates.nextFollowUpAt.toISOString() : "",
+      title: info.title,
+      detail: info.detail,
     }).returning();
     activityRows.push(activity);
   }

@@ -33,7 +33,8 @@ type QueueItem = {
 };
 
 function formatWhen(value: string) {
-  return new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  // The coach operates in Europe/Paris; the command-center clock reflects it.
+  return new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(value));
 }
 
 function relativeTime(value: string | null, now: number) {

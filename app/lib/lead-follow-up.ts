@@ -37,3 +37,65 @@ export function consultationValues(body: Record<string, unknown>) {
     notes: safeText(body.notes, 800),
   };
 }
+
+// Canonical lifecycle: a consultation is born "scheduled"; the coach moves it to
+// completed/no_show/cancelled. Cancelled can be reactivated (rebooked in place);
+// completed and no_show are terminal for the row itself — a follow-up or a new
+// booking is a fresh record, never a silent status mutation.
+export const consultationTransitions: Record<ConsultationStatus, readonly ConsultationStatus[]> = {
+  scheduled: ["scheduled", "completed", "cancelled", "no_show"],
+  cancelled: ["scheduled", "cancelled"],
+  completed: ["completed"],
+  no_show: ["no_show"],
+};
+
+export function canTransitionConsultation(from: ConsultationStatus, to: ConsultationStatus): boolean {
+  return consultationTransitions[from]?.includes(to) ?? false;
+}
+
+// Only a scheduled consultation can be rescheduled (date/time/duration change).
+// A cancelled/completed/no-show consultation keeps its history; moving the
+// appointment means booking a new one.
+export function canRescheduleConsultation(status: ConsultationStatus): boolean {
+  return status === "scheduled";
+}
+
+export type ScheduledConsultationLike = {
+  id: number;
+  leadId: number;
+  startAt: Date;
+  durationMinutes: number;
+};
+
+// True overlap between a candidate slot and any of the given rows, ignoring the
+// row being edited (excludeId). Back-to-back slots (one ends exactly when the
+// other starts) do not conflict. Pure: routes fetch the coach's scheduled rows
+// and hand them here, so the rule is unit-testable.
+export function overlappingConsultation(
+  rows: ScheduledConsultationLike[],
+  candidate: { startAt: Date; durationMinutes: number; excludeId?: number },
+): ScheduledConsultationLike | undefined {
+  const start = candidate.startAt.getTime();
+  const end = start + candidate.durationMinutes * 60_000;
+  return rows.find((row) => {
+    if (candidate.excludeId !== undefined && row.id === candidate.excludeId) return false;
+    const rowStart = row.startAt.getTime();
+    const rowEnd = rowStart + row.durationMinutes * 60_000;
+    return start < rowEnd && rowStart < end;
+  });
+}
+
+// The timeline entry a follow-up mutation should record. `action` distinguishes
+// an explicit "done" from a plain clear; changing an existing date is logged as
+// a reschedule so the coach can see the history, never a silent overwrite.
+export function followUpActivity(
+  existing: Date | null,
+  next: Date | null,
+  action: "done" | "clear" | undefined,
+): { title: string; detail: string } {
+  if (next === null) {
+    return { title: action === "done" ? "Follow-up completed" : "Follow-up cleared", detail: "" };
+  }
+  const rescheduled = existing !== null;
+  return { title: rescheduled ? "Follow-up rescheduled" : "Follow-up scheduled", detail: next.toISOString() };
+}

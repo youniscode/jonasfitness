@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { formatParisDateTime, formatParisShort, parisInDays, parisInputValue } from "../lib/paris-time";
+import { canTransitionConsultation, consultationStatuses } from "../lib/lead-follow-up";
 
 type Status = "new" | "contacted" | "qualified" | "client" | "lost";
 type ActivityType = "note" | "phone" | "email" | "whatsapp" | "status" | "follow_up" | "consultation";
@@ -28,15 +30,23 @@ const emptyCounts: StageCounts = { new: 0, contacted: 0, qualified: 0, client: 0
 const templateLabels: Record<TemplateKey, string> = { initial: "Initial reply", followup: "Follow-up", consultation: "Consultation" };
 const activityLabels: Record<ActivityType, string> = { note:"Note", phone:"Phone", email:"Email", whatsapp:"WhatsApp", status:"Status", follow_up:"Follow-up", consultation:"Consultation" };
 
+// Europe/Paris is the operational coach timezone: datetime-local inputs and
+// displayed times are expressed on the Paris calendar, never the browser's.
 function localInputValue(value: string | Date) {
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+  return parisInputValue(new Date(value));
 }
 
 function formatDateTime(value: string, language = "en") {
-  const locale = language === "ar" ? "ar" : language === "fr" ? "fr-FR" : "en-GB";
-  return new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return formatParisDateTime(value, language);
+}
+
+function consultationBadge(consultations: Consultation[], now: number) {
+  const scheduled = consultations.find((item) => item.status === "scheduled" && new Date(item.startAt).getTime() >= now - 30 * 60_000);
+  if (scheduled) return <i className="consultation-set">CONSULT · {formatParisShort(scheduled.startAt)}</i>;
+  const latest = [...consultations].sort((a, b) => b.startAt.localeCompare(a.startAt))[0];
+  if (!latest || latest.status === "scheduled") return null;
+  const label = latest.status === "no_show" ? "NO-SHOW" : latest.status === "completed" ? "DONE" : "CANCELLED";
+  return <i className={`consultation-flag ${latest.status}`}>{label} · {formatParisShort(latest.startAt)}</i>;
 }
 
 function contactTemplate(lead: Lead, key: TemplateKey, consultation?: Consultation) {
@@ -97,6 +107,8 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [source, setSource] = useState("All");
   const [converting, setConverting] = useState<number | null>(null);
+  const [booking, setBooking] = useState(false);
+  const [managing, setManaging] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [consultationLead, setConsultationLead] = useState<Lead | null>(null);
   const [managedConsultation, setManagedConsultation] = useState<Consultation | null>(null);
@@ -192,32 +204,42 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
 
   async function scheduleConsultation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!consultationLead) return; const form = new FormData(event.currentTarget);
-    const response = await fetch(`/api/leads/${consultationLead.id}/consultations`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
-        startAt: new Date(String(form.get("startAt"))).toISOString(), durationMinutes: Number(form.get("durationMinutes")), notes: String(form.get("notes") ?? ""),
-      }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) { setError(result.error ?? "Consultation could not be scheduled."); return; }
-    setConsultations((current) => [...current, result.consultation].sort((a, b) => a.startAt.localeCompare(b.startAt)));
-    setActivities((current) => [result.activity, ...current]);
-    setLeads((current) => current.map((lead) => lead.id === consultationLead.id ? result.lead : lead));
-    setNotice(`Consultation scheduled for ${consultationLead.name}.`); setConsultationLead(null);
+    setBooking(true); setError("");
+    try {
+      const response = await fetch(`/api/leads/${consultationLead.id}/consultations`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+          startAt: new Date(String(form.get("startAt"))).toISOString(), durationMinutes: Number(form.get("durationMinutes")), notes: String(form.get("notes") ?? ""),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(result.error ?? "Consultation could not be scheduled."); return; }
+      if (result.duplicate) {
+        setNotice(`A consultation for ${consultationLead.name} is already scheduled at this time — no duplicate created.`);
+        setConsultationLead(null); return;
+      }
+      setConsultations((current) => [...current, result.consultation].sort((a, b) => a.startAt.localeCompare(b.startAt)));
+      setActivities((current) => [result.activity, ...current]);
+      setLeads((current) => current.map((lead) => lead.id === consultationLead.id ? result.lead : lead));
+      setNotice(`Consultation scheduled for ${consultationLead.name}.`); setConsultationLead(null);
+    } finally { setBooking(false); }
   }
 
   async function updateConsultation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!managedConsultation) return; const form = new FormData(event.currentTarget);
-    const response = await fetch(`/api/consultations/${managedConsultation.id}`, {
-      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({
-        status: String(form.get("status")), outcome: String(form.get("outcome") ?? ""), notes: String(form.get("notes") ?? ""),
-        startAt: new Date(String(form.get("startAt"))).toISOString(), durationMinutes: Number(form.get("durationMinutes")),
-      }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) { setError(result.error ?? "Consultation could not be updated."); return; }
-    setConsultations((current) => current.map((item) => item.id === managedConsultation.id ? result.consultation : item));
-    if (result.activity) setActivities((current) => [result.activity, ...current]);
-    setNotice("Consultation updated."); setManagedConsultation(null); void load();
+    setManaging(true); setError("");
+    try {
+      const response = await fetch(`/api/consultations/${managedConsultation.id}`, {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({
+          status: String(form.get("status")), outcome: String(form.get("outcome") ?? ""), notes: String(form.get("notes") ?? ""),
+          startAt: new Date(String(form.get("startAt"))).toISOString(), durationMinutes: Number(form.get("durationMinutes")),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(result.error ?? "Consultation could not be updated."); return; }
+      setConsultations((current) => current.map((item) => item.id === managedConsultation.id ? result.consultation : item));
+      if (result.activity) setActivities((current) => [result.activity, ...current]);
+      setNotice("Consultation updated."); setManagedConsultation(null); void load();
+    } finally { setManaging(false); }
   }
 
   async function deleteLead(lead: Lead) {
@@ -244,6 +266,25 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
 
   function chosenTemplate(lead: Lead) { return templates[lead.id] ?? (lead.status === "new" ? "initial" : "followup"); }
   function latestScheduledConsultation(leadId: number) { return consultationsByLead.get(leadId)?.find((item) => item.status === "scheduled" && new Date(item.startAt).getTime() >= now - 30 * 60_000); }
+  // Contextual next step for a lead based on its most recent consultation.
+  // Completion never auto-converts or auto-loses a lead: the coach chooses.
+  function nextStep(lead: Lead, consultations: Consultation[]) {
+    if (lead.status === "client") return null;
+    const next = consultations.find((item) => item.status === "scheduled" && new Date(item.startAt).getTime() >= now - 30 * 60_000);
+    const followUpInDays = (days: number) => parisInDays(new Date(clock || Date.now()), days).toISOString();
+    if (next) {
+      return <div className="lead-next-step"><h5>NEXT STEP</h5><div className="next-action-row"><button onClick={() => setManagedConsultation(next)}>Complete · no-show · cancel</button></div></div>;
+    }
+    const latest = [...consultations].sort((a, b) => b.startAt.localeCompare(a.startAt))[0];
+    if (!latest) return null;
+    if (latest.status === "completed") {
+      return <div className="lead-next-step"><h5>NEXT STEP</h5><div className="next-action-row"><button onClick={() => void patchLead(lead.id, { status: "qualified" })}>Qualify</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: followUpInDays(2) })}>Follow-up</button><button onClick={() => void convert(lead)}>Convert to client</button><button onClick={() => void patchLead(lead.id, { status: "lost" })}>Mark lost</button></div></div>;
+    }
+    if (latest.status === "no_show" || latest.status === "cancelled") {
+      return <div className="lead-next-step"><h5>NEXT STEP</h5><div className="next-action-row"><button onClick={() => setConsultationLead(lead)}>Rebook consultation</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: followUpInDays(2) })}>Schedule follow-up</button></div></div>;
+    }
+    return null;
+  }
   function openContact(lead: Lead, channel: "email" | "whatsapp") {
     const key = chosenTemplate(lead); const copy = contactTemplate(lead, key, latestScheduledConsultation(lead.id));
     void addActivity(lead, { type: channel, title: `${channel === "email" ? "Email" : "WhatsApp"}: ${templateLabels[key]} prepared`, detail: copy.message }, true);
@@ -274,15 +315,16 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     <div className="pipeline-board">{boardColumns.map((column) => <section className={`pipeline-column ${column.status}`} key={column.status}><header><span>{column.label}</span><b>{counts[column.status]}</b></header><div>
       {leads.filter((lead) => lead.status === column.status).map((lead) => {
         const leadActivities = activitiesByLead.get(lead.id) ?? []; const leadConsultations = consultationsByLead.get(lead.id) ?? []; const followUpTime = lead.nextFollowUpAt ? new Date(lead.nextFollowUpAt).getTime() : 0;
-        return <details className="lead-card" key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}</span><b>＋</b></summary><div className="lead-detail">
+        return <details className="lead-card" key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}{consultationBadge(leadConsultations, now)}</span><b>＋</b></summary><div className="lead-detail">
           <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "—"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.createdAt).toLocaleDateString()}</b></span></div>
           {lead.message ? <p>{lead.message}</p> : null}
           <div className="contact-workbench"><label>Message template<select value={chosenTemplate(lead)} onChange={(event) => setTemplates((current) => ({ ...current, [lead.id]: event.target.value as TemplateKey }))}><option value="initial">Initial reply · {lead.preferredLanguage.toUpperCase()}</option><option value="followup">Follow-up · {lead.preferredLanguage.toUpperCase()}</option><option value="consultation">Consultation · {lead.preferredLanguage.toUpperCase()}</option></select></label><div><button onClick={() => void copyTemplate(lead)}>Copy</button><button onClick={() => openContact(lead, "email")}>Email</button><button className="whatsapp-contact" onClick={() => openContact(lead, "whatsapp")}>WhatsApp ↗</button></div></div>
           <div className="lead-action-row"><button onClick={() => setActivityLead(lead)}>+ Log interaction</button><button onClick={() => setConsultationLead(lead)}>+ Consultation</button></div>
-          <form className="follow-up-form" onSubmit={(event) => void saveFollowUp(event, lead)}><label>Next follow-up<input key={lead.nextFollowUpAt ?? "empty"} name="nextFollowUpAt" type="datetime-local" defaultValue={lead.nextFollowUpAt ? localInputValue(lead.nextFollowUpAt) : ""} /></label><button>Save</button><button type="button" onClick={() => void patchLead(lead.id, { nextFollowUpAt: null })}>Clear</button></form>
+          <form className="follow-up-form" onSubmit={(event) => void saveFollowUp(event, lead)}><label>Next follow-up<input key={lead.nextFollowUpAt ?? "empty"} name="nextFollowUpAt" type="datetime-local" defaultValue={lead.nextFollowUpAt ? localInputValue(lead.nextFollowUpAt) : localInputValue(parisInDays(new Date(clock || Date.now()), 2))} /></label><button>Save</button><button type="button" onClick={() => void patchLead(lead.id, { nextFollowUpAt: null })}>Clear</button></form>
+          <div className="follow-up-quick"><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 1).toISOString() })}>Tomorrow</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 2).toISOString() })}>In 2 days</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 3).toISOString() })}>In 3 days</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 7).toISOString() })}>In 1 week</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: null, followUpAction: "done" })}>Mark done ✓</button></div>
           <label>Status<select value={lead.status} disabled={lead.status === "client"} onChange={(event) => void patchLead(lead.id, { status: event.target.value as Status })}>{columns.filter((option) => option.status !== "client" || lead.status === "client").map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}</select></label>
           <label>Coach notes<textarea defaultValue={lead.coachNotes} onBlur={(event) => { if (event.target.value !== lead.coachNotes) void patchLead(lead.id, { coachNotes: event.target.value }); }} placeholder="Fit, objections, next step…" /></label>
-          {leadConsultations.length ? <div className="lead-consultations"><h5>CONSULTATIONS</h5>{leadConsultations.slice(0, 3).map((item) => <button key={item.id} onClick={() => setManagedConsultation(item)}><span>{formatDateTime(item.startAt)}</span><b>{item.status.replace("_", " ")}</b></button>)}</div> : null}
+          {leadConsultations.length ? <div className="lead-consultations"><h5>CONSULTATIONS</h5>{leadConsultations.slice(0, 3).map((item) => <button key={item.id} onClick={() => setManagedConsultation(item)}><span>{formatDateTime(item.startAt)}</span><b>{item.status.replace("_", " ")}</b></button>)}{nextStep(lead, leadConsultations)}</div> : null}
           <div className="lead-timeline"><h5>ACTIVITY</h5>{leadActivities.length === 0 ? <p>No activity recorded yet.</p> : leadActivities.slice(0, 6).map((activity) => <article key={activity.id}><i>{activityLabels[activity.type]?.slice(0, 1) ?? "•"}</i><span><b>{activity.title}</b><small>{formatDateTime(activity.occurredAt)}</small>{activity.detail && activity.type !== "email" && activity.type !== "whatsapp" ? <em>{activity.detail}</em> : null}</span></article>)}</div>
           {lead.status !== "client" ? <button className="convert-lead" disabled={converting === lead.id} onClick={() => void convert(lead)}>{converting === lead.id ? "Converting…" : "Convert to client →"}</button> : <p className="converted-label">✓ Client created</p>}
           {lead.status !== "client" ? <button className="delete-lead" onClick={() => void deleteLead(lead)}>Delete lead</button> : null}
@@ -294,8 +336,8 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
 
     {activityLead ? <div className="sales-modal-backdrop" role="presentation" onMouseDown={() => setActivityLead(null)}><form className="sales-modal" onSubmit={logActivity} onMouseDown={(event) => event.stopPropagation()}><header><div><p>INTERACTION · {activityLead.name}</p><h3>Record what happened.</h3></div><button type="button" aria-label="Close" onClick={() => setActivityLead(null)}>×</button></header><label>Contact type<select name="type" defaultValue={activityLead.contactPreference.toLowerCase() === "email" ? "email" : "whatsapp"}><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="phone">Phone call</option><option value="note">General note</option></select></label><label>Outcome / note<textarea name="detail" required placeholder="What was discussed? What is the next step?" /></label><label>Next follow-up<input name="nextFollowUpAt" type="datetime-local" defaultValue={localInputValue(new Date(now + 24 * 60 * 60 * 1000))} /></label><button className="sales-primary">Save interaction →</button></form></div> : null}
 
-    {consultationLead ? <div className="sales-modal-backdrop" role="presentation" onMouseDown={() => setConsultationLead(null)}><form className="sales-modal" onSubmit={scheduleConsultation} onMouseDown={(event) => event.stopPropagation()}><header><div><p>CONSULTATION · {consultationLead.name}</p><h3>Book the conversation.</h3></div><button type="button" aria-label="Close" onClick={() => setConsultationLead(null)}>×</button></header><label>Date and time<input name="startAt" type="datetime-local" required defaultValue={localInputValue(new Date(now + 24 * 60 * 60 * 1000))} /></label><label>Duration<select name="durationMinutes" defaultValue="30"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label><label>Preparation note<textarea name="notes" placeholder="Questions to cover, goal, objections…" /></label><p className="sales-hint">After saving, choose the Consultation message template to send the confirmed time in {consultationLead.preferredLanguage.toUpperCase()}.</p><button className="sales-primary">Schedule consultation →</button></form></div> : null}
+    {consultationLead ? <div className="sales-modal-backdrop" role="presentation" onMouseDown={() => setConsultationLead(null)}><form className="sales-modal" onSubmit={scheduleConsultation} onMouseDown={(event) => event.stopPropagation()}><header><div><p>CONSULTATION · {consultationLead.name}</p><h3>Book the conversation.</h3></div><button type="button" aria-label="Close" onClick={() => setConsultationLead(null)}>×</button></header><label>Date and time<input name="startAt" type="datetime-local" required defaultValue={localInputValue(new Date(now + 24 * 60 * 60 * 1000))} /></label><label>Duration<select name="durationMinutes" defaultValue="30"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label><label>Preparation note<textarea name="notes" placeholder="Questions to cover, goal, objections…" /></label><p className="sales-hint">After saving, choose the Consultation message template to send the confirmed time in {consultationLead.preferredLanguage.toUpperCase()}.</p><button className="sales-primary" disabled={booking}>{booking ? "Scheduling…" : "Schedule consultation →"}</button></form></div> : null}
 
-    {managedConsultation ? <div className="sales-modal-backdrop" role="presentation" onMouseDown={() => setManagedConsultation(null)}><form className="sales-modal" onSubmit={updateConsultation} onMouseDown={(event) => event.stopPropagation()}><header><div><p>CONSULTATION · {managedConsultation.leadName ?? leadMap.get(managedConsultation.leadId)?.name}</p><h3>Outcome and next step.</h3></div><button type="button" aria-label="Close" onClick={() => setManagedConsultation(null)}>×</button></header><label>Date and time<input name="startAt" type="datetime-local" required defaultValue={localInputValue(managedConsultation.startAt)} /></label><label>Duration<select name="durationMinutes" defaultValue={managedConsultation.durationMinutes}><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label><label>Status<select name="status" defaultValue={managedConsultation.status}><option value="scheduled">Scheduled</option><option value="completed">Completed</option><option value="no_show">No show</option><option value="cancelled">Cancelled</option></select></label><label>Outcome<input name="outcome" defaultValue={managedConsultation.outcome} placeholder="Ready to start, follow up later, not a fit…" /></label><label>Coach notes<textarea name="notes" defaultValue={managedConsultation.notes} placeholder="Needs, budget, decision, next step…" /></label><button className="sales-primary">Save consultation →</button></form></div> : null}
+    {managedConsultation ? <div className="sales-modal-backdrop" role="presentation" onMouseDown={() => setManagedConsultation(null)}><form className="sales-modal" onSubmit={updateConsultation} onMouseDown={(event) => event.stopPropagation()}><header><div><p>CONSULTATION · {managedConsultation.leadName ?? leadMap.get(managedConsultation.leadId)?.name}</p><h3>Outcome and next step.</h3></div><button type="button" aria-label="Close" onClick={() => setManagedConsultation(null)}>×</button></header><label>Date and time<input name="startAt" type="datetime-local" required defaultValue={localInputValue(managedConsultation.startAt)} /></label><label>Duration<select name="durationMinutes" defaultValue={managedConsultation.durationMinutes}><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label><label>Status<select name="status" defaultValue={managedConsultation.status}>{consultationStatuses.filter((status) => canTransitionConsultation(managedConsultation.status, status)).map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}</select></label><label>Outcome<input name="outcome" defaultValue={managedConsultation.outcome} placeholder="Ready to start, follow up later, not a fit…" /></label><label>Coach notes<textarea name="notes" defaultValue={managedConsultation.notes} placeholder="Needs, budget, decision, next step…" /></label><p className="sales-hint">Completion never auto-converts: after saving, choose the next step in the lead card.</p><button className="sales-primary" disabled={managing}>{managing ? "Saving…" : "Save consultation →"}</button></form></div> : null}
   </section>;
 }
