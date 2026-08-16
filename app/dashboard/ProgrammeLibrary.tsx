@@ -13,6 +13,7 @@ import {
   programmeExercise,
   type ProgrammeExercise,
 } from "../lib/programme-builder";
+import { compareProgrammeFrequency } from "../lib/workouts";
 import ExerciseVisual from "../components/ExerciseVisual";
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
@@ -162,6 +163,9 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   }, [client.id, loadProgrammes]);
 
   const selected = useMemo(() => programmes.find((programme) => programme.id === selectedId) ?? null, [programmes, selectedId]);
+  // Actual training-day count vs the client's preferred weekly sessions. Only a
+  // real mismatch (both values known) surfaces a warning — never a hard block.
+  const frequency = selected ? compareProgrammeFrequency(selected.content, client.sessionsPerWeek) : null;
   const filteredLibrary = useMemo(() => {
     const query = search.trim().toLowerCase();
     return library.filter((exercise) => {
@@ -355,6 +359,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
       <article className="programme-detail">
         <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <><button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button><button type="button" className="programme-delete-button" onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}>Delete programme</button></>}</div></div>
         {editing ? <div className="programme-meta-edit"><label>Goal<select value={draft.goal} onChange={(event) => setDraft({ ...draft, goal: event.target.value })}><option>Build muscle</option><option>Build strength</option><option>Fat loss</option><option>General fitness</option></select></label><label>Sessions per week<select value={draft.sessions.length} onChange={(event) => resizeSessions(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6, 7].map((value) => <option key={value}>{value}</option>)}</select></label></div> : <p className="programme-meta">{draft.goal} · {draft.sessionsPerWeek} sessions per week · Saved {new Date(selected.createdAt).toLocaleDateString()}</p>}
+        {!editing && frequency && !frequency.matches && <div className="programme-frequency-warning" role="note"><p>⚠ TRAINING FREQUENCY MISMATCH</p><span>Client preference <b>{frequency.clientSessions} sessions/week</b></span><span>Programme <b>{frequency.programmeSessions} sessions/week</b></span><em>Review before assigning. You can still assign this programme.</em></div>}
         <div className="programme-translation"><div><p>CLIENT LANGUAGE VERSION</p><span>Translate a separate client copy while preserving sets, reps, rest and RIR.</span></div><div><select aria-label="Programme translation language" value={translationTarget} onChange={(event) => setTranslationTarget(event.target.value as ProgrammeLanguage)}><option value="fr">French</option><option value="en">English</option><option value="ar">Arabic</option></select><button type="button" className="ghost-button" disabled={translating} onClick={() => void translateForClient()}>{translating ? "Translating…" : "Translate live"}</button></div></div>
         {Object.keys(draft.translations).length > 0 && <p className="programme-translation-status">Client versions saved: {Object.keys(draft.translations).map((language) => language.toUpperCase()).join(" · ")}</p>}
         {editing ? <textarea className="programme-overview-input" aria-label="Programme overview" value={draft.overview} onChange={(event) => setDraft({ ...draft, overview: event.target.value })} /> : <p className="programme-overview">{draft.overview}</p>}

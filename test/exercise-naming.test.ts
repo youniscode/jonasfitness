@@ -105,6 +105,38 @@ test("legacy string exercises default to empty FR/AR names without breaking", ()
   assert.equal(legacy.nameAr, "");
 });
 
+test("programmeDays selects the translated client copy when one exists", () => {
+  const content = JSON.stringify({
+    title: "Build strength foundation",
+    overview: "",
+    sessions: [{ name: "Upper strength", focus: "Upper body", exercises: [{ id: "e1", libraryId: "builtin-barbell-bench-press", name: "Barbell bench press", nameFr: "Développé couché barre", nameAr: "ضغط الصدر بالبار", muscleGroup: "Chest", equipment: "Barbell", instructions: "", imageUrl: "", videoUrl: "", sets: 3, reps: "8–12", rir: 2, restSeconds: 90, targetWeight: null, notes: "" }] }],
+    translations: {
+      fr: { title: "Base de force", overview: "", sessions: [{ name: "Force du haut du corps", focus: "Haut du corps", work: ["Développé couché barre"] }] },
+    },
+  });
+  const days = programmeDays(content, "fr");
+  assert.equal(days.length, 1);
+  assert.equal(days[0].name, "Force du haut du corps");
+  assert.equal(days[0].focus, "Haut du corps");
+  // The translated work string wins over the canonical English object name.
+  assert.equal(days[0].work[0].name, "Développé couché barre");
+});
+
+test("programmeDays falls back to the canonical copy when no translation exists", () => {
+  const content = JSON.stringify({
+    title: "Build strength foundation",
+    overview: "",
+    sessions: [{ name: "Upper strength", focus: "Upper body", exercises: [{ id: "e1", libraryId: "builtin-barbell-bench-press", name: "Barbell bench press", nameFr: "Développé couché barre", nameAr: "ضغط الصدر بالبار", muscleGroup: "Chest", equipment: "Barbell", instructions: "", imageUrl: "", videoUrl: "", sets: 3, reps: "8–12", rir: 2, restSeconds: 90, targetWeight: null, notes: "" }] }],
+  });
+  const days = programmeDays(content, "fr");
+  assert.equal(days.length, 1);
+  assert.equal(days[0].name, "Upper strength");
+  // The exercise object still carries nameFr so the workout UI can localize it.
+  assert.equal(days[0].work[0].name, "Barbell bench press");
+  assert.equal(days[0].work[0].nameFr, "Développé couché barre");
+  assert.equal(days[0].work[0].nameAr, "ضغط الصدر بالبار");
+});
+
 test("programmeDays + createExercises carry FR/AR names through to a workout", () => {
   const content = JSON.stringify({
     title: "Push day",

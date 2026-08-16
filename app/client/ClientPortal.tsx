@@ -47,7 +47,11 @@ function readDays(content: Record<string, unknown>, t: DayText, lang: Lang): Pro
   const raw = Array.isArray(content.sessions) ? content.sessions : Array.isArray(content.days) ? content.days : Array.isArray(content.workouts) ? content.workouts : [];
   return raw.map((item, index) => {
     const day = item as Record<string, unknown>;
-    const work = Array.isArray(day.work) ? day.work : Array.isArray(day.exercises) ? day.exercises : [];
+    // Prefer the rich exercise objects saved by the Programme Builder: they
+    // carry nameFr/nameAr and imageUrl, so the client sees localized names in
+    // their own language. Fall back to the flattened `work` strings for
+    // translated copies and legacy programmes.
+    const work = Array.isArray(day.exercises) ? day.exercises : Array.isArray(day.work) ? day.work : [];
     return { name: String(day.name ?? day.title ?? t.defaultDay(index + 1)), focus: String(day.focus ?? day.description ?? t.defaultFocus), work: work.map(value => typeof value === "string" ? value : (() => { const item = value as Record<string, unknown>; return exerciseDisplayName({ name: String(item.name ?? ""), nameFr: typeof item.nameFr === "string" ? item.nameFr : undefined, nameAr: typeof item.nameAr === "string" ? item.nameAr : undefined }, lang) || String(item.name ?? t.defaultExercise); })()) };
   });
 }

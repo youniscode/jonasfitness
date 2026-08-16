@@ -222,3 +222,35 @@ export function workoutStats(exercises: WorkoutExercise[]) {
     totalVolume: Math.round(completed.reduce((total, set) => total + (set.weight ?? 0) * (set.reps ?? 0), 0)),
   };
 }
+
+export type ProgrammeFrequencyComparison = {
+  matches: boolean;
+  clientSessions: number | null;
+  programmeSessions: number;
+  difference: number;
+};
+
+// Compares the client's preferred weekly sessions with the actual number of
+// training days stored in a programme's content. The count comes from the real
+// session/day structure (never from the title text) via programmeDays, which
+// tolerates legacy shapes and drops unusable days. A mismatch is only reported
+// when both values are known: an unknown client preference or an empty/legacy
+// programme never produces a false warning.
+export function compareProgrammeFrequency(
+  content: string,
+  clientSessionsPerWeek: number | null | undefined,
+): ProgrammeFrequencyComparison {
+  const programmeSessions = programmeDays(content).length;
+  const clientSessions = typeof clientSessionsPerWeek === "number"
+    && Number.isFinite(clientSessionsPerWeek)
+    && clientSessionsPerWeek > 0
+    ? Math.round(clientSessionsPerWeek)
+    : null;
+  const comparable = clientSessions !== null && programmeSessions > 0;
+  return {
+    matches: !comparable || clientSessions === programmeSessions,
+    clientSessions,
+    programmeSessions,
+    difference: comparable ? Math.abs(clientSessions - programmeSessions) : 0,
+  };
+}
