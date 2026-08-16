@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   canRescheduleConsultation,
   canTransitionConsultation,
+  consultationRowAction,
   consultationStatuses,
   followUpActivity,
   overlappingConsultation,
@@ -49,6 +50,16 @@ test("only scheduled consultations can be rescheduled", () => {
   assert.equal(canRescheduleConsultation("completed"), false);
   assert.equal(canRescheduleConsultation("no_show"), false);
   assert.equal(canRescheduleConsultation("cancelled"), false);
+});
+
+test("scheduled consultation rows expose the manage action in the lead card", () => {
+  assert.equal(consultationRowAction("scheduled"), "manage");
+});
+
+test("completed/no-show/cancelled rows expose no manage action", () => {
+  assert.equal(consultationRowAction("completed"), null);
+  assert.equal(consultationRowAction("no_show"), null);
+  assert.equal(consultationRowAction("cancelled"), null);
 });
 
 // ---------- Conflict / overlap detection ----------

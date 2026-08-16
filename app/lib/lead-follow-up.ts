@@ -60,6 +60,14 @@ export function canRescheduleConsultation(status: ConsultationStatus): boolean {
   return status === "scheduled";
 }
 
+// The explicit action a consultation row in the lead card should expose.
+// Only a scheduled consultation is managed in place (reschedule, complete,
+// no-show, cancel); completed / no-show / cancelled rows keep their history
+// and are not reschedulable — moving the appointment means booking a new one.
+export function consultationRowAction(status: ConsultationStatus): "manage" | null {
+  return canRescheduleConsultation(status) ? "manage" : null;
+}
+
 export type ScheduledConsultationLike = {
   id: number;
   leadId: number;
