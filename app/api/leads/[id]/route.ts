@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getCoachId } from "../../../clerk-auth";
 import { getDb } from "../../../../db";
 import { leadActivities, leads } from "../../../../db/schema";
-import { isLeadStatus } from "../../../lib/leads";
+import { isLeadStatus, planLeadDeletion } from "../../../lib/leads";
 import { safeText } from "../../../lib/attribution";
 import { optionalDate } from "../../../lib/lead-follow-up";
 
@@ -54,4 +54,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     activityRows.push(activity);
   }
   return Response.json({ lead, activities: activityRows });
+}
+
+// Coach-only deletion. Converted/client leads are protected (their row is the
+// acquisition/conversion history for a real client). Deleting a lead cascades
+// its activities, consultations and lead-linked notifications (the FK is
+// ON DELETE CASCADE) and nulls any communication-log references (SET NULL).
+// NOTE: leads have no ownerId (single-coach/global model), so this is scoped by
+// coach auth + lead id only — safe while Jonas-Fitness remains single-coach.
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const ownerId = await getCoachId();
+  if (!ownerId) return Response.json({ error: "Coach access required." }, { status: 403 });
+  const id = Number((await params).id);
+  if (!Number.isInteger(id) || id < 1) return Response.json({ error: "Invalid lead." }, { status: 400 });
+  const db = getDb();
+  const [existing] = await db.select({ id: leads.id, name: leads.name, status: leads.status, convertedClientId: leads.convertedClientId })
+    .from(leads).where(eq(leads.id, id)).limit(1);
+  if (!existing) return Response.json({ error: "Lead not found." }, { status: 404 });
+  const plan = planLeadDeletion(existing);
+  if (!plan.allowed) return Response.json({ error: plan.reason }, { status: 409 });
+  await db.delete(leads).where(eq(leads.id, id));
+  return Response.json({ deleted: true, id: existing.id, name: existing.name });
 }

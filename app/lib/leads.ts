@@ -88,3 +88,24 @@ export function planConversion(
   if (existingClient) return { kind: "link", clientId: existingClient.id };
   return { kind: "create", email: lead.email };
 }
+
+// Statuses a lead may be explicitly deleted from. "client" is excluded because
+// a converted lead is the acquisition/conversion history for a real client row.
+export const deletableLeadStatuses = ["new", "contacted", "qualified", "lost"] as const;
+export const isDeletableLeadStatus = (value: unknown): value is (typeof deletableLeadStatuses)[number] =>
+  deletableLeadStatuses.includes(String(value) as (typeof deletableLeadStatuses)[number]);
+
+export type LeadDeletionPlan = { allowed: true } | { allowed: false; reason: string };
+
+// Decides whether a lead may be deleted. Converted leads (status "client" or a
+// linked convertedClientId) are protected: deleting them would sever the
+// acquisition/conversion history attached to a real client. There is no
+// automatic retention cleanup in this phase because the schema has no reliable
+// "lost at" timestamp (`updatedAt` is touched by unrelated edits, so it cannot
+// stand in for `lostAt`); deletion is a deliberate coach action only.
+export function planLeadDeletion(lead: { status: string; convertedClientId: number | null }): LeadDeletionPlan {
+  if (lead.status === "client" || lead.convertedClientId !== null) {
+    return { allowed: false, reason: "Converted leads preserve acquisition history and cannot be deleted." };
+  }
+  return { allowed: true };
+}

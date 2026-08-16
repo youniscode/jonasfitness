@@ -91,6 +91,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
   const [managedConsultation, setManagedConsultation] = useState<Consultation | null>(null);
   const [templates, setTemplates] = useState<Record<number, TemplateKey>>({});
   const [clock, setClock] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   const load = useCallback(async () => {
@@ -112,6 +113,11 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     (source === "All" || lead.acquisitionSource === source) &&
     (!deferredQuery || `${lead.name} ${lead.email} ${lead.phone} ${lead.goal}`.toLowerCase().includes(deferredQuery)),
   ), [leads, source, deferredQuery]);
+  // Lost leads are archived out of the active pipeline by default; the coach can
+  // opt back in to review/delete them.
+  const boardLeads = useMemo(() => showArchived ? visible : visible.filter((lead) => lead.status !== "lost"), [visible, showArchived]);
+  const boardColumns = useMemo(() => showArchived ? columns : columns.filter((column) => column.status !== "lost"), [showArchived]);
+  const archivedCount = leads.filter((lead) => lead.status === "lost").length;
   const activitiesByLead = useMemo(() => {
     const grouped = new Map<number, Activity[]>();
     for (const activity of activities) grouped.set(activity.leadId, [...(grouped.get(activity.leadId) ?? []), activity]);
@@ -195,6 +201,18 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     setNotice("Consultation updated."); setManagedConsultation(null);
   }
 
+  async function deleteLead(lead: Lead) {
+    if (!window.confirm(`Delete lead ${lead.name}? This permanently removes their activities and consultations.`)) return;
+    setError("");
+    const response = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(result.error ?? "Lead could not be deleted."); return; }
+    setLeads((current) => current.filter((item) => item.id !== lead.id));
+    setActivities((current) => current.filter((item) => item.leadId !== lead.id));
+    setConsultations((current) => current.filter((item) => item.leadId !== lead.id));
+    setNotice(`Lead ${lead.name} deleted.`);
+  }
+
   async function convert(lead: Lead) {
     if (!window.confirm(`Convert ${lead.name} into a client?`)) return;
     setConverting(lead.id); setError("");
@@ -232,10 +250,10 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       </div>
     </section>
     <div className="pipeline-summary"><article><small>NEW</small><strong>{visible.filter((lead) => lead.status === "new").length}</strong></article><article><small>QUALIFIED</small><strong>{visible.filter((lead) => lead.status === "qualified").length}</strong></article><article><small>CONVERTED</small><strong>{visible.filter((lead) => lead.status === "client").length}</strong></article><article><small>CONVERSION</small><strong>{visible.length ? Math.round(visible.filter((lead) => lead.status === "client").length / visible.length * 100) : 0}%</strong></article></div>
-    <div className="pipeline-toolbar"><label>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, email, goal…" /></label><label>Source<select value={source} onChange={(event) => setSource(event.target.value)}>{sources.map((item) => <option key={item}>{item}</option>)}</select></label></div>
+    <div className="pipeline-toolbar"><label>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, email, goal…" /></label><label>Source<select value={source} onChange={(event) => setSource(event.target.value)}>{sources.map((item) => <option key={item}>{item}</option>)}</select></label><button type="button" className="archive-toggle" onClick={() => setShowArchived((current) => !current)}>{showArchived ? "Hide archived" : `Show archived (${archivedCount})`}</button></div>
     {notice ? <p className="pipeline-notice">✓ {notice}</p> : null}{error ? <p className="form-error" role="alert">{error}</p> : null}
-    <div className="pipeline-board">{columns.map((column) => <section className={`pipeline-column ${column.status}`} key={column.status}><header><span>{column.label}</span><b>{visible.filter((lead) => lead.status === column.status).length}</b></header><div>
-      {visible.filter((lead) => lead.status === column.status).map((lead) => {
+    <div className="pipeline-board">{boardColumns.map((column) => <section className={`pipeline-column ${column.status}`} key={column.status}><header><span>{column.label}</span><b>{boardLeads.filter((lead) => lead.status === column.status).length}</b></header><div>
+      {boardLeads.filter((lead) => lead.status === column.status).map((lead) => {
         const leadActivities = activitiesByLead.get(lead.id) ?? []; const leadConsultations = consultationsByLead.get(lead.id) ?? []; const followUpTime = lead.nextFollowUpAt ? new Date(lead.nextFollowUpAt).getTime() : 0;
         return <details className="lead-card" key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}</span><b>＋</b></summary><div className="lead-detail">
           <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "—"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.createdAt).toLocaleDateString()}</b></span></div>
@@ -248,9 +266,10 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
           {leadConsultations.length ? <div className="lead-consultations"><h5>CONSULTATIONS</h5>{leadConsultations.slice(0, 3).map((item) => <button key={item.id} onClick={() => setManagedConsultation(item)}><span>{formatDateTime(item.startAt)}</span><b>{item.status.replace("_", " ")}</b></button>)}</div> : null}
           <div className="lead-timeline"><h5>ACTIVITY</h5>{leadActivities.length === 0 ? <p>No activity recorded yet.</p> : leadActivities.slice(0, 6).map((activity) => <article key={activity.id}><i>{activityLabels[activity.type]?.slice(0, 1) ?? "•"}</i><span><b>{activity.title}</b><small>{formatDateTime(activity.occurredAt)}</small>{activity.detail && activity.type !== "email" && activity.type !== "whatsapp" ? <em>{activity.detail}</em> : null}</span></article>)}</div>
           {lead.status !== "client" ? <button className="convert-lead" disabled={converting === lead.id} onClick={() => void convert(lead)}>{converting === lead.id ? "Converting…" : "Convert to client →"}</button> : <p className="converted-label">✓ Client created</p>}
+          {lead.status !== "client" ? <button className="delete-lead" onClick={() => void deleteLead(lead)}>Delete lead</button> : null}
         </div></details>;
       })}
-      {visible.every((lead) => lead.status !== column.status) ? <p className="pipeline-empty">No {column.label.toLowerCase()} leads.</p> : null}
+      {boardLeads.every((lead) => lead.status !== column.status) ? <p className="pipeline-empty">No {column.label.toLowerCase()} leads.</p> : null}
     </div></section>)}</div>
 
     {activityLead ? <div className="sales-modal-backdrop" role="presentation" onMouseDown={() => setActivityLead(null)}><form className="sales-modal" onSubmit={logActivity} onMouseDown={(event) => event.stopPropagation()}><header><div><p>INTERACTION · {activityLead.name}</p><h3>Record what happened.</h3></div><button type="button" aria-label="Close" onClick={() => setActivityLead(null)}>×</button></header><label>Contact type<select name="type" defaultValue={activityLead.contactPreference.toLowerCase() === "email" ? "email" : "whatsapp"}><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="phone">Phone call</option><option value="note">General note</option></select></label><label>Outcome / note<textarea name="detail" required placeholder="What was discussed? What is the next step?" /></label><label>Next follow-up<input name="nextFollowUpAt" type="datetime-local" defaultValue={localInputValue(new Date(now + 24 * 60 * 60 * 1000))} /></label><button className="sales-primary">Save interaction →</button></form></div> : null}

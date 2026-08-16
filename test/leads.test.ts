@@ -2,12 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   applicationValues,
+  deletableLeadStatuses,
   emailIsValid,
+  isDeletableLeadStatus,
   isLeadStatus,
   isManualLeadStatus,
   leadStatuses,
   manualLeadStatuses,
   planConversion,
+  planLeadDeletion,
   reviewApplication,
 } from "../app/lib/leads.ts";
 import { safeSource, sourceFromReferrer, sourceFromUtm } from "../app/lib/attribution.ts";
@@ -116,6 +119,31 @@ test("emailIsValid rejects malformed and over-long emails", () => {
   assert.equal(emailIsValid("not-an-email"), false);
   assert.equal(emailIsValid(""), false);
   assert.equal(emailIsValid(`${"a".repeat(200)}@example.com`), false);
+});
+
+test("deletable lead statuses are the active + lost set, excluding client", () => {
+  assert.deepEqual([...deletableLeadStatuses], ["new", "contacted", "qualified", "lost"]);
+  assert.equal(isDeletableLeadStatus("new"), true);
+  assert.equal(isDeletableLeadStatus("qualified"), true);
+  assert.equal(isDeletableLeadStatus("lost"), true);
+  assert.equal(isDeletableLeadStatus("client"), false);
+  assert.equal(isDeletableLeadStatus("converted"), false);
+});
+
+test("planLeadDeletion allows active and lost leads", () => {
+  assert.deepEqual(planLeadDeletion({ status: "new", convertedClientId: null }), { allowed: true });
+  assert.deepEqual(planLeadDeletion({ status: "contacted", convertedClientId: null }), { allowed: true });
+  assert.deepEqual(planLeadDeletion({ status: "qualified", convertedClientId: null }), { allowed: true });
+  assert.deepEqual(planLeadDeletion({ status: "lost", convertedClientId: null }), { allowed: true });
+});
+
+test("planLeadDeletion protects converted/client leads", () => {
+  const client = planLeadDeletion({ status: "client", convertedClientId: 7 });
+  assert.equal(client.allowed, false);
+  if (!client.allowed) assert.match(client.reason, /Converted leads/);
+  // Even an inconsistent state (linked client id but wrong status) is protected.
+  const inconsistent = planLeadDeletion({ status: "lost", convertedClientId: 7 });
+  assert.equal(inconsistent.allowed, false);
 });
 
 test("planConversion decides create, link and already", () => {
