@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { formatParisDateTime, formatParisShort, parisInDays, parisInputValue } from "../lib/paris-time";
-import { canTransitionConsultation, consultationRowAction, consultationStatuses } from "../lib/lead-follow-up";
+import { canTransitionConsultation, consultationRowAction, consultationStatuses, followUpTransitionVerb } from "../lib/lead-follow-up";
 import { parisDateKey } from "../lib/notification-evaluation";
 
 type Status = "new" | "contacted" | "qualified" | "client" | "lost";
@@ -166,14 +166,27 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
 
   async function patchLead(id: number, updates: Record<string, unknown>) {
     setError("");
+    const previous = leads.find((lead) => lead.id === id);
     const response = await fetch(`/api/leads/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(updates) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) { setError(result.error ?? "Lead could not be updated."); return null; }
     setLeads((current) => current.map((lead) => lead.id === id ? result.lead : lead));
     if (result.activities?.length) setActivities((current) => [...result.activities, ...current]);
-    // A status change can move the lead across the active/archived boundary, so
-    // refresh the page (and aggregate metrics) to keep the board consistent.
-    if (updates.status !== undefined) void load();
+    // A status change can move the lead across the active/archived boundary, and
+    // a follow-up change must refresh the server-driven today panel (priority
+    // queue, metrics), so reload to keep the board and queue consistent.
+    if (updates.status !== undefined || updates.nextFollowUpAt !== undefined) void load();
+    if (updates.nextFollowUpAt !== undefined && previous) {
+      // Toast semantics come from the same transition rules as the timeline
+      // entry: scheduled / rescheduled / cleared / completed — and no toast for
+      // a no-op (same value re-saved, already cleared, done without pending).
+      const verb = followUpTransitionVerb(
+        previous.nextFollowUpAt ? new Date(previous.nextFollowUpAt) : null,
+        updates.nextFollowUpAt === null ? null : new Date(String(updates.nextFollowUpAt)),
+        updates.followUpAction === "done" ? "done" : updates.followUpAction === "clear" ? "clear" : undefined,
+      );
+      if (verb) setNotice(`Follow-up ${verb} for ${previous.name}.`);
+    }
     return result.lead as Lead;
   }
 
@@ -188,9 +201,10 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
   }
 
   async function saveFollowUp(event: FormEvent<HTMLFormElement>, lead: Lead) {
+    // The success toast is derived by patchLead from the previous → requested
+    // transition, so wording always matches what actually changed.
     event.preventDefault(); const form = new FormData(event.currentTarget); const value = String(form.get("nextFollowUpAt") ?? "");
-    const saved = await patchLead(lead.id, { nextFollowUpAt: value ? new Date(value).toISOString() : null });
-    if (saved) setNotice(value ? `Follow-up scheduled for ${lead.name}.` : `Follow-up cleared for ${lead.name}.`);
+    await patchLead(lead.id, { nextFollowUpAt: value ? new Date(value).toISOString() : null });
   }
 
   async function logActivity(event: FormEvent<HTMLFormElement>) {
@@ -345,7 +359,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
           {lead.message ? <p>{lead.message}</p> : null}
           <div className="contact-workbench"><label>Message template<select value={chosenTemplate(lead)} onChange={(event) => setTemplates((current) => ({ ...current, [lead.id]: event.target.value as TemplateKey }))}><option value="initial">Initial reply · {lead.preferredLanguage.toUpperCase()}</option><option value="followup">Follow-up · {lead.preferredLanguage.toUpperCase()}</option><option value="consultation">Consultation · {lead.preferredLanguage.toUpperCase()}</option></select></label><div><button onClick={() => void copyTemplate(lead)}>Copy</button><button onClick={() => openContact(lead, "email")}>Email</button><button className="whatsapp-contact" onClick={() => openContact(lead, "whatsapp")}>WhatsApp ↗</button></div></div>
           <div className="lead-action-row"><button onClick={() => setActivityLead(lead)}>+ Log interaction</button><button onClick={() => setConsultationLead(lead)}>+ Consultation</button></div>
-          <form className="follow-up-form" onSubmit={(event) => void saveFollowUp(event, lead)}><label>Next follow-up<input key={lead.nextFollowUpAt ?? "empty"} name="nextFollowUpAt" type="datetime-local" defaultValue={lead.nextFollowUpAt ? localInputValue(lead.nextFollowUpAt) : localInputValue(parisInDays(new Date(clock || Date.now()), 2))} /></label><button>Save</button><button type="button" onClick={() => void patchLead(lead.id, { nextFollowUpAt: null })}>Clear</button></form>
+          <form className="follow-up-form" onSubmit={(event) => void saveFollowUp(event, lead)}><label>Next follow-up<input key={lead.nextFollowUpAt ?? "empty"} name="nextFollowUpAt" type="datetime-local" defaultValue={lead.nextFollowUpAt ? localInputValue(lead.nextFollowUpAt) : ""} /></label><button>Save</button><button type="button" onClick={() => void patchLead(lead.id, { nextFollowUpAt: null })}>Clear</button></form>
           <div className="follow-up-quick"><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 1).toISOString() })}>Tomorrow</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 2).toISOString() })}>In 2 days</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 3).toISOString() })}>In 3 days</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: parisInDays(new Date(clock || Date.now()), 7).toISOString() })}>In 1 week</button><button onClick={() => void patchLead(lead.id, { nextFollowUpAt: null, followUpAction: "done" })}>Mark done ✓</button></div>
           <label>Status<select value={lead.status} disabled={lead.status === "client"} onChange={(event) => void patchLead(lead.id, { status: event.target.value as Status })}>{columns.filter((option) => option.status !== "client" || lead.status === "client").map((option) => <option value={option.status} key={option.status}>{option.label}</option>)}</select></label>
           <label>Coach notes<textarea defaultValue={lead.coachNotes} onBlur={(event) => { if (event.target.value !== lead.coachNotes) void patchLead(lead.id, { coachNotes: event.target.value }); }} placeholder="Fit, objections, next step…" /></label>

@@ -108,6 +108,24 @@ export function followUpActivity(
   return { title: rescheduled ? "Follow-up rescheduled" : "Follow-up scheduled", detail: next.toISOString() };
 }
 
+// The lifecycle verb for a follow-up transition, shared by the timeline planner
+// and the client success toasts: null when the transition is a no-op (nothing
+// changed, nothing to record or claim). "done" is terminal for the current
+// episode: it never schedules anything, it only completes a pending follow-up.
+function followUpVerb(
+  existing: Date | null,
+  next: Date | null,
+  action: "done" | "clear" | undefined,
+): "scheduled" | "rescheduled" | "cleared" | "completed" | null {
+  // Completing only makes sense while a follow-up is actually pending.
+  if (action === "done") return existing === null ? null : "completed";
+  // Clearing a follow-up that is already clear is a no-op.
+  if (next === null) return existing === null ? null : "cleared";
+  // Re-saving the identical datetime is a no-op, not another reschedule.
+  if (existing !== null && existing.getTime() === next.getTime()) return null;
+  return existing === null ? "scheduled" : "rescheduled";
+}
+
 // The single authoritative planner for follow-up timeline entries: returns the
 // entry a mutation should record, or null when the mutation is a no-op. One
 // logical change → at most one entry. Saving the exact same datetime again, a
@@ -118,15 +136,19 @@ export function planFollowUpActivity(
   next: Date | null,
   action: "done" | "clear" | undefined,
 ): { title: string; detail: string } | null {
-  // Completing only makes sense while a follow-up is actually pending.
-  if (action === "done") {
-    return existing === null ? null : { title: "Follow-up completed", detail: "" };
-  }
-  // Clearing a follow-up that is already clear is a no-op.
-  if (next === null) {
-    return existing === null ? null : { title: "Follow-up cleared", detail: "" };
-  }
-  // Re-saving the identical datetime is a no-op, not another reschedule.
-  if (existing !== null && existing.getTime() === next.getTime()) return null;
-  return { title: existing === null ? "Follow-up scheduled" : "Follow-up rescheduled", detail: next.toISOString() };
+  const verb = followUpVerb(existing, next, action);
+  if (verb === null) return null;
+  if (next === null) return { title: `Follow-up ${verb}`, detail: "" };
+  return { title: `Follow-up ${verb}`, detail: next.toISOString() };
+}
+
+// The verb for client success toasts ("Follow-up scheduled/rescheduled/cleared/
+// completed for X"), or null when the transition changed nothing — so a no-op
+// save never claims a new schedule was created.
+export function followUpTransitionVerb(
+  existing: Date | null,
+  next: Date | null,
+  action: "done" | "clear" | undefined,
+): "scheduled" | "rescheduled" | "cleared" | "completed" | null {
+  return followUpVerb(existing, next, action);
 }

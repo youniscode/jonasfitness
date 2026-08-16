@@ -6,6 +6,7 @@ import {
   consultationRowAction,
   consultationStatuses,
   followUpActivity,
+  followUpTransitionVerb,
   overlappingConsultation,
   planFollowUpActivity,
 } from "../app/lib/lead-follow-up.ts";
@@ -162,6 +163,49 @@ test("changing to a different datetime still records one reschedule", () => {
   const rescheduled = planFollowUpActivity(firstDate, secondDate, undefined);
   assert.deepEqual(rescheduled, { title: "Follow-up rescheduled", detail: secondDate.toISOString() });
   assert.equal(planFollowUpActivity(secondDate, secondDate, undefined), null);
+});
+
+// ---------- Mark done is terminal for the current follow-up episode ----------
+
+test("pending follow-up → Mark done: value becomes null with exactly one completed entry", () => {
+  // The server-side transition: one completed activity; nextFollowUpAt becomes null.
+  assert.deepEqual(planFollowUpActivity(firstDate, null, "done"), { title: "Follow-up completed", detail: "" });
+  // The toast verb for the same transition is completed, never scheduled.
+  assert.equal(followUpTransitionVerb(firstDate, null, "done"), "completed");
+});
+
+test("Mark done then render/refresh keeps follow-up null (no reseeding)", () => {
+  // After done, nextFollowUpAt is null; a re-read/render sees null and nothing
+  // pending can produce a schedule or a claim.
+  assert.equal(planFollowUpActivity(null, null, undefined), null);
+  assert.equal(followUpTransitionVerb(null, null, undefined), null);
+  assert.equal(planFollowUpActivity(null, null, "done"), null);
+});
+
+test("repeated Mark done produces no extra activity", () => {
+  const first = planFollowUpActivity(firstDate, null, "done");
+  const second = planFollowUpActivity(null, null, "done");
+  const third = planFollowUpActivity(null, null, "done");
+  assert.deepEqual(first, { title: "Follow-up completed", detail: "" });
+  assert.equal(second, null);
+  assert.equal(third, null);
+});
+
+test("scheduling a NEW follow-up after completion still works and creates one scheduled entry", () => {
+  // The old episode is terminal; a fresh schedule is a first set.
+  assert.equal(planFollowUpActivity(null, null, "done"), null);
+  assert.deepEqual(planFollowUpActivity(null, secondDate, undefined), { title: "Follow-up scheduled", detail: secondDate.toISOString() });
+  assert.equal(followUpTransitionVerb(null, secondDate, undefined), "scheduled");
+});
+
+test("toast verbs distinguish schedule, reschedule, clear and done", () => {
+  assert.equal(followUpTransitionVerb(null, firstDate, undefined), "scheduled");
+  assert.equal(followUpTransitionVerb(firstDate, secondDate, undefined), "rescheduled");
+  assert.equal(followUpTransitionVerb(firstDate, null, undefined), "cleared");
+  assert.equal(followUpTransitionVerb(firstDate, null, "done"), "completed");
+  assert.equal(followUpTransitionVerb(firstDate, null, "clear"), "cleared");
+  // Same-value no-op claims nothing was scheduled.
+  assert.equal(followUpTransitionVerb(firstDate, firstDate, undefined), null);
 });
 
 // ---------- Europe/Paris timezone helpers ----------
