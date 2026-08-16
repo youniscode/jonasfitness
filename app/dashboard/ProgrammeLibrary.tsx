@@ -105,6 +105,9 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   const [translationTarget, setTranslationTarget] = useState<ProgrammeLanguage>("fr");
   const [translating, setTranslating] = useState(false);
   const [notice, setNotice] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Programme | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [library, setLibrary] = useState<ExerciseDefinition[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
@@ -315,6 +318,34 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     } finally { setTranslating(false); }
   }
 
+  async function confirmDelete(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const response = await fetch(`/api/programmes/${deleteTarget.id}`, { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not delete the programme.");
+      const deletedId = deleteTarget.id;
+      const wasSelected = selectedId === deletedId;
+      const remaining = programmes.filter((programme) => programme.id !== deletedId);
+      setProgrammes(remaining);
+      setDeleteTarget(null);
+      if (wasSelected) {
+        const next = remaining[0] ?? null;
+        setSelectedId(next?.id ?? null);
+        setDraft(next ? programmeDraft(next) : null);
+        setEditing(false);
+      }
+      setNotice(remaining.length ? `“${deleteTarget.title}” was deleted.` : "Programme deleted. No saved programmes remain.");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete the programme.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (client.id < 1) return <section className="programme-library programme-library-empty" id="programmes"><p>PROGRAMME BUILDER</p><h2>Save a real client first.</h2><span>Exercise prescriptions and programme history appear after selecting a client.</span></section>;
 
   return <section className="programme-library" id="programmes">
@@ -322,7 +353,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     {!selected || !draft ? <div className="programme-empty"><strong>No saved programmes yet.</strong><span>Generate a programme in Coach Studio, approve it, then refine every exercise here.</span></div> : <div className="programme-layout">
       <aside className="programme-list"><p>SAVED PROGRAMMES · {programmes.length}</p>{programmes.map((programme) => <button type="button" key={programme.id} className={programme.id === selected.id ? "active" : ""} onClick={() => chooseProgramme(programme)}><strong>{programme.title}</strong><span>{programme.goal} · {programme.sessionsPerWeek} sessions/wk</span><small>{new Date(programme.createdAt).toLocaleDateString()}</small></button>)}</aside>
       <article className="programme-detail">
-        <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button>}</div></div>
+        <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <><button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button><button type="button" className="programme-delete-button" onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}>Delete programme</button></>}</div></div>
         {editing ? <div className="programme-meta-edit"><label>Goal<select value={draft.goal} onChange={(event) => setDraft({ ...draft, goal: event.target.value })}><option>Build muscle</option><option>Build strength</option><option>Fat loss</option><option>General fitness</option></select></label><label>Sessions per week<select value={draft.sessions.length} onChange={(event) => resizeSessions(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6, 7].map((value) => <option key={value}>{value}</option>)}</select></label></div> : <p className="programme-meta">{draft.goal} · {draft.sessionsPerWeek} sessions per week · Saved {new Date(selected.createdAt).toLocaleDateString()}</p>}
         <div className="programme-translation"><div><p>CLIENT LANGUAGE VERSION</p><span>Translate a separate client copy while preserving sets, reps, rest and RIR.</span></div><div><select aria-label="Programme translation language" value={translationTarget} onChange={(event) => setTranslationTarget(event.target.value as ProgrammeLanguage)}><option value="fr">French</option><option value="en">English</option><option value="ar">Arabic</option></select><button type="button" className="ghost-button" disabled={translating} onClick={() => void translateForClient()}>{translating ? "Translating…" : "Translate live"}</button></div></div>
         {Object.keys(draft.translations).length > 0 && <p className="programme-translation-status">Client versions saved: {Object.keys(draft.translations).map((language) => language.toUpperCase()).join(" · ")}</p>}
@@ -341,5 +372,6 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
       {libraryNotice && <p className="programme-notice">{libraryNotice}</p>}
       {libraryLoading ? <p className="exercise-library-empty">Loading exercises…</p> : <div className="exercise-library-grid">{filteredLibrary.map((exercise) => <article key={exercise.id}><div className="exercise-library-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} />{exercise.isCustom && <b>CUSTOM</b>}</div><div><small>{exercise.muscleGroup} · {exercise.equipment}</small><h3>{exercise.name}</h3>{(exercise.nameFr || exercise.nameAr) && <p className="exercise-alt-names">{[exercise.nameFr, exercise.nameAr].filter(Boolean).join(" · ")}</p>}<p>{exercise.instructions || "Add this exercise and customise the prescription for the client."}</p><div>{exercise.videoUrl && <a href={exercise.videoUrl} target="_blank" rel="noreferrer">Demo ↗</a>}{picker.sessionIndex !== null && <button type="button" onClick={() => chooseExercise(exercise)}>{picker.replaceIndex === null ? "Add" : "Use this"}</button>}{exercise.isCustom && <button type="button" className="delete-library-exercise" onClick={() => void deleteCustomExercise(exercise)}>Delete</button>}</div></div></article>)}</div>}
     </section></div>}
+    {deleteTarget && <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteTarget(null)}><form className="modal delete-modal" onSubmit={confirmDelete} onMouseDown={(event) => event.stopPropagation()}><div><p>DELETE PROGRAMME</p><button type="button" aria-label="Close" onClick={() => setDeleteTarget(null)}>×</button></div><h2>Delete “{deleteTarget.title}”?</h2><p className="modal-hint">This removes the plan from {client.name}’s saved programmes. Completed workouts, progress history, measurements and check-ins stay untouched. This cannot be undone.</p>{deleteError && <p className="form-error" role="alert">{deleteError}</p>}<button className="danger-confirm" disabled={deleting}>{deleting ? "Deleting…" : "Delete programme"}<span>×</span></button></form></div>}
   </section>;
 }
