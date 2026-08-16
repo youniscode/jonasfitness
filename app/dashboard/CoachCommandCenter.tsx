@@ -8,6 +8,7 @@ type FollowUp = { id: number; name: string; phone: string; email: string; source
 type ProgressUpdate = { id: number; clientId: number; clientName: string; weight: number | null; energy: number; sleep: number; adherence: number; notes: string; createdAt: string };
 type WorkoutReview = { id: number; clientId: number; clientName: string; title: string; completedAt: string | null; exercises: number; completedSets: number; totalVolume: number };
 type ProgressionApproval = { clientId: number; clientName: string; programmeId: number; programmeTitle: string; count: number; first: { exerciseName: string; action: string; proposedWeight: number; performedWeight: number } };
+type OnboardingItem = { clientId: number; clientName: string; kind: "readiness_review" | "onboarding_incomplete" | "first_programme"; tone: "amber" | "neutral" | "lime"; eyebrow: string; detail: string; action: string };
 type Payload = {
   generatedAt: string;
   sessions: Session[];
@@ -16,9 +17,10 @@ type Payload = {
   progressUpdates: ProgressUpdate[];
   workoutReviews: WorkoutReview[];
   progressionApprovals: ProgressionApproval[];
+  onboarding: OnboardingItem[];
 };
 
-const emptyPayload: Payload = { generatedAt: "", sessions: [], consultations: [], followUps: [], progressUpdates: [], workoutReviews: [], progressionApprovals: [] };
+const emptyPayload: Payload = { generatedAt: "", sessions: [], consultations: [], followUps: [], progressUpdates: [], workoutReviews: [], progressionApprovals: [], onboarding: [] };
 
 type QueueItem = {
   key: string;
@@ -111,7 +113,11 @@ export default function CoachCommandCenter({ onSelectClient }: { onSelectClient:
       key: `progression-${item.clientId}`, tone: "neutral" as const, eyebrow: `${item.count} LOAD ${item.count === 1 ? "DECISION" : "DECISIONS"}`, title: item.clientName,
       detail: `${item.first.exerciseName}: ${item.first.performedWeight} → ${item.first.proposedWeight} kg`, time: "Coach approval", action: "Review loads", onOpen: () => onSelectClient(item.clientId, "#progression"),
     })),
-  ].slice(0, 12), [data.followUps, data.progressUpdates, data.progressionApprovals, data.workoutReviews, now, onSelectClient, pulseAlerts]);
+    ...data.onboarding.map((item) => ({
+      key: `onboarding-${item.clientId}`, tone: item.tone, eyebrow: item.eyebrow, title: item.clientName,
+      detail: item.detail, time: "Now", action: item.action, onOpen: () => onSelectClient(item.clientId, "#onboarding"),
+    })),
+  ].slice(0, 12), [data.followUps, data.onboarding, data.progressUpdates, data.progressionApprovals, data.workoutReviews, now, onSelectClient, pulseAlerts]);
 
   async function markReviewed(item: NonNullable<QueueItem["review"]>) {
     const key = `${item.type}-${item.id}`;

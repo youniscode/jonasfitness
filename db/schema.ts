@@ -195,6 +195,9 @@ export const progressEntries = pgTable("progress_entries", {
 
 // Kept deliberately small: this is coaching context, not a medical record.
 // Clients may share only what they choose; explicit consent is required before saving.
+// `readinessReviewedAt` is set by the coach once limitations have been reviewed
+// before programme assignment; `coachNotes` is private coach context and is
+// never exposed through the client-facing intake DTO.
 export const clientIntakes = pgTable("client_intakes", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull().unique().references(() => clients.id, { onDelete: "cascade" }),
@@ -205,6 +208,8 @@ export const clientIntakes = pgTable("client_intakes", {
   equipment: text("equipment").notNull().default(""),
   goalsDetail: text("goals_detail").notNull().default(""),
   trainingConsiderations: text("training_considerations").notNull().default(""),
+  readinessReviewedAt: timestamp("readiness_reviewed_at", { withTimezone: true }),
+  coachNotes: text("coach_notes").notNull().default(""),
   consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: createdAt(),

@@ -1,16 +1,29 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { isUniqueViolation, normaliseClientEmail } from "../../lib/client-email";
+import { onboardingState } from "../../lib/client-onboarding";
 import { getDb } from "../../../db";
-import { clients } from "../../../db/schema";
+import { clientIntakes, clients, programmes } from "../../../db/schema";
 
 const allowedSources = new Set(["Unknown", "Instagram", "TikTok", "Facebook", "Google Search", "YouTube", "WhatsApp", "Referral", "Website", "Direct", "Other"]);
 
 export async function GET() {
   const ownerId = await getCoachId();
   if (!ownerId) return Response.json({ error: "Sign in required" }, { status: 401 });
-  const rows = await getDb().select().from(clients).where(eq(clients.ownerId, ownerId)).orderBy(desc(clients.createdAt));
-  return Response.json({ clients: rows });
+  const db = getDb();
+  const [rows, intakeRows, programmeRows] = await Promise.all([
+    db.select().from(clients).where(eq(clients.ownerId, ownerId)).orderBy(desc(clients.createdAt)),
+    db.select().from(clientIntakes).where(eq(clientIntakes.ownerId, ownerId)),
+    db.select({ clientId: programmes.clientId }).from(programmes)
+      .where(and(eq(programmes.ownerId, ownerId), eq(programmes.status, "approved"))),
+  ]);
+  const intakes = new Map(intakeRows.map((intake) => [intake.clientId, intake]));
+  const approvedProgrammeClients = new Set(programmeRows.map((programme) => programme.clientId));
+  const clientsWithState = rows.map((client) => ({
+    ...client,
+    onboarding: onboardingState(client, intakes.get(client.id) ?? null, approvedProgrammeClients.has(client.id)),
+  }));
+  return Response.json({ clients: clientsWithState });
 }
 
 export async function POST(request: Request) {

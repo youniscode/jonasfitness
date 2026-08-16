@@ -1,10 +1,12 @@
 import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
+import { onboardingState } from "../../lib/client-onboarding";
 import { buildProgressionSuggestions } from "../../lib/progression";
 import { followUpInactiveStatuses } from "../../lib/lead-follow-up";
 import { parseExercises, workoutStats } from "../../lib/workouts";
 import { getDb } from "../../../db";
 import {
+  clientIntakes,
   clients,
   leadConsultations,
   leads,
@@ -26,7 +28,7 @@ export async function GET() {
   const windowEnd = new Date(now.getTime() + 7 * DAY);
   const followUpEnd = new Date(now.getTime() + DAY);
 
-  const [sessionRows, consultationRows, followUpRows, progressRows, workoutRows, approvedRows, completedRows] = await Promise.all([
+  const [sessionRows, consultationRows, followUpRows, progressRows, workoutRows, approvedRows, completedRows, clientRows, intakeRows] = await Promise.all([
     db.select({
       id: sessions.id,
       clientId: sessions.clientId,
@@ -94,6 +96,8 @@ export async function GET() {
     db.select().from(workoutSessions)
       .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.status, "completed")))
       .orderBy(desc(workoutSessions.completedAt)).limit(500),
+    db.select().from(clients).where(eq(clients.ownerId, ownerId)),
+    db.select().from(clientIntakes).where(eq(clientIntakes.ownerId, ownerId)),
   ]);
 
   const latestProgrammeByClient = new Map<number, typeof approvedRows[number]>();
@@ -129,6 +133,29 @@ export async function GET() {
     ...workoutStats(parseExercises(exercises)),
   }));
 
+  // Onboarding attention items: only clients without an approved programme need
+  // coach action, and only the single most urgent item per client is surfaced
+  // (readiness review > onboarding incomplete > first programme ready).
+  const intakeByClient = new Map(intakeRows.map((intake) => [intake.clientId, intake]));
+  const onboarding = clientRows
+    .filter((client) => !latestProgrammeByClient.has(client.id))
+    .map((client) => {
+      const intake = intakeByClient.get(client.id) ?? null;
+      const state = onboardingState(client, intake, false);
+      if (state.readiness === "needs_review") {
+        return { clientId: client.id, clientName: client.name, kind: "readiness_review" as const, tone: "amber" as const, eyebrow: "READINESS REVIEW", detail: "Coach review required before the first programme", action: "Review readiness" };
+      }
+      if (state.stage === "new" || state.stage === "onboarding") {
+        return { clientId: client.id, clientName: client.name, kind: "onboarding_incomplete" as const, tone: "neutral" as const, eyebrow: "CLIENT ONBOARDING", detail: state.nextAction, action: "Complete onboarding" };
+      }
+      if (state.stage === "ready_for_programme") {
+        return { clientId: client.id, clientName: client.name, kind: "first_programme" as const, tone: "lime" as const, eyebrow: "FIRST PROGRAMME", detail: "Onboarding complete — assign the first programme", action: "Assign programme" };
+      }
+      return null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .slice(0, 20);
+
   return Response.json({
     generatedAt: now.toISOString(),
     sessions: sessionRows.map(({ pulseToken, ...session }) => ({ ...session, pulsePath: `/pulse/${pulseToken}` })),
@@ -137,6 +164,7 @@ export async function GET() {
     progressUpdates: progressRows,
     workoutReviews,
     progressionApprovals,
+    onboarding,
   });
 }
 

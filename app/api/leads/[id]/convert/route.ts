@@ -1,9 +1,17 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { getCoachId } from "../../../../clerk-auth";
 import { isUniqueViolation, normaliseClientEmail } from "../../../../lib/client-email";
+import { onboardingState } from "../../../../lib/client-onboarding";
 import { planConversion } from "../../../../lib/leads";
 import { getDb } from "../../../../../db";
 import { clients, leadActivities, leads } from "../../../../../db/schema";
+
+// A freshly converted/linked client has no onboarding answers yet: the derived
+// state is NEW, which lets the roster badge and onboarding panel show the next
+// step immediately after conversion.
+function withOnboarding(client: typeof clients.$inferSelect) {
+  return { ...client, onboarding: onboardingState(client, null, false) };
+}
 
 // Converts a lead into a client. There is no DB transaction available on the
 // neon-http driver, so conversion is made atomic-enough with an idempotent
@@ -30,7 +38,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (plan.kind === "already") {
     const [client] = await db.select().from(clients)
       .where(and(eq(clients.id, plan.clientId), eq(clients.ownerId, ownerId))).limit(1);
-    if (client) return Response.json({ lead, client, alreadyConverted: true });
+    if (client) return Response.json({ lead, client: withOnboarding(client), alreadyConverted: true });
   }
 
   // Link an existing client (same normalized email) or create a new one.
@@ -69,6 +77,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
   }
   if (!client) return Response.json({ error: "The client could not be created. Please try again." }, { status: 500 });
+  const clientWithOnboarding = withOnboarding(client);
 
   // Single-writer commit gate: only one request flips convertedClientId from null.
   const [convertedLead] = await db.update(leads).set({
@@ -85,7 +94,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const [winnerClient] = winnerClientId
       ? await db.select().from(clients).where(and(eq(clients.id, winnerClientId), eq(clients.ownerId, ownerId))).limit(1)
       : [undefined];
-    return Response.json({ lead: winnerLead, client: winnerClient ?? client, alreadyConverted: true });
+    return Response.json({ lead: winnerLead, client: winnerClient ? withOnboarding(winnerClient) : clientWithOnboarding, alreadyConverted: true });
   }
 
   await db.insert(leadActivities).values({
@@ -96,5 +105,5 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     detail: client.name,
   });
 
-  return Response.json({ lead: convertedLead, client, alreadyConverted: false, linkedExisting }, { status: 201 });
+  return Response.json({ lead: convertedLead, client: clientWithOnboarding, alreadyConverted: false, linkedExisting }, { status: 201 });
 }
