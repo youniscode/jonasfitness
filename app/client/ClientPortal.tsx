@@ -8,6 +8,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import ClientOnboarding from "./ClientOnboarding";
 import ClientWorkoutMode from "./ClientWorkoutMode";
 import ClientExerciseHistory from "./ClientExerciseHistory";
+import { exerciseDisplayName } from "../lib/exercise-catalogue";
 
 type Lang = "fr" | "en" | "ar";
 type Entry = { id: number; weight: number | null; waist: number | null; chest: number | null; hips: number | null; arm: number | null; thigh: number | null; energy: number; sleep: number; adherence: number; notes: string; photoData: string; createdAt: string };
@@ -42,12 +43,12 @@ function programmeCopy(programme: Programme | null, language: Lang) {
   const translatedContent = Object.keys(translation).length ? { ...content, ...translation } : content;
   return { title: stringValue(translatedContent.title, stringValue(content.title, programme.title)), content: translatedContent };
 }
-function readDays(content: Record<string, unknown>, t: DayText): ProgrammeDay[] {
+function readDays(content: Record<string, unknown>, t: DayText, lang: Lang): ProgrammeDay[] {
   const raw = Array.isArray(content.sessions) ? content.sessions : Array.isArray(content.days) ? content.days : Array.isArray(content.workouts) ? content.workouts : [];
   return raw.map((item, index) => {
     const day = item as Record<string, unknown>;
     const work = Array.isArray(day.work) ? day.work : Array.isArray(day.exercises) ? day.exercises : [];
-    return { name: String(day.name ?? day.title ?? t.defaultDay(index + 1)), focus: String(day.focus ?? day.description ?? t.defaultFocus), work: work.map(value => typeof value === "string" ? value : String((value as Record<string, unknown>).name ?? t.defaultExercise)) };
+    return { name: String(day.name ?? day.title ?? t.defaultDay(index + 1)), focus: String(day.focus ?? day.description ?? t.defaultFocus), work: work.map(value => typeof value === "string" ? value : (() => { const item = value as Record<string, unknown>; return exerciseDisplayName({ name: String(item.name ?? ""), nameFr: typeof item.nameFr === "string" ? item.nameFr : undefined, nameAr: typeof item.nameAr === "string" ? item.nameAr : undefined }, lang) || String(item.name ?? t.defaultExercise); })()) };
   });
 }
 
@@ -85,7 +86,7 @@ export default function ClientPortal({ initialAccess, preview }: { initialAccess
     return () => { cancelled = true; };
   }, [initialAccess, query]);
   const clientProgramme = useMemo(() => programmeCopy(data?.programme ?? null, lang), [data?.programme, lang]);
-  const days = useMemo(() => readDays(clientProgramme?.content ?? {}, t), [clientProgramme, t]);
+  const days = useMemo(() => readDays(clientProgramme?.content ?? {}, t, lang), [clientProgramme, t, lang]);
   const entries = data?.entries ?? []; const latest = entries[0]; const chartEntries = [...entries].filter(entry => entry.weight !== null).reverse();
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; setPhotoError(""); try { setPhotoData(await resizePhoto(file, t)); } catch (photoIssue) { setPhotoData(""); setPhotoError(photoIssue instanceof Error ? photoIssue.message : t.photoPrepare); } }
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (preview) return; setSaving(true); setNotice(""); const form = new FormData(event.currentTarget); const payload = { ...Object.fromEntries(form), photoData }; const response = await fetch("/api/client-progress", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json().catch(() => ({})); if (!response.ok) { setNotice(result.error ?? t.saveFailed); } else { setNotice(t.shared); setShowForm(false); setPhotoData(""); await load(); } setSaving(false); }

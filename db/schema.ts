@@ -135,6 +135,10 @@ export const exerciseLibrary = pgTable("exercise_library", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),
   name: text("name").notNull(),
+  // Optional per-language display names. `name` is the canonical English
+  // label; blank translations fall back to it at render time.
+  nameFr: text("name_fr").notNull().default(""),
+  nameAr: text("name_ar").notNull().default(""),
   muscleGroup: text("muscle_group").notNull().default("Other"),
   equipment: text("equipment").notNull().default("Other"),
   instructions: text("instructions").notNull().default(""),

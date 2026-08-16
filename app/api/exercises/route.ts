@@ -18,6 +18,8 @@ function customExercise(row: typeof exerciseLibrary.$inferSelect): ExerciseDefin
   return {
     id: `custom-${row.id}`,
     name: row.name,
+    nameFr: row.nameFr,
+    nameAr: row.nameAr,
     muscleGroup: row.muscleGroup,
     equipment: row.equipment,
     instructions: row.instructions,
@@ -45,6 +47,8 @@ export async function POST(request: Request) {
   const [created] = await getDb().insert(exerciseLibrary).values({
     ownerId,
     name,
+    nameFr: text(body.nameFr, 120),
+    nameAr: text(body.nameAr, 120),
     muscleGroup: text(body.muscleGroup, 60) || "Other",
     equipment: text(body.equipment, 60) || "Other",
     instructions: text(body.instructions, 1000),

@@ -1,4 +1,4 @@
-import { isCompletedWorkoutSet, parseExercises } from "./workouts";
+import { isCompletedWorkoutSet, parseExercises } from "./workouts.ts";
 
 export type WorkoutHistoryRow = {
   id: number;
@@ -24,6 +24,8 @@ export type ExerciseHistoryPoint = {
 export type ExerciseHistoryItem = {
   key: string;
   name: string;
+  nameFr?: string;
+  nameAr?: string;
   sessions: number;
   latestDate: string;
   records: {
@@ -45,7 +47,7 @@ function exerciseKey(exercise: { libraryId: string; programmeExerciseId: string;
 }
 
 export function buildExerciseHistory(rows: WorkoutHistoryRow[]): ExerciseHistoryItem[] {
-  const grouped = new Map<string, { name: string; points: ExerciseHistoryPoint[] }>();
+  const grouped = new Map<string, { name: string; nameFr?: string; nameAr?: string; points: ExerciseHistoryPoint[] }>();
 
   for (const workout of rows) {
     const date = new Date(workout.completedAt ?? workout.startedAt).toISOString();
@@ -76,7 +78,7 @@ export function buildExerciseHistory(rows: WorkoutHistoryRow[]): ExerciseHistory
       const key = exerciseKey(exercise);
       const existing = grouped.get(key);
       if (existing) existing.points.push(point);
-      else grouped.set(key, { name: exercise.name, points: [point] });
+      else grouped.set(key, { name: exercise.name, nameFr: exercise.nameFr, nameAr: exercise.nameAr, points: [point] });
     }
   }
 
@@ -87,6 +89,8 @@ export function buildExerciseHistory(rows: WorkoutHistoryRow[]): ExerciseHistory
     return {
       key,
       name: value.name,
+      nameFr: value.nameFr,
+      nameAr: value.nameAr,
       sessions: points.length,
       latestDate: latest.date,
       records: {

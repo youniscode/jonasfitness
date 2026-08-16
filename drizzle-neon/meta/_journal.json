@@ -15,6 +15,13 @@
       "when": 1786881649925,
       "tag": "0001_first_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786883658335,
+      "tag": "0002_rapid_adam_destine",
+      "breakpoints": true
     }
   ]
 }

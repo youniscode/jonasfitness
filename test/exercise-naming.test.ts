@@ -1,0 +1,256 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  builtInExercises,
+  exerciseDisplayName,
+  exerciseSearchText,
+  type ExerciseDefinition,
+} from "../app/lib/exercise-catalogue.ts";
+import { exerciseFromDefinition, programmeExercise } from "../app/lib/programme-builder.ts";
+import { createExercises, parseExercises, programmeDays } from "../app/lib/workouts.ts";
+import { buildExerciseHistory } from "../app/lib/exercise-history.ts";
+
+const exercise = (overrides: Partial<ExerciseDefinition> = {}): ExerciseDefinition => ({
+  id: "builtin-test",
+  name: "Barbell bench press",
+  nameFr: "Développé couché barre",
+  nameAr: "ضغط الصدر بالبار",
+  muscleGroup: "Chest",
+  equipment: "Barbell",
+  instructions: "",
+  imageUrl: "",
+  videoUrl: "",
+  isCustom: false,
+  ...overrides,
+});
+
+test("exerciseDisplayName resolves English, French and Arabic", () => {
+  const item = exercise();
+  assert.equal(exerciseDisplayName(item, "en"), "Barbell bench press");
+  assert.equal(exerciseDisplayName(item, "fr"), "Développé couché barre");
+  assert.equal(exerciseDisplayName(item, "ar"), "ضغط الصدر بالبار");
+  // Unknown language falls back to English.
+  assert.equal(exerciseDisplayName(item, "xx"), "Barbell bench press");
+  assert.equal(exerciseDisplayName(item, null), "Barbell bench press");
+  assert.equal(exerciseDisplayName(item, undefined), "Barbell bench press");
+});
+
+test("exerciseDisplayName falls back to English when translation is missing", () => {
+  assert.equal(exerciseDisplayName(exercise({ nameFr: "" }), "fr"), "Barbell bench press");
+  assert.equal(exerciseDisplayName(exercise({ nameAr: "" }), "ar"), "Barbell bench press");
+  // Whitespace-only translations are treated as missing.
+  assert.equal(exerciseDisplayName(exercise({ nameFr: "   " }), "fr"), "Barbell bench press");
+});
+
+test("exerciseDisplayName never returns an empty label", () => {
+  assert.equal(exerciseDisplayName(exercise({ nameFr: "", nameAr: "" }), "fr"), "Barbell bench press");
+  assert.equal(exerciseDisplayName(exercise({ nameFr: "", nameAr: "" }), "ar"), "Barbell bench press");
+});
+
+test("exerciseSearchText matches English, French and Arabic names", () => {
+  const item = exercise();
+  const text = exerciseSearchText(item);
+  assert.ok(text.includes("barbell bench press"));
+  assert.ok(text.includes("développé couché barre"));
+  assert.ok(text.includes("ضغط الصدر بالبار"));
+  assert.ok(text.includes("chest"));
+});
+
+test("all 24 built-ins have English, French and Arabic names", () => {
+  assert.equal(builtInExercises.length, 24);
+  for (const item of builtInExercises) {
+    assert.ok(item.name.trim(), `missing English name for ${item.id}`);
+    assert.ok(item.nameFr.trim(), `missing French name for ${item.name}`);
+    assert.ok(item.nameAr.trim(), `missing Arabic name for ${item.name}`);
+  }
+});
+
+test("old exercise records without translations still work via fallback", () => {
+  const legacy = exercise({ nameFr: "", nameAr: "" });
+  assert.equal(exerciseDisplayName(legacy, "fr"), "Barbell bench press");
+  assert.equal(exerciseDisplayName(legacy, "ar"), "Barbell bench press");
+});
+
+test("exerciseFromDefinition carries FR/AR names into a programme exercise", () => {
+  const prescription = exerciseFromDefinition(exercise());
+  assert.equal(prescription.name, "Barbell bench press");
+  assert.equal(prescription.nameFr, "Développé couché barre");
+  assert.equal(prescription.nameAr, "ضغط الصدر بالبار");
+});
+
+test("programmeExercise preserves FR/AR names when parsing a saved programme", () => {
+  const source = {
+    id: "abc",
+    libraryId: "builtin-test",
+    name: "Barbell bench press",
+    nameFr: "Développé couché barre",
+    nameAr: "ضغط الصدر بالبار",
+    muscleGroup: "Chest",
+    equipment: "Barbell",
+    sets: 3,
+    reps: "8–12",
+  };
+  const parsed = programmeExercise(source);
+  assert.equal(parsed.nameFr, "Développé couché barre");
+  assert.equal(parsed.nameAr, "ضغط الصدر بالبار");
+});
+
+test("legacy string exercises default to empty FR/AR names without breaking", () => {
+  const legacy = programmeExercise("Barbell bench press · 3×8 · RIR 2");
+  assert.equal(legacy.name, "Barbell bench press");
+  assert.equal(legacy.nameFr, "");
+  assert.equal(legacy.nameAr, "");
+});
+
+test("programmeDays + createExercises carry FR/AR names through to a workout", () => {
+  const content = JSON.stringify({
+    title: "Push day",
+    overview: "",
+    sessions: [{
+      name: "Session 1",
+      focus: "Chest",
+      exercises: [{
+        id: "e1",
+        libraryId: "builtin-barbell-bench-press",
+        name: "Barbell bench press",
+        nameFr: "Développé couché barre",
+        nameAr: "ضغط الصدر بالبار",
+        muscleGroup: "Chest",
+        equipment: "Barbell",
+        instructions: "",
+        imageUrl: "",
+        videoUrl: "",
+        sets: 3,
+        reps: "8–12",
+        rir: 2,
+        restSeconds: 90,
+        targetWeight: null,
+        notes: "",
+      }],
+    }],
+  });
+  const days = programmeDays(content, "en");
+  assert.equal(days.length, 1);
+  const workout = createExercises(days[0]);
+  assert.equal(workout.length, 1);
+  assert.equal(workout[0].nameFr, "Développé couché barre");
+  assert.equal(workout[0].nameAr, "ضغط الصدر بالبار");
+});
+
+test("exercise history carries FR/AR names for localized display", () => {
+  const history = buildExerciseHistory([{
+    id: 1,
+    title: "Push day",
+    startedAt: "2024-01-01T08:00:00.000Z",
+    completedAt: "2024-01-01T09:00:00.000Z",
+    exercises: JSON.stringify([{
+      id: "e1",
+      programmeExerciseId: "pe1",
+      libraryId: "builtin-test",
+      name: "Barbell bench press",
+      nameFr: "Développé couché barre",
+      nameAr: "ضغط الصدر بالبار",
+      target: "3×8",
+      focus: "Chest",
+      sets: [{ id: "s1", weight: 60, reps: 8, status: "completed" }],
+    }]),
+  }]);
+  assert.equal(history.length, 1);
+  assert.equal(history[0].name, "Barbell bench press");
+  assert.equal(history[0].nameFr, "Développé couché barre");
+  assert.equal(history[0].nameAr, "ضغط الصدر بالبار");
+  assert.equal(exerciseDisplayName(history[0], "fr"), "Développé couché barre");
+  assert.equal(exerciseDisplayName(history[0], "ar"), "ضغط الصدر بالبار");
+});
+
+test("parseExercises tolerates saved workouts without FR/AR names", () => {
+  const exercises = parseExercises(JSON.stringify([{
+    id: "e1",
+    programmeExerciseId: "pe1",
+    libraryId: "builtin-test",
+    name: "Barbell bench press",
+    target: "3×8",
+    focus: "Chest",
+    sets: [{ id: "s1", weight: 60, reps: 8, status: "completed" }],
+  }]));
+  assert.equal(exercises.length, 1);
+  assert.equal(exercises[0].name, "Barbell bench press");
+  assert.equal(exercises[0].nameFr, "");
+  assert.equal(exercises[0].nameAr, "");
+});
+
+// ——— Phase 1C: real exercise images (24/24) ———
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+function imageAssetPath(slug: string) {
+  return join(projectRoot, "public", "exercises", `${slug}.webp`);
+}
+
+function isGenuineWebP(buffer: Buffer): boolean {
+  return buffer.length >= 12
+    && buffer.toString("ascii", 0, 4) === "RIFF"
+    && buffer.toString("ascii", 8, 12) === "WEBP";
+}
+
+test("all 24 built-ins have non-empty imageUrl under /exercises/", () => {
+  assert.equal(builtInExercises.length, 24);
+  for (const item of builtInExercises) {
+    const slug = item.id.slice("builtin-".length);
+    assert.ok(item.imageUrl.startsWith("/exercises/"), `${item.name} should use the /exercises/ prefix`);
+    assert.equal(item.imageUrl, `/exercises/${slug}.webp`, `${item.name} has the wrong image path`);
+  }
+});
+
+test("all 24 referenced local assets exist", () => {
+  for (const item of builtInExercises) {
+    const slug = item.id.slice("builtin-".length);
+    assert.ok(existsSync(imageAssetPath(slug)), `missing asset for ${slug}`);
+  }
+});
+
+test("all 24 referenced files are genuine WebP (RIFF…WEBP)", () => {
+  for (const item of builtInExercises) {
+    const slug = item.id.slice("builtin-".length);
+    const buffer = readFileSync(imageAssetPath(slug));
+    assert.ok(isGenuineWebP(buffer), `${slug} is not a genuine WebP file`);
+  }
+});
+
+test("imageUrl propagates through programme helpers for every built-in", () => {
+  for (const item of builtInExercises) {
+    const prescription = exerciseFromDefinition(item);
+    assert.equal(prescription.imageUrl, item.imageUrl, `${item.name} imageUrl dropped by exerciseFromDefinition`);
+    const roundTripped = programmeExercise({ ...prescription });
+    assert.equal(roundTripped.imageUrl, item.imageUrl, `${item.name} imageUrl dropped by programmeExercise`);
+  }
+});
+
+test("imageUrl propagates through workout helpers for every built-in", () => {
+  for (const item of builtInExercises) {
+    const prescription = exerciseFromDefinition(item);
+    const content = JSON.stringify({
+      sessions: [{
+        name: "Session 1",
+        focus: item.muscleGroup,
+        exercises: [prescription],
+      }],
+    });
+    const days = programmeDays(content, "en");
+    assert.equal(days.length, 1, `${item.name} produced no days`);
+    const workout = createExercises(days[0]);
+    assert.equal(workout[0].imageUrl, item.imageUrl, `${item.name} imageUrl dropped by createExercises`);
+    const parsed = parseExercises(JSON.stringify(workout));
+    assert.equal(parsed[0].imageUrl, item.imageUrl, `${item.name} imageUrl dropped by parseExercises`);
+  }
+});
+
+test("legacy/custom exercises without imageUrl still work", () => {
+  assert.equal(exerciseFromDefinition(exercise({ imageUrl: "" })).imageUrl, "");
+  assert.equal(programmeExercise("Barbell bench press · 3×8 · RIR 2").imageUrl, "");
+  const parsed = parseExercises(JSON.stringify([{ id: "e1", name: "Barbell bench press", sets: [] }]));
+  assert.equal(parsed[0].imageUrl, "");
+});

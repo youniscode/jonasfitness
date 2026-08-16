@@ -13,6 +13,8 @@ export type WorkoutExercise = {
   programmeExerciseId: string;
   libraryId: string;
   name: string;
+  nameFr?: string;
+  nameAr?: string;
   target: string;
   focus: string;
   instructions: string;
@@ -28,6 +30,8 @@ type ProgrammePrescription = {
   id: string;
   libraryId: string;
   name: string;
+  nameFr?: string;
+  nameAr?: string;
   sets: number;
   reps: string;
   rir: number;
@@ -84,6 +88,8 @@ export function parseExercises(value: unknown): WorkoutExercise[] {
       programmeExerciseId: clampText(source.programmeExerciseId, 80),
       libraryId: clampText(source.libraryId, 80),
       name,
+      nameFr: clampText(source.nameFr, 120),
+      nameAr: clampText(source.nameAr, 120),
       target: clampText(source.target, 180),
       focus: clampText(source.focus, 240),
       instructions: clampText(source.instructions, 1000),
@@ -132,6 +138,8 @@ export function createExercises(day: ProgrammeDay): WorkoutExercise[] {
       programmeExerciseId: prescription.id,
       libraryId: prescription.libraryId,
       name: prescription.name || `Exercise ${index + 1}`,
+      nameFr: prescription.nameFr,
+      nameAr: prescription.nameAr,
       target: `${prescription.sets}×${prescription.reps} · RIR ${prescription.rir}`,
       focus: day.focus,
       instructions: prescription.instructions,
@@ -169,6 +177,8 @@ function programmePrescription(value: unknown, translatedValue: unknown, index: 
     id: clampText(source.id, 80),
     libraryId: clampText(source.libraryId, 80),
     name: translatedName || clampText(source.name, 120) || legacyName || `Exercise ${index + 1}`,
+    nameFr: clampText(source.nameFr, 120),
+    nameAr: clampText(source.nameAr, 120),
     sets: Math.min(12, Math.max(1, Number(source.sets) || Number(setRepMatch?.[1]) || 3)),
     reps: clampText(source.reps, 30) || setRepMatch?.[2]?.replace(/\s/g, "") || "8–12",
     rir: Math.min(6, Math.max(0, targetRir)),

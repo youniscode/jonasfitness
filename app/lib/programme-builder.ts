@@ -4,6 +4,8 @@ export type ProgrammeExercise = {
   id: string;
   libraryId: string;
   name: string;
+  nameFr: string;
+  nameAr: string;
   muscleGroup: string;
   equipment: string;
   instructions: string;
@@ -34,6 +36,8 @@ export function exerciseFromDefinition(exercise: ExerciseDefinition): ProgrammeE
     id: crypto.randomUUID(),
     libraryId: exercise.id,
     name: exercise.name,
+    nameFr: exercise.nameFr,
+    nameAr: exercise.nameAr,
     muscleGroup: exercise.muscleGroup,
     equipment: exercise.equipment,
     instructions: exercise.instructions,
@@ -60,6 +64,8 @@ export function exerciseFromLegacy(value: string, index = 0): ProgrammeExercise 
     id: crypto.randomUUID(),
     libraryId: "legacy",
     name,
+    nameFr: "",
+    nameAr: "",
     muscleGroup: "Other",
     equipment: "Other",
     instructions: "",
@@ -83,6 +89,8 @@ export function programmeExercise(value: unknown, index = 0): ProgrammeExercise 
     id: clean(source.id) || crypto.randomUUID(),
     libraryId: clean(source.libraryId, "legacy"),
     name: clean(source.name, `Exercise ${index + 1}`),
+    nameFr: clean(source.nameFr),
+    nameAr: clean(source.nameAr),
     muscleGroup: clean(source.muscleGroup, "Other"),
     equipment: clean(source.equipment, "Other"),
     instructions: clean(source.instructions),
