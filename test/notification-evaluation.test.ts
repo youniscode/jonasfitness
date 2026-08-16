@@ -17,7 +17,7 @@ const rows = {
   followUpRows: [
     { id: 100, name: "Alex", status: "new", source: "Instagram", nextFollowUpAt: new Date("2026-08-15T09:00:00.000Z") },
     { id: 101, name: "Noor", status: "lost", source: "Direct", nextFollowUpAt: new Date("2026-08-14T09:00:00.000Z") },
-    { id: 102, name: "Converted", status: "converted", source: "Direct", nextFollowUpAt: new Date("2026-08-13T09:00:00.000Z") },
+    { id: 102, name: "Converted", status: "client", source: "Direct", nextFollowUpAt: new Date("2026-08-13T09:00:00.000Z") },
   ],
   progressRows: [
     { id: 1, clientId: 10, clientName: "Maya", weight: 64.2, energy: 7, adherence: 90, createdAt: new Date("2026-08-16T09:00:00.000Z") },
@@ -115,7 +115,7 @@ test("buildNotificationCandidates applies the expected rules", () => {
   assert.equal(pulseAlerts.length, 1);
   assert.equal(pulseAlerts[0].id, 1);
 
-  // Lost and converted leads never produce follow-up reminders.
+  // Lost and client (converted) leads never produce follow-up reminders.
   assert.equal(activeFollowUps.length, 1);
   assert.equal(activeFollowUps[0].id, 100);
 

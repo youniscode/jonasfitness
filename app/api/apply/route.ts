@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { leads } from "../../../db/schema";
-import { applicationValues, emailIsValid } from "../../lib/leads";
+import { reviewApplication } from "../../lib/leads";
 
 function fingerprint(request: Request) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -13,18 +13,13 @@ function fingerprint(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-  // Honeypot fields are invisible to people. Return a neutral success so bots
-  // cannot tune themselves against the protection.
-  if (String(body.website ?? "").trim()) return Response.json({ received: true }, { status: 201 });
-  const startedAt = Number(body.startedAt);
-  if (!Number.isFinite(startedAt) || Date.now() - startedAt < 1200) {
-    return Response.json({ error: "Please take a moment to review your application." }, { status: 400 });
+  const review = reviewApplication(body);
+  if (!review.accepted) {
+    // Honeypot: return a neutral success so bots cannot tune against it.
+    if ("neutral" in review) return Response.json({ received: true }, { status: 201 });
+    return Response.json({ error: review.error }, { status: review.status });
   }
-  if (body.consent !== true) return Response.json({ error: "Consent is required before sending your application." }, { status: 400 });
-  const values = applicationValues(body);
-  if (values.name.length < 2) return Response.json({ error: "Enter your name." }, { status: 400 });
-  if (!emailIsValid(values.email)) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
-  if (!values.country) return Response.json({ error: "Enter your country or time zone." }, { status: 400 });
+  const values = review.values;
 
   const db = getDb();
   const visitorFingerprint = fingerprint(request);

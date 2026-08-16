@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { buildProgressionSuggestions } from "../../lib/progression";
+import { followUpInactiveStatuses } from "../../lib/lead-follow-up";
 import { parseExercises, workoutStats } from "../../lib/workouts";
 import { getDb } from "../../../db";
 import {
@@ -132,7 +133,7 @@ export async function GET() {
     generatedAt: now.toISOString(),
     sessions: sessionRows.map(({ pulseToken, ...session }) => ({ ...session, pulsePath: `/pulse/${pulseToken}` })),
     consultations: consultationRows,
-    followUps: followUpRows.filter((lead) => !["converted", "lost"].includes(lead.status)),
+    followUps: followUpRows.filter((lead) => !followUpInactiveStatuses.includes(lead.status)),
     progressUpdates: progressRows,
     workoutReviews,
     progressionApprovals,

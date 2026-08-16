@@ -130,7 +130,9 @@ export function buildNotificationCandidates<
     inactivityRows: I[];
   },
 ) {
-  const activeFollowUps = rows.followUpRows.filter((lead) => !["converted", "lost"].includes(lead.status));
+  // "client" (not "converted") is the canonical converted-lead status; both
+  // client and lost leads stop producing follow-up reminders.
+  const activeFollowUps = rows.followUpRows.filter((lead) => !["client", "lost"].includes(lead.status));
   const sessionReminders = rows.sessionRows.filter((session) => session.startAt.getTime() >= now.getTime());
   const pulseAlerts = rows.sessionRows.filter((session) => session.readinessLevel === "red" || session.readinessLevel === "amber");
   const dailyKey = parisDateKey(now);

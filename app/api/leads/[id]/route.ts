@@ -18,8 +18,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const updates: { status?: string; coachNotes?: string; contactedAt?: Date; nextFollowUpAt?: Date | null; updatedAt: Date } = { updatedAt: new Date() };
   if (body.status !== undefined) {
     if (!isLeadStatus(body.status)) return Response.json({ error: "Invalid lead status." }, { status: 400 });
+    // "client" is only reachable through conversion, which creates/links a real
+    // client row. Reject a manual transition so a lead can never fake a client.
+    if (body.status === "client") return Response.json({ error: "Use conversion to move a lead to client." }, { status: 409 });
     updates.status = body.status;
     if (body.status === "contacted") updates.contactedAt = new Date();
+    // Lost leads must stop producing follow-up reminders.
+    if (body.status === "lost") updates.nextFollowUpAt = null;
   }
   if (body.coachNotes !== undefined) updates.coachNotes = safeText(body.coachNotes, 1200);
   if (body.nextFollowUpAt !== undefined) {

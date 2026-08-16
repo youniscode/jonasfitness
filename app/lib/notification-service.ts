@@ -14,6 +14,7 @@ import {
 import { buildNotificationCandidates, keyDate, parisDateKey } from "./notification-evaluation";
 import { dedupeKeyId, resolveNotificationIds, type ActiveNotificationRow } from "./notification-lifecycle";
 import { isClientInactiveEpisodeClosed, notificationCleanupIds } from "./notification-retention";
+import { followUpInactiveStatuses } from "./lead-follow-up";
 import { leadFollowUpMessages, reminderLanguage, sessionReminderMessages } from "./reminders";
 import { parseExercises, workoutStats } from "./workouts";
 
@@ -238,7 +239,7 @@ async function computeResolvedNotificationIds(
     leadIds.length
       ? db.select({ id: leads.id })
         .from(leads)
-        .where(and(inArray(leads.id, leadIds), lte(leads.nextFollowUpAt, now), notInArray(leads.status, ["converted", "lost"])))
+        .where(and(inArray(leads.id, leadIds), lte(leads.nextFollowUpAt, now), notInArray(leads.status, followUpInactiveStatuses)))
       : [],
     progressIds.length
       ? db.select({ id: progressEntries.id })
