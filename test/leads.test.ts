@@ -9,8 +9,10 @@ import {
   isManualLeadStatus,
   leadStatuses,
   manualLeadStatuses,
+  normaliseLeadEmail,
   planConversion,
   planLeadDeletion,
+  planLeadResubmission,
   reviewApplication,
 } from "../app/lib/leads.ts";
 import { safeSource, sourceFromReferrer, sourceFromUtm } from "../app/lib/attribution.ts";
@@ -144,6 +146,35 @@ test("planLeadDeletion protects converted/client leads", () => {
   // Even an inconsistent state (linked client id but wrong status) is protected.
   const inconsistent = planLeadDeletion({ status: "lost", convertedClientId: 7 });
   assert.equal(inconsistent.allowed, false);
+});
+
+test("normaliseLeadEmail trims and lowercases", () => {
+  assert.equal(normaliseLeadEmail("  Maya@Example.COM "), "maya@example.com");
+  assert.equal(normaliseLeadEmail("MAYA@EXAMPLE.COM"), "maya@example.com");
+  assert.equal(normaliseLeadEmail("  maya@example.com"), "maya@example.com");
+  assert.equal(normaliseLeadEmail(null), "");
+  assert.equal(normaliseLeadEmail(123), "");
+});
+
+test("planLeadResubmission creates when no lead matches", () => {
+  assert.deepEqual(planLeadResubmission(null), { kind: "create" });
+  assert.deepEqual(planLeadResubmission(undefined), { kind: "create" });
+});
+
+test("planLeadResubmission resubmits an active lead (no duplicate)", () => {
+  for (const status of ["new", "contacted", "qualified"]) {
+    assert.deepEqual(planLeadResubmission({ id: 5, status, convertedClientId: null }), { kind: "resubmitted", leadId: 5 });
+  }
+});
+
+test("planLeadResubmission reactivates a lost lead", () => {
+  assert.deepEqual(planLeadResubmission({ id: 9, status: "lost", convertedClientId: null }), { kind: "reactivate", leadId: 9 });
+});
+
+test("planLeadResubmission protects converted/client leads", () => {
+  assert.deepEqual(planLeadResubmission({ id: 3, status: "client", convertedClientId: 7 }), { kind: "already_client", leadId: 3 });
+  // Defense-in-depth: a non-null convertedClientId is protected even if status is stale.
+  assert.deepEqual(planLeadResubmission({ id: 3, status: "lost", convertedClientId: 7 }), { kind: "already_client", leadId: 3 });
 });
 
 test("planConversion decides create, link and already", () => {

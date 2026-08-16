@@ -72,6 +72,10 @@ export const leads = pgTable("leads", {
 }, (table) => [
   index("leads_status_created_idx").on(table.status, table.createdAt),
   index("leads_fingerprint_created_idx").on(table.fingerprint, table.createdAt),
+  // One durable lead record per normalized (trimmed, lowercased) email. The
+  // expression is unique so a resubmission cannot create a duplicate, and the
+  // partial predicate ignores empty emails (matching clients_email_lower_unique).
+  uniqueIndex("leads_email_lower_unique").on(sql`lower(trim(${table.email}))`).where(sql`trim(${table.email}) <> ''`),
 ]);
 
 export const leadActivities = pgTable("lead_activities", {

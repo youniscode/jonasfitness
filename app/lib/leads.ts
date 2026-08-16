@@ -109,3 +109,41 @@ export function planLeadDeletion(lead: { status: string; convertedClientId: numb
   }
   return { allowed: true };
 }
+
+// Canonical lead identity for persistent deduplication. One durable lead row
+// per normalized (trimmed, lowercased) email, so a resubmission updates or
+// reactivates the existing record instead of creating a duplicate.
+export function normaliseLeadEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+// Decides what a public application should do when a lead with the same
+// normalized email already exists.
+//   create          → no match, insert a new row
+//   resubmitted     → active lead (new/contacted/qualified): no duplicate,
+//                     no-op, first-touch attribution preserved
+//   reactivate      → lost lead: clear lost state back to "new", keep history
+//   already_client  → converted/client lead: no new lead, no client details
+// A hard-deleted lead is treated as new (its history no longer exists), so the
+// matching query naturally returns nothing and `create` is chosen.
+export type LeadResubmissionPlan =
+  | { kind: "create" }
+  | { kind: "resubmitted"; leadId: number }
+  | { kind: "reactivate"; leadId: number }
+  | { kind: "already_client"; leadId: number };
+
+export function planLeadResubmission(
+  existing: { id: number; status: string; convertedClientId: number | null } | null | undefined,
+): LeadResubmissionPlan {
+  if (!existing) return { kind: "create" };
+  if (existing.status === "client" || existing.convertedClientId !== null) {
+    return { kind: "already_client", leadId: existing.id };
+  }
+  if (existing.status === "lost") return { kind: "reactivate", leadId: existing.id };
+  return { kind: "resubmitted", leadId: existing.id };
+}
+
+// ownerId used for lead activities written by the public application form,
+// which has no coach session. Leads are single-coach/global, so the coach reads
+// a lead's timeline by lead id, not by this owner value.
+export const SYSTEM_ACTIVITY_OWNER = "system";

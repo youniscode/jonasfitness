@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "leads_email_lower_unique" ON "leads" USING btree (lower(trim("email"))) WHERE trim("leads"."email") <> '';
