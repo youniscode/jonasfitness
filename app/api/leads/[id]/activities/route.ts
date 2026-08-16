@@ -3,7 +3,7 @@ import { getCoachId } from "../../../../clerk-auth";
 import { getDb } from "../../../../../db";
 import { leadActivities, leads } from "../../../../../db/schema";
 import { safeText } from "../../../../lib/attribution";
-import { followUpActivity, isActivityType, optionalDate } from "../../../../lib/lead-follow-up";
+import { isActivityType, optionalDate, planFollowUpActivity } from "../../../../lib/lead-follow-up";
 
 const defaultTitles: Record<string, string> = {
   note: "Note added",
@@ -42,17 +42,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }).returning();
   // Setting (or clearing) a follow-up date through an interaction records a
   // dedicated follow_up timeline entry, so the coach's next-step history is
-  // self-explanatory alongside the interaction itself.
+  // self-explanatory alongside the interaction itself. The shared planner
+  // derives wording from previous → requested and skips no-op transitions
+  // (same datetime re-saved, double-click, retry) entirely.
   if (body.nextFollowUpAt !== undefined) {
     const action = body.followUpAction === "done" ? "done" : body.followUpAction === "clear" ? "clear" : undefined;
-    const info = followUpActivity(existing.nextFollowUpAt, nextFollowUpAt ?? null, action);
-    await db.insert(leadActivities).values({
-      leadId,
-      ownerId,
-      type: "follow_up",
-      title: info.title,
-      detail: info.detail,
-    });
+    const planned = planFollowUpActivity(existing.nextFollowUpAt, nextFollowUpAt ?? null, action);
+    if (planned) {
+      await db.insert(leadActivities).values({
+        leadId,
+        ownerId,
+        type: "follow_up",
+        title: planned.title,
+        detail: planned.detail,
+      });
+    }
   }
 
   const contactActivity = ["phone", "email", "whatsapp"].includes(body.type);

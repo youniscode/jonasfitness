@@ -107,3 +107,26 @@ export function followUpActivity(
   const rescheduled = existing !== null;
   return { title: rescheduled ? "Follow-up rescheduled" : "Follow-up scheduled", detail: next.toISOString() };
 }
+
+// The single authoritative planner for follow-up timeline entries: returns the
+// entry a mutation should record, or null when the mutation is a no-op. One
+// logical change → at most one entry. Saving the exact same datetime again, a
+// double-click on a quick chip, a client retry or a chip-then-save of the same
+// value must never append another entry — idempotent at the server.
+export function planFollowUpActivity(
+  existing: Date | null,
+  next: Date | null,
+  action: "done" | "clear" | undefined,
+): { title: string; detail: string } | null {
+  // Completing only makes sense while a follow-up is actually pending.
+  if (action === "done") {
+    return existing === null ? null : { title: "Follow-up completed", detail: "" };
+  }
+  // Clearing a follow-up that is already clear is a no-op.
+  if (next === null) {
+    return existing === null ? null : { title: "Follow-up cleared", detail: "" };
+  }
+  // Re-saving the identical datetime is a no-op, not another reschedule.
+  if (existing !== null && existing.getTime() === next.getTime()) return null;
+  return { title: existing === null ? "Follow-up scheduled" : "Follow-up rescheduled", detail: next.toISOString() };
+}

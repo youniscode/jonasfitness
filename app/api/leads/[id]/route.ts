@@ -4,7 +4,7 @@ import { getDb } from "../../../../db";
 import { leadActivities, leads } from "../../../../db/schema";
 import { isLeadStatus, planLeadDeletion } from "../../../lib/leads";
 import { safeText } from "../../../lib/attribution";
-import { followUpActivity, optionalDate } from "../../../lib/lead-follow-up";
+import { optionalDate, planFollowUpActivity } from "../../../lib/lead-follow-up";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await getCoachId();
@@ -44,18 +44,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     activityRows.push(activity);
   }
   if (body.nextFollowUpAt !== undefined) {
-    // `followUpAction: "done"` distinguishes an explicit completion from a plain
-    // clear on the timeline; changing an existing date is logged as a reschedule.
+    // The planner derives wording from previous → requested and returns null for
+    // no-op transitions (same datetime re-saved, double-click, retry), so one
+    // logical change records at most one timeline entry.
     const action = body.followUpAction === "done" ? "done" : body.followUpAction === "clear" ? "clear" : undefined;
-    const info = followUpActivity(existing.nextFollowUpAt, updates.nextFollowUpAt ?? null, action);
-    const [activity] = await db.insert(leadActivities).values({
-      leadId: id,
-      ownerId,
-      type: "follow_up",
-      title: info.title,
-      detail: info.detail,
-    }).returning();
-    activityRows.push(activity);
+    const planned = planFollowUpActivity(existing.nextFollowUpAt, updates.nextFollowUpAt ?? null, action);
+    if (planned) {
+      const [activity] = await db.insert(leadActivities).values({
+        leadId: id,
+        ownerId,
+        type: "follow_up",
+        title: planned.title,
+        detail: planned.detail,
+      }).returning();
+      activityRows.push(activity);
+    }
   }
   return Response.json({ lead, activities: activityRows });
 }

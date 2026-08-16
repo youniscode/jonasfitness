@@ -7,6 +7,7 @@ import {
   consultationStatuses,
   followUpActivity,
   overlappingConsultation,
+  planFollowUpActivity,
 } from "../app/lib/lead-follow-up.ts";
 import {
   formatParisDateTime,
@@ -104,6 +105,63 @@ test("follow-up activity titles distinguish schedule, change, clear and done", (
   assert.deepEqual(followUpActivity(date, null, undefined), { title: "Follow-up cleared", detail: "" });
   assert.deepEqual(followUpActivity(date, null, "done"), { title: "Follow-up completed", detail: "" });
   assert.deepEqual(followUpActivity(date, null, "clear"), { title: "Follow-up cleared", detail: "" });
+});
+
+// ---------- Follow-up activity planner: one logical change → one entry ----------
+
+const firstDate = new Date("2026-08-17T08:15:00.000Z");
+const secondDate = new Date("2026-08-18T08:15:00.000Z");
+
+test("first set produces exactly one Follow-up scheduled entry", () => {
+  assert.deepEqual(planFollowUpActivity(null, firstDate, undefined), { title: "Follow-up scheduled", detail: firstDate.toISOString() });
+});
+
+test("reschedule produces exactly one Follow-up rescheduled entry", () => {
+  assert.deepEqual(planFollowUpActivity(firstDate, secondDate, undefined), { title: "Follow-up rescheduled", detail: secondDate.toISOString() });
+});
+
+test("saving the exact same datetime again records no lifecycle activity", () => {
+  assert.equal(planFollowUpActivity(firstDate, firstDate, undefined), null);
+});
+
+test("clear produces exactly one Follow-up cleared entry and repeats are no-ops", () => {
+  assert.deepEqual(planFollowUpActivity(firstDate, null, undefined), { title: "Follow-up cleared", detail: "" });
+  assert.equal(planFollowUpActivity(null, null, undefined), null);
+  assert.deepEqual(planFollowUpActivity(firstDate, null, "clear"), { title: "Follow-up cleared", detail: "" });
+});
+
+test("mark done produces exactly one Follow-up completed entry and repeats are no-ops", () => {
+  assert.deepEqual(planFollowUpActivity(firstDate, null, "done"), { title: "Follow-up completed", detail: "" });
+  // No pending follow-up to complete → nothing to record.
+  assert.equal(planFollowUpActivity(null, null, "done"), null);
+});
+
+test("identical retry of the same request does not duplicate activity", () => {
+  const first = planFollowUpActivity(null, firstDate, undefined);
+  assert.deepEqual(first, { title: "Follow-up scheduled", detail: firstDate.toISOString() });
+  assert.equal(planFollowUpActivity(firstDate, firstDate, undefined), null);
+});
+
+test("quick chip then save of the same date yields exactly one entry", () => {
+  const chip = planFollowUpActivity(null, firstDate, undefined);
+  const save = planFollowUpActivity(firstDate, firstDate, undefined);
+  assert.deepEqual(chip, { title: "Follow-up scheduled", detail: firstDate.toISOString() });
+  assert.equal(save, null);
+});
+
+test("double-click on a quick chip records a single entry", () => {
+  const first = planFollowUpActivity(null, firstDate, undefined);
+  const second = planFollowUpActivity(firstDate, firstDate, undefined);
+  const third = planFollowUpActivity(firstDate, firstDate, undefined);
+  assert.deepEqual(first, { title: "Follow-up scheduled", detail: firstDate.toISOString() });
+  assert.equal(second, null);
+  assert.equal(third, null);
+});
+
+test("changing to a different datetime still records one reschedule", () => {
+  const rescheduled = planFollowUpActivity(firstDate, secondDate, undefined);
+  assert.deepEqual(rescheduled, { title: "Follow-up rescheduled", detail: secondDate.toISOString() });
+  assert.equal(planFollowUpActivity(secondDate, secondDate, undefined), null);
 });
 
 // ---------- Europe/Paris timezone helpers ----------
