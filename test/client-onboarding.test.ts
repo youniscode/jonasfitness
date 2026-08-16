@@ -140,6 +140,28 @@ test("a client changing limitation notes resets the previous coach review", () =
   assert.equal(readinessReviewAfterClientEdit(null, "New note", null), null);
 });
 
+// ---------- Badge labels: canonical, distinct, never part of the client name ----------
+
+test("onboarding badge labels are canonical distinct values that never embed client data", () => {
+  // A long client name must never become part of the badge text: the label is
+  // a separate derived value, rendered as its own chip beside the name.
+  const longNameClient = { email: "mohamed.ali.very.long@example.com", goal: "Build muscle", currentWeight: 82 };
+  const cases: [OnboardingIntake | null, boolean, string][] = [
+    [null, false, "NEW"],
+    [intake({ trainingExperience: "" }), false, "ONBOARDING"],
+    [intake(), false, "READY FOR PROGRAMME"],
+    [intake(), true, "READY TO TRAIN"],
+  ];
+  const labels = new Set<string>();
+  for (const [row, hasProgramme, expected] of cases) {
+    const state = onboardingState(longNameClient, row, hasProgramme);
+    assert.equal(state.label, expected);
+    assert.ok(!state.label.includes("mohamed") && !state.label.includes("example"), "badge must not embed client data");
+    labels.add(state.label);
+  }
+  assert.equal(labels.size, 4, "all four stages produce distinct labels");
+});
+
 // ---------- Privacy: private coach fields never leave the DTO ----------
 
 test("publicIntake never exposes private coach fields", () => {

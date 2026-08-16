@@ -44,3 +44,46 @@ export function sourceFromUtm(value: string): AcquisitionSource {
   if (source.includes("website")) return "Website";
   return source ? "Other" : "Unknown";
 }
+
+export type AcquisitionRow = {
+  id: number;
+  name: string;
+  source: string;
+  campaign: string;
+  createdAt: Date | string;
+};
+
+export type AcquisitionSummary = {
+  total: number;
+  tracked: number;
+  sources: { source: string; count: number }[];
+  topSource: string;
+  recent: { id: number; name: string; source: string; campaign: string; createdAt: Date | string }[];
+};
+
+// Pure aggregation for the acquisition dashboard. Rows are expected to be
+// newest-first (the API orders by createdAt desc). Every client row counts
+// exactly once, so a freshly converted client appears in `total`, in its
+// source bucket, and at the top of `recent` — with its real first-touch
+// source preserved. Duplicate rows would inflate counts, which the idempotent
+// conversion find-or-create never produces.
+export function aggregateAcquisition(rows: AcquisitionRow[]): AcquisitionSummary {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.source, (counts.get(row.source) ?? 0) + 1);
+  const sources = [...counts.entries()].map(([source, count]) => ({ source, count }))
+    .toSorted((a, b) => b.count - a.count || a.source.localeCompare(b.source));
+  const tracked = rows.filter((row) => row.source !== "Unknown");
+  return {
+    total: rows.length,
+    tracked: tracked.length,
+    sources,
+    topSource: sources.find((item) => item.source !== "Unknown")?.source ?? "Not enough data",
+    recent: rows.slice(0, 8).map((row) => ({
+      id: row.id,
+      name: row.name,
+      source: row.source,
+      campaign: row.campaign,
+      createdAt: row.createdAt,
+    })),
+  };
+}

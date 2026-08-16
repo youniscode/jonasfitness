@@ -14,6 +14,15 @@ export default function AcquisitionDashboard() {
   const [data, setData] = useState<AcquisitionData | null>(null); const [notice, setNotice] = useState("");
   const load = useCallback(async () => { const response = await fetch("/api/acquisition"); if (response.ok) setData(await response.json()); }, []);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
+  // Roster changes (lead conversion, manual add, deletion) re-fetch the
+  // acquisition summary immediately so counts, sources and recent clients
+  // stay in sync without a full page reload. The manual Refresh button keeps
+  // working independently.
+  useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener("jonas-clients-changed", refresh);
+    return () => window.removeEventListener("jonas-clients-changed", refresh);
+  }, [load]);
   const maximum = useMemo(() => Math.max(1, ...(data?.sources.map((source) => source.count) ?? [])), [data]);
   async function copyCampaign(source: string, campaign: string, label: string) { const url = `${window.location.origin}/?utm_source=${source}&utm_medium=social&utm_campaign=${campaign}`; try { await navigator.clipboard.writeText(url); setNotice(`${label} link copied.`); } catch { setNotice(url); } }
   return <section className="acquisition-dashboard" id="acquisition"><header><div><p>CLIENT ACQUISITION</p><h2>Know what brings people in.</h2><span>First-touch source tracking—private, first-party and free.</span></div><button className="refresh-button" onClick={() => void load()}>Refresh</button></header>{notice && <p className="acquisition-notice">✓ {notice}</p>}
