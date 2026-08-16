@@ -47,4 +47,5 @@ next-env.d.ts
 
 .agents/
 .claude/
+.freebuff/
 skills-lock.json
