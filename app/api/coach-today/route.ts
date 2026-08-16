@@ -3,6 +3,7 @@ import { getCoachId } from "../../clerk-auth";
 import { onboardingState } from "../../lib/client-onboarding";
 import { buildProgressionSuggestions } from "../../lib/progression";
 import { followUpInactiveStatuses } from "../../lib/lead-follow-up";
+import { attendancePending } from "../../lib/session-scheduling";
 import { parseExercises, workoutStats } from "../../lib/workouts";
 import { getDb } from "../../../db";
 import {
@@ -12,6 +13,7 @@ import {
   leads,
   programmes,
   progressEntries,
+  sessionCreditLedger,
   sessions,
   workoutSessions,
 } from "../../../db/schema";
@@ -28,7 +30,7 @@ export async function GET() {
   const windowEnd = new Date(now.getTime() + 7 * DAY);
   const followUpEnd = new Date(now.getTime() + DAY);
 
-  const [sessionRows, consultationRows, followUpRows, progressRows, workoutRows, approvedRows, completedRows, clientRows, intakeRows] = await Promise.all([
+  const [sessionRows, consultationRows, followUpRows, progressRows, workoutRows, approvedRows, completedRows, clientRows, intakeRows, ledgerRows, pastSessionRows] = await Promise.all([
     db.select({
       id: sessions.id,
       clientId: sessions.clientId,
@@ -98,6 +100,20 @@ export async function GET() {
       .orderBy(desc(workoutSessions.completedAt)).limit(500),
     db.select().from(clients).where(eq(clients.ownerId, ownerId)),
     db.select().from(clientIntakes).where(eq(clientIntakes.ownerId, ownerId)),
+    db.select({ clientId: sessionCreditLedger.clientId, delta: sessionCreditLedger.delta })
+      .from(sessionCreditLedger).where(eq(sessionCreditLedger.ownerId, ownerId)),
+    // Scheduled sessions whose end time has passed still need attendance recorded.
+    db.select({
+      id: sessions.id,
+      clientId: sessions.clientId,
+      clientName: clients.name,
+      startAt: sessions.startAt,
+      durationMinutes: sessions.durationMinutes,
+      status: sessions.status,
+    }).from(sessions)
+      .innerJoin(clients, and(eq(clients.id, sessions.clientId), eq(clients.ownerId, ownerId)))
+      .where(and(eq(sessions.ownerId, ownerId), eq(sessions.status, "scheduled"), lte(sessions.startAt, new Date())))
+      .orderBy(desc(sessions.startAt)).limit(20),
   ]);
 
   const latestProgrammeByClient = new Map<number, typeof approvedRows[number]>();
@@ -105,7 +121,7 @@ export async function GET() {
     if (!latestProgrammeByClient.has(programme.clientId)) latestProgrammeByClient.set(programme.clientId, programme);
   });
   const clientNames = new Map<number, string>();
-  [...sessionRows, ...progressRows, ...workoutRows].forEach((item) => clientNames.set(item.clientId, item.clientName));
+  [...sessionRows, ...progressRows, ...workoutRows, ...pastSessionRows].forEach((item) => clientNames.set(item.clientId, item.clientName));
   const missingNameIds = [...latestProgrammeByClient.keys()].filter((clientId) => !clientNames.has(clientId));
   if (missingNameIds.length) {
     const ownerClients = await db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.ownerId, ownerId));
@@ -132,6 +148,31 @@ export async function GET() {
     ...workout,
     ...workoutStats(parseExercises(exercises)),
   }));
+
+  // Attendance pending: scheduled sessions that have ended and still need the
+  // coach to record completed / cancelled / no-show (never inferred).
+  const attendancePendingItems = pastSessionRows
+    .filter((row) => attendancePending(row.status as "scheduled", row.startAt, row.durationMinutes, now))
+    .map((row) => ({
+      id: row.id,
+      clientId: row.clientId,
+      clientName: row.clientName,
+      startAt: row.startAt,
+      durationMinutes: row.durationMinutes,
+    }));
+
+  // Low credits: derived from the ledger (SUM(delta)), never a cached counter.
+  const balances = new Map<number, number>();
+  ledgerRows.forEach((entry) => balances.set(entry.clientId, (balances.get(entry.clientId) ?? 0) + entry.delta));
+  const lowCreditItems = clientRows
+    .filter((client) => (balances.get(client.id) ?? 0) <= 1)
+    .map((client) => ({
+      clientId: client.id,
+      clientName: client.name,
+      balance: balances.get(client.id) ?? 0,
+    }))
+    .sort((a, b) => a.balance - b.balance)
+    .slice(0, 10);
 
   // Onboarding attention items: only clients without an approved programme need
   // coach action, and only the single most urgent item per client is surfaced
@@ -165,6 +206,8 @@ export async function GET() {
     workoutReviews,
     progressionApprovals,
     onboarding,
+    attendancePending: attendancePendingItems,
+    lowCredits: lowCreditItems,
   });
 }
 

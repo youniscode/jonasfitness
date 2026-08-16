@@ -164,6 +164,10 @@ export const sessions = pgTable("sessions", {
   pain: boolean("pain").notNull().default(false),
   painArea: text("pain_area").notNull().default(""),
   note: text("note").notNull().default(""),
+  // Coach booking notes (reschedule history is kept in the activity trail via
+  // the note field when the coach records it); the Pulse `note` above stays the
+  // client's own readiness note.
+  notes: text("notes").notNull().default(""),
   aiSummary: text("ai_summary").notNull().default(""),
   coachAction: text("coach_action").notNull().default(""),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
@@ -171,6 +175,28 @@ export const sessions = pgTable("sessions", {
 }, (table) => [
   index("sessions_owner_start_idx").on(table.ownerId, table.startAt),
   index("sessions_client_idx").on(table.clientId),
+]);
+
+// Auditable session-credit ledger. The current balance is derived from
+// SUM(delta) rather than a cached counter, so every credit added, consumed or
+// restored is a permanent row. One charge per session is enforced by the
+// partial unique index on (related_session_id, reason) — a double-click or
+// retry can never debit a session twice.
+export const sessionCreditLedger = pgTable("session_credit_ledger", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  delta: integer("delta").notNull(),
+  reason: text("reason").notNull(),
+  relatedSessionId: integer("related_session_id").references(() => sessions.id, { onDelete: "set null" }),
+  note: text("note").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [
+  index("session_credit_ledger_client_created_idx").on(table.clientId, table.createdAt),
+  index("session_credit_ledger_owner_idx").on(table.ownerId),
+  uniqueIndex("session_credit_ledger_session_reason_unique")
+    .on(table.relatedSessionId, table.reason)
+    .where(sql`${table.relatedSessionId} IS NOT NULL`),
 ]);
 
 export const progressEntries = pgTable("progress_entries", {

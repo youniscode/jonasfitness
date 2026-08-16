@@ -9,6 +9,8 @@ type ProgressUpdate = { id: number; clientId: number; clientName: string; weight
 type WorkoutReview = { id: number; clientId: number; clientName: string; title: string; completedAt: string | null; exercises: number; completedSets: number; totalVolume: number };
 type ProgressionApproval = { clientId: number; clientName: string; programmeId: number; programmeTitle: string; count: number; first: { exerciseName: string; action: string; proposedWeight: number; performedWeight: number } };
 type OnboardingItem = { clientId: number; clientName: string; kind: "readiness_review" | "onboarding_incomplete" | "first_programme"; tone: "amber" | "neutral" | "lime"; eyebrow: string; detail: string; action: string };
+type AttendancePending = { id: number; clientId: number; clientName: string; startAt: string; durationMinutes: number };
+type LowCredit = { clientId: number; clientName: string; balance: number };
 type Payload = {
   generatedAt: string;
   sessions: Session[];
@@ -18,9 +20,11 @@ type Payload = {
   workoutReviews: WorkoutReview[];
   progressionApprovals: ProgressionApproval[];
   onboarding: OnboardingItem[];
+  attendancePending: AttendancePending[];
+  lowCredits: LowCredit[];
 };
 
-const emptyPayload: Payload = { generatedAt: "", sessions: [], consultations: [], followUps: [], progressUpdates: [], workoutReviews: [], progressionApprovals: [], onboarding: [] };
+const emptyPayload: Payload = { generatedAt: "", sessions: [], consultations: [], followUps: [], progressUpdates: [], workoutReviews: [], progressionApprovals: [], onboarding: [], attendancePending: [], lowCredits: [] };
 
 type QueueItem = {
   key: string;
@@ -85,6 +89,7 @@ export default function CoachCommandCenter({ onSelectClient }: { onSelectClient:
   const todaySessions = data.sessions.filter((item) => new Date(item.startAt).getTime() <= next24Hours);
   const todayConsultations = data.consultations.filter((item) => new Date(item.startAt).getTime() <= next24Hours);
   const pulseAlerts = data.sessions.filter((item) => item.readinessLevel === "red" || item.readinessLevel === "amber");
+  const lowCreditCount = data.lowCredits.length;
   const reviewCount = data.progressUpdates.length + data.workoutReviews.length + data.progressionApprovals.reduce((total, item) => total + item.count, 0);
 
   const timeline = useMemo(() => [
@@ -93,6 +98,12 @@ export default function CoachCommandCenter({ onSelectClient }: { onSelectClient:
   ].sort((a, b) => a.startAt.localeCompare(b.startAt)).slice(0, 6), [data.consultations, data.sessions, onSelectClient]);
 
   const queue = useMemo<QueueItem[]>(() => [
+    // Attendance pending is the coach's top priority: sessions that ended and
+    // still need an explicit completed / cancelled / no-show decision.
+    ...data.attendancePending.map((item) => ({
+      key: `attendance-${item.id}`, tone: "red" as const, eyebrow: "ATTENDANCE PENDING", title: item.clientName,
+      detail: `Session ended ${relativeTime(item.startAt, now)} — record what happened.`, time: relativeTime(item.startAt, now), action: "Record attendance", onOpen: () => onSelectClient(item.clientId, "#calendar"),
+    })),
     ...pulseAlerts.map((item) => ({
       key: `pulse-${item.id}`, tone: item.readinessLevel as "red" | "amber", eyebrow: `${item.readinessLevel.toUpperCase()} PULSE`, title: item.clientName,
       detail: item.coachAction || `Readiness ${item.readinessScore ?? "—"}% needs review before training.`, time: formatWhen(item.startAt), action: "Review Pulse", onOpen: () => onSelectClient(item.clientId, "#calendar"),
@@ -113,11 +124,15 @@ export default function CoachCommandCenter({ onSelectClient }: { onSelectClient:
       key: `progression-${item.clientId}`, tone: "neutral" as const, eyebrow: `${item.count} LOAD ${item.count === 1 ? "DECISION" : "DECISIONS"}`, title: item.clientName,
       detail: `${item.first.exerciseName}: ${item.first.performedWeight} → ${item.first.proposedWeight} kg`, time: "Coach approval", action: "Review loads", onOpen: () => onSelectClient(item.clientId, "#progression"),
     })),
+    ...data.lowCredits.map((item) => ({
+      key: `credits-${item.clientId}`, tone: "amber" as const, eyebrow: "LOW CREDITS", title: item.clientName,
+      detail: `${item.balance} session${item.balance === 1 ? "" : "s"} remaining`, time: "Check credits", action: "Add credits", onOpen: () => onSelectClient(item.clientId, "#clients"),
+    })),
     ...data.onboarding.map((item) => ({
       key: `onboarding-${item.clientId}`, tone: item.tone, eyebrow: item.eyebrow, title: item.clientName,
       detail: item.detail, time: "Now", action: item.action, onOpen: () => onSelectClient(item.clientId, "#onboarding"),
     })),
-  ].slice(0, 12), [data.followUps, data.onboarding, data.progressUpdates, data.progressionApprovals, data.workoutReviews, now, onSelectClient, pulseAlerts]);
+  ].slice(0, 12), [data.attendancePending, data.followUps, data.lowCredits, data.onboarding, data.progressUpdates, data.progressionApprovals, data.workoutReviews, now, onSelectClient, pulseAlerts]);
 
   async function markReviewed(item: NonNullable<QueueItem["review"]>) {
     const key = `${item.type}-${item.id}`;
@@ -145,7 +160,7 @@ export default function CoachCommandCenter({ onSelectClient }: { onSelectClient:
       <button type="button" onClick={() => scrollTo("#calendar")}><small>NEXT 24H</small><strong>{todaySessions.length}</strong><span>training sessions</span></button>
       <button type="button" onClick={() => scrollTo("#leads")}><small>CONSULTATIONS</small><strong>{todayConsultations.length}</strong><span>sales conversations</span></button>
       <button type="button" className={pulseAlerts.length ? "urgent" : ""} onClick={() => scrollTo("#calendar")}><small>PULSE ALERTS</small><strong>{pulseAlerts.length}</strong><span>{pulseAlerts.length ? "need preparation" : "all clear"}</span></button>
-      <button type="button" className={reviewCount ? "active" : ""} onClick={() => scrollTo("#command-queue")}><small>COACH REVIEWS</small><strong>{reviewCount}</strong><span>decisions waiting</span></button>
+      <button type="button" className={reviewCount || lowCreditCount ? "active" : ""} onClick={() => scrollTo("#command-queue")}><small>COACH REVIEWS</small><strong>{reviewCount}</strong><span>decisions waiting</span></button>
     </div>
 
     <div className="coach-command-layout">
