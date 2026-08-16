@@ -10,9 +10,19 @@ export async function GET(request: Request) {
   const ownerId = await getCoachId();
   if (!ownerId) return Response.json({ error: "Coach access required." }, { status: 403 });
 
-  const origin = new URL(request.url).origin;
-  const payload = await evaluateCoachNotifications(ownerId, { origin });
-  return Response.json(payload);
+  try {
+    const origin = new URL(request.url).origin;
+    const payload = await evaluateCoachNotifications(ownerId, { origin });
+    return Response.json(payload);
+  } catch (error) {
+    // Log only the error message — never raw DB errors to the browser, and no
+    // secrets or client data.
+    console.error("[coach-notifications:get] failed", {
+      ownerId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return Response.json({ error: "Could not load notifications." }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {
