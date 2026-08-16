@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { clients, progressEntries } from "../../../db/schema";
 import { getPortalAccess } from "../../client/portal-auth";
+import { publicProgressEntry } from "../../lib/client-dto";
 
 function numberOrNull(value: unknown) {
   const number = Number(value);
@@ -34,6 +35,6 @@ export async function POST(request: Request) {
     notes: String(body.notes ?? "").trim().slice(0, 1200), photoData,
   }).returning();
   await db.update(clients).set({ currentWeight: entry.weight ?? access.client.currentWeight, adherence }).where(and(eq(clients.id, access.client.id), eq(clients.ownerId, access.client.ownerId)));
-  return Response.json({ entry }, { status: 201 });
+  return Response.json({ entry: publicProgressEntry(entry) }, { status: 201 });
 }
 

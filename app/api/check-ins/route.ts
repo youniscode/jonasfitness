@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
+import { isClientOwnedBy } from "../../lib/client-ownership";
 import { askOllamaJson } from "../../lib/local-ai";
 import { getDb } from "../../../db";
 import { checkIns, clients } from "../../../db/schema";
@@ -18,7 +19,9 @@ export async function POST(request: Request) {
   const body = await request.json() as Record<string, unknown>;
   const clientId = Number(body.clientId); const db = getDb();
   const [client] = await db.select().from(clients).where(and(eq(clients.id, clientId), eq(clients.ownerId, ownerId))).limit(1);
-  if (!client) return Response.json({ error: "Client not found" }, { status: 404 });
+  // Defensive: re-assert ownership so a wrong-owner client can never be written,
+  // even if the scoped lookup above is relaxed in future.
+  if (!client || !isClientOwnedBy(client, clientId, ownerId)) return Response.json({ error: "Client not found" }, { status: 404 });
   const energy = Number(body.energy) || 5, sleep = Number(body.sleep) || 5, stress = Number(body.stress) || 5, adherence = Number(body.adherence) || 0;
   const flags = [sleep <= 4 ? "sleep is low" : "", stress >= 8 ? "stress is high" : "", adherence < 70 ? "adherence needs support" : ""].filter(Boolean);
   const fallbackSummary = flags.length ? `Review recommended: ${flags.join(", ")}. Keep the next adjustment conservative and ask the client for context.` : "Recovery and adherence look stable. Progress gradually and confirm performance in the next session.";
@@ -28,6 +31,6 @@ export async function POST(request: Request) {
   );
   const summary = aiAnalysis?.summary?.trim() || fallbackSummary;
   const [checkIn] = await db.insert(checkIns).values({ clientId, ownerId, weight:body.weight ? Number(body.weight) : null, energy, sleep, stress, adherence, notes:String(body.notes ?? ""), aiSummary:summary }).returning();
-  await db.update(clients).set({ adherence, currentWeight: body.weight ? Number(body.weight) : client.currentWeight }).where(eq(clients.id, clientId));
+  await db.update(clients).set({ adherence, currentWeight: body.weight ? Number(body.weight) : client.currentWeight }).where(and(eq(clients.id, clientId), eq(clients.ownerId, ownerId)));
   return Response.json({ checkIn }, { status:201 });
 }

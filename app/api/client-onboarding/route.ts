@@ -3,6 +3,7 @@ import { getDb } from "../../../db";
 import { clientIntakes } from "../../../db/schema";
 import { getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
+import { publicIntake } from "../../lib/client-dto";
 
 function previewId(request: Request) {
   const value = Number(new URL(request.url).searchParams.get("preview"));
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
   if (!ownerId || !safeClientId) return Response.json({ error: "Choose a client." }, { status: 400 });
   const [intake] = await getDb().select().from(clientIntakes)
     .where(and(eq(clientIntakes.clientId, safeClientId), eq(clientIntakes.ownerId, ownerId))).limit(1);
-  return Response.json({ intake: intake ?? null });
+  return Response.json({ intake: intake ? publicIntake(intake) : null });
 }
 
 export async function POST(request: Request) {
@@ -58,5 +59,5 @@ export async function POST(request: Request) {
   const [intake] = existing
     ? await db.update(clientIntakes).set(values).where(eq(clientIntakes.id, existing.id)).returning()
     : await db.insert(clientIntakes).values({ clientId: access.client.id, ...values }).returning();
-  return Response.json({ intake });
+  return Response.json({ intake: publicIntake(intake) });
 }

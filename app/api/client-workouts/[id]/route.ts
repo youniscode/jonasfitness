@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { workoutSessions } from "../../../../db/schema";
 import { getPortalAccess } from "../../../client/portal-auth";
+import { publicWorkout } from "../../../lib/client-dto";
 import { normaliseCompletedExercises, parseExercises, workoutStats } from "../../../lib/workouts";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -42,5 +43,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (status === "completed") {
     console.info("[client-workout:completed]", { workoutId: id, clientId: access.client.id, completedSets: stats.completedSets, totalVolume: stats.totalVolume });
   }
-  return Response.json({ workout: { ...workout, exercises, stats } });
+  return Response.json({ workout: { ...publicWorkout(workout, exercises), stats } });
 }

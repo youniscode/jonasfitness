@@ -1,5 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
+import { isUniqueViolation, normaliseClientEmail } from "../../lib/client-email";
 import { getDb } from "../../../db";
 import { clients } from "../../../db/schema";
 
@@ -20,13 +21,25 @@ export async function POST(request: Request) {
   if (!name) return Response.json({ error: "Client name is required" }, { status: 400 });
   const requestedSource = String(body.acquisitionSource ?? "Unknown").trim();
   const acquisitionSource = allowedSources.has(requestedSource) ? requestedSource : "Other";
-  const [client] = await getDb().insert(clients).values({
-    ownerId, name, email: String(body.email ?? "").trim().toLowerCase(), phone: String(body.phone ?? "").trim().slice(0, 40), goal: String(body.goal ?? "Build muscle"),
-    sessionsPerWeek: Math.min(7, Math.max(2, Number(body.sessionsPerWeek) || 4)), currentWeight: body.currentWeight ? Number(body.currentWeight) : null,
-    nextCheckIn: String(body.nextCheckIn ?? ""),
-    acquisitionSource,
-    acquisitionMedium: acquisitionSource === "Unknown" ? "" : "manual",
-    acquisitionCapturedAt: acquisitionSource === "Unknown" ? null : new Date(),
-  }).returning();
-  return Response.json({ client }, { status: 201 });
+  const email = normaliseClientEmail(body.email);
+  const db = getDb();
+  if (email) {
+    const [existing] = await db.select({ id: clients.id }).from(clients)
+      .where(sql`lower(${clients.email}) = ${email}`).limit(1);
+    if (existing) return Response.json({ error: "A client with this email already exists." }, { status: 409 });
+  }
+  try {
+    const [client] = await db.insert(clients).values({
+      ownerId, name, email, phone: String(body.phone ?? "").trim().slice(0, 40), goal: String(body.goal ?? "Build muscle"),
+      sessionsPerWeek: Math.min(7, Math.max(2, Number(body.sessionsPerWeek) || 4)), currentWeight: body.currentWeight ? Number(body.currentWeight) : null,
+      nextCheckIn: String(body.nextCheckIn ?? ""),
+      acquisitionSource,
+      acquisitionMedium: acquisitionSource === "Unknown" ? "" : "manual",
+      acquisitionCapturedAt: acquisitionSource === "Unknown" ? null : new Date(),
+    }).returning();
+    return Response.json({ client }, { status: 201 });
+  } catch (error) {
+    if (isUniqueViolation(error)) return Response.json({ error: "A client with this email already exists." }, { status: 409 });
+    throw error;
+  }
 }

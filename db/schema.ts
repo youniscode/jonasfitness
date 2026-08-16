@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -31,7 +32,13 @@ export const clients = pgTable("clients", {
   acquisitionLandingPage: text("acquisition_landing_page").notNull().default(""),
   acquisitionCapturedAt: timestamp("acquisition_captured_at", { withTimezone: true }),
   createdAt: createdAt(),
-}, (table) => [index("clients_owner_id_idx").on(table.ownerId)]);
+}, (table) => [
+  index("clients_owner_id_idx").on(table.ownerId),
+  // Client sign-in is matched by verified email, so the address must be unique
+  // across the whole table (case-insensitively). The index is partial so that
+  // clients without an email (the empty-string default) do not collide.
+  uniqueIndex("clients_email_lower_unique").on(sql`lower(${table.email})`).where(sql`${table.email} <> ''`),
+]);
 
 // Public coaching applications are deliberately separate from clients. A lead
 // becomes a client only after the coach explicitly approves the conversion.

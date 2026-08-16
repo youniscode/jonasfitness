@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { programmes, workoutSessions } from "../../../db/schema";
 import { getPortalAccess } from "../../client/portal-auth";
+import { publicWorkout } from "../../lib/client-dto";
 import { createExercises, parseExercises, programmeDays, workoutStats } from "../../lib/workouts";
 
 type Language = "fr" | "en" | "ar";
@@ -43,10 +44,10 @@ export async function GET(request: Request) {
   const days = programme ? programmeDays(programme.content, language) : [];
 
   return Response.json({
-    active: active ? { ...active, exercises: parseExercises(active.exercises) } : null,
+    active: active ? publicWorkout(active, parseExercises(active.exercises)) : null,
     history: history.map((workout) => {
       const exercises = parseExercises(workout.exercises);
-      return { ...workout, exercises, stats: workoutStats(exercises) };
+      return { ...publicWorkout(workout, exercises), stats: workoutStats(exercises) };
     }),
     programme: programme ? {
       id: programme.id,
@@ -99,5 +100,5 @@ export async function POST(request: Request) {
     startedAt: now,
     updatedAt: now,
   }).returning();
-  return Response.json({ workout: { ...workout, exercises } }, { status: 201 });
+  return Response.json({ workout: publicWorkout(workout, exercises) }, { status: 201 });
 }

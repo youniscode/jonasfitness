@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { programmes, progressEntries, sessions } from "../../../db/schema";
 import { getPortalAccess } from "../../client/portal-auth";
+import { publicClient, publicProgramme, publicProgressEntry } from "../../lib/client-dto";
 
 function previewId(request: Request) {
   const value = Number(new URL(request.url).searchParams.get("preview"));
@@ -24,5 +25,11 @@ export async function GET(request: Request) {
     .where(and(eq(sessions.clientId, access.client.id), eq(sessions.ownerId, access.client.ownerId), eq(sessions.status, "scheduled"), gt(sessions.startAt, new Date())))
     .orderBy(asc(sessions.startAt)).limit(8);
 
-  return Response.json({ client: access.client, programme: programme ?? null, entries, sessions: upcoming, preview: access.preview });
+  return Response.json({
+    client: publicClient(access.client),
+    programme: programme ? publicProgramme(programme) : null,
+    entries: entries.map(publicProgressEntry),
+    sessions: upcoming,
+    preview: access.preview,
+  });
 }

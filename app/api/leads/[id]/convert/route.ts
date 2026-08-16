@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getCoachId } from "../../../../clerk-auth";
+import { isUniqueViolation, normaliseClientEmail } from "../../../../lib/client-email";
 import { getDb } from "../../../../../db";
 import { clients, leadActivities, leads } from "../../../../../db/schema";
 
@@ -15,25 +16,32 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const [client] = await db.select().from(clients).where(and(eq(clients.id, lead.convertedClientId), eq(clients.ownerId, ownerId))).limit(1);
     return client ? Response.json({ lead, client }) : Response.json({ error: "Converted client could not be found." }, { status: 409 });
   }
-  const [existing] = await db.select({ id: clients.id }).from(clients).where(and(
-    eq(clients.ownerId, ownerId),
-    sql`lower(${clients.email}) = ${lead.email.toLowerCase()}`,
-  )).limit(1);
+  const email = normaliseClientEmail(lead.email);
+  const [existing] = await db.select({ id: clients.id }).from(clients).where(
+    sql`lower(${clients.email}) = ${email}`,
+  ).limit(1);
   if (existing) return Response.json({ error: "A client with this email already exists." }, { status: 409 });
-  const [client] = await db.insert(clients).values({
-    ownerId,
-    name: lead.name,
-    email: lead.email,
-    phone: lead.phone,
-    goal: lead.goal,
-    sessionsPerWeek: lead.trainingDays,
-    acquisitionSource: lead.acquisitionSource,
-    acquisitionMedium: lead.acquisitionMedium,
-    acquisitionCampaign: lead.acquisitionCampaign,
-    acquisitionReferrer: lead.acquisitionReferrer,
-    acquisitionLandingPage: lead.acquisitionLandingPage,
-    acquisitionCapturedAt: lead.createdAt,
-  }).returning();
+  let client: typeof clients.$inferSelect | undefined;
+  try {
+    [client] = await db.insert(clients).values({
+      ownerId,
+      name: lead.name,
+      email,
+      phone: lead.phone,
+      goal: lead.goal,
+      sessionsPerWeek: lead.trainingDays,
+      acquisitionSource: lead.acquisitionSource,
+      acquisitionMedium: lead.acquisitionMedium,
+      acquisitionCampaign: lead.acquisitionCampaign,
+      acquisitionReferrer: lead.acquisitionReferrer,
+      acquisitionLandingPage: lead.acquisitionLandingPage,
+      acquisitionCapturedAt: lead.createdAt,
+    }).returning();
+  } catch (error) {
+    if (isUniqueViolation(error)) return Response.json({ error: "A client with this email already exists." }, { status: 409 });
+    throw error;
+  }
+  if (!client) return Response.json({ error: "The client could not be created. Please try again." }, { status: 500 });
   const [convertedLead] = await db.update(leads).set({
     status: "client",
     convertedClientId: client.id,
