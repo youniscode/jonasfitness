@@ -1,3 +1,5 @@
+import { builtInExerciseFor } from "./exercise-catalogue.ts";
+
 export type WorkoutSet = {
   id: string;
   target: string;
@@ -173,10 +175,14 @@ function programmePrescription(value: unknown, translatedValue: unknown, index: 
   const sourceRir = Number(source.rir);
   const legacyRir = Number(rirMatch?.[1]);
   const targetRir = Number.isFinite(sourceRir) ? sourceRir : Number.isFinite(legacyRir) ? legacyRir : 2;
+  const libraryId = clampText(source.libraryId, 80);
+  const sourceName = clampText(source.name, 120) || legacyName;
+  const name = translatedName || sourceName || `Exercise ${index + 1}`;
+  const imageUrl = clampText(source.imageUrl, 1000);
   return {
     id: clampText(source.id, 80),
-    libraryId: clampText(source.libraryId, 80),
-    name: translatedName || clampText(source.name, 120) || legacyName || `Exercise ${index + 1}`,
+    libraryId,
+    name,
     nameFr: clampText(source.nameFr, 120),
     nameAr: clampText(source.nameAr, 120),
     sets: Math.min(12, Math.max(1, Number(source.sets) || Number(setRepMatch?.[1]) || 3)),
@@ -186,7 +192,7 @@ function programmePrescription(value: unknown, translatedValue: unknown, index: 
     targetWeight: source.targetWeight === null || source.targetWeight === undefined || source.targetWeight === "" ? null : numeric(source.targetWeight),
     notes: clampText(source.notes, 500),
     instructions: clampText(source.instructions, 1000),
-    imageUrl: clampText(source.imageUrl, 1000),
+    imageUrl: imageUrl || builtInExerciseFor(libraryId, sourceName)?.imageUrl || "",
     videoUrl: clampText(source.videoUrl, 1000),
   };
 }

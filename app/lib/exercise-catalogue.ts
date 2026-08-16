@@ -76,5 +76,31 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("farmer-carry", "Farmer carry", "Marche du fermier", "حمل الفلاح", "Full body", "Dumbbells", "Stand tall, brace and walk with controlled steps while keeping the weights stable.", "/exercises/farmer-carry.webp"),
 ];
 
+// ——— Stable rehydration of saved programme exercises ———
+// Saved programme exercises are persisted as JSON. Older entries (or entries
+// created by the AI programme generator) can lack imageUrl even when they
+// reference a built-in exercise. This lookup resolves such an entry back to its
+// current built-in definition using strict, exact matching only: the stable
+// libraryId slug first, then a normalized English name for legacy entries that
+// predate libraryId. Custom exercises always carry a custom-* id and never
+// fall through to name matching, so a custom exercise without an image keeps
+// its fallback illustration.
+const normaliseBuiltInName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+
+const builtInById = new Map<string, ExerciseDefinition>(builtInExercises.map((exercise) => [exercise.id, exercise]));
+const builtInByName = new Map<string, ExerciseDefinition>(builtInExercises.map((exercise) => [normaliseBuiltInName(exercise.name), exercise]));
+
+export function builtInExerciseFor(libraryId: string | null | undefined, name: string | null | undefined): ExerciseDefinition | null {
+  if (libraryId) {
+    const byId = builtInById.get(libraryId);
+    if (byId) return byId;
+    // Only legacy entries (no stable slug) may fall back to name matching.
+    // Custom exercises (custom-*) and unknown ids never do.
+    if (libraryId !== "legacy") return null;
+  }
+  const byName = builtInByName.get(normaliseBuiltInName(name ?? ""));
+  return byName ?? null;
+}
+
 export const exerciseMuscleGroups = ["All", "Chest", "Back", "Quadriceps", "Hamstrings", "Glutes", "Calves", "Shoulders", "Biceps", "Triceps", "Core", "Full body", "Other"];
 export const exerciseEquipment = ["All", "Barbell", "Dumbbells", "Cable", "Machine", "Bodyweight", "Other"];

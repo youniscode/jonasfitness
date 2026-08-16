@@ -249,8 +249,54 @@ test("imageUrl propagates through workout helpers for every built-in", () => {
 });
 
 test("legacy/custom exercises without imageUrl still work", () => {
+  // Custom definitions keep their own (possibly empty) imageUrl.
   assert.equal(exerciseFromDefinition(exercise({ imageUrl: "" })).imageUrl, "");
-  assert.equal(programmeExercise("Barbell bench press · 3×8 · RIR 2").imageUrl, "");
+  // Saved workout snapshots are not rehydrated; a missing image is safe.
   const parsed = parseExercises(JSON.stringify([{ id: "e1", name: "Barbell bench press", sets: [] }]));
   assert.equal(parsed[0].imageUrl, "");
+});
+
+test("legacy built-in string entries rehydrate imageUrl and libraryId from the catalogue", () => {
+  const legacy = programmeExercise("Barbell bench press · 3×8 · RIR 2");
+  assert.equal(legacy.libraryId, "builtin-barbell-bench-press");
+  assert.equal(legacy.imageUrl, "/exercises/barbell-bench-press.webp");
+  // Translations are not rehydrated for legacy entries; FR/AR keep falling back to English.
+  assert.equal(legacy.nameFr, "");
+  assert.equal(legacy.nameAr, "");
+});
+
+test("saved structured built-in entries missing imageUrl rehydrate by stable libraryId", () => {
+  const parsed = programmeExercise({
+    id: "abc",
+    libraryId: "builtin-barbell-bench-press",
+    name: "Barbell bench press",
+    nameFr: "Développé couché barre",
+    nameAr: "ضغط الصدر بالبار",
+    muscleGroup: "Chest",
+    equipment: "Barbell",
+  });
+  assert.equal(parsed.imageUrl, "/exercises/barbell-bench-press.webp");
+  // EN/FR/AR fields remain intact after rehydration.
+  assert.equal(parsed.name, "Barbell bench press");
+  assert.equal(parsed.nameFr, "Développé couché barre");
+  assert.equal(parsed.nameAr, "ضغط الصدر بالبار");
+});
+
+test("custom exercises keep the fallback illustration even with a built-in name", () => {
+  // A custom id must never be rehydrated from the built-in catalogue by name.
+  const custom = programmeExercise({ id: "abc", libraryId: "custom-7", name: "Barbell bench press" });
+  assert.equal(custom.imageUrl, "");
+  // An unrecognized legacy name has no reliable match and stays a fallback.
+  assert.equal(programmeExercise("Made-up olympic lift · 3×8 · RIR 2").imageUrl, "");
+});
+
+test("imageUrl survives legacy string workout conversion", () => {
+  const content = JSON.stringify({
+    sessions: [{ name: "Session 1", focus: "Chest", work: ["Barbell bench press · 3×8 · RIR 2"] }],
+  });
+  const days = programmeDays(content, "en");
+  assert.equal(days.length, 1);
+  const workout = createExercises(days[0]);
+  assert.equal(workout[0].imageUrl, "/exercises/barbell-bench-press.webp");
+  assert.equal(workout[0].libraryId, "");
 });

@@ -1,4 +1,4 @@
-import type { ExerciseDefinition } from "./exercise-catalogue";
+import { builtInExerciseFor, type ExerciseDefinition } from "./exercise-catalogue.ts";
 
 export type ProgrammeExercise = {
   id: string;
@@ -60,16 +60,21 @@ export function exerciseFromLegacy(value: string, index = 0): ProgrammeExercise 
   const setRepMatch = value.match(/(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
   const rirMatch = value.match(/RIR\s*(\d+)/i);
   const restMatch = value.match(/(?:rest|repos)\s*(\d+)\s*(?:s|sec)/i);
+  // Legacy string entries (e.g. AI-generated programmes) reference built-ins by
+  // English name only. Rehydrate a stable libraryId and the real image when the
+  // name exactly matches a current built-in, so the programme builder and the
+  // client workout both show the real exercise image.
+  const builtIn = builtInExerciseFor("legacy", name);
   return {
     id: crypto.randomUUID(),
-    libraryId: "legacy",
+    libraryId: builtIn ? builtIn.id : "legacy",
     name,
     nameFr: "",
     nameAr: "",
     muscleGroup: "Other",
     equipment: "Other",
     instructions: "",
-    imageUrl: "",
+    imageUrl: builtIn?.imageUrl ?? "",
     videoUrl: "",
     sets: numberBetween(setRepMatch?.[1], 3, 1, 12),
     reps: clean(setRepMatch?.[2]?.replace(/\s/g, ""), "8–12"),
@@ -85,16 +90,19 @@ export function exerciseFromLegacy(value: string, index = 0): ProgrammeExercise 
 export function programmeExercise(value: unknown, index = 0): ProgrammeExercise {
   if (typeof value === "string") return exerciseFromLegacy(value, index);
   const source = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const libraryId = clean(source.libraryId, "legacy");
+  const name = clean(source.name, `Exercise ${index + 1}`);
+  const imageUrl = clean(source.imageUrl);
   return {
     id: clean(source.id) || crypto.randomUUID(),
-    libraryId: clean(source.libraryId, "legacy"),
-    name: clean(source.name, `Exercise ${index + 1}`),
+    libraryId,
+    name,
     nameFr: clean(source.nameFr),
     nameAr: clean(source.nameAr),
     muscleGroup: clean(source.muscleGroup, "Other"),
     equipment: clean(source.equipment, "Other"),
     instructions: clean(source.instructions),
-    imageUrl: clean(source.imageUrl),
+    imageUrl: imageUrl || builtInExerciseFor(libraryId, name)?.imageUrl || "",
     videoUrl: clean(source.videoUrl),
     sets: numberBetween(source.sets, 3, 1, 12),
     reps: clean(source.reps, "8–12").slice(0, 30),
