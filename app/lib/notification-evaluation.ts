@@ -61,6 +61,14 @@ type CandidateWorkout = {
   completedSets: number;
   totalVolume: number;
 };
+// A client who has trained at least once, with the timestamp of their most
+// recent completed workout. Clients who have never trained are absent from this
+// list and therefore never flagged as inactive.
+type CandidateInactivity = {
+  clientId: number;
+  clientName: string;
+  lastCompletedAt: Date;
+};
 
 export function keyDate(value: Date | null) {
   return value?.toISOString() ?? "unknown";
@@ -80,6 +88,24 @@ export function parisDateKey(date: Date): string {
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
+// The inactivity rule: a client who has trained before is flagged once they have
+// gone this many full Europe/Paris calendar days without a completed workout.
+export const INACTIVITY_THRESHOLD_DAYS = 7;
+
+// Whole days since the Unix epoch for a given instant, on the Europe/Paris
+// calendar. Working with calendar dates (year/month/day) rather than raw
+// milliseconds avoids off-by-one and DST drift around midnight and transitions.
+export function parisDayNumber(date: Date): number {
+  const [year, month, day] = parisDateKey(date).split("-").map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+}
+
+// Number of full Europe/Paris calendar days from `earlier` to `later` (negative
+// when `earlier` is in the future). Used for the inactivity threshold.
+export function parisDaysBetween(later: Date, earlier: Date): number {
+  return parisDayNumber(later) - parisDayNumber(earlier);
+}
+
 // Pure rule evaluation: derives the filtered lists and the candidate rows from
 // already-fetched data. Deterministic for a given input, so repeated or
 // concurrent executions always produce the same dedupe keys. Combined with the
@@ -91,6 +117,7 @@ export function buildNotificationCandidates<
   F extends CandidateFollowUp,
   P extends CandidateProgress,
   W extends CandidateWorkout,
+  I extends CandidateInactivity,
 >(
   ownerId: string,
   now: Date,
@@ -100,6 +127,7 @@ export function buildNotificationCandidates<
     followUpRows: F[];
     progressRows: P[];
     workoutRows: W[];
+    inactivityRows: I[];
   },
 ) {
   const activeFollowUps = rows.followUpRows.filter((lead) => !["converted", "lost"].includes(lead.status));
@@ -192,5 +220,28 @@ export function buildNotificationCandidates<
     });
   });
 
-  return { candidates, sessionReminders, pulseAlerts, activeFollowUps };
+  // Inactivity episodes. The dedupe key is anchored to the most recent completed
+  // workout date, so the same unresolved episode produces the same key every run
+  // (no daily duplicates, and a coach dismissal is not re-created). When the
+  // client trains again the anchor date moves, so a later inactive period is a
+  // new episode with a fresh key.
+  const inactiveClients: { clientId: number; clientName: string; days: number }[] = [];
+  rows.inactivityRows.forEach((client) => {
+    const days = parisDaysBetween(now, client.lastCompletedAt);
+    if (days < INACTIVITY_THRESHOLD_DAYS) return;
+    inactiveClients.push({ clientId: client.clientId, clientName: client.clientName, days });
+    candidates.push({
+      ownerId,
+      dedupeKey: `client-inactive:${client.clientId}:${parisDateKey(client.lastCompletedAt)}`,
+      kind: "client_inactive",
+      severity: "medium",
+      title: `${client.clientName} has not trained for ${days} days`,
+      message: `No completed workout since ${parisDateKey(client.lastCompletedAt)}.`,
+      actionHref: "#clients",
+      clientId: client.clientId,
+      scheduledFor: now,
+    });
+  });
+
+  return { candidates, sessionReminders, pulseAlerts, activeFollowUps, inactiveClients };
 }

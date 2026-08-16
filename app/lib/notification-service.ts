@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, max, notInArray } from "drizzle-orm";
 import { getDb } from "../../db";
 import {
   clientIntakes,
@@ -28,7 +28,7 @@ export async function evaluateCoachNotifications(ownerId: string, options: { ori
   const nextDay = new Date(now.getTime() + 26 * HOUR);
   const origin = options.origin ?? "";
 
-  const [sessionRows, consultationRows, followUpRows, progressRows, workoutRows, communications] = await Promise.all([
+  const [sessionRows, consultationRows, followUpRows, progressRows, workoutRows, communications, activeClients, lastCompletedWorkouts] = await Promise.all([
     db.select({
       id: sessions.id,
       clientId: sessions.clientId,
@@ -63,6 +63,17 @@ export async function evaluateCoachNotifications(ownerId: string, options: { ori
       .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.startedBy, "client"), eq(workoutSessions.status, "completed"), isNull(workoutSessions.reviewedAt)))
       .orderBy(desc(workoutSessions.completedAt)).limit(30),
     db.select().from(communicationLogs).where(eq(communicationLogs.ownerId, ownerId)).orderBy(desc(communicationLogs.createdAt)).limit(120),
+    // Clients being actively coached — the only candidates for inactivity. A
+    // client with no "active" status (archived/paused/churned, none of which
+    // currently exist) is excluded.
+    db.select({ id: clients.id, name: clients.name }).from(clients)
+      .where(and(eq(clients.ownerId, ownerId), eq(clients.status, "active"))),
+    // Set-based latest training activity per client (one row per client), so we
+    // never issue one query per client regardless of roster size.
+    db.select({ clientId: workoutSessions.clientId, lastCompletedAt: max(workoutSessions.completedAt) })
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.status, "completed"), isNotNull(workoutSessions.completedAt)))
+      .groupBy(workoutSessions.clientId),
   ]);
 
   const workoutSummaries = workoutRows.map((workout) => {
@@ -78,15 +89,53 @@ export async function evaluateCoachNotifications(ownerId: string, options: { ori
     };
   });
 
-  const { candidates, sessionReminders, pulseAlerts, activeFollowUps } = buildNotificationCandidates(ownerId, now, {
+  // Only clients who have trained at least once become inactivity candidates.
+  // Never-trained clients are deliberately absent, so they are not flagged on
+  // the basis of an old client-creation date.
+  const lastCompletedByClient = new Map<number, Date>();
+  lastCompletedWorkouts.forEach((row) => {
+    if (row.lastCompletedAt) lastCompletedByClient.set(row.clientId, row.lastCompletedAt);
+  });
+  const inactivityRows = activeClients
+    .filter((client) => lastCompletedByClient.has(client.id))
+    .map((client) => ({
+      clientId: client.id,
+      clientName: client.name,
+      lastCompletedAt: lastCompletedByClient.get(client.id) as Date,
+    }));
+
+  const { candidates, sessionReminders, pulseAlerts, activeFollowUps, inactiveClients } = buildNotificationCandidates(ownerId, now, {
     sessionRows,
     consultationRows,
     followUpRows,
     progressRows,
     workoutRows: workoutSummaries,
+    inactivityRows,
   });
 
   await db.insert(coachNotifications).values(candidates).onConflictDoNothing();
+
+  // Resolve (soft-dismiss) inactivity alerts for clients who are no longer
+  // inactive — i.e. they have trained again. This keeps a stale alert from
+  // lingering after the underlying condition is gone, while a coach dismissal
+  // is naturally preserved (it already has dismissedAt set and is excluded
+  // below). The current episode's rows are not touched because their clientId
+  // is in inactiveClientIds.
+  const inactiveClientIds = inactiveClients.map((client) => client.clientId);
+  const staleInactivityFilter = and(
+    eq(coachNotifications.ownerId, ownerId),
+    eq(coachNotifications.kind, "client_inactive"),
+    isNull(coachNotifications.dismissedAt),
+  );
+  if (inactiveClientIds.length) {
+    await db.update(coachNotifications).set({ readAt: now, dismissedAt: now }).where(and(
+      staleInactivityFilter,
+      notInArray(coachNotifications.clientId, inactiveClientIds),
+    ));
+  } else {
+    await db.update(coachNotifications).set({ readAt: now, dismissedAt: now }).where(staleInactivityFilter);
+  }
+
   const keys = candidates.map((candidate) => candidate.dedupeKey);
   const notifications = await db.select().from(coachNotifications).where(and(
     eq(coachNotifications.ownerId, ownerId),
