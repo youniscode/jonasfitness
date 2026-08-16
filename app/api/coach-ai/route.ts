@@ -165,17 +165,27 @@ export async function POST(request: Request) {
   // production/preview. The fallback is a reliability mechanism only — it is
   // never presented as model output (see `generation` in the response).
   let raw: unknown = null;
-  let generation: { source: "ai" | "fallback"; provider: string; model: string | null } = {
+  let generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string } = {
     source: "fallback",
     provider: "deterministic",
     model: null,
   };
   const useGateway = programmeProviderFor(process.env.NODE_ENV) === "gateway";
   if (useGateway) {
-    const aiResult = await askGatewayJson<unknown>(SAFETY_SYSTEM, userPrompt);
-    if (aiResult) {
-      raw = aiResult;
-      generation = { source: "ai", provider: "gateway", model: GATEWAY_MODEL };
+    const result = await askGatewayJson<unknown>(SAFETY_SYSTEM, userPrompt);
+    if (result.ok) {
+      raw = result.value;
+      generation = { source: "ai", provider: "vercel-ai-gateway", model: GATEWAY_MODEL };
+    } else {
+      // Distinguish provider failure from validation failure: the reason is a
+      // safe code (never the raw error) surfaced to the coach UI and logs.
+      generation = {
+        source: "fallback",
+        provider: "vercel-ai-gateway",
+        model: GATEWAY_MODEL,
+        fallbackReason: result.reason,
+      };
+      console.error(`[coach-ai] gateway ${result.reason} for client ${clientId} (mode ${mode}) — deterministic fallback used`);
     }
   } else {
     const aiResult = await askOllamaJson<unknown>(SAFETY_SYSTEM, userPrompt);

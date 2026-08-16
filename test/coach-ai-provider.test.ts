@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { programmeProviderFor, GATEWAY_MODEL, OLLAMA_MODEL } from "../app/lib/local-ai.ts";
+import { programmeProviderFor, GATEWAY_MODEL, OLLAMA_MODEL, type GatewayFailureReason } from "../app/lib/local-ai.ts";
 import { buildFallbackDraft, validateDraft } from "../app/lib/ai-programme.ts";
 
 // ---------- Environment routing ----------
@@ -33,27 +33,30 @@ test("model constants match the expected providers and contain no secrets", () =
 // ---------- Provider call + deterministic fallback contract ----------
 
 // Mirrors the route's provider call contract: a model caller returns parsed
-// JSON or null; null triggers the deterministic library-grounded fallback.
+// Models the route's provider call contract: askGatewayJson returns a
+// structured result; only ok:true feeds the AI pipeline, anything else falls
+// back deterministically with a safe reason code.
 async function generateWith(
-  caller: (system: string, prompt: string) => Promise<unknown> | null,
+  caller: (system: string, prompt: string) => Promise<{ ok: boolean; value?: unknown; reason?: GatewayFailureReason }>,
   goal = "Build muscle",
   sessions = 3,
   equipment = "Commercial gym",
-): Promise<{ source: string; draftValid: boolean; sessions: number }> {
+): Promise<{ source: string; draftValid: boolean; sessions: number; reason?: GatewayFailureReason }> {
   const system = "safety system";
   const prompt = `Build a ${sessions}-day programme for ${goal}.`;
-  const aiResult = await caller(system, prompt);
-  const parsed = aiResult && typeof aiResult === "object" && !Array.isArray(aiResult)
-    ? aiResult as Record<string, unknown>
+  const result = await caller(system, prompt);
+  const raw = result.ok ? result.value : null;
+  const parsed = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
     : buildFallbackDraft(goal, sessions, equipment, "beginner");
   const validation = validateDraft(parsed, sessions);
-  const source = aiResult ? "ai" : "fallback";
+  const source = result.ok ? "ai" : "fallback";
   const sessionList = Array.isArray(parsed.sessions) ? parsed.sessions : [];
-  return { source, draftValid: validation.ok, sessions: sessionList.length };
+  return { source, draftValid: validation.ok, sessions: sessionList.length, reason: result.ok ? undefined : result.reason };
 }
 
 test("gateway success → AI result that passes validation", async () => {
-  const gateway = async (): Promise<unknown> => ({
+  const gateway = async (): Promise<{ ok: boolean; value?: unknown }> => ({ ok: true, value: {
     title: "3-Day Full Body Foundation",
     overview: "Progressive plan",
     sessionsPerWeek: 3,
@@ -74,33 +77,33 @@ test("gateway success → AI result that passes validation", async () => {
         { libraryId: "builtin-plank", name: "Plank", sets: 3, reps: "30-60", rir: 2, restSeconds: 75, tempo: "", note: "" },
       ] },
     ],
-  });
+  } });
   const result = await generateWith(gateway as never);
   assert.equal(result.source, "ai");
   assert.equal(result.draftValid, true);
   assert.equal(result.sessions, 3);
 });
 
-test("gateway failure (null) → safe fallback draft", async () => {
-  const failingGateway = async (): Promise<null> => null;
+test("gateway auth failure → safe fallback with observable reason", async () => {
+  const failingGateway = async (): Promise<{ ok: false; reason: GatewayFailureReason }> => ({ ok: false, reason: "auth" });
   const result = await generateWith(failingGateway as never);
   assert.equal(result.source, "fallback");
   assert.equal(result.draftValid, true);
   assert.equal(result.sessions, 3);
+  assert.equal(result.reason, "auth"); // safe code — never the raw error
 });
 
-test("gateway malformed JSON / unusable response → fallback", async () => {
-  // askGatewayJson returns null when JSON.parse fails or the body is unusable;
-  // the route then falls back to the deterministic draft.
-  const malformed = async (): Promise<unknown> => null;
+test("gateway malformed JSON / unusable response → fallback with reason", async () => {
+  const malformed = async (): Promise<{ ok: false; reason: GatewayFailureReason }> => ({ ok: false, reason: "malformed_json" });
   const result = await generateWith(malformed as never);
   assert.equal(result.source, "fallback");
   assert.equal(result.draftValid, true);
   assert.equal(result.sessions, 3);
+  assert.equal(result.reason, "malformed_json");
 });
 
-test("gateway output with unknown library IDs → fallback (never trusted)", async () => {
-  const invented = async (): Promise<unknown> => ({
+test("gateway output with unknown library IDs → validation failure (never trusted)", async () => {
+  const invented = async (): Promise<{ ok: true; value?: unknown }> => ({ ok: true, value: {
     title: "T",
     overview: "o",
     sessionsPerWeek: 3,
@@ -109,7 +112,7 @@ test("gateway output with unknown library IDs → fallback (never trusted)", asy
         { libraryId: "made-up-exercise-xyz", name: "Mystery press", sets: 3, reps: "8-12", rir: 2, restSeconds: 120, tempo: "", note: "" },
       ] },
     ],
-  });
+  } });
   const result = await generateWith(invented as never);
   assert.equal(result.source, "ai"); // parsed as model output…
   assert.equal(result.draftValid, false); // …but rejected by validation
@@ -118,15 +121,27 @@ test("gateway output with unknown library IDs → fallback (never trusted)", asy
 });
 
 test("Ollama failure in development → same safe fallback", async () => {
-  const failingOllama = async (): Promise<null> => null;
+  // askOllamaJson returns null on failure (legacy contract); the route treats
+  // null exactly like a structured failure and falls back deterministically.
+  const failingOllama = async (): Promise<{ ok: false }> => ({ ok: false });
   const result = await generateWith(failingOllama as never, "Build strength", 4, "Home / Minimal");
   assert.equal(result.source, "fallback");
   assert.equal(result.draftValid, true);
   assert.equal(result.sessions, 4);
 });
 
+test("timeout / rate-limit / model-not-found map to safe codes", async () => {
+  for (const reason of ["timeout", "rate_limit", "model_not_found", "provider_error", "unknown"] as GatewayFailureReason[]) {
+    const failing = async (): Promise<{ ok: false; reason: GatewayFailureReason }> => ({ ok: false, reason });
+    const result = await generateWith(failing as never);
+    assert.equal(result.source, "fallback");
+    assert.equal(result.reason, reason);
+    assert.equal(result.draftValid, true);
+  }
+});
+
 test("AI output still respects the requested session count", async () => {
-  const wrongCount = async (): Promise<unknown> => ({
+  const wrongCount = async (): Promise<{ ok: true; value?: unknown }> => ({ ok: true, value: {
     title: "T",
     overview: "o",
     sessionsPerWeek: 5,
@@ -134,7 +149,7 @@ test("AI output still respects the requested session count", async () => {
       { name: "D1", focus: "f", exercises: [{ libraryId: "builtin-barbell-bench-press", name: "Barbell bench press", sets: 3, reps: "8-12", rir: 2, restSeconds: 120, tempo: "", note: "" }] },
       { name: "D2", focus: "f", exercises: [{ libraryId: "builtin-back-squat", name: "Barbell back squat", sets: 3, reps: "8-12", rir: 2, restSeconds: 150, tempo: "", note: "" }] },
     ],
-  });
+  } });
   const result = await generateWith(wrongCount as never, "Build muscle", 3);
   assert.equal(result.draftValid, false); // 2 sessions supplied, 3 requested
 });

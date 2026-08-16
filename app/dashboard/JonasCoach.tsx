@@ -11,7 +11,7 @@ type CoachPayload = {
   design: { recommendedSplit: string; sessionsPerWeek: number; sessionDurationMinutes: number | null; rationale: string[]; priorities: string[]; constraints: string[]; progressionStrategy: string; estimatedSessionDurationMinutes: number };
   changeSummary: { dayChanges: { day: string; changes: string[] }[]; weeklyVolume: { area: string; deltaSets: number }[]; durationBefore: number | null; durationAfter: number | null } | null;
   context: Record<string, unknown>;
-  generation: { source: "ai" | "fallback"; provider: string; model: string | null };
+  generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string };
   notice: string;
   published: boolean;
 };
@@ -160,7 +160,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
 
-        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>AI generation was unavailable, so Jonas Coach created a safe rules-based draft.</strong><span>Review it before approval.</span><button type="button" className="ghost-button" onClick={() => void generate(null)}>Retry AI</button></div>}
+        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>AI generation was unavailable, so Jonas Coach created a safe rules-based draft.</strong><span>Review it before approval{payload.generation?.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span><button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
 
         {errors.length > 0 && <div className="jonas-validation-error" role="alert"><strong>Jonas Coach couldn&apos;t create a valid draft. Try again.</strong>{errors.slice(0, 4).map((issue) => <p key={issue.field}>· {issue.message}</p>)}<button type="button" className="ghost-button" onClick={() => void generate(null)}>Retry</button></div>}
 

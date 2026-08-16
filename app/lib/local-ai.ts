@@ -75,11 +75,36 @@ export async function askOllamaJson<T>(system: string, prompt: string, timeoutMs
   }
 }
 
+// Safe fallback-reason codes surfaced to the coach UI (never secrets).
+export type GatewayFailureReason =
+  | "auth"
+  | "model_not_found"
+  | "rate_limit"
+  | "timeout"
+  | "provider_error"
+  | "empty_response"
+  | "malformed_json"
+  | "unknown";
+
+export type GatewayResult<T> = { ok: true; value: T } | { ok: false; reason: GatewayFailureReason };
+
+// Maps a thrown AI SDK error to a safe public reason. Class names are stable
+// across SDK versions; never surface the message (it can contain auth detail).
+export function gatewayFailureReason(error: unknown): GatewayFailureReason {
+  const name = error instanceof Error ? error.name : "";
+  if (/auth/i.test(name)) return "auth";
+  if (/model.?not.?found|not.?found/i.test(name)) return "model_not_found";
+  if (/rate.?limit/i.test(name)) return "rate_limit";
+  if (/timeout|abort/i.test(name)) return "timeout";
+  if (/internal|server|unavailable|api error/i.test(name)) return "provider_error";
+  return "unknown";
+}
+
 // Production model call through Vercel AI Gateway, reusing the exact
 // infrastructure the programme translation route already uses (AI SDK
-// generateText with the gateway as the default provider). Returns null on any
-// failure (auth, timeout, malformed JSON) so callers fall back deterministically.
-export async function askGatewayJson<T>(system: string, prompt: string, timeoutMs = 90000): Promise<T | null> {
+// generateText with the gateway as the default provider). Returns a structured
+// result so callers can distinguish provider failure from validation failure.
+export async function askGatewayJson<T>(system: string, prompt: string, timeoutMs = 90000): Promise<GatewayResult<T>> {
   try {
     const response = await generateText({
       model: GATEWAY_MODEL,
@@ -91,14 +116,19 @@ export async function askGatewayJson<T>(system: string, prompt: string, timeoutM
       timeout: timeoutMs,
       providerOptions: {
         gateway: {
+          user: "jonas-coach",
           tags: ["feature:coach-programme", "app:jonas-fitness"],
         },
       },
     });
     const text = response.text?.trim();
-    if (!text) return null;
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
+    if (!text) return { ok: false, reason: "empty_response" };
+    try {
+      return { ok: true, value: JSON.parse(text) as T };
+    } catch {
+      return { ok: false, reason: "malformed_json" };
+    }
+  } catch (error) {
+    return { ok: false, reason: gatewayFailureReason(error) };
   }
 }
