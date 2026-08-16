@@ -268,6 +268,23 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     setLibraryNotice("Custom exercise deleted. Existing programmes were not changed.");
   }
 
+  async function approveDraft() {
+    if (!selected || !draft) return;
+    setNotice("Approving programme…");
+    const response = await fetch(`/api/programmes/${selected.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: draft.title.trim(), goal: draft.goal, sessionsPerWeek: draft.sessions.length, content: draftContent(draft), status: "approved" }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) { setNotice(payload.error ?? "Could not approve the programme."); return; }
+    const saved = payload.programme as Programme;
+    setProgrammes((current) => current.map((programme) => programme.id === selected.id ? saved : programme));
+    setDraft(programmeDraft(saved));
+    setNotice("Programme approved and published to the client portal.");
+    window.dispatchEvent(new CustomEvent("jonas-programme-saved", { detail: { clientId: client.id } }));
+  }
+
   async function saveChanges() {
     if (!selected || !draft) return;
     if (!draft.title.trim()) { setNotice("Give this programme a title before saving."); return; }
@@ -355,9 +372,10 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   return <section className="programme-library" id="programmes">
     <header className="programme-header"><div><p>PROGRAMME BUILDER</p><h2>Plans for {client.name}</h2><span>Build exact prescriptions using your reusable exercise library.</span></div><div className="programme-header-actions"><button type="button" className="ghost-button" onClick={() => openLibrary(null)}>Exercise library</button><button type="button" className="refresh-button" onClick={() => void loadProgrammes()}>{loading ? "Loading…" : "Refresh"}</button></div></header>
     {!selected || !draft ? <div className="programme-empty"><strong>No saved programmes yet.</strong><span>Generate a programme in Coach Studio, approve it, then refine every exercise here.</span></div> : <div className="programme-layout">
-      <aside className="programme-list"><p>SAVED PROGRAMMES · {programmes.length}</p>{programmes.map((programme) => <button type="button" key={programme.id} className={programme.id === selected.id ? "active" : ""} onClick={() => chooseProgramme(programme)}><strong>{programme.title}</strong><span>{programme.goal} · {programme.sessionsPerWeek} sessions/wk</span><small>{new Date(programme.createdAt).toLocaleDateString()}</small></button>)}</aside>
+      <aside className="programme-list"><p>SAVED PROGRAMMES · {programmes.length}</p>{programmes.map((programme) => <button type="button" key={programme.id} className={programme.id === selected.id ? "active" : ""} onClick={() => chooseProgramme(programme)}><strong>{programme.title}</strong>{programme.status !== "approved" && <em className="programme-draft-badge">DRAFT</em>}<span>{programme.goal} · {programme.sessionsPerWeek} sessions/wk</span><small>{new Date(programme.createdAt).toLocaleDateString()}</small></button>)}</aside>
       <article className="programme-detail">
-        <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <><button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button><button type="button" className="programme-delete-button" onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}>Delete programme</button></>}</div></div>
+        <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : selected.status !== "approved" ? "PROGRAMME DRAFT — NOT PUBLISHED" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <>{selected.status !== "approved" && <button type="button" className="dark-button" onClick={() => void approveDraft()}>Approve programme ✓</button>}<button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button><button type="button" className="programme-delete-button" onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}>Delete programme</button></>}</div></div>
+        {selected.status !== "approved" && !editing && <p className="programme-draft-note">This is an unapproved draft — the client portal does not show it yet. Review it, then approve to publish.</p>}
         {editing ? <div className="programme-meta-edit"><label>Goal<select value={draft.goal} onChange={(event) => setDraft({ ...draft, goal: event.target.value })}><option>Build muscle</option><option>Build strength</option><option>Fat loss</option><option>General fitness</option></select></label><label>Sessions per week<select value={draft.sessions.length} onChange={(event) => resizeSessions(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6, 7].map((value) => <option key={value}>{value}</option>)}</select></label></div> : <p className="programme-meta">{draft.goal} · {draft.sessionsPerWeek} sessions per week · Saved {new Date(selected.createdAt).toLocaleDateString()}</p>}
         {!editing && frequency && !frequency.matches && <div className="programme-frequency-warning" role="note"><p>⚠ TRAINING FREQUENCY MISMATCH</p><span>Client preference <b>{frequency.clientSessions} sessions/week</b></span><span>Programme <b>{frequency.programmeSessions} sessions/week</b></span><em>Review before assigning. You can still assign this programme.</em></div>}
         <div className="programme-translation"><div><p>CLIENT LANGUAGE VERSION</p><span>Translate a separate client copy while preserving sets, reps, rest and RIR.</span></div><div><select aria-label="Programme translation language" value={translationTarget} onChange={(event) => setTranslationTarget(event.target.value as ProgrammeLanguage)}><option value="fr">French</option><option value="en">English</option><option value="ar">Arabic</option></select><button type="button" className="ghost-button" disabled={translating} onClick={() => void translateForClient()}>{translating ? "Translating…" : "Translate live"}</button></div></div>

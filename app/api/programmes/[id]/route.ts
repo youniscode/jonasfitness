@@ -31,12 +31,16 @@ export async function PUT(
   if (!title) return Response.json({ error: "Programme title is required" }, { status: 400 });
 
   const sessionsPerWeek = Math.min(7, Math.max(1, Number(body.sessionsPerWeek) || existing.sessionsPerWeek));
+  // An explicit coach action ("approve") is the only path from draft → approved.
+  // The AI never sets this itself; the coach reviews and approves in the builder.
+  const status = body.status === "approved" ? "approved" : existing.status === "approved" ? "approved" : "draft";
   const [programme] = await db
     .update(programmes)
     .set({
       title,
       goal: String(body.goal ?? existing.goal).trim() || existing.goal,
       sessionsPerWeek,
+      status,
       content: JSON.stringify(body.content ?? JSON.parse(existing.content)),
     })
     .where(and(eq(programmes.id, id), eq(programmes.ownerId, ownerId)))

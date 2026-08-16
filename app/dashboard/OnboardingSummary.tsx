@@ -12,7 +12,9 @@ type Payload = { intake: Intake | null; client: { id: number; name: string; emai
 const experienceOptions = ["Beginner", "Intermediate", "Advanced", "Experienced"];
 
 function scrollToProgrammes() {
-  document.querySelector("#programmes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Jonas Coach sits directly above the Programme Builder, already loaded with
+  // this client — the coach can generate a first programme with one click.
+  document.querySelector("#coach-studio")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 export default function OnboardingSummary({ client }: { client: Client }) {
@@ -137,7 +139,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
     <div className="onboarding-programme">
       <div><p>PROGRAMME</p>
         {programme ? <><strong>{programme.title}</strong><span>Assigned · live in the client&apos;s portal — the client can start training.</span></>
-          : <><strong>Not assigned</strong><span>{state.stage === "ready_for_programme" ? "The client is ready. Create a first programme in the Programme Builder below, or reuse a saved one." : "The onboarding checklist above must be complete before the first programme."}</span></>}
+          : <><strong>Not assigned</strong><span>{state.stage === "ready_for_programme" ? "The client is ready. Generate a first programme with Jonas Coach below, or reuse a saved one." : "The onboarding checklist above must be complete before the first programme."}</span></>}
       </div>
       {!programme && <button type="button" className="onboarding-assign-button" onClick={scrollToProgrammes}>Assign first programme <span>→</span></button>}
     </div>
