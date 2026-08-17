@@ -30,3 +30,27 @@ export function sessionDurationAfterGeneration(
 export function sessionDurationForClientChange(): string {
   return DEFAULT_SESSION_DURATION;
 }
+
+// ---------- Targeted adjustment flow ----------
+
+export type CoachMode = "first" | "adapt" | "adjust";
+
+// Opening the targeted-adjustment UI. The coach stays in Jonas Coach on the
+// same client with the current draft preserved — this only switches the mode
+// and remembers where the coach was so Cancel can return there (no
+// regeneration, no state loss, no navigation).
+export function openAdjustment(currentMode: CoachMode): { mode: "adjust"; previousMode: CoachMode } {
+  return { mode: "adjust", previousMode: currentMode === "adjust" ? "first" : currentMode };
+}
+
+// Cancel restores the mode the coach was in before opening the adjustment,
+// defaulting to the first-programme view. No generation happens on cancel.
+export function cancelAdjustment(previousMode: CoachMode | null | undefined): CoachMode {
+  return previousMode === "adapt" ? "adapt" : "first";
+}
+
+// The adjustment request must be a non-empty instruction. Returns an error
+// message when blank so the UI can block an empty targeted adjustment.
+export function adjustmentInstructionError(instruction: string | null | undefined): string | null {
+  return instruction && instruction.trim() ? null : "Describe what you would like Jonas Coach to change.";
+}

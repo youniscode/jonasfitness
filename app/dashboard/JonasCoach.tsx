@@ -1,7 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { DEFAULT_SESSION_DURATION, sessionDurationAfterGeneration, sessionDurationForClientChange } from "../lib/coach-controls";
+import {
+  DEFAULT_SESSION_DURATION,
+  adjustmentInstructionError,
+  cancelAdjustment,
+  openAdjustment,
+  sessionDurationAfterGeneration,
+  sessionDurationForClientChange,
+  type CoachMode,
+} from "../lib/coach-controls";
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
 type DurationState = "match" | "under" | "over";
@@ -43,7 +51,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [loadingMessage, setLoadingMessage] = useState("Building programme with Jonas Coach…");
   const [error, setError] = useState("");
   const [payload, setPayload] = useState<CoachPayload | null>(null);
-  const [mode, setMode] = useState<"first" | "adapt" | "adjust">("first");
+  const [mode, setMode] = useState<CoachMode>("first");
+  // Where the coach was before opening a targeted adjustment, so Cancel can
+  // return to the normal draft view without regenerating or losing state.
+  const [previousMode, setPreviousMode] = useState<CoachMode>("first");
   const [adjustInstruction, setAdjustInstruction] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
@@ -83,6 +94,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setEquipmentCustom("");
       setAvoid("");
       setAdjustInstruction("");
+      // A new client starts fresh: back to the first-programme view so a
+      // previous client's adjustment mode never leaks across.
+      setMode("first");
+      setPreviousMode("first");
       // A new client starts from the intended default duration — a manually
       // chosen value for a previous client must never leak across.
       setSessionDuration(sessionDurationForClientChange());
@@ -108,6 +123,12 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     if (event) event.preventDefault();
     if (loading) return; // never start a second generation while one is in flight
     if (client.id < 1) { setError("Select a saved client first."); return; }
+    // A targeted adjustment needs a real instruction — never send an empty one
+    // (the form's `required` guards the submit path; this also covers Retry).
+    if (mode === "adjust") {
+      const instructionError = adjustmentInstructionError(adjustInstruction);
+      if (instructionError) { setError(instructionError); return; }
+    }
     // A fresh submit clears retry feedback; a Retry (event === null) keeps the
     // current draft visible and confirms the outcome below.
     if (event) setRetryNotice("");
@@ -194,9 +215,9 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             <label>Equipment<select value={equipmentPreset} onChange={(event) => setEquipmentPreset(event.target.value)}><option value="auto">Auto — from onboarding</option><option value="Full commercial gym">Full commercial gym</option><option value="Dumbbells">Dumbbells + bench</option><option value="Home">Home / basic equipment</option><option value="Bodyweight">Bodyweight</option><option value="custom">Custom…</option></select></label>
             {equipmentPreset === "custom" && <label>Custom equipment<input value={equipmentCustom} onChange={(event) => setEquipmentCustom(event.target.value)} placeholder="e.g. squat rack + dumbbells" /></label>}
             <label>Avoid exercises<textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
-            {mode === "adjust" && <label>Coach instruction<textarea value={adjustInstruction} onChange={(event) => setAdjustInstruction(event.target.value)} placeholder='e.g. "Keep the programme but replace barbell squats with something easier to learn."' required /></label>}
+            {mode === "adjust" && <div className="jonas-adjust-row"><label className="jonas-adjust-label">What would you like Jonas Coach to change?<textarea id="coach-adjust-input" value={adjustInstruction} onChange={(event) => setAdjustInstruction(event.target.value)} placeholder="e.g. shorten sessions to 30 min, replace Romanian deadlift on Day C, reduce volume…" required /></label><button type="button" className="ghost-button" onClick={() => { setMode(cancelAdjustment(previousMode)); setAdjustInstruction(""); setError(""); }}>Cancel</button></div>}
             {error && <p className="form-error" role="alert">{error}</p>}
-            <button className="generate" disabled={loading}>{loading ? loadingMessage : mode === "first" ? "Generate first programme" : mode === "adapt" ? "Adapt current programme" : "Apply adjustment"}<span>✦</span></button>
+            <button className="generate" disabled={loading}>{loading ? loadingMessage : mode === "first" ? "Generate first programme" : mode === "adapt" ? "Adapt current programme" : "Adjust programme"}<span>✦</span></button>
           </form>
         </article>
       </div>
@@ -248,7 +269,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           <div className="jonas-draft-actions">
             <button type="button" className="dark-button" disabled={saving} onClick={() => void saveAsDraft()}>{saving ? "Saving…" : "Send to Programme Builder as draft"}</button>
             <button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>Regenerate draft</button>
-            <button type="button" className="ghost-button" onClick={() => { setMode("adjust"); setAdjustInstruction(""); window.scrollTo({ top: document.querySelector("#coach-studio")?.getBoundingClientRect().top, behavior: "smooth" }); }}>Ask Jonas Coach to adjust</button>
+            <button type="button" className="ghost-button" onClick={() => { const opened = openAdjustment(mode); setMode(opened.mode); setPreviousMode(opened.previousMode); setAdjustInstruction(""); setError(""); window.requestAnimationFrame(() => document.querySelector("#coach-adjust-input")?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Ask Jonas Coach to adjust</button>
           </div>
           {savedNotice && <p className="programme-notice">✓ {savedNotice}</p>}
           {savedDraftId !== null && <p className="jonas-saved-note">Draft saved — approve it in the Programme Builder below to publish to the client portal.</p>}

@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { DEFAULT_SESSION_DURATION, sessionDurationAfterGeneration, sessionDurationForClientChange } from "../app/lib/coach-controls.ts";
+import {
+  DEFAULT_SESSION_DURATION,
+  adjustmentInstructionError,
+  cancelAdjustment,
+  openAdjustment,
+  sessionDurationAfterGeneration,
+  sessionDurationForClientChange,
+} from "../app/lib/coach-controls.ts";
 
 // Target-duration persistence rules for the Jonas Coach panel: the coach's
 // manual choice always wins; generation responses, retries and provider
@@ -47,4 +54,46 @@ test("empty field adopts the design default only when no target is reported", ()
 
 test("empty field with a reported target stays empty (never invented)", () => {
   assert.equal(sessionDurationAfterGeneration("", 60, 60), "");
+});
+
+// ---------- Targeted adjustment flow ----------
+
+test("openAdjustment switches to adjust mode and remembers the previous mode", () => {
+  assert.deepEqual(openAdjustment("first"), { mode: "adjust", previousMode: "first" });
+  assert.deepEqual(openAdjustment("adapt"), { mode: "adjust", previousMode: "adapt" });
+  // Opening adjustment from adjustment never self-references — falls back to first.
+  assert.deepEqual(openAdjustment("adjust"), { mode: "adjust", previousMode: "first" });
+});
+
+test("openAdjustment never changes the draft, duration, equipment or client", () => {
+  // The helper returns ONLY the mode transition — the current draft, target
+  // duration, equipment and selected client all stay in the component state.
+  assert.deepEqual(Object.keys(openAdjustment("first")).sort(), ["mode", "previousMode"]);
+});
+
+test("cancelAdjustment restores the previous mode without regenerating", () => {
+  assert.equal(cancelAdjustment("first"), "first");
+  assert.equal(cancelAdjustment("adapt"), "adapt");
+  assert.equal(cancelAdjustment(null), "first");
+  assert.equal(cancelAdjustment(undefined), "first");
+});
+
+test("adjustmentInstructionError rejects blank/whitespace-only instructions", () => {
+  assert.equal(adjustmentInstructionError(""), "Describe what you would like Jonas Coach to change.");
+  assert.equal(adjustmentInstructionError("   "), "Describe what you would like Jonas Coach to change.");
+  assert.equal(adjustmentInstructionError(null), "Describe what you would like Jonas Coach to change.");
+  assert.equal(adjustmentInstructionError(undefined), "Describe what you would like Jonas Coach to change.");
+});
+
+test("adjustmentInstructionError accepts a real instruction", () => {
+  assert.equal(adjustmentInstructionError("Shorten each session to realistically fit 30 minutes."), null);
+  assert.equal(adjustmentInstructionError("  Keep Full Body A/B/C and 4 exercises per session.  "), null);
+});
+
+test("opening adjustment preserves the current target duration", () => {
+  // Opening adjustment is a pure mode transition: the manual duration (e.g. 30)
+  // stays untouched, and a generation response still never overwrites it.
+  const opened = openAdjustment("first");
+  assert.equal(opened.mode, "adjust");
+  assert.equal(sessionDurationAfterGeneration("30", 60, 60), "30");
 });
