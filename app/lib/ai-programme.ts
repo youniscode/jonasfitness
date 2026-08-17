@@ -10,6 +10,7 @@ import {
   aiGenerationExcludedExerciseIds,
   builtInExerciseFor,
   builtInExercises,
+  difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
   type ExerciseDefinition,
@@ -123,7 +124,9 @@ DESIGN QUALITY RULES:
 - Avoid accessory-only sessions (a day made up only of arm/shoulder isolation).
 - Keep weekly push and pull stimulus roughly balanced; include vertical pull, knee-dominant and posterior-chain work somewhere in the week.
 - Avoid repeating the exact same technically demanding compound exercise in every weekly session unless client context or coach instruction specifically justifies it.
-- Prefer scalable exercises for beginners (e.g. Lat pulldown over Pull-up).
+- For true beginners, prefer stable, scalable Tier 1–2 exercises (machines, cables, dumbbells).
+- Avoid stacking more than one technically demanding Tier 3 movement (barbell squat/deadlift/bench/row, standing overhead press, barbell hip thrust, Bulgarian split squat, pull-up) in a single session.
+- When a simpler canonical alternative exists, prefer it for initial beginner programming (e.g. Leg press over Barbell back squat, Lat pulldown over Pull-up, Seated cable row over Barbell row, Seated leg curl over Romanian deadlift, Incline dumbbell press over Barbell bench press).
 - Respect the given equipment; never assume equipment the client may not have.
 - Session names must reflect the actual session contents.
 
@@ -429,17 +432,42 @@ export function designRecommendation(
 // Selection is movement-pattern balanced (knee-dominant, hinge, push, pull,
 // core/isolation per full-body day) and avoids repeating the same exercise
 // across the week where the library allows.
-function exercisesForPatterns(patterns: MovementPattern[], pool: ExerciseDefinition[], used: Set<string>): DraftExercise[] {
+function exercisesForPatterns(
+  patterns: MovementPattern[],
+  pool: ExerciseDefinition[],
+  usage: Map<string, number>,
+  preferBeginner = false,
+  maxWeeklyUses = 2,
+): DraftExercise[] {
   const result: DraftExercise[] = [];
   const sessionUsed = new Set<string>();
   for (const pattern of patterns) {
     const candidates = pool.filter((exercise) => movementPatternFor(exercise) === pattern);
-    // Prefer a fresh exercise this week; otherwise reuse one from another day
-    // (never twice within the same session — validateDraft rejects duplicates).
-    const pick = candidates.find((exercise) => !used.has(exercise.id) && !sessionUsed.has(exercise.id))
-      ?? candidates.find((exercise) => !sessionUsed.has(exercise.id));
+    // For beginners, prefer stable Tier 1 then Tier 2 exercises, only reaching
+    // Tier 3 when the catalogue has no stable option for the required pattern.
+    // Within the same tier, prefer a less-used exercise this week so one Tier-1
+    // fixture cannot end up in EVERY session (all-session repetition trips the
+    // redundancy review). Never twice within the same session (validateDraft
+    // rejects duplicates).
+    const ordered = preferBeginner
+      ? [...candidates].sort((a, b) => {
+          const tierA = difficultyTierFor(a) ?? 3;
+          const tierB = difficultyTierFor(b) ?? 3;
+          if (tierA !== tierB) return tierA - tierB;
+          return (usage.get(a.id) ?? 0) - (usage.get(b.id) ?? 0);
+        })
+      : candidates;
+    // Weekly-repetition cap (beginners only): an exercise may appear in at
+    // most maxWeeklyUses sessions; once at the cap, the next-best fresh option
+    // is used (e.g. leg press twice, then goblet squat). When every candidate
+    // is at the cap (genuinely no alternative), the best option is reused —
+    // never silently dropped.
+    const pick = preferBeginner
+      ? (ordered.find((exercise) => !sessionUsed.has(exercise.id) && (usage.get(exercise.id) ?? 0) < maxWeeklyUses)
+        ?? ordered.find((exercise) => !sessionUsed.has(exercise.id)))
+      : ordered.find((exercise) => !sessionUsed.has(exercise.id));
     if (!pick) continue;
-    used.add(pick.id);
+    usage.set(pick.id, (usage.get(pick.id) ?? 0) + 1);
     sessionUsed.add(pick.id);
     const compound = MAJOR_PATTERNS.has(pattern);
     result.push({
@@ -467,14 +495,20 @@ export function buildFallbackDraft(
   const days = Math.min(5, Math.max(1, sessionsPerWeek || 3));
   const blueprint = sessionBlueprintFor(days);
   const pool = candidateExercisesFor(equipment);
-  const beginner = (experience ?? "").toLowerCase().includes("beginner");
-  const used = new Set<string>();
+  const experienceLevel = (experience ?? "").toLowerCase();
+  const beginner = experienceLevel.includes("beginner") || experienceLevel.includes("débutant") || !experienceLevel;
+  const usage = new Map<string, number>();
+  // A beginner compound should never land in EVERY weekly session (that exact
+  // repetition is the redundancy review warning); cap per-exercise weekly
+  // appearances at one below the session count so a single Tier 1 fixture
+  // alternates with the next freshest option instead.
+  const maxWeeklyUses = Math.max(1, days - 1);
   const sessions: DraftSession[] = blueprint.map((day, index) => ({
     // When adapting an existing approved programme, keep its session names so
     // the fallback reads as an evolution of that programme, not a new one.
     name: preserveSessionNames?.[index] ?? day.name,
     focus: day.focus,
-    exercises: exercisesForPatterns(day.patterns, pool, used),
+    exercises: exercisesForPatterns(day.patterns, pool, usage, beginner, maxWeeklyUses),
   }));
   const duration = estimateProgrammeDurationMinutes({ title: "", overview: "", goal, sessionsPerWeek: days, sessions });
   const base = rehydrateDraft({

@@ -7,6 +7,7 @@
 
 import {
   beginnerAlternativeFor,
+  difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
   type MovementPattern,
@@ -189,20 +190,69 @@ export function crossSessionRedundancy(draft: ProgrammeDraft, experience: string
 
 // ---------- Beginner suitability (scalability, never medical) ----------
 
-export function beginnerSuitability(draft: ProgrammeDraft, experience: string | null | undefined): string[] {
+// Coaching-suitability policy for a true beginner. Tier 3 movements are NOT
+// banned — the coach may teach any of them — but a novice programme should not
+// stack several technically demanding free-weight lifts at once. These are
+// advisory thresholds only: they surface REVIEW RECOMMENDED, never a schema
+// error, and the coach can still approve intentionally.
+export const BEGINNER_MAX_TIER3_PER_SESSION = 1;
+export const BEGINNER_MAX_TIER3_PER_WEEK = 3;
+const BEGINNER_SUITABILITY_WARNING_CAP = 6;
+
+function isBeginner(experience: string | null | undefined): boolean {
   const level = (experience ?? "").toLowerCase();
-  const beginner = level.includes("beginner") || level.includes("débutant") || !level;
-  if (!beginner) return [];
+  return level.includes("beginner") || level.includes("débutant") || !level;
+}
+
+export function beginnerSuitability(
+  draft: ProgrammeDraft,
+  experience: string | null | undefined,
+  targetMinutes?: number | null,
+): string[] {
+  if (!isBeginner(experience)) return [];
+  const shortSession = targetMinutes != null && targetMinutes > 0 && targetMinutes <= 30;
   const warnings: string[] = [];
-  for (const session of draft.sessions) {
-    for (const exercise of session.exercises ?? []) {
+
+  // 1) Per-session technical density. More than one Tier 3 movement in a single
+  //    session is a concentration warning; for a short (≤30 min) session even
+  //    one technically demanding lift is a setup/density concern. Sessions that
+  //    are flagged here also get the specific alternative suggestions below.
+  const flagged = new Set<number>();
+  draft.sessions.forEach((session, index) => {
+    const tier3 = (session.exercises ?? []).filter((exercise) => difficultyTierFor(exercise) === 3);
+    if (tier3.length === 0) return;
+    const label = session.name || `Day ${index + 1}`;
+    if (tier3.length > BEGINNER_MAX_TIER3_PER_SESSION) {
+      flagged.add(index);
+      warnings.push(`"${label}" stacks ${tier3.length} technically demanding lifts (${tier3.map((exercise) => exercise.name).join(" + ")}) — consider more stable beginner-friendly alternatives.`);
+    } else if (shortSession) {
+      flagged.add(index);
+      warnings.push(`"${label}" includes ${tier3[0].name} in a short session — a machine or cable alternative is faster to set up and easier to progress.`);
+    }
+  });
+
+  // 2) Weekly technical-demand total.
+  const weeklyTier3 = draft.sessions.reduce((total, session) => total + (session.exercises ?? []).filter((exercise) => difficultyTierFor(exercise) === 3).length, 0);
+  if (weeklyTier3 > BEGINNER_MAX_TIER3_PER_WEEK) {
+    warnings.push(`Beginner programme uses ${weeklyTier3} technically demanding lifts across the week — favour stable Tier 1–2 movements.`);
+  }
+
+  // 3) Specific simpler canonical alternatives (exact libraryId, never fuzzy).
+  //    Only for Tier 3 lifts inside the flagged sessions — a single, justified
+  //    Tier 3 hinge in an otherwise stable week is not a false warning.
+  for (let index = 0; index < draft.sessions.length; index += 1) {
+    if (!flagged.has(index)) continue;
+    for (const exercise of draft.sessions[index].exercises ?? []) {
+      if (difficultyTierFor(exercise) !== 3) continue;
       const alternative = beginnerAlternativeFor(exercise);
       if (alternative) {
-        warnings.push(`"${exercise.name}" is more technically demanding — ${alternative.name} is a scalable alternative preferred for beginners.`);
+        warnings.push(`"${exercise.name}" is more technically demanding for a beginner — ${alternative.name} is a simpler, more stable alternative.`);
       }
     }
   }
-  return warnings;
+
+  // Prioritized and capped — never flood the coach.
+  return warnings.slice(0, BEGINNER_SUITABILITY_WARNING_CAP);
 }
 
 // ---------- Aggregate quality report ----------
@@ -224,7 +274,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   // "No major redundancy" now covers BOTH same-session pattern/isolation
   // redundancy and cross-session exact-exercise repetition (3/3+ compounds).
   const redundancyWarnings = [...sessionRedundancy(draft), ...crossSessionRedundancy(draft, experience)];
-  const suitabilityWarnings = beginnerSuitability(draft, experience);
+  const suitabilityWarnings = beginnerSuitability(draft, experience, targetMinutes);
 
   const equipmentOk = Boolean(equipment && equipment.trim());
 

@@ -59,13 +59,23 @@ test("exerciseSearchText matches English, French and Arabic names", () => {
   assert.ok(text.includes("chest"));
 });
 
-test("all 24 built-ins have English, French and Arabic names", () => {
-  assert.equal(builtInExercises.length, 24);
+test("all 34 built-ins have English, French and Arabic names", () => {
+  assert.equal(builtInExercises.length, 34);
   for (const item of builtInExercises) {
     assert.ok(item.name.trim(), `missing English name for ${item.id}`);
     assert.ok(item.nameFr.trim(), `missing French name for ${item.name}`);
     assert.ok(item.nameAr.trim(), `missing Arabic name for ${item.name}`);
   }
+});
+
+test("all built-in exercise ids are unique", () => {
+  const ids = builtInExercises.map((item) => item.id);
+  assert.equal(new Set(ids).size, ids.length, "duplicate built-in id detected");
+});
+
+test("all built-in normalized English names are unique", () => {
+  const normalized = builtInExercises.map((item) => item.name.trim().toLowerCase().replace(/\s+/g, " "));
+  assert.equal(new Set(normalized).size, normalized.length, "duplicate built-in name detected");
 });
 
 test("old exercise records without translations still work via fallback", () => {
@@ -228,8 +238,8 @@ function isGenuineWebP(buffer: Buffer): boolean {
     && buffer.toString("ascii", 8, 12) === "WEBP";
 }
 
-test("all 24 built-ins have non-empty imageUrl under /exercises/", () => {
-  assert.equal(builtInExercises.length, 24);
+test("all 34 built-ins have non-empty imageUrl under /exercises/", () => {
+  assert.equal(builtInExercises.length, 34);
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(item.imageUrl.startsWith("/exercises/"), `${item.name} should use the /exercises/ prefix`);
@@ -237,14 +247,14 @@ test("all 24 built-ins have non-empty imageUrl under /exercises/", () => {
   }
 });
 
-test("all 24 referenced local assets exist", () => {
+test("all 34 referenced local assets exist", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(existsSync(imageAssetPath(slug)), `missing asset for ${slug}`);
   }
 });
 
-test("all 24 referenced files are genuine WebP (RIFF…WEBP)", () => {
+test("all 34 referenced files are genuine WebP (RIFF…WEBP)", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     const buffer = readFileSync(imageAssetPath(slug));

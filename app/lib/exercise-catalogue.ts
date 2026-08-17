@@ -74,6 +74,16 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("plank", "Plank", "Planche", "تمرين البلانك", "Core", "Bodyweight", "Brace the trunk and maintain a straight line without holding your breath.", "/exercises/plank.webp"),
   builtIn("cable-crunch", "Cable crunch", "Crunch à la poulie", "شد البطن بالكابل", "Core", "Cable", "Flex through the trunk under control without pulling with the arms.", "/exercises/cable-crunch.webp"),
   builtIn("farmer-carry", "Farmer carry", "Marche du fermier", "حمل الفلاح", "Full body", "Dumbbells", "Stand tall, brace and walk with controlled steps while keeping the weights stable.", "/exercises/farmer-carry.webp"),
+  builtIn("machine-chest-press", "Machine chest press", "Développé couché machine", "ضغط الصدر بالآلة", "Chest", "Machine", "Set the seat so the handles align with mid-chest, keep the shoulder blades back and press without locking the elbows.", "/exercises/machine-chest-press.webp"),
+  builtIn("machine-shoulder-press", "Machine shoulder press", "Développé épaules machine", "ضغط الكتفين بالآلة", "Shoulders", "Machine", "Set the seat, brace the trunk and press the handles overhead without shrugging.", "/exercises/machine-shoulder-press.webp"),
+  builtIn("glute-bridge", "Glute bridge", "Pont fessier", "جسر الألوية", "Glutes", "Bodyweight", "Drive through the heels, squeeze the glutes at the top and keep the ribs down.", "/exercises/glute-bridge.webp"),
+  builtIn("hip-thrust-machine", "Hip thrust machine", "Hip thrust machine", "رفع الورك بالآلة", "Glutes", "Machine", "Position the upper back against the pad, brace and extend the hips to full lockout without overextending the lower back.", "/exercises/hip-thrust-machine.webp"),
+  builtIn("chest-supported-row", "Chest-supported row", "Rowing buste appuyé", "تجديف مدعوم الصدر", "Back", "Machine", "Keep the chest against the pad and pull the elbows back without lifting the torso.", "/exercises/chest-supported-row.webp"),
+  builtIn("goblet-squat", "Goblet squat", "Squat gobelet", "القرفصاء بالدمبل", "Quadriceps", "Dumbbells", "Hold the dumbbell close to the chest, sit between the hips and keep the heels down.", "/exercises/goblet-squat.webp"),
+  builtIn("seated-dumbbell-shoulder-press", "Seated dumbbell shoulder press", "Développé épaules assis haltères", "ضغط الكتفين جالسًا بالدمبل", "Shoulders", "Dumbbells", "Press the dumbbells from shoulder height with a braced trunk, finishing without shrugging.", "/exercises/seated-dumbbell-shoulder-press.webp"),
+  builtIn("dumbbell-bench-press", "Dumbbell bench press", "Développé couché haltères", "ضغط الصدر بالدمبل", "Chest", "Dumbbells", "Keep the feet planted and shoulder blades set, then press the dumbbells over the chest under control.", "/exercises/dumbbell-bench-press.webp"),
+  builtIn("elevated-push-up", "Elevated push-up", "Pompes surélevées", "تمرين الضغط المرتفع", "Chest", "Bodyweight", "Place the hands on a bench, keep a straight line from head to heels and lower the chest under control.", "/exercises/elevated-push-up.webp"),
+  builtIn("back-extension", "Back extension", "Extension lombaire", "تمديد الظهر", "Hamstrings", "Machine", "Hinge at the hips over the pad, brace and extend to a straight line without overextending.", "/exercises/back-extension.webp"),
 ];
 
 // ——— Stable rehydration of saved programme exercises ———
@@ -150,7 +160,10 @@ export type MovementPattern =
 const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-barbell-bench-press": "horizontal_push",
   "builtin-incline-dumbbell-press": "horizontal_push",
-  "builtin-cable-fly": "horizontal_push",
+  // Cable fly is a single-joint chest fly (isolation), NOT a pressing compound
+  // — it must never stand in for a primary horizontal push in balance analysis
+  // or beginner fallback selection.
+  "builtin-cable-fly": "isolation",
   "builtin-pull-up": "vertical_pull",
   "builtin-lat-pulldown": "vertical_pull",
   "builtin-seated-cable-row": "horizontal_pull",
@@ -172,6 +185,16 @@ const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-plank": "core",
   "builtin-cable-crunch": "core",
   "builtin-farmer-carry": "full_body",
+  "builtin-machine-chest-press": "horizontal_push",
+  "builtin-machine-shoulder-press": "vertical_push",
+  "builtin-glute-bridge": "hinge",
+  "builtin-hip-thrust-machine": "hinge",
+  "builtin-chest-supported-row": "horizontal_pull",
+  "builtin-goblet-squat": "knee_dominant",
+  "builtin-seated-dumbbell-shoulder-press": "vertical_push",
+  "builtin-dumbbell-bench-press": "horizontal_push",
+  "builtin-elevated-push-up": "horizontal_push",
+  "builtin-back-extension": "hinge",
 };
 
 // The major compound patterns that should appear across a balanced week.
@@ -199,10 +222,77 @@ export function movementPatternFor(exercise: { id?: string; libraryId?: string; 
   return "other";
 }
 
+// ---------- Difficulty / stability tiers (coaching suitability) ----------
+
+// Coaching difficulty tiers used to steer beginner programming. This is
+// coaching suitability, NOT medical safety: Tier 3 movements are not banned,
+// unsafe or contraindicated — they are simply more technically demanding and
+// are best introduced with coaching once technique and confidence are
+// established. The coach always makes the final decision.
+export type ExerciseDifficultyTier = 1 | 2 | 3;
+
+const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
+  // Tier 1 — beginner default / high stability (machines, cables, supported).
+  "builtin-cable-fly": 1,
+  "builtin-lat-pulldown": 1,
+  "builtin-seated-cable-row": 1,
+  "builtin-leg-press": 1,
+  "builtin-seated-leg-curl": 1,
+  "builtin-standing-calf-raise": 1,
+  "builtin-rear-delt-fly": 1,
+  "builtin-triceps-pressdown": 1,
+  "builtin-overhead-triceps-extension": 1,
+  "builtin-plank": 1,
+  "builtin-cable-crunch": 1,
+  "builtin-machine-chest-press": 1,
+  "builtin-machine-shoulder-press": 1,
+  "builtin-glute-bridge": 1,
+  "builtin-hip-thrust-machine": 1,
+  "builtin-chest-supported-row": 1,
+  "builtin-elevated-push-up": 1,
+  // Tier 2 — beginner coachable (dumbbells, simple free-weight isolation).
+  "builtin-incline-dumbbell-press": 2,
+  "builtin-lateral-raise": 2,
+  "builtin-barbell-curl": 2,
+  "builtin-incline-curl": 2,
+  "builtin-farmer-carry": 2,
+  "builtin-goblet-squat": 2,
+  "builtin-seated-dumbbell-shoulder-press": 2,
+  "builtin-dumbbell-bench-press": 2,
+  "builtin-back-extension": 2,
+  // Tier 3 — technically demanding / coach introduction.
+  "builtin-barbell-bench-press": 3,
+  "builtin-pull-up": 3,
+  "builtin-barbell-row": 3,
+  "builtin-back-squat": 3,
+  "builtin-bulgarian-split-squat": 3,
+  "builtin-romanian-deadlift": 3,
+  "builtin-hip-thrust": 3,
+  "builtin-overhead-press": 3,
+};
+
+// Exact libraryId lookup — never name-based guessing. Unknown/custom exercises
+// return null (no tier), so they are never penalised by a heuristic that cannot
+// identify them.
+export function difficultyTierFor(exercise: { id?: string; libraryId?: string }): ExerciseDifficultyTier | null {
+  const id = exercise.libraryId ?? exercise.id;
+  if (!id) return null;
+  return DIFFICULTY_TIER_BY_ID[id] ?? null;
+}
+
 // Scalable alternatives for technically demanding exercises — used to prefer
-// friendlier options for untested beginners (never a medical claim).
+// friendlier options for untested beginners (never a medical claim). Every
+// alternative resolves to a real canonical libraryId that exists in the
+// catalogue — nothing is invented.
 export const BEGINNER_ALTERNATIVES: Record<string, string> = {
   "builtin-pull-up": "builtin-lat-pulldown",
+  "builtin-back-squat": "builtin-goblet-squat",
+  "builtin-bulgarian-split-squat": "builtin-leg-press",
+  "builtin-romanian-deadlift": "builtin-glute-bridge",
+  "builtin-hip-thrust": "builtin-hip-thrust-machine",
+  "builtin-barbell-row": "builtin-chest-supported-row",
+  "builtin-barbell-bench-press": "builtin-machine-chest-press",
+  "builtin-overhead-press": "builtin-machine-shoulder-press",
 };
 
 export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: string }): ExerciseDefinition | null {

@@ -111,7 +111,7 @@ test("production scenario: no accessory-only day; redundancy flagged on the arms
   const balance = weeklyMovementAnalysis(draft);
   assert.ok(!balance.sessions.some((session) => session.majorCount === 0), "every session has a compound/major movement");
   const redundancy = sessionRedundancy(draft);
-  assert.ok(redundancy.some((warning) => /4 isolation exercises/.test(warning)), "arms day flagged for isolation volume");
+  assert.ok(redundancy.some((warning) => /5 isolation exercises/.test(warning)), "arms day flagged for isolation volume (cable fly is isolation, not a press)");
   assert.ok(balance.counts.kneeDominant > 0 && balance.counts.posteriorChain > 0, "knee + hinge covered");
   assert.ok(balance.counts.verticalPull > 0, "vertical pull covered");
 });
@@ -149,7 +149,7 @@ test("beginner with pull-up gets a scalable-alternative warning", () => {
 });
 
 test("lat pulldown for a beginner produces no suitability warning", () => {
-  const draft = rehydrateDraft(draftFixture([{ name: "Full Body A", focus: "f", exercises: [pulldown, squat, bench, row] }], 1));
+  const draft = rehydrateDraft(draftFixture([{ name: "Full Body A", focus: "f", exercises: [pulldown, legPress, inclinePress, row] }], 1));
   assert.equal(beginnerSuitability(draft, "beginner").length, 0);
 });
 
@@ -290,7 +290,7 @@ test("intermediate 3/3 repetition warns with neutral wording (no 'beginner')", (
   assert.ok(warnings.some((warning) => /Romanian deadlift/.test(warning) && !/beginner/.test(warning)));
 });
 
-test("current successful production pattern (RDL 2/3, crunch 2/3) stays clean", () => {
+test("production Tier-3-heavy beginner pattern is REVIEW RECOMMENDED (no longer silently ready)", () => {
   const production = rehydrateDraft(draftFixture([
     { name: "Full Body A", focus: "Full body", exercises: [squat, deadlift, bench, row, crunch] },
     { name: "Full Body B", focus: "Full body", exercises: [legPress, hipThrust, overheadPress, barbellRow, lateralRaise] },
@@ -302,8 +302,10 @@ test("current successful production pattern (RDL 2/3, crunch 2/3) stays clean", 
   assert.equal(crossSessionRedundancy(production, "beginner").length, 0);
   const report = analyseProgrammeQuality(production, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner" });
   assert.equal(report.checks.find((check) => check.key === "redundancy")?.ok, true);
-  // With every other check green, the quality state is READY FOR COACH REVIEW.
-  assert.equal(report.state, "ready");
+  // The beginner-selection policy now flags the stacked Tier 3 free-weight
+  // lifts — advisory REVIEW RECOMMENDED, never a schema error.
+  assert.equal(report.checks.find((check) => check.key === "beginnerSuitability")?.ok, false);
+  assert.equal(report.state, "review");
 });
 
 test("cross-session detection uses canonical libraryId, not display name", () => {
