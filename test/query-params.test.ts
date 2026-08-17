@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { positiveIntParam } from "../app/lib/query-params.ts";
+import { isPositiveInt, positiveIntParam } from "../app/lib/query-params.ts";
 
 function params(query: string): URLSearchParams {
   return new URL(`http://localhost/api/client-onboarding?${query}`).searchParams;
@@ -36,4 +36,39 @@ test("decimal notation and surrounding whitespace still parse to the integer", (
 test("parameters are read by name and do not leak across names", () => {
   assert.equal(positiveIntParam(params("preview=1"), "clientId"), undefined);
   assert.equal(positiveIntParam(params("clientId=1&preview=2"), "preview"), 2);
+});
+
+// ---------- isPositiveInt (client-side fetch eligibility guard) ----------
+
+test("a valid positive client id is fetch-eligible", () => {
+  assert.equal(isPositiveInt(1), true);
+});
+
+test("undefined client id is never fetch-eligible", () => {
+  assert.equal(isPositiveInt(undefined), false);
+});
+
+test("null client id is never fetch-eligible", () => {
+  assert.equal(isPositiveInt(null), false);
+});
+
+test("zero is never fetch-eligible", () => {
+  assert.equal(isPositiveInt(0), false);
+});
+
+test("negative ids are never fetch-eligible", () => {
+  assert.equal(isPositiveInt(-1), false);
+});
+
+test("NaN is never fetch-eligible", () => {
+  assert.equal(isPositiveInt(Number.NaN), false);
+});
+
+test("non-integer numbers are never fetch-eligible", () => {
+  assert.equal(isPositiveInt(1.5), false);
+});
+
+test("switching clients 1 -> 2 keeps both ids fetch-eligible", () => {
+  assert.equal(isPositiveInt(1), true);
+  assert.equal(isPositiveInt(2), true);
 });

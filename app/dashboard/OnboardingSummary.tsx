@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { isPositiveInt } from "../lib/query-params";
 
 type Client = { id: number; name: string };
 type Check = { id: string; label: string; required: boolean; complete: boolean; detail: string };
@@ -31,10 +32,15 @@ export default function OnboardingSummary({ client }: { client: Client }) {
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/client-onboarding?clientId=" + client.id)
-      .then((response) => response.json().catch(() => ({})))
-      .then((data) => { if (active) { if (responseOk(data)) setPayload(data); setLoading(false); } })
-      .catch(() => { if (active) setLoading(false); });
+    // Never issue the request before a real client is selected: the panel is
+    // mounted with the demo placeholder (id -1) while the roster loads, and
+    // the server would answer 400 "Choose a client." for that request.
+    if (isPositiveInt(client.id)) {
+      void fetch("/api/client-onboarding?clientId=" + client.id)
+        .then((response) => response.json().catch(() => ({})))
+        .then((data) => { if (active) { if (responseOk(data)) setPayload(data); setLoading(false); } })
+        .catch(() => { if (active) setLoading(false); });
+    }
     return () => { active = false; };
   }, [client.id]);
 
@@ -44,7 +50,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
   useEffect(() => {
     const refresh = (event: Event) => {
       const clientId = (event as CustomEvent<{ clientId?: number }>).detail?.clientId;
-      if (clientId !== client.id) return;
+      if (clientId !== client.id || !isPositiveInt(client.id)) return;
       void fetch("/api/client-onboarding?clientId=" + client.id)
         .then((response) => response.json().catch(() => ({})))
         .then((data) => { if (responseOk(data)) setPayload(data); })
@@ -55,6 +61,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
   }, [client.id]);
 
   async function markReadinessReviewed() {
+    if (!isPositiveInt(client.id)) return;
     setSaving(true);
     setNotice("");
     try {
@@ -74,6 +81,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
 
   async function saveOnboarding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isPositiveInt(client.id)) return;
     setSaving(true);
     setNotice("");
     setError("");
