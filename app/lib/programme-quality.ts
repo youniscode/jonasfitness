@@ -122,6 +122,71 @@ export function sessionRedundancy(draft: ProgrammeDraft): string[] {
   return warnings;
 }
 
+// ---------- Cross-session exact-exercise redundancy ----------
+
+// Identity used to detect that the SAME exercise recurs across sessions:
+// canonical libraryId when available; otherwise a conservative normalized
+// exact-name identity (trim, lowercase, single spaces). Never fuzzy — two
+// different names never merge.
+function exerciseIdentity(exercise: { libraryId?: string | null; name?: string }): string | null {
+  const libraryId = (exercise.libraryId ?? "").trim();
+  if (libraryId && libraryId !== "custom" && libraryId !== "legacy") return `id:${libraryId}`;
+  const name = (exercise.name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return name ? `name:${name}` : null;
+}
+
+// Human label for the movement-pattern warning, so a repeated hinge reads as
+// "posterior-chain work" rather than jargon. Only major (compound) patterns
+// are relevant here — accessories may repeat freely.
+const PATTERN_DESCRIPTOR: Partial<Record<MovementPattern, string>> = {
+  knee_dominant: "lower-body squat work",
+  hinge: "posterior-chain work",
+  horizontal_push: "pressing work",
+  vertical_push: "pressing work",
+  horizontal_pull: "pulling work",
+  vertical_pull: "pulling work",
+};
+
+// Deterministic weekly exercise-frequency analysis. Counts DISTINCT weekly
+// sessions in which the exact same compound exercise appears (canonical
+// libraryId), not total sets. Policy: the same technically demanding compound
+// in EVERY weekly session (3/3, 4/4, …) is a quality warning — stronger for
+// beginners; 2/3 or less is normal and never a major warning; accessories and
+// isolation movements may repeat freely. This is advisory only — the draft
+// stays schema-valid and the coach's approval remains final.
+export function crossSessionRedundancy(draft: ProgrammeDraft, experience: string | null | undefined): string[] {
+  const sessions = draft.sessions;
+  const total = sessions.length;
+  if (total < 3) return [];
+  const level = (experience ?? "").toLowerCase();
+  const beginner = level.includes("beginner") || level.includes("débutant") || !level;
+
+  const sessionCounts = new Map<string, { name: string; pattern: MovementPattern; sessions: Set<number> }>();
+  sessions.forEach((session, sessionIndex) => {
+    for (const exercise of session.exercises ?? []) {
+      const identity = exerciseIdentity(exercise);
+      if (!identity) continue;
+      const pattern = movementPatternFor(exercise);
+      if (!MAJOR_PATTERNS.has(pattern)) continue; // accessories may repeat
+      const entry = sessionCounts.get(identity) ?? { name: exercise.name, pattern, sessions: new Set<number>() };
+      entry.sessions.add(sessionIndex);
+      sessionCounts.set(identity, entry);
+    }
+  });
+
+  const warnings: string[] = [];
+  for (const entry of sessionCounts.values()) {
+    if (entry.sessions.size !== total) continue; // 2/3 or less → acceptable
+    const descriptor = PATTERN_DESCRIPTOR[entry.pattern] ?? "movement";
+    const name = entry.name;
+    warnings.push(beginner
+      ? `"${name}" appears in all ${total} sessions — consider varying ${descriptor} for a beginner.`
+      : `"${name}" appears in all ${total} sessions — consider more movement variety across the week.`);
+  }
+  // Concise by design — never flood the coach with minor messages.
+  return warnings.slice(0, 3);
+}
+
 // ---------- Beginner suitability (scalability, never medical) ----------
 
 export function beginnerSuitability(draft: ProgrammeDraft, experience: string | null | undefined): string[] {
@@ -156,7 +221,9 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   const duration = durationState(estimated, targetMinutes);
 
   const balanceAnalysis = weeklyMovementAnalysis(draft);
-  const redundancyWarnings = sessionRedundancy(draft);
+  // "No major redundancy" now covers BOTH same-session pattern/isolation
+  // redundancy and cross-session exact-exercise repetition (3/3+ compounds).
+  const redundancyWarnings = [...sessionRedundancy(draft), ...crossSessionRedundancy(draft, experience)];
   const suitabilityWarnings = beginnerSuitability(draft, experience);
 
   const equipmentOk = Boolean(equipment && equipment.trim());

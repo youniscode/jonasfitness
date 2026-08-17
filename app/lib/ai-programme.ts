@@ -122,6 +122,7 @@ DESIGN QUALITY RULES:
 - For a beginner building muscle 3 times per week, favour balanced full-body sessions (A/B/C) covering knee-dominant, hinge, push, pull and core across the week.
 - Avoid accessory-only sessions (a day made up only of arm/shoulder isolation).
 - Keep weekly push and pull stimulus roughly balanced; include vertical pull, knee-dominant and posterior-chain work somewhere in the week.
+- Avoid repeating the exact same technically demanding compound exercise in every weekly session unless client context or coach instruction specifically justifies it.
 - Prefer scalable exercises for beginners (e.g. Lat pulldown over Pull-up).
 - Respect the given equipment; never assume equipment the client may not have.
 - Session names must reflect the actual session contents.

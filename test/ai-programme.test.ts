@@ -218,6 +218,7 @@ test("AI_DRAFT_CONTRACT demands a pure JSON object and strict reps", () => {
   assert.match(AI_DRAFT_CONTRACT, /reps must be ONLY a single integer or an integer range/);
   assert.match(AI_DRAFT_CONTRACT, /"8", "8-10", "10-12", "12-15"/);
   assert.match(AI_DRAFT_CONTRACT, /never "8-10 each leg"/);
+  assert.match(AI_DRAFT_CONTRACT, /Avoid repeating the exact same technically demanding compound exercise in every weekly session unless client context or coach instruction specifically justifies it/);
   assert.match(AI_DRAFT_CONTRACT, /libraryId and name from the "Available library exercises" list/);
   assert.match(AI_DRAFT_CONTRACT, /OPAQUE identifier/);
   assert.match(AI_DRAFT_CONTRACT, /COPY IT EXACTLY/);

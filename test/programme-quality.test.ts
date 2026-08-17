@@ -13,6 +13,7 @@ import {
 import {
   analyseProgrammeQuality,
   beginnerSuitability,
+  crossSessionRedundancy,
   sessionRedundancy,
   weeklyMovementAnalysis,
 } from "../app/lib/programme-quality.ts";
@@ -43,6 +44,14 @@ const row = { libraryId: "builtin-seated-cable-row", name: "Seated cable row", s
 const pulldown = { libraryId: "builtin-lat-pulldown", name: "Lat pulldown", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
 const pullup = { libraryId: "builtin-pull-up", name: "Pull-up", sets: 3, reps: "6-8", rir: 2, restSeconds: 120 };
 const crunch = { libraryId: "builtin-cable-crunch", name: "Cable crunch", sets: 2, reps: "10-15", rir: 2, restSeconds: 75 };
+const overheadPress = { libraryId: "builtin-overhead-press", name: "Overhead press", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
+const legPress = { libraryId: "builtin-leg-press", name: "Leg press", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
+const barbellRow = { libraryId: "builtin-barbell-row", name: "Barbell row", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
+const hipThrust = { libraryId: "builtin-hip-thrust", name: "Barbell hip thrust", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
+const splitSquat = { libraryId: "builtin-bulgarian-split-squat", name: "Bulgarian split squat", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
+const inclinePress = { libraryId: "builtin-incline-dumbbell-press", name: "Incline dumbbell press", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 };
+const legCurl = { libraryId: "builtin-seated-leg-curl", name: "Seated leg curl", sets: 3, reps: "10-15", rir: 2, restSeconds: 90 };
+const lateralRaise = { libraryId: "builtin-lateral-raise", name: "Dumbbell lateral raise", sets: 3, reps: "10-15", rir: 2, restSeconds: 75 };
 
 // ---------- Duration policy ----------
 
@@ -209,6 +218,126 @@ test("fallback respects requested frequency and stays library-grounded", () => {
       assert.equal(exercise.source, "library");
     }
   }
+});
+
+// ---------- Cross-session exact-exercise redundancy ----------
+
+// Production-style draft where Romanian deadlift appears in all 3 sessions
+// while the rest of the week is balanced (from the task's representative
+// scenario). Structurally valid, but the redundancy engine must flag it.
+const rdlEverySession: RawSession[] = [
+  { name: "Full Body A", focus: "Full body", exercises: [deadlift, bench, row, legPress] },
+  { name: "Full Body B", focus: "Full body", exercises: [deadlift, overheadPress, pulldown, splitSquat] },
+  { name: "Full Body C", focus: "Full body", exercises: [deadlift, inclinePress, barbellRow, legCurl] },
+];
+
+test("RDL in all 3 sessions → cross-session redundancy warning", () => {
+  const draft = rehydrateDraft(draftFixture(rdlEverySession, 3));
+  // Structurally valid and weekly coverage present — only the exact-exercise
+  // repetition should be flagged.
+  assert.equal(validateDraft(draft, 3).ok, true);
+  assert.ok(weeklyMovementAnalysis(draft).counts.posteriorChain > 0);
+  const warnings = crossSessionRedundancy(draft, "beginner");
+  assert.ok(warnings.some((warning) => /Romanian deadlift/.test(warning) && /all 3 sessions/.test(warning)), `got: ${warnings.join(" | ")}`);
+});
+
+test("RDL 3/3 for a beginner → REVIEW RECOMMENDED, never schema invalidation", () => {
+  const draft = rehydrateDraft(draftFixture(rdlEverySession, 3));
+  const report = analyseProgrammeQuality(draft, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner" });
+  const redundancy = report.checks.find((check) => check.key === "redundancy");
+  assert.equal(redundancy?.ok, false);
+  assert.match(redundancy?.message ?? "", /Romanian deadlift/);
+  assert.equal(report.state, "review");
+  // The draft itself is still valid — warning is advisory only.
+  assert.equal(validateDraft(draft, 3).ok, true);
+});
+
+test("RDL 2/3 → no automatic major redundancy warning", () => {
+  const twoOfThree: RawSession[] = [
+    { name: "Full Body A", focus: "Full body", exercises: [deadlift, bench, row, legPress] },
+    { name: "Full Body B", focus: "Full body", exercises: [legPress, hipThrust, overheadPress, barbellRow] },
+    { name: "Full Body C", focus: "Full body", exercises: [deadlift, inclinePress, pulldown, legCurl] },
+  ];
+  const draft = rehydrateDraft(draftFixture(twoOfThree, 3));
+  const warnings = crossSessionRedundancy(draft, "beginner");
+  assert.equal(warnings.length, 0, `2/3 must not warn: ${warnings.join(" | ")}`);
+});
+
+test("accessory repetition (cable crunch 2/3, lateral raise 2/3) never warns", () => {
+  const accessories: RawSession[] = [
+    { name: "Full Body A", focus: "f", exercises: [bench, squat, row, crunch] },
+    { name: "Full Body B", focus: "f", exercises: [overheadPress, pulldown, legPress, crunch, lateralRaise] },
+    { name: "Full Body C", focus: "f", exercises: [inclinePress, barbellRow, legCurl, lateralRaise] },
+  ];
+  const draft = rehydrateDraft(draftFixture(accessories, 3));
+  const warnings = crossSessionRedundancy(draft, "beginner");
+  assert.equal(warnings.length, 0, `accessory 2/3 must not warn: ${warnings.join(" | ")}`);
+});
+
+test("three different hinge exercises pass — pattern variety is not exact repetition", () => {
+  const variedHinges: RawSession[] = [
+    { name: "Day A", focus: "f", exercises: [deadlift, bench, row] },
+    { name: "Day B", focus: "f", exercises: [hipThrust, overheadPress, pulldown] },
+    { name: "Day C", focus: "f", exercises: [legCurl, inclinePress, barbellRow] },
+  ];
+  const draft = rehydrateDraft(draftFixture(variedHinges, 3));
+  assert.equal(crossSessionRedundancy(draft, "beginner").length, 0);
+});
+
+test("intermediate 3/3 repetition warns with neutral wording (no 'beginner')", () => {
+  const draft = rehydrateDraft(draftFixture(rdlEverySession, 3));
+  const warnings = crossSessionRedundancy(draft, "intermediate");
+  assert.ok(warnings.some((warning) => /Romanian deadlift/.test(warning) && !/beginner/.test(warning)));
+});
+
+test("current successful production pattern (RDL 2/3, crunch 2/3) stays clean", () => {
+  const production = rehydrateDraft(draftFixture([
+    { name: "Full Body A", focus: "Full body", exercises: [squat, deadlift, bench, row, crunch] },
+    { name: "Full Body B", focus: "Full body", exercises: [legPress, hipThrust, overheadPress, barbellRow, lateralRaise] },
+    { name: "Full Body C", focus: "Full body", exercises: [splitSquat, deadlift, inclinePress, pulldown, crunch] },
+  ], 3));
+  assert.equal(validateDraft(production, 3).ok, true);
+  // Romanian deadlift appears 2/3 and cable crunch 2/3 — neither is a major
+  // cross-session redundancy.
+  assert.equal(crossSessionRedundancy(production, "beginner").length, 0);
+  const report = analyseProgrammeQuality(production, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner" });
+  assert.equal(report.checks.find((check) => check.key === "redundancy")?.ok, true);
+  // With every other check green, the quality state is READY FOR COACH REVIEW.
+  assert.equal(report.state, "ready");
+});
+
+test("cross-session detection uses canonical libraryId, not display name", () => {
+  // Same libraryId with different names across sessions must still be detected.
+  const renamed: RawSession[] = [
+    { name: "Day A", focus: "f", exercises: [{ ...deadlift, name: "Romanian deadlift" }, bench, row] },
+    { name: "Day B", focus: "f", exercises: [{ ...deadlift, name: "RDL" }, overheadPress, pulldown] },
+    { name: "Day C", focus: "f", exercises: [{ ...deadlift, name: "Romanian deadlift" }, inclinePress, barbellRow] },
+  ];
+  const draft = rehydrateDraft(draftFixture(renamed, 3));
+  const warnings = crossSessionRedundancy(draft, "beginner");
+  assert.ok(warnings.some((warning) => /all 3 sessions/.test(warning)), `id identity must win: ${warnings.join(" | ")}`);
+});
+
+test("no fuzzy custom-name matching: similar but distinct custom names never merge", () => {
+  // Two hinge-classifying custom names that differ only by a space. Exact
+  // normalized-name identity must treat them as distinct (2/3 + 1/3 → no
+  // warning); a fuzzy merge would incorrectly fire a 3/3 warning.
+  const customDraft = draftFixture([
+    { name: "Day A", focus: "f", exercises: [{ libraryId: "", name: "Dumbbell Romanian deadlift", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 }, bench, row] },
+    { name: "Day B", focus: "f", exercises: [{ libraryId: "", name: "Dumbbell Romanian deadlift", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 }, overheadPress, pulldown] },
+    { name: "Day C", focus: "f", exercises: [{ libraryId: "", name: "Dumbbell Romaniandeadlift", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 }, inclinePress, barbellRow] },
+  ], 3);
+  assert.equal(crossSessionRedundancy(customDraft, "beginner").length, 0, "similar-but-distinct custom names must not merge");
+});
+
+test("exact custom-name identity still detects a true 3/3 custom compound", () => {
+  const customDraft = draftFixture([
+    { name: "Day A", focus: "f", exercises: [{ libraryId: "", name: "Dumbbell Romanian deadlift", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 }, bench, row] },
+    { name: "Day B", focus: "f", exercises: [{ libraryId: "", name: "Dumbbell Romanian deadlift", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 }, overheadPress, pulldown] },
+    { name: "Day C", focus: "f", exercises: [{ libraryId: "", name: "Dumbbell Romanian deadlift", sets: 3, reps: "8-10", rir: 2, restSeconds: 120 }, inclinePress, barbellRow] },
+  ], 3);
+  const warnings = crossSessionRedundancy(customDraft, "beginner");
+  assert.ok(warnings.some((warning) => /all 3 sessions/.test(warning)), `exact repeated custom must warn: ${warnings.join(" | ")}`);
 });
 
 // ---------- Schema validation unchanged ----------
