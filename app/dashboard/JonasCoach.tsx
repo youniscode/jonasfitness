@@ -5,6 +5,7 @@ import {
   DEFAULT_SESSION_DURATION,
   adjustmentInstructionError,
   cancelAdjustment,
+  coachRequestBody,
   openAdjustment,
   sessionDurationAfterGeneration,
   sessionDurationForClientChange,
@@ -21,7 +22,7 @@ type CoachPayload = {
   design: { recommendedSplit: string; sessionsPerWeek: number; sessionDurationMinutes: number | null; rationale: string[]; priorities: string[]; constraints: string[]; progressionStrategy: string; estimatedSessionDurationMinutes: number; sessionBlueprint?: { name: string; focus: string }[] };
   changeSummary: { dayChanges: { day: string; changes: string[] }[]; weeklyVolume: { area: string; deltaSets: number }[]; durationBefore: number | null; durationAfter: number | null } | null;
   context: Record<string, unknown>;
-  generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string };
+  generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string; adjustmentApplied?: boolean };
   notice: string;
   equipmentNote: string | null;
   quality: {
@@ -56,6 +57,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   // return to the normal draft view without regenerating or losing state.
   const [previousMode, setPreviousMode] = useState<CoachMode>("first");
   const [adjustInstruction, setAdjustInstruction] = useState("");
+  // Snapshot of the draft the coach was reviewing when they opened a targeted
+  // adjustment. Retry must re-send THIS draft as previousDraft — never the
+  // fallback draft that replaces payload.draft after a failed adjustment.
+  const [adjustBaseDraft, setAdjustBaseDraft] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
   const [retryNotice, setRetryNotice] = useState("");
@@ -94,6 +99,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setEquipmentCustom("");
       setAvoid("");
       setAdjustInstruction("");
+      setAdjustBaseDraft(null);
       // A new client starts fresh: back to the first-programme view so a
       // previous client's adjustment mode never leaks across.
       setMode("first");
@@ -134,7 +140,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     if (event) setRetryNotice("");
     setLoading(true); setLoadingMessage("Building programme with Jonas Coach…"); setError(""); setSavedNotice(""); setSavedDraftId(null);
     const goal = draftGoal || client.goal;
-    const body = {
+    // The exact same request context must be reproduced on Retry (generate
+    // with event === null) — mode, previousDraft, instruction, duration and
+    // controls all come from live state, never from a changed payload.
+    const body = coachRequestBody({
       clientId: client.id,
       mode,
       goal,
@@ -142,9 +151,9 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       sessionDurationMinutes: sessionDuration ? Number(sessionDuration) : null,
       equipment: equipmentPreset === "custom" ? equipmentCustom : equipmentPreset === "auto" ? "" : equipmentPreset,
       avoid,
-      instruction: mode === "adjust" ? adjustInstruction : "",
-      previousDraft: mode === "adjust" ? payload?.draft : undefined,
-    };
+      adjustInstruction,
+      previousDraft: adjustBaseDraft ?? payload?.draft,
+    });
     try {
       const response = await fetch("/api/coach-ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
@@ -215,7 +224,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             <label>Equipment<select value={equipmentPreset} onChange={(event) => setEquipmentPreset(event.target.value)}><option value="auto">Auto — from onboarding</option><option value="Full commercial gym">Full commercial gym</option><option value="Dumbbells">Dumbbells + bench</option><option value="Home">Home / basic equipment</option><option value="Bodyweight">Bodyweight</option><option value="custom">Custom…</option></select></label>
             {equipmentPreset === "custom" && <label>Custom equipment<input value={equipmentCustom} onChange={(event) => setEquipmentCustom(event.target.value)} placeholder="e.g. squat rack + dumbbells" /></label>}
             <label>Avoid exercises<textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
-            {mode === "adjust" && <div className="jonas-adjust-row"><label className="jonas-adjust-label">What would you like Jonas Coach to change?<textarea id="coach-adjust-input" value={adjustInstruction} onChange={(event) => setAdjustInstruction(event.target.value)} placeholder="e.g. shorten sessions to 30 min, replace Romanian deadlift on Day C, reduce volume…" required /></label><button type="button" className="ghost-button" onClick={() => { setMode(cancelAdjustment(previousMode)); setAdjustInstruction(""); setError(""); }}>Cancel</button></div>}
+            {mode === "adjust" && <div className="jonas-adjust-row"><label className="jonas-adjust-label">What would you like Jonas Coach to change?<textarea id="coach-adjust-input" value={adjustInstruction} onChange={(event) => setAdjustInstruction(event.target.value)} placeholder="e.g. shorten sessions to 30 min, replace Romanian deadlift on Day C, reduce volume…" required /></label><button type="button" className="ghost-button" onClick={() => { setMode(cancelAdjustment(previousMode)); setAdjustInstruction(""); setAdjustBaseDraft(null); setError(""); }}>Cancel</button></div>}
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="generate" disabled={loading}>{loading ? loadingMessage : mode === "first" ? "Generate first programme" : mode === "adapt" ? "Adapt current programme" : "Adjust programme"}<span>✦</span></button>
           </form>
@@ -230,7 +239,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
 
-        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>{payload.generation?.fallbackReason === "timeout" ? "Online AI timed out, so Jonas Coach created a rules-based draft instead." : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft."}</strong><span>Review it before approval{payload.generation?.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span>{retryNotice && <em className="jonas-retry-notice">↻ {retryNotice}</em>}<button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
+        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note">{payload.generation.fallbackReason === "duration_miss" ? (payload.generation.adjustmentApplied === true ? <strong>AI returned a draft that did not meet the requested target, so Jonas Coach applied a safe rules-based adjustment. Review it before approval.</strong> : <strong>AI returned a draft that did not meet the requested target, and Jonas Coach could not automatically fix it to fit. Review the draft before approval.</strong>) : payload.generation.adjustmentApplied === true ? <strong>AI generation was unavailable, so Jonas Coach applied a safe rules-based adjustment to your current draft. Review it before approval.</strong> : payload.generation.adjustmentApplied === false ? <strong>AI generation was unavailable and Jonas Coach could not safely apply the requested adjustment automatically. Your current draft has been preserved.</strong> : <><strong>{payload.generation.fallbackReason === "timeout" ? "Online AI timed out, so Jonas Coach created a rules-based draft instead." : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft."}</strong><span>Review it before approval{payload.generation.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span></>}{retryNotice && <em className="jonas-retry-notice">↻ {retryNotice}</em>}<button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
 
         {errors.length > 0 && <div className="jonas-validation-error" role="alert"><strong>Jonas Coach couldn&apos;t create a valid draft. Try again.</strong>{errors.slice(0, 4).map((issue) => <p key={issue.field}>· {issue.message}</p>)}<button type="button" className="ghost-button" onClick={() => void generate(null)}>Retry</button></div>}
 
@@ -269,7 +278,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           <div className="jonas-draft-actions">
             <button type="button" className="dark-button" disabled={saving} onClick={() => void saveAsDraft()}>{saving ? "Saving…" : "Send to Programme Builder as draft"}</button>
             <button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>Regenerate draft</button>
-            <button type="button" className="ghost-button" onClick={() => { const opened = openAdjustment(mode); setMode(opened.mode); setPreviousMode(opened.previousMode); setAdjustInstruction(""); setError(""); window.requestAnimationFrame(() => document.querySelector("#coach-adjust-input")?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Ask Jonas Coach to adjust</button>
+            <button type="button" className="ghost-button" onClick={() => { const opened = openAdjustment(mode); setMode(opened.mode); setPreviousMode(opened.previousMode); setAdjustInstruction(""); setAdjustBaseDraft(payload?.draft ?? null); setError(""); window.requestAnimationFrame(() => document.querySelector("#coach-adjust-input")?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Ask Jonas Coach to adjust</button>
           </div>
           {savedNotice && <p className="programme-notice">✓ {savedNotice}</p>}
           {savedDraftId !== null && <p className="jonas-saved-note">Draft saved — approve it in the Programme Builder below to publish to the client portal.</p>}

@@ -303,6 +303,18 @@ export function compareDuration(expectedMinutes: number, targetMinutes: number |
   };
 }
 
+// Objective duration compliance: an AI draft that parses and passes schema
+// validation may STILL be rejected when its estimated duration is materially
+// outside the target band (target ± DURATION_TOLERANCE). This is the gate the
+// route applies BEFORE accepting a draft as a successful source=ai result —
+// a valid ~48-min draft against a 30-min target is a duration_miss, never a
+// malformed_json and never a silent success. Falls back to "match" when no
+// target is set (duration is advisory only).
+export function objectiveDurationStatus(expectedMinutes: number, targetMinutes: number | null): "match" | "miss" {
+  if (!targetMinutes || targetMinutes <= 0) return "match";
+  return durationState(expectedMinutes, targetMinutes) === "match" ? "match" : "miss";
+}
+
 // ---------- Design recommendation (deterministic, split = blueprint) ----------
 
 // Session blueprints describe the concrete structure Jonas Coach designs to.
@@ -449,14 +461,17 @@ export function buildFallbackDraft(
   sessionsPerWeek: number,
   equipment: string | null | undefined,
   experience: string | null | undefined,
+  preserveSessionNames?: string[],
 ): ProgrammeDraft {
   const days = Math.min(5, Math.max(1, sessionsPerWeek || 3));
   const blueprint = sessionBlueprintFor(days);
   const pool = candidateExercisesFor(equipment);
   const beginner = (experience ?? "").toLowerCase().includes("beginner");
   const used = new Set<string>();
-  const sessions: DraftSession[] = blueprint.map((day) => ({
-    name: day.name,
+  const sessions: DraftSession[] = blueprint.map((day, index) => ({
+    // When adapting an existing approved programme, keep its session names so
+    // the fallback reads as an evolution of that programme, not a new one.
+    name: preserveSessionNames?.[index] ?? day.name,
     focus: day.focus,
     exercises: exercisesForPatterns(day.patterns, pool, used),
   }));
@@ -473,6 +488,198 @@ export function buildFallbackDraft(
     coachNotes: "Deterministic draft — review exercise selection and loading before approving.",
     sessions,
   });
+}
+
+// ---------- Targeted-adjustment fallback (previous-draft aware) ----------
+
+// When the model fails during a targeted adjustment, we must NOT fall back to a
+// generic first-programme draft: that silently discards the coach's current
+// draft AND their instruction. Instead we modify the existing draft with a
+// small, conservative set of objective intents (shorten to the target control,
+// replace a named canonical exercise, remove a named exercise, trim to an
+// explicit exercise count). No fuzzy/substring/semantic matching and no
+// invented ids — everything resolves through exact canonical library names.
+
+const normaliseName = (value: string): string => (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+function resolveBuiltInByName(name: string): ExerciseDefinition | null {
+  return builtInExerciseFor(null, name);
+}
+
+export type AdjustmentIntent = {
+  shorten: boolean;
+  targetExerciseCount: number | null;
+  replacements: { from: string; to: string }[];
+  removals: string[];
+};
+
+// Small conservative instruction interpreter for objective, high-confidence
+// adjustment requests. Anything it cannot resolve with exact matching is left
+// alone — the draft is preserved rather than guessed at.
+export function interpretAdjustmentInstruction(instruction: string, draft: ProgrammeDraft | null): AdjustmentIntent {
+  const text = (instruction ?? "").trim();
+  const intent: AdjustmentIntent = { shorten: false, targetExerciseCount: null, replacements: [], removals: [] };
+  if (!text) return intent;
+  intent.shorten = /shorten|shorter|reduce (the )?(session )?(length|duration|volume)|fit (within|in|to) \d+ minutes|trim the/i.test(text);
+  const countMatch = text.match(/(?:approximately |about |around |only |keep |use |to )?(\d+)\s*(?:high-value\s*)?exercises?\s*per session/i);
+  if (countMatch) {
+    const count = Number(countMatch[1]);
+    if (count >= 1 && count <= 8) intent.targetExerciseCount = count;
+  }
+  const replacementMatch = text.match(/replace\s+(.+?)\s+with\s+(.+?)(?:\.|,|$)/i);
+  if (replacementMatch) {
+    const from = normaliseName(replacementMatch[1]);
+    const target = resolveBuiltInByName(replacementMatch[2]);
+    if (from && target) intent.replacements.push({ from, to: target.name });
+  }
+  const removeMatch = text.match(/remove\s+(.+?)(?:\.|,|$)/i);
+  if (removeMatch && draft) {
+    const target = normaliseName(removeMatch[1]);
+    const present = Boolean(target && draft.sessions.some((session) => (session.exercises ?? []).some((exercise) => normaliseName(exercise.name) === target)));
+    if (present) intent.removals.push(target);
+  }
+  return intent;
+}
+
+// Exercises that may be dropped when trimming/shortening: non-major
+// (isolation/core) exercises first, then a major pattern ONLY when another
+// exercise in the same session still covers it. Never leaves a session empty.
+function removableExerciseIndexes(session: DraftSession): number[] {
+  const indexes: number[] = [];
+  session.exercises.forEach((exercise, index) => {
+    if (session.exercises.length <= 1) return;
+    const pattern = movementPatternFor(exercise);
+    if (!MAJOR_PATTERNS.has(pattern)) { indexes.push(index); return; }
+    const coveredElsewhere = session.exercises.some((other, otherIndex) => otherIndex !== index && movementPatternFor(other) === pattern);
+    if (coveredElsewhere) indexes.push(index);
+  });
+  return indexes;
+}
+
+// Removes the lowest-priority removable exercise until the session has at most
+// targetCount exercises. Returns whether anything changed.
+function trimSessionExercises(session: DraftSession, targetCount: number): boolean {
+  let changed = false;
+  while (session.exercises.length > targetCount) {
+    const removable = removableExerciseIndexes(session);
+    if (!removable.length) break;
+    const removableInfo = removable.map((index) => ({ index, major: MAJOR_PATTERNS.has(movementPatternFor(session.exercises[index])) }));
+    removableInfo.sort((a, b) => (a.major === b.major ? b.index - a.index : a.major ? 1 : -1));
+    session.exercises.splice(removableInfo[0].index, 1);
+    changed = true;
+  }
+  return changed;
+}
+
+// Iteratively shortens a session toward targetSeconds: drop low-priority
+// exercises (never below 3, never the last major pattern), then reduce sets
+// conservatively (compounds to a floor of 2 sets, isolation to 1). Rest periods
+// are never artificially compressed. Returns whether anything changed.
+function reduceSessionDuration(session: DraftSession, targetSeconds: number): boolean {
+  let changed = false;
+  const MIN_SESSION_EXERCISES = 3;
+  while (estimateSessionDurationMinutes(session) * 60 > targetSeconds) {
+    if (session.exercises.length > MIN_SESSION_EXERCISES) {
+      const removable = removableExerciseIndexes(session);
+      if (removable.length) {
+        const removableInfo = removable.map((index) => ({ index, major: MAJOR_PATTERNS.has(movementPatternFor(session.exercises[index])) }));
+        removableInfo.sort((a, b) => (a.major === b.major ? b.index - a.index : a.major ? 1 : -1));
+        session.exercises.splice(removableInfo[0].index, 1);
+        changed = true;
+        continue;
+      }
+    }
+    let reduced = false;
+    for (const exercise of session.exercises) {
+      const pattern = movementPatternFor(exercise);
+      const floor = MAJOR_PATTERNS.has(pattern) ? 2 : 1;
+      if (exercise.sets > floor) {
+        exercise.sets -= 1;
+        reduced = true;
+        changed = true;
+        break;
+      }
+    }
+    if (!reduced) break;
+  }
+  return changed;
+}
+
+export type AdjustmentFallbackResult = {
+  draft: ProgrammeDraft;
+  applied: boolean;
+  note: string;
+};
+
+// Deterministic adjustment of the CURRENT draft when the model call fails.
+// Starts from previousDraft, applies only safely-recognized objective intents,
+// and reports honestly whether the draft actually changed — an unchanged draft
+// is never presented as a successful adjustment.
+export function buildAdjustmentFallback(
+  previous: ProgrammeDraft,
+  options: { targetDuration?: number | null; instruction?: string; goal?: string; sessionsPerWeek?: number },
+): AdjustmentFallbackResult {
+  const instruction = (options.instruction ?? "").trim();
+  const intent = interpretAdjustmentInstruction(instruction, previous);
+  const target = options.targetDuration && options.targetDuration > 0 ? options.targetDuration : null;
+  const currentEstimated = estimateProgrammeDurationMinutes(previous);
+  const shorten = intent.shorten || (target != null && currentEstimated > target * 1.05);
+  const work = structuredClone(previous) as ProgrammeDraft;
+  const appliedChanges: string[] = [];
+
+  // 1) Exact canonical exercise replacements ("replace Pull-up with Lat pulldown").
+  for (const replacement of intent.replacements) {
+    for (const session of work.sessions) {
+      for (const exercise of session.exercises) {
+        if (normaliseName(exercise.name) !== replacement.from) continue;
+        const targetExercise = resolveBuiltInByName(replacement.to);
+        if (!targetExercise) continue;
+        // Replacing with an exercise already in the same session would create an
+        // invalid duplicate — keep the source in that case (conservative).
+        if (session.exercises.some((other) => normaliseName(other.name) === normaliseName(targetExercise.name))) continue;
+        exercise.libraryId = targetExercise.id;
+        exercise.name = targetExercise.name;
+        appliedChanges.push(`Replaced ${replacement.from} with ${targetExercise.name}`);
+      }
+    }
+  }
+
+  // 2) Exact named removals ("remove cable crunch") — only when the name
+  //    resolves exactly to an exercise present in the current draft.
+  for (const removal of intent.removals) {
+    for (const session of work.sessions) {
+      const before = session.exercises.length;
+      session.exercises = session.exercises.filter((exercise) => normaliseName(exercise.name) !== removal);
+      if (session.exercises.length !== before) appliedChanges.push(`Removed ${removal} from ${session.name}`);
+    }
+  }
+
+  // 3) Explicit exercise-count target ("approximately 4 exercises per session").
+  if (intent.targetExerciseCount) {
+    for (const session of work.sessions) {
+      const before = session.exercises.length;
+      const changed = trimSessionExercises(session, intent.targetExerciseCount);
+      if (changed && session.exercises.length !== before) appliedChanges.push(`Trimmed ${session.name} to ${intent.targetExerciseCount} exercises`);
+    }
+  }
+
+  // 4) Duration shortening toward the target control — never below 3 exercises
+  //    per session, never artificial rest compression.
+  if (shorten && target) {
+    for (const session of work.sessions) {
+      const before = estimateSessionDurationMinutes(session);
+      const changed = reduceSessionDuration(session, target * 60);
+      const after = estimateSessionDurationMinutes(session);
+      if (changed && after < before) appliedChanges.push(`Shortened ${session.name} (~${before} min → ~${after} min)`);
+    }
+  }
+
+  const rehydrated = rehydrateDraft(work);
+  const applied = appliedChanges.length > 0;
+  const note = applied
+    ? "AI generation was unavailable, so Jonas Coach applied a safe rules-based adjustment to your current draft. Review it before approval."
+    : "AI generation was unavailable and Jonas Coach could not safely apply the requested adjustment automatically. Your current draft has been preserved.";
+  return { draft: rehydrated, applied, note };
 }
 
 // ---------- Change summary (deterministic diff for adaptations) ----------

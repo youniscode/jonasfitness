@@ -5,6 +5,7 @@ import {
   DEFAULT_SESSION_DURATION,
   adjustmentInstructionError,
   cancelAdjustment,
+  coachRequestBody,
   openAdjustment,
   sessionDurationAfterGeneration,
   sessionDurationForClientChange,
@@ -96,4 +97,58 @@ test("opening adjustment preserves the current target duration", () => {
   const opened = openAdjustment("first");
   assert.equal(opened.mode, "adjust");
   assert.equal(sessionDurationAfterGeneration("30", 60, 60), "30");
+});
+
+// ---------- Retry request-context preservation ----------
+
+const RETRY_CONTEXT = {
+  clientId: 7,
+  goal: "Build muscle",
+  sessionsPerWeek: 3,
+  sessionDurationMinutes: 30,
+  equipment: "Full commercial gym",
+  avoid: "barbell squats",
+};
+const ADJUST_INSTRUCTION = "Shorten each session to realistically fit 30 minutes.";
+const PREVIOUS_DRAFT = { title: "3-Day Full Body Foundation", sessions: [] };
+
+test("failed adjust → Retry reproduces the exact adjustment request context", () => {
+  const body = coachRequestBody({ mode: "adjust", adjustInstruction: ADJUST_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT });
+  assert.equal(body.mode, "adjust");
+  assert.equal(body.clientId, 7);
+  assert.equal(body.instruction, ADJUST_INSTRUCTION);
+  assert.equal(body.previousDraft, PREVIOUS_DRAFT);
+  assert.equal(body.sessionDurationMinutes, 30);
+  assert.equal(body.equipment, "Full commercial gym");
+  assert.equal(body.avoid, "barbell squats");
+  assert.equal(body.goal, "Build muscle");
+  assert.equal(body.sessionsPerWeek, 3);
+});
+
+test("adjust Retry never converts to first-programme generation", () => {
+  const body = coachRequestBody({ mode: "adjust", adjustInstruction: ADJUST_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT });
+  assert.notEqual(body.mode, "first");
+  assert.ok(body.previousDraft !== undefined, "previousDraft must be sent for an adjustment retry");
+});
+
+test("failed first → Retry stays first with no instruction or previousDraft", () => {
+  const body = coachRequestBody({ mode: "first", adjustInstruction: "", previousDraft: null, ...RETRY_CONTEXT });
+  assert.equal(body.mode, "first");
+  assert.equal(body.instruction, "");
+  assert.equal(body.previousDraft, undefined);
+  assert.equal(body.sessionDurationMinutes, 30);
+});
+
+test("failed adapt → Retry stays adapt with no instruction or previousDraft", () => {
+  const body = coachRequestBody({ mode: "adapt", adjustInstruction: "", previousDraft: null, ...RETRY_CONTEXT });
+  assert.equal(body.mode, "adapt");
+  assert.equal(body.instruction, "");
+  assert.equal(body.previousDraft, undefined);
+  assert.equal(body.equipment, "Full commercial gym");
+});
+
+test("retry body never leaks an adjustment instruction into non-adjust modes", () => {
+  const adjust = coachRequestBody({ mode: "first", adjustInstruction: ADJUST_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT });
+  assert.equal(adjust.instruction, "");
+  assert.equal(adjust.previousDraft, undefined);
 });

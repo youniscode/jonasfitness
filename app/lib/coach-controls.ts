@@ -54,3 +54,33 @@ export function cancelAdjustment(previousMode: CoachMode | null | undefined): Co
 export function adjustmentInstructionError(instruction: string | null | undefined): string | null {
   return instruction && instruction.trim() ? null : "Describe what you would like Jonas Coach to change.";
 }
+
+// Builds the exact POST body for a Jonas Coach generation request. This is the
+// Retry contract: a Retry must reproduce THE SAME request context as the
+// failed attempt — mode, previousDraft, adjustment instruction, target
+// duration, equipment, goal, sessions/week, avoid — and must never silently
+// convert a targeted adjustment into first-programme generation. Pure so the
+// mode-preservation invariants are unit-testable.
+export function coachRequestBody(opts: {
+  clientId: number;
+  mode: CoachMode;
+  goal: string;
+  sessionsPerWeek: number;
+  sessionDurationMinutes: number | null;
+  equipment: string;
+  avoid: string;
+  adjustInstruction: string;
+  previousDraft: Record<string, unknown> | null | undefined;
+}) {
+  return {
+    clientId: opts.clientId,
+    mode: opts.mode,
+    goal: opts.goal,
+    sessionsPerWeek: opts.sessionsPerWeek,
+    sessionDurationMinutes: opts.sessionDurationMinutes,
+    equipment: opts.equipment,
+    avoid: opts.avoid,
+    instruction: opts.mode === "adjust" ? opts.adjustInstruction : "",
+    previousDraft: opts.mode === "adjust" ? (opts.previousDraft ?? undefined) : undefined,
+  };
+}

@@ -5,11 +5,14 @@ import { clients, clientIntakes, programmes, progressEntries, workoutSessions } 
 import { buildClientCoachingProfile, coachGenerationBlocked } from "../../lib/coach-profile";
 import {
   AI_DRAFT_CONTRACT,
+  buildAdjustmentFallback,
   buildFallbackDraft,
   compactCatalogue,
   compareDuration,
+  DURATION_TOLERANCE,
   designRecommendation,
   estimateProgrammeDurationMinutes,
+  objectiveDurationStatus,
   programmeChangeSummary,
   rehydrateDraft,
   validateDraft,
@@ -24,10 +27,11 @@ type Mode = "first" | "adapt" | "adjust";
 const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury — flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
 
 // Compact, PII-free context: goals, training, body, readiness and a trimmed
-// history summary. No email, phone, acquisition, billing or credit data.
+// history summary. No email, phone, acquisition, billing or credit data — and
+// deliberately no client display name (it is not needed for coaching logic).
 function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): string {
   const lines = [
-    `Client: ${profile.client.name} (preferred language ${profile.client.preferredLanguage ?? "not set"})`,
+    `Preferred language: ${profile.client.preferredLanguage ?? "not set"}`,
     `Primary goal: ${profile.goals.primary}`,
     `Goal detail: ${profile.goals.detail || "not provided"}`,
     `Experience: ${profile.training.experience || "not provided"}`,
@@ -55,6 +59,120 @@ function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): str
   }
   lines.push(`Progress: ${profile.progressSignals.recentCheckIns} check-in${profile.progressSignals.recentCheckIns === 1 ? "" : "s"}, latest weight ${profile.progressSignals.latestWeight ?? "—"} kg, adherence ${profile.progressSignals.adherence}%`);
   return lines.join("\n");
+}
+
+// Normalizes a client-sent draft (or a stored programme payload) into a
+// ProgrammeDraft with safe bounds — used for the adjust prompt summary, the
+// previous-draft-aware fallback and the truthful change diff.
+function normaliseProgrammeRecord(value: unknown, goal: string, sessionsPerWeek: number): ProgrammeDraft | null {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  if (!record || !Array.isArray(record.sessions)) return null;
+  const sessions = record.sessions
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    .map((session, index) => {
+      const exercises = Array.isArray(session.exercises)
+        ? session.exercises.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+        : [];
+      return {
+        name: String(session.name ?? `Session ${index + 1}`).trim().slice(0, 80),
+        focus: String(session.focus ?? "").trim().slice(0, 160),
+        exercises: exercises.map((item) => ({
+          libraryId: String(item.libraryId ?? "custom").trim().slice(0, 80),
+          name: String(item.name ?? "").trim().slice(0, 120),
+          sets: Math.min(12, Math.max(1, Number(item.sets) || 3)),
+          reps: String(item.reps ?? "8-12").trim().slice(0, 30),
+          rir: Math.min(6, Math.max(0, Number(item.rir) || 2)),
+          restSeconds: Math.min(600, Math.max(15, Number(item.restSeconds) || 90)),
+          tempo: String(item.tempo ?? "").trim().slice(0, 40),
+          note: String(item.note ?? "").trim().slice(0, 200),
+        })),
+      };
+    });
+  return {
+    title: String(record.title ?? "").trim().slice(0, 120),
+    overview: String(record.overview ?? "").trim().slice(0, 500),
+    goal,
+    sessionsPerWeek,
+    progressionStrategy: String(record.progressionStrategy ?? "").trim().slice(0, 300),
+    coachNotes: String(record.coachNotes ?? "").trim().slice(0, 500),
+    sessions,
+  } as ProgrammeDraft;
+}
+
+// Compact, PII-free summary of the draft the coach is adjusting, sent to the
+// model so a targeted adjustment modifies THIS draft rather than inventing an
+// unrelated programme.
+function adjustDraftSummary(draft: ProgrammeDraft): string {
+  const lines = draft.sessions.map((session) => `- ${session.name}: ${(session.exercises ?? []).map((exercise) => exercise.name).join(", ")}`);
+  const estimated = estimateProgrammeDurationMinutes(draft);
+  return `CURRENT DRAFT (adjust THIS draft — do not create an unrelated programme):\n${lines.join("\n")}\nEstimated session duration: ~${estimated} minutes.`;
+}
+
+// Normalizes raw model output into a ProgrammeDraft (same conservative bounds
+// and canonicalization used before validation — invented ids that exactly name
+// a library exercise are canonicalized, everything else still fails validation).
+function draftFromRaw(value: unknown, goal: string, requestedSessions: number, fallbackTitle: string, fallbackProgression: string): ProgrammeDraft {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const sessions = Array.isArray(record.sessions) ? record.sessions : [];
+  return {
+    title: String(record.title ?? fallbackTitle).trim().slice(0, 120),
+    overview: String(record.overview ?? "").trim().slice(0, 500),
+    goal,
+    sessionsPerWeek: requestedSessions,
+    progressionStrategy: String(record.progressionStrategy ?? fallbackProgression).trim().slice(0, 300),
+    coachNotes: String(record.coachNotes ?? "").trim().slice(0, 500),
+    sessions: sessions.map((session, index) => {
+      const row = session && typeof session === "object" && !Array.isArray(session) ? session as Record<string, unknown> : {};
+      const exercises = Array.isArray(row.exercises) ? row.exercises : [];
+      return {
+        name: String(row.name ?? `Session ${index + 1}`).trim().slice(0, 80),
+        focus: String(row.focus ?? "Coach-selected progression").trim().slice(0, 160),
+        exercises: exercises.map((exercise) => {
+          const item = exercise && typeof exercise === "object" && !Array.isArray(exercise) ? exercise as Record<string, unknown> : {};
+          const rawLibraryId = String(item.libraryId ?? "").trim().slice(0, 80);
+          const rawName = String(item.name ?? "").trim().slice(0, 120);
+          // Conservative grounding BEFORE validation: an invented id that names
+          // a real library exercise exactly (e.g. "builtin-barbell-back-squat"
+          // for "Barbell back squat") is canonicalized to the real id. Nothing
+          // else changes — unknown ids/names still fail validateDraft below.
+          const canonical = canonicalBuiltInFor(rawLibraryId, rawName);
+          return {
+            libraryId: canonical ? canonical.id : rawLibraryId,
+            name: canonical ? canonical.name : rawName,
+            sets: Math.min(12, Math.max(1, Number(item.sets) || 3)),
+            reps: String(item.reps ?? "8–12").trim().slice(0, 30),
+            rir: Math.min(6, Math.max(0, Number(item.rir) || 2)),
+            restSeconds: Math.min(600, Math.max(15, Number(item.restSeconds) || 90)),
+            tempo: String(item.tempo ?? "").trim().slice(0, 40),
+            note: String(item.note ?? "").trim().slice(0, 200),
+          };
+        }),
+      };
+    }),
+  };
+}
+
+// Deterministic pipeline applied to whatever base draft is selected (AI output,
+// deterministic fallback or adjustment fallback): validation, rehydration,
+// duration estimation/comparison and the coaching-quality analysis.
+function finalizeDraft(base: ProgrammeDraft, opts: {
+  requestedSessions: number;
+  targetDuration: number | null;
+  equipment: string | null;
+  experience: string | null | undefined;
+  expectedSessionNames: string[] | undefined;
+}) {
+  const validation = validateDraft(base, opts.requestedSessions);
+  const rehydrated = rehydrateDraft(base);
+  const estimated = estimateProgrammeDurationMinutes(rehydrated);
+  const duration = compareDuration(estimated, opts.targetDuration);
+  const quality = analyseProgrammeQuality(rehydrated, {
+    targetMinutes: opts.targetDuration,
+    equipment: opts.equipment,
+    experience: opts.experience ?? null,
+    expectedSessionNames: opts.expectedSessionNames,
+  });
+  return { validation, rehydrated, estimated, duration, quality };
 }
 
 
@@ -122,6 +240,21 @@ export async function POST(request: Request) {
     profile.training.availability,
     targetDuration,
   );
+
+  // The draft the coach is working from: for a targeted adjustment it is the
+  // client-sent current draft; for an adaptation it is the approved programme.
+  // Used for the prompt summary, the mode-aware fallback and the change diff.
+  const previousDraft: ProgrammeDraft | null = mode === "adjust"
+    ? normaliseProgrammeRecord(body.previousDraft, goal, requestedSessions)
+    : mode === "adapt"
+      ? (() => {
+          const current = profile.currentProgramme as { content?: string } | null;
+          if (!current?.content) return null;
+          try {
+            return normaliseProgrammeRecord(JSON.parse(current.content), goal, requestedSessions);
+          } catch { return null; /* Legacy content — the builder handles it. */ }
+        })()
+      : null;
   // The recommended split is a design contract: for a first programme the AI
   // must produce sessions matching the blueprint names, so the recommendation
   // label always describes the actual structure (no "Full body or Upper-Lower"
@@ -151,7 +284,12 @@ export async function POST(request: Request) {
       ].join(" ");
     }
     if (mode === "adjust") {
-      return `This is a targeted adjustment of a draft the coach is reviewing. Apply ONLY this instruction and keep the rest of the draft intact: "${instruction || "Make a sensible targeted improvement"}".`;
+      const draftSummary = previousDraft ? adjustDraftSummary(previousDraft) : "";
+      return [
+        `This is a targeted adjustment of a draft the coach is reviewing. Apply ONLY this instruction and keep the rest of the draft intact: "${instruction || "Make a sensible targeted improvement"}".`,
+        draftSummary ? `\n${draftSummary}` : "",
+        "For targeted adjustments, the returned draft must materially implement the coach's requested change. Do not return an unchanged draft when the instruction requires measurable changes such as shorter duration, fewer exercises, or a named exercise replacement.",
+      ].join(" ");
     }
     return "This is the client's FIRST programme — build it from their onboarding profile.";
   })();
@@ -176,14 +314,14 @@ export async function POST(request: Request) {
   // model) in production/preview. The fallback is a reliability mechanism
   // only — it is never presented as model output (see `generation`).
   let raw: unknown = null;
-  let generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string } = {
+  let generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string; adjustmentApplied?: boolean } = {
     source: "fallback",
     provider: "deterministic",
     model: null,
   };
   const useOpenRouter = programmeProviderFor(process.env.NODE_ENV) === "openrouter";
   if (useOpenRouter) {
-    const result = await askOpenRouterJson<unknown>(SAFETY_SYSTEM, userPrompt);
+    const result = await askOpenRouterJson<unknown>(SAFETY_SYSTEM, userPrompt, { mode });
     if (result.ok) {
       raw = result.value;
       generation = { source: "ai", provider: "openrouter", model: OPENROUTER_MODEL };
@@ -206,113 +344,102 @@ export async function POST(request: Request) {
     }
   }
 
-  const parsedDraft = raw && typeof raw === "object" && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : buildFallbackDraft(goal, requestedSessions, equipment, profile.training.experience);
+  // Mode-aware fallback (provider-failure path): a targeted adjustment must
+  // modify the CURRENT draft (never silently discard it for a generic
+  // first-programme draft), an adapt keeps the approved programme's session
+  // names, and first-generation stays the balanced library-grounded fallback.
+  const rawOk = raw && typeof raw === "object" && !Array.isArray(raw);
+  let adjustmentFallback: ReturnType<typeof buildAdjustmentFallback> | null =
+    !rawOk && mode === "adjust" && previousDraft
+      ? buildAdjustmentFallback(previousDraft, { targetDuration, instruction, goal, sessionsPerWeek: requestedSessions })
+      : null;
+  const base: ProgrammeDraft = rawOk
+    ? draftFromRaw(raw, goal, requestedSessions, `${requestedSessions}-day ${goal.toLowerCase()} programme`, design.progressionStrategy)
+    : adjustmentFallback
+      ? adjustmentFallback.draft
+      : buildFallbackDraft(
+          goal,
+          requestedSessions,
+          equipment,
+          profile.training.experience,
+          mode === "adapt" && previousDraft ? previousDraft.sessions.map((session) => session.name) : undefined,
+        );
 
-  // Normalize into a draft, then validate + rehydrate against the library.
-  const sessions = Array.isArray(parsedDraft.sessions) ? parsedDraft.sessions : [];
-  const draft: ProgrammeDraft = {
-    title: String(parsedDraft.title ?? `${requestedSessions}-day ${goal.toLowerCase()} programme`).trim().slice(0, 120),
-    overview: String(parsedDraft.overview ?? "").trim().slice(0, 500),
-    goal,
-    sessionsPerWeek: requestedSessions,
-    progressionStrategy: String(parsedDraft.progressionStrategy ?? design.progressionStrategy).trim().slice(0, 300),
-    coachNotes: String(parsedDraft.coachNotes ?? "").trim().slice(0, 500),
-    sessions: sessions.map((session, index) => {
-      const row = session && typeof session === "object" && !Array.isArray(session) ? session as Record<string, unknown> : {};
-      const exercises = Array.isArray(row.exercises) ? row.exercises : [];
-      return {
-        name: String(row.name ?? `Session ${index + 1}`).trim().slice(0, 80),
-        focus: String(row.focus ?? "Coach-selected progression").trim().slice(0, 160),
-        exercises: exercises.map((exercise) => {
-          const item = exercise && typeof exercise === "object" && !Array.isArray(exercise) ? exercise as Record<string, unknown> : {};
-          const rawLibraryId = String(item.libraryId ?? "").trim().slice(0, 80);
-          const rawName = String(item.name ?? "").trim().slice(0, 120);
-          // Conservative grounding BEFORE validation: an invented id that names
-          // a real library exercise exactly (e.g. "builtin-barbell-back-squat"
-          // for "Barbell back squat") is canonicalized to the real id. Nothing
-          // else changes — unknown ids/names still fail validateDraft below.
-          const canonical = canonicalBuiltInFor(rawLibraryId, rawName);
-          return {
-            libraryId: canonical ? canonical.id : rawLibraryId,
-            name: canonical ? canonical.name : rawName,
-            sets: Math.min(12, Math.max(1, Number(item.sets) || 3)),
-            reps: String(item.reps ?? "8–12").trim().slice(0, 30),
-            rir: Math.min(6, Math.max(0, Number(item.rir) || 2)),
-            restSeconds: Math.min(600, Math.max(15, Number(item.restSeconds) || 90)),
-            tempo: String(item.tempo ?? "").trim().slice(0, 40),
-            note: String(item.note ?? "").trim().slice(0, 200),
-          };
-        }),
-      };
-    }),
-  };
-
-  const validation = validateDraft(draft, requestedSessions);
-  const rehydrated = rehydrateDraft(draft);
-  const estimated = estimateProgrammeDurationMinutes(rehydrated);
-  const duration = compareDuration(estimated, targetDuration);
-
-  // Coach-quality analysis (deterministic heuristics — never blocks on schema
-  // validity, which stays authoritative; surfaces REVIEW RECOMMENDED signals).
-  const quality = analyseProgrammeQuality(rehydrated, {
-    targetMinutes: targetDuration,
+  // Validate, rehydrate and score against the library (deterministic pipeline).
+  const finalizeOptions = {
+    requestedSessions,
+    targetDuration,
     equipment,
     experience: profile.training.experience,
     expectedSessionNames: expectedSessionNames.length ? expectedSessionNames : undefined,
-  });
+  };
+  let result = finalizeDraft(base, finalizeOptions);
+
+  // ---- Objective duration compliance gate (deterministic, NO second AI call) ----
+  // A draft that parses and passes schema validation may STILL be rejected when
+  // its estimated duration is materially outside the target band (±15%): a
+  // valid ~48-min draft against a 30-min target is NOT a successful AI result.
+  // It is classified as duration_miss (never malformed_json) and corrected
+  // deterministically — targeted adjustments re-run from the coach's draft,
+  // first/adapt drafts are repaired toward the target.
+  let objectiveMiss = false;
+  if (rawOk && result.validation.ok && objectiveDurationStatus(result.estimated, targetDuration) === "miss") {
+    objectiveMiss = true;
+    console.error(`[coach-ai] objective check ${JSON.stringify({ mode, targetDuration, estimatedDuration: result.estimated, tolerance: DURATION_TOLERANCE, result: "miss" })}`);
+    if (mode === "adjust" && previousDraft) {
+      // The AI's draft missed the requested adjustment — redo the adjustment
+      // deterministically from the coach's draft.
+      adjustmentFallback = buildAdjustmentFallback(previousDraft, { targetDuration, instruction, goal, sessionsPerWeek: requestedSessions });
+      result = finalizeDraft(adjustmentFallback.draft, finalizeOptions);
+    } else {
+      // First/adapt: repair the AI draft toward the target deterministically.
+      const repair = buildAdjustmentFallback(result.rehydrated, { targetDuration, instruction: "", goal, sessionsPerWeek: requestedSessions });
+      adjustmentFallback = repair;
+      if (repair.applied) result = finalizeDraft(repair.draft, finalizeOptions);
+    }
+    generation = {
+      source: "fallback",
+      provider: generation.provider,
+      model: generation.model,
+      fallbackReason: "duration_miss",
+      adjustmentApplied: adjustmentFallback.applied,
+    };
+  }
+
+  const rehydrated = result.rehydrated;
+  const validation = result.validation;
+  const estimated = result.estimated;
+  const duration = result.duration;
+  const quality = result.quality;
   const equipmentNote = equipment
     ? null
     : "Equipment not specified — this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.";
 
   // Change summary for adaptations/adjustments of an existing draft or approved plan.
   let changeSummary = null;
-  if (mode !== "first") {
-    const previous: ProgrammeDraft | null = mode === "adjust"
-      ? (body.previousDraft as ProgrammeDraft | null) ?? null
-      : profile.currentProgramme
-        ? (() => {
-            try {
-              const parsed = JSON.parse((profile.currentProgramme as { content: string }).content) as Record<string, unknown>;
-              const prevSessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
-              return {
-                title: String(parsed.title ?? ""),
-                overview: String(parsed.overview ?? ""),
-                goal,
-                sessionsPerWeek: requestedSessions,
-                sessions: prevSessions.map((session, index) => {
-                  const row = session && typeof session === "object" && !Array.isArray(session) ? session as Record<string, unknown> : {};
-                  const exercises = Array.isArray(row.exercises) ? row.exercises : [];
-                  return {
-                    name: String(row.name ?? `Session ${index + 1}`),
-                    focus: String(row.focus ?? ""),
-                    exercises: exercises.map((exercise) => {
-                      const item = exercise && typeof exercise === "object" && !Array.isArray(exercise) ? exercise as Record<string, unknown> : {};
-                      return {
-                        libraryId: String(item.libraryId ?? "legacy"),
-                        name: String(item.name ?? ""),
-                        sets: Number(item.sets) || 3,
-                        reps: String(item.reps ?? "8–12"),
-                        rir: Number(item.rir) || 2,
-                        restSeconds: Number(item.restSeconds) || 90,
-                      };
-                    }),
-                  };
-                }),
-              } as ProgrammeDraft;
-            } catch { return null; }
-          })()
-        : null;
-    if (previous) changeSummary = programmeChangeSummary(previous, rehydrated);
-  }
+  if (mode !== "first" && previousDraft) changeSummary = programmeChangeSummary(previousDraft, rehydrated);
 
   const invalid = validation.errors.filter((issue) => issue.severity === "error");
   const notice = invalid.length
     ? "Jonas Coach couldn't create a valid draft. Try again."
     : generation.source === "ai"
       ? "AI draft — review exercise selection, loading and health context before approving. Nothing has been published."
-      : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft. Review it before approval.";
+      : objectiveMiss
+        ? (adjustmentFallback?.applied
+          ? "AI returned a draft that did not meet the requested target, so Jonas Coach applied a safe rules-based adjustment. Review it before approval."
+          : "AI returned a draft that did not meet the requested target, and Jonas Coach could not automatically fix it to fit. Review the draft before approval.")
+        : adjustmentFallback
+          ? (adjustmentFallback.applied
+            ? "AI generation was unavailable, so Jonas Coach applied a safe rules-based adjustment to your current draft. Review it before approval."
+            : "AI generation was unavailable and Jonas Coach could not safely apply the requested adjustment automatically. Your current draft has been preserved.")
+          : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft. Review it before approval.";
+
+  // Honest fallback reporting: an adjustment-aware fallback must never look
+  // like a successful AI adjustment when it merely preserved the draft.
+  const generationPayload = {
+    ...generation,
+    ...(adjustmentFallback ? { adjustmentApplied: adjustmentFallback.applied } : {}),
+  };
 
   return Response.json({
     draft: rehydrated,
@@ -322,7 +449,7 @@ export async function POST(request: Request) {
     design: { ...design, estimatedSessionDurationMinutes: estimated },
     changeSummary,
     context: profile,
-    generation,
+    generation: generationPayload,
     notice,
     equipmentNote,
     quality,
