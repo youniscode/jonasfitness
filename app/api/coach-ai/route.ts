@@ -18,7 +18,7 @@ import {
   validateDraft,
   type ProgrammeDraft,
 } from "../../lib/ai-programme";
-import { askOllamaJson, askOpenRouterJson, getOllamaStatus, OLLAMA_MODEL, OPENROUTER_MODEL, programmeProviderFor } from "../../lib/local-ai";
+import { askOllamaJson, coachAiModelFor, coachAiProviderFor, generateCoachDraft, getOllamaStatus, OLLAMA_MODEL } from "../../lib/local-ai";
 import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
@@ -310,37 +310,40 @@ export async function POST(request: Request) {
   ].filter(Boolean).join("\n");
 
   // Try the model; fall back to a deterministic library-grounded draft.
-  // Provider routing: local Ollama in development, OpenRouter (fixed free
-  // model) in production/preview. The fallback is a reliability mechanism
-  // only — it is never presented as model output (see `generation`).
+  // Provider routing: COACH_AI_PROVIDER (deepseek|openrouter|ollama) or, when
+  // unset, the default — local Ollama in development, DeepSeek in
+  // production/preview (OpenRouter via COACH_AI_PROVIDER=openrouter). The
+  // fallback is a reliability mechanism only — it is
+  // never presented as model output (see `generation`).
   let raw: unknown = null;
   let generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string; adjustmentApplied?: boolean } = {
     source: "fallback",
     provider: "deterministic",
     model: null,
   };
-  const useOpenRouter = programmeProviderFor(process.env.NODE_ENV) === "openrouter";
-  if (useOpenRouter) {
-    const result = await askOpenRouterJson<unknown>(SAFETY_SYSTEM, userPrompt, { mode });
+  const provider = coachAiProviderFor(process.env.NODE_ENV);
+  const model = coachAiModelFor(provider);
+  if (provider === "ollama") {
+    const aiResult = await askOllamaJson<unknown>(SAFETY_SYSTEM, userPrompt);
+    if (aiResult) {
+      raw = aiResult;
+      generation = { source: "ai", provider: "ollama", model };
+    }
+  } else {
+    const result = await generateCoachDraft<unknown>({ provider, model, system: SAFETY_SYSTEM, prompt: userPrompt, mode });
     if (result.ok) {
       raw = result.value;
-      generation = { source: "ai", provider: "openrouter", model: OPENROUTER_MODEL };
+      generation = { source: "ai", provider, model };
     } else {
       // Distinguish provider failure from validation failure: the reason is a
       // safe code (never the raw error) surfaced to the coach UI and logs.
       generation = {
         source: "fallback",
-        provider: "openrouter",
-        model: OPENROUTER_MODEL,
+        provider,
+        model,
         fallbackReason: result.reason,
       };
-      console.error(`[coach-ai] openrouter ${result.reason} for client ${clientId} (mode ${mode}) — deterministic fallback used`);
-    }
-  } else {
-    const aiResult = await askOllamaJson<unknown>(SAFETY_SYSTEM, userPrompt);
-    if (aiResult) {
-      raw = aiResult;
-      generation = { source: "ai", provider: "ollama", model: OLLAMA_MODEL };
+      console.error(`[coach-ai] ${provider} ${result.reason} for client ${clientId} (mode ${mode}) — deterministic fallback used`);
     }
   }
 

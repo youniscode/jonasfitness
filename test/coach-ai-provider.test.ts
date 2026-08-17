@@ -1,32 +1,45 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { programmeProviderFor, GATEWAY_MODEL, OLLAMA_MODEL, OPENROUTER_MODEL, type GatewayFailureReason } from "../app/lib/local-ai.ts";
+import { coachAiProviderFor, DEEPSEEK_MODEL, GATEWAY_MODEL, OLLAMA_MODEL, OPENROUTER_MODEL, type GatewayFailureReason } from "../app/lib/local-ai.ts";
 import { buildFallbackDraft, validateDraft } from "../app/lib/ai-programme.ts";
 
 // ---------- Environment routing ----------
 
-test("production routes programme generation through OpenRouter", () => {
-  assert.equal(programmeProviderFor("production"), "openrouter");
+test("production routes programme generation through DeepSeek", () => {
+  delete process.env.COACH_AI_PROVIDER;
+  assert.equal(coachAiProviderFor("production"), "deepseek");
 });
 
-test("preview deployments prefer the production-capable OpenRouter path", () => {
-  // Vercel previews run with NODE_ENV=production, so they route to OpenRouter.
-  assert.equal(programmeProviderFor("production"), "openrouter");
+test("preview deployments prefer the production-capable DeepSeek path", () => {
+  // Vercel previews run with NODE_ENV=production, so they route to DeepSeek.
+  delete process.env.COACH_AI_PROVIDER;
+  assert.equal(coachAiProviderFor("production"), "deepseek");
 });
 
 test("development routes through local Ollama", () => {
-  assert.equal(programmeProviderFor("development"), "ollama");
-  assert.equal(programmeProviderFor(undefined), "ollama");
-  assert.equal(programmeProviderFor("test"), "ollama");
+  delete process.env.COACH_AI_PROVIDER;
+  assert.equal(coachAiProviderFor("development"), "ollama");
+  assert.equal(coachAiProviderFor(undefined), "ollama");
+  assert.equal(coachAiProviderFor("test"), "ollama");
+});
+
+test("OpenRouter remains selectable for rollback via COACH_AI_PROVIDER", () => {
+  try {
+    process.env.COACH_AI_PROVIDER = "openrouter";
+    assert.equal(coachAiProviderFor("production"), "openrouter");
+  } finally {
+    delete process.env.COACH_AI_PROVIDER;
+  }
 });
 
 test("model constants match the expected providers and contain no secrets", () => {
   assert.equal(OPENROUTER_MODEL, "nvidia/nemotron-3-super-120b-a12b:free");
+  assert.equal(DEEPSEEK_MODEL, "deepseek-v4-flash");
   assert.equal(OLLAMA_MODEL, "qwen3:8b");
   assert.match(GATEWAY_MODEL, /^[a-z0-9._-]+\/[a-z0-9._-]+$/);
   // Provider/model metadata must never carry credentials.
-  for (const value of [OPENROUTER_MODEL, GATEWAY_MODEL, OLLAMA_MODEL]) {
+  for (const value of [OPENROUTER_MODEL, DEEPSEEK_MODEL, GATEWAY_MODEL, OLLAMA_MODEL]) {
     assert.ok(!/key|token|secret|bearer/i.test(value));
   }
 });

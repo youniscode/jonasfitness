@@ -8,17 +8,25 @@ export const OLLAMA_MODEL = "qwen3:8b";
 // gateway authenticates via the AI_GATEWAY_API_KEY env var or, in Vercel
 // deployments, an automatically-provisioned OIDC token — no client-side keys.
 // NOTE: kept implemented (and tested) but no longer selected for production —
-// Jonas Coach now routes through OpenRouter. Re-enable by routing production
-// through askGatewayJson again (see programmeProviderFor).
+// Jonas Coach now routes through DeepSeek. Re-enable by routing production
+// through askGatewayJson again (see coachAiProviderFor).
 export const GATEWAY_MODEL = "alibaba/qwen3.5-flash";
 
-// OpenRouter: the production/preview Jonas Coach provider. Fixed free model
-// chosen from OpenRouter's current :free list (verified 2026-08-17):
+// OpenRouter: the previous production/preview Jonas Coach provider, kept for
+// rollback/testing via COACH_AI_PROVIDER=openrouter. Fixed free model chosen
+// from OpenRouter's current :free list (verified 2026-08-17):
 //   nvidia/nemotron-3-super-120b-a12b:free — $0/$0, 262K context.
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 export const OPENROUTER_REFERER = "https://jonas-fitness.jonascode.com";
 export const OPENROUTER_TITLE = "Jonas-Fitness Coach AI";
+
+// Direct DeepSeek (OpenAI-compatible) provider for Jonas Coach. deepseek-v4-flash
+// with thinking disabled for fast, deterministic JSON programme drafts. Shares
+// the GatewayResult contract, parser and safe diagnostics with OpenRouter —
+// only the transport and request shape differ. Never logs the key or prompt.
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/chat/completions";
+export const DEEPSEEK_MODEL = "deepseek-v4-flash";
 
 export type OllamaStatus = {
   connected: boolean;
@@ -30,11 +38,25 @@ function localAIEnabled() {
   return process.env.NODE_ENV !== "production";
 }
 
-// Which provider Jonas Coach uses in this runtime.
-// Development: local Ollama. Production/preview: OpenRouter (fixed free model).
-// Deterministic fallback always remains as reliability protection.
-export function programmeProviderFor(environment: string | undefined): "openrouter" | "ollama" {
-  return environment === "production" ? "openrouter" : "ollama";
+export type CoachAiProvider = "openrouter" | "deepseek" | "ollama";
+
+// Environment-driven provider selection. COACH_AI_PROVIDER explicitly selects a
+// provider and always wins when set. When unset: production/preview → DeepSeek
+// (current production provider), everything else (local dev) → Ollama.
+// OpenRouter remains available as a rollback via COACH_AI_PROVIDER=openrouter.
+// COACH_AI_MODEL optionally overrides the per-provider default model.
+export function coachAiProviderFor(environment: string | undefined): CoachAiProvider {
+  const configured = process.env.COACH_AI_PROVIDER?.trim().toLowerCase();
+  if (configured === "deepseek" || configured === "openrouter" || configured === "ollama") return configured;
+  return environment === "production" ? "deepseek" : "ollama";
+}
+
+export function coachAiModelFor(provider: CoachAiProvider): string {
+  const override = process.env.COACH_AI_MODEL?.trim();
+  if (override) return override;
+  if (provider === "deepseek") return DEEPSEEK_MODEL;
+  if (provider === "openrouter") return OPENROUTER_MODEL;
+  return OLLAMA_MODEL;
 }
 
 export async function getOllamaStatus(): Promise<OllamaStatus> {
@@ -391,17 +413,18 @@ export function openRouterFailureStage(error: unknown, statusCode: number | null
 export async function askOpenRouterJson<T>(
   system: string,
   prompt: string,
-  options?: { timeoutMs?: number; mode?: string },
+  options?: { timeoutMs?: number; mode?: string; model?: string },
 ): Promise<GatewayResult<T>> {
   const timeoutMs = options?.timeoutMs ?? 90000;
   const mode = options?.mode ?? "unknown";
+  const model = options?.model ?? OPENROUTER_MODEL;
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: "auth", elapsedMs: 0, model: OPENROUTER_MODEL, stage: "no_key", statusCode: null, errorCode: null })}`);
+    console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: "auth", elapsedMs: 0, model, stage: "no_key", statusCode: null, errorCode: null })}`);
     return { ok: false, reason: "auth" };
   }
   // Safe request-size diagnostics — character counts only, never content.
-  console.error(`[coach-ai] openrouter request ${JSON.stringify({ model: OPENROUTER_MODEL, promptChars: (system ?? "").length + (prompt ?? "").length, maxTokens: 4096, timeoutMs })}`);
+  console.error(`[coach-ai] openrouter request ${JSON.stringify({ model, promptChars: (system ?? "").length + (prompt ?? "").length, maxTokens: 4096, timeoutMs })}`);
   const startedAt = Date.now();
   try {
     const response = await fetch(OPENROUTER_BASE_URL, {
@@ -413,7 +436,7 @@ export async function askOpenRouterJson<T>(
         "x-title": OPENROUTER_TITLE,
       },
       body: JSON.stringify({
-        model: OPENROUTER_MODEL,
+        model,
         stream: false,
         temperature: 0.2,
         max_tokens: 4096,
@@ -433,7 +456,7 @@ export async function askOpenRouterJson<T>(
     const reason = response.ok ? null : gatewayFailureReason(undefined, response.status);
     if (reason) {
       const errorCode = await safeOpenRouterErrorCode(response);
-      console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason, statusCode: response.status, model: OPENROUTER_MODEL, requestId: null, errorCode, elapsedMs, stage: "http" })}`);
+      console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason, statusCode: response.status, model, requestId: null, errorCode, elapsedMs, stage: "http" })}`);
       return { ok: false, reason };
     }
     const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string | null }> };
@@ -442,22 +465,100 @@ export async function askOpenRouterJson<T>(
     const result = parseGatewayJsonText<T>(content, { finishReason });
     // Safe parse diagnostics: counts/stage only, never the response content.
     const diagnostics = jsonParseDiagnostics(content, finishReason);
-    console.error(`[coach-ai] openrouter parse ${JSON.stringify({ mode, model: OPENROUTER_MODEL, elapsedMs, contentChars: diagnostics.contentChars, finishReason, stage: diagnostics.stage, candidateCount: diagnostics.candidateCount, result: diagnostics.result })}`);
+    console.error(`[coach-ai] openrouter parse ${JSON.stringify({ mode, model, elapsedMs, contentChars: diagnostics.contentChars, finishReason, stage: diagnostics.stage, candidateCount: diagnostics.candidateCount, result: diagnostics.result })}`);
     return result;
   } catch (error) {
-    const details = gatewayFailureDetails(error, OPENROUTER_MODEL);
+    const details = gatewayFailureDetails(error, model);
     const elapsedMs = Date.now() - startedAt;
     const stage = openRouterFailureStage(error, details.statusCode);
-    console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: details.reason, elapsedMs, model: OPENROUTER_MODEL, stage, statusCode: details.statusCode, errorCode: details.errorCode })}`);
+    console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: details.reason, elapsedMs, model, stage, statusCode: details.statusCode, errorCode: details.errorCode })}`);
     return { ok: false, reason: details.reason };
   }
+}
+
+// Direct DeepSeek call (OpenAI-compatible). Same safe failure codes, parser and
+// diagnostics as OpenRouter. Non-thinking mode (thinking.type="disabled") keeps
+// generation fast, cheap and JSON-focused; the deterministic validator,
+// exercise grounding, duration gate and quality engine stay authoritative
+// downstream. The model supports response_format json_object when the prompt
+// also asks for JSON (AI_DRAFT_CONTRACT already does).
+export async function askDeepSeekJson<T>(
+  system: string,
+  prompt: string,
+  options?: { timeoutMs?: number; mode?: string; model?: string },
+): Promise<GatewayResult<T>> {
+  const timeoutMs = options?.timeoutMs ?? 90000;
+  const mode = options?.mode ?? "unknown";
+  const model = options?.model ?? DEEPSEEK_MODEL;
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    console.error(`[coach-ai] deepseek timing ${JSON.stringify({ result: "auth", elapsedMs: 0, model, stage: "no_key", statusCode: null, errorCode: null })}`);
+    return { ok: false, reason: "auth" };
+  }
+  // Safe request-size diagnostics — character counts only, never content.
+  console.error(`[coach-ai] deepseek request ${JSON.stringify({ model, promptChars: (system ?? "").length + (prompt ?? "").length, maxTokens: 4096, timeoutMs, thinking: "disabled" })}`);
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(DEEPSEEK_BASE_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: prompt },
+        ],
+        stream: false,
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        max_tokens: 4096,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+    });
+    const elapsedMs = Date.now() - startedAt;
+    const reason = response.ok ? null : gatewayFailureReason(undefined, response.status);
+    if (reason) {
+      console.error(`[coach-ai] deepseek failure ${JSON.stringify({ reason, statusCode: response.status, model, requestId: null, errorCode: null, elapsedMs, stage: "http" })}`);
+      return { ok: false, reason };
+    }
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string | null }> };
+    const content = data.choices?.[0]?.message?.content;
+    const finishReason = data.choices?.[0]?.finish_reason ?? null;
+    const result = parseGatewayJsonText<T>(content, { finishReason });
+    const diagnostics = jsonParseDiagnostics(content, finishReason);
+    console.error(`[coach-ai] deepseek parse ${JSON.stringify({ mode, model, elapsedMs, contentChars: diagnostics.contentChars, finishReason, stage: diagnostics.stage, candidateCount: diagnostics.candidateCount, result: diagnostics.result })}`);
+    return result;
+  } catch (error) {
+    const details = gatewayFailureDetails(error, model);
+    const elapsedMs = Date.now() - startedAt;
+    const stage = openRouterFailureStage(error, details.statusCode);
+    console.error(`[coach-ai] deepseek timing ${JSON.stringify({ result: details.reason, elapsedMs, model, stage, statusCode: details.statusCode, errorCode: details.errorCode })}`);
+    return { ok: false, reason: details.reason };
+  }
+}
+
+// Unified JSON-provider entry point for Jonas Coach (OpenRouter or DeepSeek).
+// The local Ollama path keeps its legacy null contract and is handled by the
+// route separately. Shared system prompt, AI_DRAFT_CONTRACT, exercise catalogue,
+// parser and validation are untouched — only transport differs.
+export async function generateCoachDraft<T>(
+  options: { provider: CoachAiProvider; model: string; system: string; prompt: string; mode?: string; timeoutMs?: number },
+): Promise<GatewayResult<T>> {
+  if (options.provider === "deepseek") {
+    return askDeepSeekJson<T>(options.system, options.prompt, { mode: options.mode, timeoutMs: options.timeoutMs, model: options.model });
+  }
+  return askOpenRouterJson<T>(options.system, options.prompt, { mode: options.mode, timeoutMs: options.timeoutMs, model: options.model });
 }
 
 // Production model call through Vercel AI Gateway, reusing the exact
 // infrastructure the programme translation route already uses (AI SDK
 // generateText with the gateway as the default provider). Returns a structured
 // result so callers can distinguish provider failure from validation failure.
-// Kept available for re-enabling; not currently selected by programmeProviderFor.
+// Kept available for re-enabling; not currently selected by coachAiProviderFor.
 export async function askGatewayJson<T>(system: string, prompt: string, timeoutMs = 90000): Promise<GatewayResult<T>> {
   try {
     const response = await generateText({
