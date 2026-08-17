@@ -102,5 +102,15 @@ export function builtInExerciseFor(libraryId: string | null | undefined, name: s
   return byName ?? null;
 }
 
+// Exercises whose prescription is inherently time- or distance-based (timed
+// holds, carries/walks) cannot be faithfully represented by the rep-based
+// programme schema. They remain fully available for the coach's manual
+// selection, but are excluded from AI/fallback programme generation so the
+// model never produces fake rep ranges (e.g. "Farmer carry = 30 reps").
+export const aiGenerationExcludedExerciseIds = new Set<string>([
+  "builtin-plank",
+  "builtin-farmer-carry",
+]);
+
 export const exerciseMuscleGroups = ["All", "Chest", "Back", "Quadriceps", "Hamstrings", "Glutes", "Calves", "Shoulders", "Biceps", "Triceps", "Core", "Full body", "Other"];
 export const exerciseEquipment = ["All", "Barbell", "Dumbbells", "Cable", "Machine", "Bodyweight", "Other"];

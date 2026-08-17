@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  AI_DRAFT_CONTRACT,
+  candidateExercisesFor,
+  compactCatalogue,
   estimateProgrammeDurationMinutes,
   validateDraft,
   rehydrateDraft,
@@ -151,6 +154,85 @@ test("malformed/empty programme rejected", () => {
   assert.equal(validateDraft(null, 3).ok, false);
   assert.equal(validateDraft({}, 3).ok, false);
   assert.equal(validateDraft(validDraft({ sessions: [] }), 3).ok, false);
+});
+
+// ---------- Reps contract (strict, unchanged validation) ----------
+
+test("prose rep prescriptions are rejected — never accommodated", () => {
+  for (const badReps of ["30 sec", "30 sec walk", "8-10 each leg", "10 per side", "AMRAP", "to failure", "45 seconds"]) {
+    const draft = validDraft({
+      sessions: [
+        {
+          name: "Day 1",
+          focus: "Full body",
+          exercises: [{ libraryId: "builtin-barbell-bench-press", name: "Barbell bench press", sets: 3, reps: badReps, rir: 2, restSeconds: 120, tempo: "", note: "" }],
+        },
+      ],
+    });
+    const result = validateDraft(draft, 1);
+    assert.equal(result.ok, false, `"${badReps}" must fail validation`);
+    assert.match(result.errors.map((e) => e.message).join(" "), /invalid rep range/i);
+  }
+});
+
+test("valid rep forms are accepted (integer or integer range only)", () => {
+  for (const goodReps of ["8", "8-10", "10–12", "12-15", "3-5"]) {
+    const draft = validDraft({
+      sessions: [
+        {
+          name: "Day 1",
+          focus: "Full body",
+          exercises: [{ libraryId: "builtin-barbell-bench-press", name: "Barbell bench press", sets: 3, reps: goodReps, rir: 2, restSeconds: 120, tempo: "", note: "" }],
+        },
+      ],
+    });
+    assert.equal(validateDraft(draft, 1).ok, true, `"${goodReps}" must pass`);
+  }
+});
+
+// ---------- Time/distance exercises excluded from AI generation ----------
+
+test("timed/distance exercises are excluded from AI generation candidates", () => {
+  for (const equipment of ["Commercial gym", "Home / Bodyweight", "Dumbbells", undefined]) {
+    const ids = candidateExercisesFor(equipment).map((exercise) => exercise.id);
+    assert.ok(!ids.includes("builtin-plank"), "plank is time-based and must be excluded");
+    assert.ok(!ids.includes("builtin-farmer-carry"), "farmer carry is distance-based and must be excluded");
+  }
+  const catalogue = compactCatalogue("Commercial gym").join("\n");
+  assert.ok(!catalogue.includes("builtin-plank"));
+  assert.ok(!catalogue.includes("builtin-farmer-carry"));
+});
+
+test("excluded exercises remain in the full library for manual selection", () => {
+  const ids = candidateExercisesFor("Commercial gym").map((exercise) => exercise.id);
+  assert.ok(ids.includes("builtin-barbell-bench-press"));
+  assert.ok(ids.includes("builtin-pull-up"));
+});
+
+// ---------- AI output contract (prompt-level hardening) ----------
+
+test("AI_DRAFT_CONTRACT demands a pure JSON object and strict reps", () => {
+  assert.match(AI_DRAFT_CONTRACT, /Return ONE JSON object only/);
+  assert.match(AI_DRAFT_CONTRACT, /first character must be "\{"/);
+  assert.match(AI_DRAFT_CONTRACT, /NO markdown, NO code fences/);
+  assert.match(AI_DRAFT_CONTRACT, /reps must be ONLY a single integer or an integer range/);
+  assert.match(AI_DRAFT_CONTRACT, /"8", "8-10", "10-12", "12-15"/);
+  assert.match(AI_DRAFT_CONTRACT, /never "8-10 each leg"/);
+  assert.match(AI_DRAFT_CONTRACT, /libraryId and name from the "Available library exercises" list/);
+  assert.match(AI_DRAFT_CONTRACT, /at most ONE per session/);
+  assert.match(AI_DRAFT_CONTRACT, /plank, farmer carry, timed holds, walking carries/);
+  // The contract includes a pre-output self-check with the strict rules.
+  assert.match(AI_DRAFT_CONTRACT, /SELF-CHECK BEFORE OUTPUT/);
+  assert.match(AI_DRAFT_CONTRACT, /exact requested session count/);
+  assert.match(AI_DRAFT_CONTRACT, /no duplicate exercise inside a session/);
+  assert.match(AI_DRAFT_CONTRACT, /no timed\/distance prescription/);
+  // The example must use a real library id — never a fake one.
+  assert.match(AI_DRAFT_CONTRACT, /builtin-barbell-bench-press/);
+  // The example itself must be valid per validateDraft's reps rule.
+  const exampleJson = AI_DRAFT_CONTRACT.slice(AI_DRAFT_CONTRACT.indexOf("VALID EXAMPLE") + "VALID EXAMPLE".length);
+  const firstBrace = exampleJson.indexOf("{");
+  const parsed = JSON.parse(exampleJson.slice(firstBrace, exampleJson.lastIndexOf("}") + 1)) as { sessions: Array<{ exercises: Array<{ reps: string }> }> };
+  assert.equal(validateDraft(parsed, parsed.sessions.length).ok, true, "the in-prompt example must pass validation");
 });
 
 // ---------- Rehydration ----------

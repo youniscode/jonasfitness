@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   gatewayFailureDetails,
   gatewayFailureReason,
+  jsonExtractionCandidates,
   parseGatewayJsonText,
   GATEWAY_MODEL,
 } from "../app/lib/local-ai.ts";
@@ -108,7 +109,39 @@ test("malformed model output → malformed_json, never provider_error", () => {
   assert.deepEqual(parseGatewayJsonText("{not json"), { ok: false, reason: "malformed_json" });
 });
 
-test("JSON with surrounding prose/markdown fences is tolerated", () => {
+test("markdown-fenced JSON is tolerated (formatting noise only)", () => {
   const result = parseGatewayJsonText<{ a: number }>("```json\n{\"a\": 1}\n```");
-  assert.equal(result.ok, false, "fenced blocks are not valid raw JSON today");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.value, { a: 1 });
+});
+
+test("surrounding prose is stripped but the JSON must still parse", () => {
+  const result = parseGatewayJsonText<{ a: number }>("Sure! Here is the plan:\n{\"a\": 1}\nHope this helps.");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.value, { a: 1 });
+});
+
+test("prose without any JSON stays malformed_json (never accepted)", () => {
+  assert.deepEqual(parseGatewayJsonText("Here is a plan: do bench press and squats."), { ok: false, reason: "malformed_json" });
+});
+
+test("multiple ambiguous JSON objects are rejected, never guessed", () => {
+  assert.deepEqual(parseGatewayJsonText('{"a":1} then {"b":2}'), { ok: false, reason: "malformed_json" });
+  assert.deepEqual(parseGatewayJsonText('{"a":1}{"b":2}'), { ok: false, reason: "malformed_json" });
+});
+
+test("large prose is not a candidate — no extraction from long chatter", () => {
+  const padding = "explanation ".repeat(40); // 40 * 12 = 480 chars of leading chatter
+  const longChatter = `${padding}{"a":1}`;
+  assert.ok(padding.length > 400, "fixture leading chatter must exceed the budget");
+  assert.deepEqual(parseGatewayJsonText(longChatter), { ok: false, reason: "malformed_json" });
+});
+
+test("jsonExtractionCandidates exposes pure, fenced and braced candidates", () => {
+  assert.deepEqual(jsonExtractionCandidates('{"a":1}'), ['{"a":1}']);
+  const fenced = jsonExtractionCandidates("```json\n{\"a\": 1}\n```");
+  assert.ok(fenced.includes('{"a": 1}'), "fenced inner content is a candidate");
+  const prosey = jsonExtractionCandidates("Here:\n{\"a\":1}\nDone");
+  assert.ok(prosey.includes('{"a":1}'), "braced substring is a candidate");
+  assert.deepEqual(jsonExtractionCandidates("no json here"), ["no json here"]);
 });

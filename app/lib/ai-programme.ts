@@ -6,7 +6,7 @@
  * Everything here is pure so the whole pipeline is unit-testable.
  */
 
-import { builtInExerciseFor, builtInExercises, type ExerciseDefinition } from "./exercise-catalogue.ts";
+import { aiGenerationExcludedExerciseIds, builtInExerciseFor, builtInExercises, type ExerciseDefinition } from "./exercise-catalogue.ts";
 
 export type DraftExercise = {
   libraryId: string;
@@ -61,8 +61,10 @@ const integer = (value: unknown, fallback: number, minimum: number, maximum: num
 // Candidate built-ins for a client's equipment context. When equipment is
 // unknown we stay neutral (no machine-only assumptions) by using the whole
 // library minus Machine-only entries; when it is known we match the equipment.
+// Time/distance-based exercises (plank, farmer carry, …) are excluded so the
+// AI and the deterministic fallback only ever prescribe rep-based movements.
 export function candidateExercisesFor(equipment: string | null | undefined): ExerciseDefinition[] {
-  const list = [...builtInExercises];
+  const list = [...builtInExercises].filter((exercise) => !aiGenerationExcludedExerciseIds.has(exercise.id));
   const known = (equipment ?? "").toLowerCase();
   if (!known) return list.filter((exercise) => exercise.equipment !== "Machine");
   if (known.includes("home") || known.includes("bodyweight") || known.includes("no equipment")) {
@@ -81,6 +83,40 @@ export function candidateExercisesFor(equipment: string | null | undefined): Exe
 export function compactCatalogue(equipment: string | null | undefined): string[] {
   return candidateExercisesFor(equipment).map((exercise) => `${exercise.id} · ${exercise.name}`);
 }
+
+// Hardened output contract sent to AI providers (Ollama + OpenRouter). The
+// model may still return anything, but these instructions bias it toward JSON
+// that passes validateDraft/rehydrateDraft: a pure JSON object, strict integer
+// rep ranges, and library-grounded exercise ids. Validation is unchanged —
+// this only shapes the request, it never loosens the downstream checks.
+export const AI_DRAFT_CONTRACT = `OUTPUT RULES (STRICT):
+Return ONE JSON object only. The first character must be "{" and the last character must be "}".
+NO markdown, NO code fences, NO explanations, NO comments, NO reasoning, NO prose before or after the JSON.
+
+Use EXACTLY this structure:
+{"title":string,"overview":string,"progressionStrategy":string,"coachNotes":string,"sessions":[{"name":string,"focus":string,"exercises":[{"libraryId":string,"name":string,"sets":number,"reps":string,"rir":number,"restSeconds":number,"tempo":string,"note":string}]}]}
+
+EXERCISE RULES:
+- Every exercise must use an exact libraryId and name from the "Available library exercises" list above. Never invent ids or names.
+- Use library exercises whenever possible. A custom exercise (libraryId "custom") is allowed ONLY when no library exercise fits, and at most ONE per session.
+- Do NOT generate time- or distance-based exercises (plank, farmer carry, timed holds, walking carries): this programme is rep-based.
+
+REPS RULES (STRICT):
+- reps must be ONLY a single integer or an integer range: "8", "8-10", "10-12", "12-15".
+- NO words, units, seconds, distance, "each leg", "per side", "AMRAP", "to failure" or any other prose.
+- For unilateral exercises (e.g. Bulgarian split squat) the range is per working side: write "8-10", never "8-10 each leg".
+
+VALID EXAMPLE (barbell bench press is a real library exercise):
+{"title":"3-Day Full Body Foundation","overview":"Balanced strength plan built from the exercise library.","progressionStrategy":"Progressive overload with 1-3 RIR.","coachNotes":"Review loading before approval.","sessions":[{"name":"Full body A","focus":"Compound strength","exercises":[{"libraryId":"builtin-barbell-bench-press","name":"Barbell bench press","sets":3,"reps":"8-10","rir":2,"restSeconds":120,"tempo":"","note":""}]}]}
+
+SELF-CHECK BEFORE OUTPUT (perform internally, then output ONLY the JSON object):
+- exact requested session count
+- every session has usable exercises
+- every built-in exercise has a valid libraryId from the "Available library exercises" list
+- reps contain only numbers or number ranges
+- sets, RIR and rest are valid numbers
+- no duplicate exercise inside a session
+- no timed/distance prescription (this programme is reps-only)`;
 
 // Rehydrate a draft against the real library: resolve libraryId, restore the
 // canonical EN/FR/AR names and image, and mark exercises that are NOT built-ins

@@ -71,12 +71,14 @@ test("OpenRouter request wire contract: endpoint, fixed model, bounded options, 
       temperature: number;
       max_tokens: number;
       stream: boolean;
+      response_format: { type: string };
       messages: Array<{ role: string; content: string }>;
     };
     assert.equal(body.model, OPENROUTER_MODEL);
     assert.equal(body.temperature, 0.2);
     assert.equal(body.max_tokens, 4096);
     assert.equal(body.stream, false);
+    assert.deepEqual(body.response_format, { type: "json_object" });
     assert.equal(body.messages[0].role, "system");
     assert.equal(body.messages[0].content, SYSTEM);
     assert.equal(body.messages[1].role, "user");
@@ -147,6 +149,37 @@ test("OpenRouter 200 with missing choices → empty_response", async () => {
   await withFetchMock(async () => okResponse({}), async () => {
     const result = await askOpenRouterJson<unknown>(SYSTEM, PROMPT);
     assert.deepEqual(result, { ok: false, reason: "empty_response" });
+  });
+});
+
+test("realistic Nemotron-style fenced payload parses and survives extraction", async () => {
+  const content = [
+    "Here is the programme you requested:",
+    "```json",
+    JSON.stringify({
+      title: "3-Day Full Body Foundation",
+      overview: "Balanced plan",
+      progressionStrategy: "Progressive overload",
+      coachNotes: "",
+      sessions: [
+        {
+          name: "Full body A",
+          focus: "Strength",
+          exercises: [
+            { libraryId: "builtin-barbell-bench-press", name: "Barbell bench press", sets: 3, reps: "8-10", rir: 2, restSeconds: 120, tempo: "", note: "" },
+          ],
+        },
+      ],
+    }),
+    "```",
+  ].join("\n");
+  await withFetchMock(async () => okResponse({ choices: [{ message: { content } }] }), async () => {
+    const result = await askOpenRouterJson<{ title: string; sessions: unknown[] }>(SYSTEM, PROMPT);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.value.title, "3-Day Full Body Foundation");
+      assert.equal(result.value.sessions.length, 1);
+    }
   });
 });
 

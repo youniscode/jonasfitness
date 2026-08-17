@@ -162,17 +162,48 @@ export function gatewayFailureDetails(error: unknown, model: string): GatewayFai
   };
 }
 
+// Max non-JSON chatter tolerated around an extracted object. Anything larger
+// is treated as ambiguous prose and rejected (malformed_json) rather than
+// risking the wrong object being extracted.
+const MAX_JSON_CHATTER = 400;
+
+// Candidate extractions for tolerant JSON parsing. Only formatting noise is
+// stripped (markdown fences, small surrounding chatter); the parsed value
+// still goes through the full validateDraft pipeline downstream, so this never
+// bypasses or weakens validation. Order: pure text, fenced block, first "{"
+// to last "}" (only when surrounding chatter is small — one unambiguous
+// object). Multiple objects or large prose never produce a candidate.
+export function jsonExtractionCandidates(text: string): string[] {
+  const trimmed = text.trim();
+  const candidates: string[] = [trimmed];
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence?.[1]) candidates.push(fence[1].trim());
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const chatter = trimmed.slice(0, firstBrace).length + trimmed.slice(lastBrace + 1).length;
+    if (chatter <= MAX_JSON_CHATTER) {
+      candidates.push(trimmed.slice(firstBrace, lastBrace + 1));
+    }
+  }
+  return [...new Set(candidates)].filter(Boolean);
+}
+
 // Parses raw model output into the structured contract. Empty output is its
 // own code (empty_response) and unparsable output is malformed_json — neither
-// is ever classified as a provider error.
+// is ever classified as a provider error. Model prose/fences around the JSON
+// are tolerated (formatting noise only); invalid content is still rejected.
 export function parseGatewayJsonText<T>(text: string | null | undefined): GatewayJsonParseResult<T> {
   const trimmed = (text ?? "").trim();
   if (!trimmed) return { ok: false, reason: "empty_response" };
-  try {
-    return { ok: true, value: JSON.parse(trimmed) as T };
-  } catch {
-    return { ok: false, reason: "malformed_json" };
+  for (const candidate of jsonExtractionCandidates(trimmed)) {
+    try {
+      return { ok: true, value: JSON.parse(candidate) as T };
+    } catch {
+      // Try the next candidate (fenced block / braced substring).
+    }
   }
+  return { ok: false, reason: "malformed_json" };
 }
 
 // Reads a safe error code (if any) from a non-ok OpenRouter response body.
@@ -212,6 +243,10 @@ export async function askOpenRouterJson<T>(system: string, prompt: string, timeo
         stream: false,
         temperature: 0.2,
         max_tokens: 4096,
+        // The model's OpenRouter supported_parameters include response_format,
+        // so json_object mode is a supported hint toward valid JSON. It is a
+        // soft guarantee only — the full validateDraft pipeline still runs.
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
           { role: "user", content: prompt },

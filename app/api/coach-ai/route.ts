@@ -4,6 +4,7 @@ import { getDb } from "../../../db";
 import { clients, clientIntakes, programmes, progressEntries, workoutSessions } from "../../../db/schema";
 import { buildClientCoachingProfile, coachGenerationBlocked } from "../../lib/coach-profile";
 import {
+  AI_DRAFT_CONTRACT,
   buildFallbackDraft,
   compactCatalogue,
   compareDuration,
@@ -54,9 +55,6 @@ function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): str
   return lines.join("\n");
 }
 
-const DRAFT_SCHEMA = `Return exactly this JSON structure:
-{"title":string,"overview":string,"progressionStrategy":string,"coachNotes":string,"sessions":[{"name":string,"focus":string,"exercises":[{"libraryId":string,"name":string,"sets":number,"reps":string,"rir":number,"restSeconds":number,"tempo":string,"note":string}]}]}
-Every exercise must reference one of the provided library exercises by its exact libraryId and name. If no library exercise truly fits, you may include ONE custom exercise per session with libraryId "custom" and a clear name — prefer library exercises whenever suitable. Use RIR (not RPE) and sensible weekly volume. Do not invent medical claims.`;
 
 export async function GET() {
   const ownerId = await getCoachId();
@@ -157,7 +155,7 @@ export async function POST(request: Request) {
     "",
     `Available library exercises (use these libraryIds):\n${catalogue.join("\n")}`,
     "",
-    DRAFT_SCHEMA,
+    AI_DRAFT_CONTRACT,
   ].filter(Boolean).join("\n");
 
   // Try the model; fall back to a deterministic library-grounded draft.
