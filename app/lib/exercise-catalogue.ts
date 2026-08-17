@@ -102,6 +102,25 @@ export function builtInExerciseFor(libraryId: string | null | undefined, name: s
   return byName ?? null;
 }
 
+// Conservative AI-reference canonicalization, applied BEFORE validation. A
+// model may invent a plausible-looking libraryId (e.g. "builtin-barbell-back-
+// squat") while naming a real exercise exactly. If the supplied id is not a
+// canonical built-in id, we accept an EXACT normalized English-name match only
+// when it uniquely resolves to ONE catalogue exercise — then the invented id is
+// replaced by the canonical one. No fuzzy, substring, semantic or autocorrect
+// matching: an id that is neither canonical nor uniquely nameable stays as-is
+// and is rejected by validateDraft (validation is never weakened).
+export function canonicalBuiltInFor(libraryId: string | null | undefined, name: string | null | undefined): ExerciseDefinition | null {
+  if (libraryId) {
+    const byId = builtInById.get(libraryId);
+    if (byId) return byId;
+  }
+  const normalized = normaliseBuiltInName(name ?? "");
+  if (!normalized) return null;
+  const matches = builtInExercises.filter((exercise) => normaliseBuiltInName(exercise.name) === normalized);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 // Exercises whose prescription is inherently time- or distance-based (timed
 // holds, carries/walks) cannot be faithfully represented by the rep-based
 // programme schema. They remain fully available for the coach's manual

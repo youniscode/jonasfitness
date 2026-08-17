@@ -16,6 +16,7 @@ import {
   type ProgrammeDraft,
 } from "../../lib/ai-programme";
 import { askOllamaJson, askOpenRouterJson, getOllamaStatus, OLLAMA_MODEL, OPENROUTER_MODEL, programmeProviderFor } from "../../lib/local-ai";
+import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
 type Mode = "first" | "adapt" | "adjust";
@@ -226,9 +227,16 @@ export async function POST(request: Request) {
         focus: String(row.focus ?? "Coach-selected progression").trim().slice(0, 160),
         exercises: exercises.map((exercise) => {
           const item = exercise && typeof exercise === "object" && !Array.isArray(exercise) ? exercise as Record<string, unknown> : {};
+          const rawLibraryId = String(item.libraryId ?? "").trim().slice(0, 80);
+          const rawName = String(item.name ?? "").trim().slice(0, 120);
+          // Conservative grounding BEFORE validation: an invented id that names
+          // a real library exercise exactly (e.g. "builtin-barbell-back-squat"
+          // for "Barbell back squat") is canonicalized to the real id. Nothing
+          // else changes — unknown ids/names still fail validateDraft below.
+          const canonical = canonicalBuiltInFor(rawLibraryId, rawName);
           return {
-            libraryId: String(item.libraryId ?? "").trim().slice(0, 80),
-            name: String(item.name ?? "").trim().slice(0, 120),
+            libraryId: canonical ? canonical.id : rawLibraryId,
+            name: canonical ? canonical.name : rawName,
             sets: Math.min(12, Math.max(1, Number(item.sets) || 3)),
             reps: String(item.reps ?? "8–12").trim().slice(0, 30),
             rir: Math.min(6, Math.max(0, Number(item.rir) || 2)),

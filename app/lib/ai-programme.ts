@@ -106,6 +106,7 @@ Use EXACTLY this structure:
 
 EXERCISE RULES:
 - Every exercise must use an exact libraryId and name from the "Available library exercises" list above. Never invent ids or names.
+- libraryId is an OPAQUE identifier. COPY IT EXACTLY from the "Available library exercises" list. Never construct, rename, infer, abbreviate or transform a libraryId — it may NOT resemble the exercise name. Example: "Barbell back squat" has libraryId "builtin-back-squat" (no "barbell" in the id).
 - Use library exercises whenever possible. A custom exercise (libraryId "custom") is allowed ONLY when no library exercise fits, and at most ONE per session.
 - Do NOT generate time- or distance-based exercises (plank, farmer carry, timed holds, walking carries): this programme is rep-based.
 
@@ -114,8 +115,8 @@ REPS RULES (STRICT):
 - NO words, units, seconds, distance, "each leg", "per side", "AMRAP", "to failure" or any other prose.
 - For unilateral exercises (e.g. Bulgarian split squat) the range is per working side: write "8-10", never "8-10 each leg".
 
-VALID EXAMPLE (barbell bench press is a real library exercise):
-{"title":"3-Day Full Body Foundation","overview":"Balanced strength plan built from the exercise library.","progressionStrategy":"Progressive overload with 1-3 RIR.","coachNotes":"Review loading before approval.","sessions":[{"name":"Full body A","focus":"Compound strength","exercises":[{"libraryId":"builtin-barbell-bench-press","name":"Barbell bench press","sets":3,"reps":"8-10","rir":2,"restSeconds":120,"tempo":"","note":""}]}]}
+VALID EXAMPLE (both exercises are real library entries; note the second id does NOT resemble its name):
+{"title":"3-Day Full Body Foundation","overview":"Balanced strength plan built from the exercise library.","progressionStrategy":"Progressive overload with 1-3 RIR.","coachNotes":"Review loading before approval.","sessions":[{"name":"Full body A","focus":"Compound strength","exercises":[{"libraryId":"builtin-barbell-bench-press","name":"Barbell bench press","sets":3,"reps":"8-10","rir":2,"restSeconds":120,"tempo":"","note":""},{"libraryId":"builtin-back-squat","name":"Barbell back squat","sets":3,"reps":"8-10","rir":2,"restSeconds":150,"tempo":"","note":""}]}]}
 
 DESIGN QUALITY RULES:
 - For a beginner building muscle 3 times per week, favour balanced full-body sessions (A/B/C) covering knee-dominant, hinge, push, pull and core across the week.
@@ -128,7 +129,7 @@ DESIGN QUALITY RULES:
 SELF-CHECK BEFORE OUTPUT (perform internally, then output ONLY the JSON object):
 - exact requested session count
 - every session has usable exercises
-- every built-in exercise has a valid libraryId from the "Available library exercises" list
+- every built-in exercise has a valid libraryId copied VERBATIM from the "Available library exercises" list
 - reps contain only numbers or number ranges
 - sets, RIR and rest are valid numbers
 - no duplicate exercise inside a session

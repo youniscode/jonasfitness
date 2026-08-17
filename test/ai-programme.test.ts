@@ -219,6 +219,9 @@ test("AI_DRAFT_CONTRACT demands a pure JSON object and strict reps", () => {
   assert.match(AI_DRAFT_CONTRACT, /"8", "8-10", "10-12", "12-15"/);
   assert.match(AI_DRAFT_CONTRACT, /never "8-10 each leg"/);
   assert.match(AI_DRAFT_CONTRACT, /libraryId and name from the "Available library exercises" list/);
+  assert.match(AI_DRAFT_CONTRACT, /OPAQUE identifier/);
+  assert.match(AI_DRAFT_CONTRACT, /COPY IT EXACTLY/);
+  assert.match(AI_DRAFT_CONTRACT, /Never construct, rename, infer, abbreviate or transform a libraryId/);
   assert.match(AI_DRAFT_CONTRACT, /at most ONE per session/);
   assert.match(AI_DRAFT_CONTRACT, /plank, farmer carry, timed holds, walking carries/);
   // The contract includes a pre-output self-check with the strict rules.
@@ -228,6 +231,10 @@ test("AI_DRAFT_CONTRACT demands a pure JSON object and strict reps", () => {
   assert.match(AI_DRAFT_CONTRACT, /no timed\/distance prescription/);
   // The example must use a real library id — never a fake one.
   assert.match(AI_DRAFT_CONTRACT, /builtin-barbell-bench-press/);
+  // The example teaches that an id may NOT resemble its name (the production
+  // failure: "Barbell back squat" ↔ builtin-back-squat, no "barbell").
+  assert.match(AI_DRAFT_CONTRACT, /builtin-back-squat/);
+  assert.match(AI_DRAFT_CONTRACT, /no "barbell" in the id/);
   // The example itself must be valid per validateDraft's reps rule.
   const exampleJson = AI_DRAFT_CONTRACT.slice(AI_DRAFT_CONTRACT.indexOf("VALID EXAMPLE") + "VALID EXAMPLE".length);
   const firstBrace = exampleJson.indexOf("{");

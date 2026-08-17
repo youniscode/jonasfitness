@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { DEFAULT_SESSION_DURATION, sessionDurationAfterGeneration, sessionDurationForClientChange } from "../lib/coach-controls";
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
 type DurationState = "match" | "under" | "over";
@@ -47,7 +48,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
   const [retryNotice, setRetryNotice] = useState("");
-  const [sessionDuration, setSessionDuration] = useState("60");
+  const [sessionDuration, setSessionDuration] = useState(DEFAULT_SESSION_DURATION);
   const [sessionsOverride, setSessionsOverride] = useState("");
   const [equipmentPreset, setEquipmentPreset] = useState("auto");
   const [equipmentCustom, setEquipmentCustom] = useState("");
@@ -82,6 +83,9 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setEquipmentCustom("");
       setAvoid("");
       setAdjustInstruction("");
+      // A new client starts from the intended default duration — a manually
+      // chosen value for a previous client must never leak across.
+      setSessionDuration(sessionDurationForClientChange());
       setContextItems([]);
       setContextComplete(false);
       if (client.id < 1) return;
@@ -134,7 +138,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
         const reason = (data as CoachPayload).generation?.fallbackReason ?? "unavailable";
         setRetryNotice(`AI retry failed — ${reason} at ${new Date().toLocaleTimeString()}`);
       }
-      if (data.duration?.targetMinutes === null && !sessionDuration) setSessionDuration(String(data.design?.sessionDurationMinutes ?? 60));
+      // Persist the target duration: the coach's manual value always wins;
+      // only an empty field adopts a default from the generation response.
+      const nextDuration = sessionDurationAfterGeneration(sessionDuration, data.design?.sessionDurationMinutes, data.duration?.targetMinutes ?? null);
+      if (nextDuration !== sessionDuration) setSessionDuration(nextDuration);
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : "Jonas Coach couldn't create a valid draft. Try again.");
     } finally { setLoading(false); }
