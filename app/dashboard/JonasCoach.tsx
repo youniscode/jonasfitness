@@ -39,6 +39,7 @@ function durationLabel(minutes: number | null | undefined) { return minutes ? `~
 
 export default function JonasCoach({ client, onReady }: { client: Client; onReady?: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Building programme with Jonas Coach…");
   const [error, setError] = useState("");
   const [payload, setPayload] = useState<CoachPayload | null>(null);
   const [mode, setMode] = useState<"first" | "adapt" | "adjust">("first");
@@ -56,6 +57,18 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [contextComplete, setContextComplete] = useState(false);
   const [hasApproved, setHasApproved] = useState(false);
+
+  // Staged generation feedback: no fake percentages, just an honest "still
+  // working" note once generation passes a sensible threshold (~25s). The
+  // initial message is set where loading starts (generate); this effect only
+  // schedules the delayed flip.
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => {
+      setLoadingMessage("Still generating — free AI providers can occasionally take longer.");
+    }, 25000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   // Load the deterministic context completeness for the selected client.
   useEffect(() => {
@@ -89,11 +102,12 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
 
   async function generate(event: FormEvent<HTMLFormElement> | null) {
     if (event) event.preventDefault();
+    if (loading) return; // never start a second generation while one is in flight
     if (client.id < 1) { setError("Select a saved client first."); return; }
     // A fresh submit clears retry feedback; a Retry (event === null) keeps the
     // current draft visible and confirms the outcome below.
     if (event) setRetryNotice("");
-    setLoading(true); setError(""); setSavedNotice(""); setSavedDraftId(null);
+    setLoading(true); setLoadingMessage("Building programme with Jonas Coach…"); setError(""); setSavedNotice(""); setSavedDraftId(null);
     const goal = draftGoal || client.goal;
     const body = {
       clientId: client.id,
@@ -175,7 +189,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             <label>Avoid exercises<textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
             {mode === "adjust" && <label>Coach instruction<textarea value={adjustInstruction} onChange={(event) => setAdjustInstruction(event.target.value)} placeholder='e.g. "Keep the programme but replace barbell squats with something easier to learn."' required /></label>}
             {error && <p className="form-error" role="alert">{error}</p>}
-            <button className="generate" disabled={loading}>{loading ? "Jonas Coach is thinking…" : mode === "first" ? "Generate first programme" : mode === "adapt" ? "Adapt current programme" : "Apply adjustment"}<span>✦</span></button>
+            <button className="generate" disabled={loading}>{loading ? loadingMessage : mode === "first" ? "Generate first programme" : mode === "adapt" ? "Adapt current programme" : "Apply adjustment"}<span>✦</span></button>
           </form>
         </article>
       </div>
@@ -188,7 +202,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
 
-        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>AI generation was unavailable, so Jonas Coach created a safe rules-based draft.</strong><span>Review it before approval{payload.generation?.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span>{retryNotice && <em className="jonas-retry-notice">↻ {retryNotice}</em>}<button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
+        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>{payload.generation?.fallbackReason === "timeout" ? "Online AI timed out, so Jonas Coach created a rules-based draft instead." : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft."}</strong><span>Review it before approval{payload.generation?.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span>{retryNotice && <em className="jonas-retry-notice">↻ {retryNotice}</em>}<button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
 
         {errors.length > 0 && <div className="jonas-validation-error" role="alert"><strong>Jonas Coach couldn&apos;t create a valid draft. Try again.</strong>{errors.slice(0, 4).map((issue) => <p key={issue.field}>· {issue.message}</p>)}<button type="button" className="ghost-button" onClick={() => void generate(null)}>Retry</button></div>}
 

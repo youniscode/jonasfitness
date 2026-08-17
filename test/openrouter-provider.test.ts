@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   askOpenRouterJson,
+  openRouterFailureStage,
   OPENROUTER_BASE_URL,
   OPENROUTER_MODEL,
   type GatewayResult,
@@ -24,6 +25,7 @@ function jsonResponse(body: unknown, status: number): Response {
 // contract (endpoint, model, bounded options, auth header) without secrets
 // leaking into return values or logs.
 let lastRequest: { url: string; init: RequestInit } | null = null;
+let lastLogs: string[] = [];
 let fetchMock: typeof fetch;
 
 async function withFetchMock(
@@ -31,19 +33,25 @@ async function withFetchMock(
   run: () => Promise<void>,
 ): Promise<void> {
   const originalFetch = globalThis.fetch;
+  const originalError = console.error;
   lastRequest = null;
+  lastLogs = [];
   fetchMock = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     lastRequest = { url: String(input), init: init ?? {} };
     return responder(String(input), init);
   };
   globalThis.fetch = fetchMock as typeof fetch;
+  console.error = (...args: unknown[]) => { lastLogs.push(args.map(String).join(" ")); };
   process.env.OPENROUTER_API_KEY = FAKE_KEY;
   try {
     await run();
   } finally {
     globalThis.fetch = originalFetch;
+    console.error = originalError;
     delete process.env.OPENROUTER_API_KEY;
     lastRequest = null;
+    // lastLogs intentionally preserved so tests can assert on the collected
+    // diagnostics after the mock call completes.
   }
 }
 
@@ -203,23 +211,72 @@ test("missing OPENROUTER_API_KEY → auth without calling the network", async ()
 });
 
 test("API key never appears in results or failure logs", async () => {
-  const logs: string[] = [];
-  const originalError = console.error;
-  console.error = (...args: unknown[]) => { logs.push(args.map(String).join(" ")); };
-  try {
-    await withFetchMock(async () => jsonResponse({ error: { code: "unauthorized" } }, 401), async () => {
-      const result = await askOpenRouterJson<unknown>(SYSTEM, PROMPT);
-      assert.equal(result.ok, false);
-      assert.ok(!JSON.stringify(result).includes(FAKE_KEY));
-    });
-  } finally {
-    console.error = originalError;
-  }
-  assert.ok(logs.length > 0, "a failure log line must be emitted");
-  for (const line of logs) {
+  await withFetchMock(async () => jsonResponse({ error: { code: "unauthorized" } }, 401), async () => {
+    const result = await askOpenRouterJson<unknown>(SYSTEM, PROMPT);
+    assert.equal(result.ok, false);
+    assert.ok(!JSON.stringify(result).includes(FAKE_KEY));
+  });
+  assert.ok(lastLogs.length > 0, "a failure log line must be emitted");
+  for (const line of lastLogs) {
     assert.ok(!line.includes(FAKE_KEY), "log must never contain the key");
     assert.ok(!line.includes(SYSTEM), "log must never contain the prompt/system");
+    assert.ok(!line.includes(PROMPT), "log must never contain the prompt text");
   }
+});
+
+// ---------- Timing diagnostics / timeout classification ----------
+
+test("openRouterFailureStage classifies abort vs http vs network", () => {
+  assert.equal(openRouterFailureStage(Object.assign(new Error("aborted"), { name: "AbortError" }), null), "local_abort");
+  assert.equal(openRouterFailureStage(Object.assign(new Error("aborted"), { name: "TimeoutError" }), null), "local_abort");
+  assert.equal(openRouterFailureStage(Object.assign(new Error("x"), { name: "GatewayTimeoutError" }), 504), "http");
+  assert.equal(openRouterFailureStage(Object.assign(new Error("x"), { name: "GatewayInternalServerError" }), 500), "http");
+  assert.equal(openRouterFailureStage(new Error("socket hang up"), null), "network");
+  assert.equal(openRouterFailureStage(undefined, null), "network");
+});
+
+test("local abort is logged with stage local_abort and elapsedMs, never PII", async () => {
+  await withFetchMock(async () => {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }, async () => {
+    const result = await askOpenRouterJson<unknown>(SYSTEM, PROMPT);
+    assert.deepEqual(result, { ok: false, reason: "timeout" });
+  });
+  const timing = lastLogs.find((line) => line.includes("[coach-ai] openrouter timing"));
+  assert.ok(timing, "a timing log line must be emitted on abort");
+  assert.match(timing, /"stage":"local_abort"/);
+  assert.match(timing, /"result":"timeout"/);
+  assert.match(timing, /"elapsedMs":\d+/);
+  assert.match(timing, /"statusCode":null/);
+  for (const line of lastLogs) {
+    assert.ok(!line.includes(FAKE_KEY));
+    assert.ok(!line.includes(SYSTEM) && !line.includes(PROMPT));
+  }
+});
+
+test("upstream 504 → timeout classified as http stage", async () => {
+  await withFetchMock(async () => jsonResponse({ error: { code: "upstream_timeout" } }, 504), async () => {
+    const result = await askOpenRouterJson<unknown>(SYSTEM, PROMPT);
+    assert.deepEqual(result, { ok: false, reason: "timeout" });
+  });
+  const failure = lastLogs.find((line) => line.includes("[coach-ai] openrouter failure"));
+  assert.ok(failure, "a failure log line must be emitted");
+  assert.match(failure, /"stage":"http"/);
+  assert.match(failure, /"statusCode":504/);
+  assert.match(failure, /"elapsedMs":\d+/);
+});
+
+test("request-size log records promptChars only, never prompt content", async () => {
+  await withFetchMock(async () => okResponse({ choices: [{ message: { content: "{}" } }] }), async () => {
+    await askOpenRouterJson<unknown>(SYSTEM, PROMPT);
+  });
+  const request = lastLogs.find((line) => line.includes("[coach-ai] openrouter request"));
+  assert.ok(request, "a request-size log line must be emitted");
+  const payload = JSON.parse(request.slice(request.indexOf("{"))) as { promptChars: number; maxTokens: number; timeoutMs: number };
+  assert.equal(payload.promptChars, (SYSTEM + PROMPT).length);
+  assert.equal(payload.maxTokens, 4096);
+  assert.equal(payload.timeoutMs, 90000);
+  assert.ok(!request.includes(SYSTEM) && !request.includes(PROMPT), "no prompt content in the log");
 });
 
 // ---------- Downstream contract (same shape as the gateway caller) ----------

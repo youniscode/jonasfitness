@@ -217,6 +217,19 @@ async function safeOpenRouterErrorCode(response: Response): Promise<string | nul
   }
 }
 
+// Which stage produced the failure — distinguishes OUR client abort (the
+// AbortSignal.timeout fired with no upstream response) from an upstream HTTP
+// error or a network failure. This is what tells us whether 90s was simply too
+// short for the free provider vs. the provider itself rejecting the request.
+export type OpenRouterFailureStage = "local_abort" | "http" | "network" | "no_key";
+
+export function openRouterFailureStage(error: unknown, statusCode: number | null): OpenRouterFailureStage {
+  if (statusCode != null) return "http";
+  const name = error instanceof Error ? error.name : "";
+  if (name === "AbortError" || name === "TimeoutError") return "local_abort";
+  return "network";
+}
+
 // Production/preview model call through OpenRouter's OpenAI-compatible chat
 // completions endpoint. Server-side fetch only — OPENROUTER_API_KEY stays in
 // process.env and is never logged, returned, or exposed client-side. Reuses
@@ -226,9 +239,12 @@ async function safeOpenRouterErrorCode(response: Response): Promise<string | nul
 export async function askOpenRouterJson<T>(system: string, prompt: string, timeoutMs = 90000): Promise<GatewayResult<T>> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason: "auth", statusCode: null, model: OPENROUTER_MODEL, requestId: null, errorCode: null })}`);
+    console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: "auth", elapsedMs: 0, model: OPENROUTER_MODEL, stage: "no_key", statusCode: null, errorCode: null })}`);
     return { ok: false, reason: "auth" };
   }
+  // Safe request-size diagnostics — character counts only, never content.
+  console.error(`[coach-ai] openrouter request ${JSON.stringify({ model: OPENROUTER_MODEL, promptChars: (system ?? "").length + (prompt ?? "").length, maxTokens: 4096, timeoutMs })}`);
+  const startedAt = Date.now();
   try {
     const response = await fetch(OPENROUTER_BASE_URL, {
       method: "POST",
@@ -255,17 +271,20 @@ export async function askOpenRouterJson<T>(system: string, prompt: string, timeo
       signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
+    const elapsedMs = Date.now() - startedAt;
     const reason = response.ok ? null : gatewayFailureReason(undefined, response.status);
     if (reason) {
       const errorCode = await safeOpenRouterErrorCode(response);
-      console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason, statusCode: response.status, model: OPENROUTER_MODEL, requestId: null, errorCode })}`);
+      console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason, statusCode: response.status, model: OPENROUTER_MODEL, requestId: null, errorCode, elapsedMs, stage: "http" })}`);
       return { ok: false, reason };
     }
     const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     return parseGatewayJsonText<T>(data.choices?.[0]?.message?.content);
   } catch (error) {
     const details = gatewayFailureDetails(error, OPENROUTER_MODEL);
-    console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason: details.reason, statusCode: details.statusCode, model: OPENROUTER_MODEL, requestId: null, errorCode: details.errorCode })}`);
+    const elapsedMs = Date.now() - startedAt;
+    const stage = openRouterFailureStage(error, details.statusCode);
+    console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: details.reason, elapsedMs, model: OPENROUTER_MODEL, stage, statusCode: details.statusCode, errorCode: details.errorCode })}`);
     return { ok: false, reason: details.reason };
   }
 }
