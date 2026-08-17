@@ -462,6 +462,7 @@ export function buildFallbackDraft(
   equipment: string | null | undefined,
   experience: string | null | undefined,
   preserveSessionNames?: string[],
+  targetDuration?: number | null,
 ): ProgrammeDraft {
   const days = Math.min(5, Math.max(1, sessionsPerWeek || 3));
   const blueprint = sessionBlueprintFor(days);
@@ -476,7 +477,7 @@ export function buildFallbackDraft(
     exercises: exercisesForPatterns(day.patterns, pool, used),
   }));
   const duration = estimateProgrammeDurationMinutes({ title: "", overview: "", goal, sessionsPerWeek: days, sessions });
-  return rehydrateDraft({
+  const base = rehydrateDraft({
     title: `${days}-day ${goal.toLowerCase()} foundation`,
     overview: "A balanced, coach-reviewed plan built from the exercise library with progressive overload and 1–3 reps in reserve.",
     goal,
@@ -488,6 +489,18 @@ export function buildFallbackDraft(
     coachNotes: "Deterministic draft — review exercise selection and loading before approving.",
     sessions,
   });
+  // Structured target duration is a real control for the deterministic
+  // fallback too (it must never silently return ~48 min against a 30-min
+  // target). When the default draft is materially OVER the target, reuse the
+  // SAME repair as the adjustment fallback: drop lower-priority exercises
+  // first, then reduce sets conservatively — never below 3 exercises per
+  // session and never artificial rest compression. Under-target drafts are
+  // left alone: no filler volume is ever added just to consume time.
+  if (targetDuration && targetDuration > 0) {
+    const repair = buildAdjustmentFallback(base, { targetDuration, instruction: "", goal, sessionsPerWeek: days });
+    return repair.draft;
+  }
+  return base;
 }
 
 // ---------- Targeted-adjustment fallback (previous-draft aware) ----------

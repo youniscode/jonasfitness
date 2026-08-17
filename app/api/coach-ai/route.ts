@@ -363,6 +363,7 @@ export async function POST(request: Request) {
           equipment,
           profile.training.experience,
           mode === "adapt" && previousDraft ? previousDraft.sessions.map((session) => session.name) : undefined,
+          targetDuration,
         );
 
   // Validate, rehydrate and score against the library (deterministic pipeline).

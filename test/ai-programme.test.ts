@@ -359,3 +359,72 @@ test("buildFallbackDraft with no equipment stays bodyweight/dumbbell compatible"
     }
   }
 });
+
+// ---------- Duration-aware first-programme fallback ----------
+
+// The deterministic first-programme fallback must treat targetDuration as a
+// real structured control: when AI fails (truncated/malformed/provider error)
+// against a 30-min target it must NOT silently return the default ~48-min
+// plan. It repairs toward the target band (target ± 15%) with the same
+// deterministic shortening used by the adjustment fallback — fewer high-value
+// exercises first, never artificial rest compression.
+
+test("fallback honors a 30-min target (the production failure case)", () => {
+  const draft = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner", undefined, 30);
+  const estimated = estimateProgrammeDurationMinutes(draft);
+  // Inside the ±15% band (25.5–34.5) for a 30-min target.
+  assert.ok(estimated >= 25.5 && estimated <= 34.5, `expected ~25.5–34.5 min, got ${estimated}`);
+  assert.equal(draft.sessions.length, 3);
+  assert.equal(validateDraft(draft, 3).ok, true, "duration-aware fallback must remain structurally valid");
+});
+
+test("fallback uses roughly 4 high-value exercises/session for a 30-min target", () => {
+  const draft = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner", undefined, 30);
+  for (const session of draft.sessions) {
+    assert.ok(session.exercises.length >= 3 && session.exercises.length <= 5, `${session.name} has ${session.exercises.length} exercises`);
+  }
+});
+
+test("short-target fallback preserves major movement balance across the week", () => {
+  const draft = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner", undefined, 30);
+  const week = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name).join(" "));
+  const all = week.join(" ");
+  // Weekly coverage: knee-dominant + posterior/hinge + push + pull must exist.
+  const lowerKnee = /squat|leg press|split squat|hack squat/i.test(all);
+  const hinge = /deadlift|hip thrust|leg curl/i.test(all);
+  const push = /press|bench|fly/i.test(all);
+  const pull = /row|pulldown|pull-up/i.test(all);
+  assert.ok(lowerKnee, `no knee-dominant work: ${all}`);
+  assert.ok(hinge, `no posterior-chain work: ${all}`);
+  assert.ok(push, `no push work: ${all}`);
+  assert.ok(pull, `no pull work: ${all}`);
+});
+
+test("short-target fallback never compresses rest artificially", () => {
+  const draft = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner", undefined, 30);
+  for (const session of draft.sessions) {
+    for (const exercise of session.exercises) {
+      assert.ok(exercise.restSeconds >= 60, `${exercise.name} rest ${exercise.restSeconds}s is unrealistically short`);
+    }
+  }
+});
+
+test("60-min target still produces a longer, appropriate fallback", () => {
+  const short = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner", undefined, 30);
+  const long = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner", undefined, 60);
+  const shortEst = estimateProgrammeDurationMinutes(short);
+  const longEst = estimateProgrammeDurationMinutes(long);
+  // A 60-min target must NOT be forced into the 30-min structure.
+  assert.ok(longEst > shortEst, `60-min fallback (${longEst}) should be longer than 30-min fallback (${shortEst})`);
+  assert.equal(long.sessions.length, 3);
+  assert.equal(validateDraft(long, 3).ok, true);
+});
+
+test("no target keeps the existing default fallback behavior", () => {
+  const draft = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner");
+  const estimated = estimateProgrammeDurationMinutes(draft);
+  assert.ok(estimated >= 40, `default fallback should stay substantial, got ${estimated}`);
+  assert.equal(validateDraft(draft, 3).ok, true);
+  // 5 blueprint patterns per day for a 3-day full-body plan.
+  assert.ok(draft.sessions.every((session) => session.exercises.length >= 4));
+});
