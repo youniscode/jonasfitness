@@ -35,6 +35,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [adjustInstruction, setAdjustInstruction] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
+  const [retryNotice, setRetryNotice] = useState("");
   const [sessionDuration, setSessionDuration] = useState("60");
   const [sessionsOverride, setSessionsOverride] = useState("");
   const [avoid, setAvoid] = useState("");
@@ -75,6 +76,9 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   async function generate(event: FormEvent<HTMLFormElement> | null) {
     if (event) event.preventDefault();
     if (client.id < 1) { setError("Select a saved client first."); return; }
+    // A fresh submit clears retry feedback; a Retry (event === null) keeps the
+    // current draft visible and confirms the outcome below.
+    if (event) setRetryNotice("");
     setLoading(true); setError(""); setSavedNotice(""); setSavedDraftId(null);
     const goal = draftGoal || client.goal;
     const body = {
@@ -95,6 +99,12 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
         throw new Error(data.error ?? "Jonas Coach couldn't create a valid draft. Try again.");
       }
       setPayload(data as CoachPayload);
+      // A retry that lands back on the deterministic fallback shows the coach
+      // the retry actually happened (with the reason and a timestamp).
+      if (event === null && (data as CoachPayload).generation?.source === "fallback") {
+        const reason = (data as CoachPayload).generation?.fallbackReason ?? "unavailable";
+        setRetryNotice(`AI retry failed — ${reason} at ${new Date().toLocaleTimeString()}`);
+      }
       if (data.duration?.targetMinutes === null && !sessionDuration) setSessionDuration(String(data.design?.sessionDurationMinutes ?? 60));
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : "Jonas Coach couldn't create a valid draft. Try again.");
@@ -160,7 +170,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
 
-        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>AI generation was unavailable, so Jonas Coach created a safe rules-based draft.</strong><span>Review it before approval{payload.generation?.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span><button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
+        {payload.generation?.source === "fallback" && <div className="jonas-fallback-banner" role="note"><strong>AI generation was unavailable, so Jonas Coach created a safe rules-based draft.</strong><span>Review it before approval{payload.generation?.fallbackReason ? ` (${payload.generation.fallbackReason})` : ""}.</span>{retryNotice && <em className="jonas-retry-notice">↻ {retryNotice}</em>}<button type="button" className="ghost-button" disabled={loading} onClick={() => void generate(null)}>{loading ? "Retrying AI…" : "Retry AI"}</button></div>}
 
         {errors.length > 0 && <div className="jonas-validation-error" role="alert"><strong>Jonas Coach couldn&apos;t create a valid draft. Try again.</strong>{errors.slice(0, 4).map((issue) => <p key={issue.field}>· {issue.message}</p>)}<button type="button" className="ghost-button" onClick={() => void generate(null)}>Retry</button></div>}
 

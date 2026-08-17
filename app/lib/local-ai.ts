@@ -88,9 +88,30 @@ export type GatewayFailureReason =
 
 export type GatewayResult<T> = { ok: true; value: T } | { ok: false; reason: GatewayFailureReason };
 
-// Maps a thrown AI SDK error to a safe public reason. Class names are stable
-// across SDK versions; never surface the message (it can contain auth detail).
-export function gatewayFailureReason(error: unknown): GatewayFailureReason {
+export type GatewayJsonParseResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: "empty_response" | "malformed_json" };
+
+function statusCodeOf(error: unknown): number | null {
+  const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  return typeof record.statusCode === "number" ? record.statusCode : null;
+}
+
+// Maps a thrown AI SDK / Vercel AI Gateway error to a safe public reason.
+// Structured status codes are preferred when present (the @ai-sdk/gateway
+// errors always carry them); class names are the fallback. Never surface the
+// message (it can contain auth detail) or the response body.
+export function gatewayFailureReason(error: unknown, statusCode?: number | null): GatewayFailureReason {
+  const code = statusCode ?? statusCodeOf(error);
+  if (code != null) {
+    if (code === 401 || code === 403) return "auth";
+    if (code === 404) return "model_not_found";
+    if (code === 408 || code === 504) return "timeout";
+    if (code === 429) return "rate_limit";
+    // Any other provider/gateway rejection (400, 422, 5xx, …) stays in one
+    // safe client-facing category; server logs carry the exact statusCode.
+    return "provider_error";
+  }
   const name = error instanceof Error ? error.name : "";
   if (/auth/i.test(name)) return "auth";
   if (/model.?not.?found|not.?found/i.test(name)) return "model_not_found";
@@ -98,6 +119,49 @@ export function gatewayFailureReason(error: unknown): GatewayFailureReason {
   if (/timeout|abort/i.test(name)) return "timeout";
   if (/internal|server|unavailable|api error/i.test(name)) return "provider_error";
   return "unknown";
+}
+
+// Safe, loggable detail for a provider failure. Only identifiers and codes —
+// never the error message, response body, keys, headers or prompt context.
+export type GatewayFailureDetails = {
+  reason: GatewayFailureReason;
+  errorName: string | null;
+  statusCode: number | null;
+  requestId: string | null;
+  errorCode: string | null;
+  model: string;
+};
+
+export function gatewayFailureDetails(error: unknown, model: string): GatewayFailureDetails {
+  const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const requestId = typeof record.generationId === "string"
+    ? record.generationId
+    : typeof record.requestId === "string"
+      ? record.requestId
+      : null;
+  const errorCode = typeof record.code === "string" ? record.code : null;
+  const errorName = error instanceof Error ? error.name : null;
+  return {
+    reason: gatewayFailureReason(error, statusCodeOf(error)),
+    errorName,
+    statusCode: statusCodeOf(error),
+    requestId,
+    errorCode,
+    model,
+  };
+}
+
+// Parses raw model output into the structured contract. Empty output is its
+// own code (empty_response) and unparsable output is malformed_json — neither
+// is ever classified as a provider error.
+export function parseGatewayJsonText<T>(text: string | null | undefined): GatewayJsonParseResult<T> {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) return { ok: false, reason: "empty_response" };
+  try {
+    return { ok: true, value: JSON.parse(trimmed) as T };
+  } catch {
+    return { ok: false, reason: "malformed_json" };
+  }
 }
 
 // Production model call through Vercel AI Gateway, reusing the exact
@@ -121,14 +185,19 @@ export async function askGatewayJson<T>(system: string, prompt: string, timeoutM
         },
       },
     });
-    const text = response.text?.trim();
-    if (!text) return { ok: false, reason: "empty_response" };
-    try {
-      return { ok: true, value: JSON.parse(text) as T };
-    } catch {
-      return { ok: false, reason: "malformed_json" };
-    }
+    return parseGatewayJsonText<T>(response.text);
   } catch (error) {
-    return { ok: false, reason: gatewayFailureReason(error) };
+    // Server-side diagnostics only: safe identifiers and codes, never the
+    // message/body (can contain auth or request detail) and never the key.
+    const details = gatewayFailureDetails(error, GATEWAY_MODEL);
+    console.error(`[coach-ai] gateway failure ${JSON.stringify({
+      reason: details.reason,
+      errorName: details.errorName,
+      statusCode: details.statusCode,
+      model: details.model,
+      requestId: details.requestId,
+      errorCode: details.errorCode,
+    })}`);
+    return { ok: false, reason: details.reason };
   }
 }
