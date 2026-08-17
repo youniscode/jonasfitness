@@ -4,6 +4,7 @@ import { getDb } from "../../../db";
 import { clients, clientIntakes, programmes, progressEntries, workoutSessions } from "../../../db/schema";
 import { buildClientCoachingProfile, coachGenerationBlocked } from "../../lib/coach-profile";
 import {
+  adjustmentSatisfiesMaterial,
   AI_DRAFT_CONTRACT,
   buildAdjustmentFallback,
   buildFallbackDraft,
@@ -12,6 +13,7 @@ import {
   DURATION_TOLERANCE,
   designRecommendation,
   estimateProgrammeDurationMinutes,
+  interpretAdjustmentInstruction,
   objectiveDurationStatus,
   programmeChangeSummary,
   rehydrateDraft,
@@ -379,35 +381,46 @@ export async function POST(request: Request) {
   };
   let result = finalizeDraft(base, finalizeOptions);
 
-  // ---- Objective duration compliance gate (deterministic, NO second AI call) ----
-  // A draft that parses and passes schema validation may STILL be rejected when
-  // its estimated duration is materially outside the target band (±15%): a
-  // valid ~48-min draft against a 30-min target is NOT a successful AI result.
-  // It is classified as duration_miss (never malformed_json) and corrected
-  // deterministically — targeted adjustments re-run from the coach's draft,
-  // first/adapt drafts are repaired toward the target.
+  // ---- Objective compliance gate (deterministic, NO second AI call) ----
+  // A draft that parses and passes schema validation may STILL be rejected for
+  // two deterministic reasons:
+  //   1. duration_miss — its estimated duration is materially outside the
+  //      target band (±15%);
+  //   2. material_miss (targeted adjustments only) — an explicitly interpreted
+  //      named replacement/removal/exercise-count was not actually performed.
+  // Both correct deterministically — targeted adjustments re-run from the
+  // coach's draft, first/adapt drafts are repaired toward the target.
+  const adjustIntent = mode === "adjust" && previousDraft
+    ? interpretAdjustmentInstruction(instruction, previousDraft)
+    : null;
   let objectiveMiss = false;
-  if (rawOk && result.validation.ok && objectiveDurationStatus(result.estimated, targetDuration) === "miss") {
-    objectiveMiss = true;
-    console.error(`[coach-ai] objective check ${JSON.stringify({ mode, targetDuration, estimatedDuration: result.estimated, tolerance: DURATION_TOLERANCE, result: "miss" })}`);
-    if (mode === "adjust" && previousDraft) {
-      // The AI's draft missed the requested adjustment — redo the adjustment
-      // deterministically from the coach's draft.
-      adjustmentFallback = buildAdjustmentFallback(previousDraft, { targetDuration, instruction, goal, sessionsPerWeek: requestedSessions });
-      result = finalizeDraft(adjustmentFallback.draft, finalizeOptions);
-    } else {
-      // First/adapt: repair the AI draft toward the target deterministically.
-      const repair = buildAdjustmentFallback(result.rehydrated, { targetDuration, instruction: "", goal, sessionsPerWeek: requestedSessions });
-      adjustmentFallback = repair;
-      if (repair.applied) result = finalizeDraft(repair.draft, finalizeOptions);
+  let materialMiss = false;
+  if (rawOk && result.validation.ok) {
+    const durationFailed = objectiveDurationStatus(result.estimated, targetDuration) === "miss";
+    const materialFailed = Boolean(adjustIntent) && adjustmentSatisfiesMaterial(adjustIntent!, previousDraft!, result.rehydrated) === false;
+    if (durationFailed || materialFailed) {
+      objectiveMiss = durationFailed;
+      materialMiss = materialFailed && !durationFailed;
+      console.error(`[coach-ai] objective check ${JSON.stringify({ mode, targetDuration, estimatedDuration: result.estimated, tolerance: DURATION_TOLERANCE, result: objectiveMiss ? "duration_miss" : "material_miss" })}`);
+      if (mode === "adjust" && previousDraft) {
+        // The AI's draft missed the requested adjustment — redo it
+        // deterministically from the coach's draft.
+        adjustmentFallback = buildAdjustmentFallback(previousDraft, { targetDuration, instruction, goal, sessionsPerWeek: requestedSessions });
+        result = finalizeDraft(adjustmentFallback.draft, finalizeOptions);
+      } else {
+        // First/adapt: repair the AI draft toward the target deterministically.
+        const repair = buildAdjustmentFallback(result.rehydrated, { targetDuration, instruction: "", goal, sessionsPerWeek: requestedSessions });
+        adjustmentFallback = repair;
+        if (repair.applied) result = finalizeDraft(repair.draft, finalizeOptions);
+      }
+      generation = {
+        source: "fallback",
+        provider: generation.provider,
+        model: generation.model,
+        fallbackReason: objectiveMiss ? "duration_miss" : "material_miss",
+        adjustmentApplied: adjustmentFallback.applied,
+      };
     }
-    generation = {
-      source: "fallback",
-      provider: generation.provider,
-      model: generation.model,
-      fallbackReason: "duration_miss",
-      adjustmentApplied: adjustmentFallback.applied,
-    };
   }
 
   const rehydrated = result.rehydrated;
@@ -428,15 +441,19 @@ export async function POST(request: Request) {
     ? "Jonas Coach couldn't create a valid draft. Try again."
     : generation.source === "ai"
       ? "AI draft — review exercise selection, loading and health context before approving. Nothing has been published."
-      : objectiveMiss
+      : materialMiss
         ? (adjustmentFallback?.applied
-          ? "AI returned a draft that did not meet the requested target, so Jonas Coach applied a safe rules-based adjustment. Review it before approval."
-          : "AI returned a draft that did not meet the requested target, and Jonas Coach could not automatically fix it to fit. Review the draft before approval.")
-        : adjustmentFallback
-          ? (adjustmentFallback.applied
-            ? "AI generation was unavailable, so Jonas Coach applied a safe rules-based adjustment to your current draft. Review it before approval."
-            : "AI generation was unavailable and Jonas Coach could not safely apply the requested adjustment automatically. Your current draft has been preserved.")
-          : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft. Review it before approval.";
+          ? "AI returned a draft that did not fully satisfy the requested adjustment, so Jonas Coach applied a safe rules-based adjustment. Review it before approval."
+          : "AI returned a draft that did not fully satisfy the requested adjustment, and Jonas Coach preserved the current draft for review.")
+        : objectiveMiss
+          ? (adjustmentFallback?.applied
+            ? "AI returned a draft that did not meet the requested target, so Jonas Coach applied a safe rules-based adjustment. Review it before approval."
+            : "AI returned a draft that did not meet the requested target, and Jonas Coach could not automatically fix it to fit. Review the draft before approval.")
+          : adjustmentFallback
+            ? (adjustmentFallback.applied
+              ? "AI generation was unavailable, so Jonas Coach applied a safe rules-based adjustment to your current draft. Review it before approval."
+              : "AI generation was unavailable and Jonas Coach could not safely apply the requested adjustment automatically. Your current draft has been preserved.")
+            : "AI generation was unavailable, so Jonas Coach created a safe rules-based draft. Review it before approval.";
 
   // Honest fallback reporting: an adjustment-aware fallback must never look
   // like a successful AI adjustment when it merely preserved the draft.

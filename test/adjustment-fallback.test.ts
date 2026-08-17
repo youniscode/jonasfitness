@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  adjustmentSatisfiesMaterial,
   buildAdjustmentFallback,
   buildFallbackDraft,
   estimateProgrammeDurationMinutes,
@@ -192,4 +193,161 @@ test("fallback draft stays fully library-grounded (no invented ids)", () => {
   const allIds = result.draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId));
   assert.ok(allIds.every((id) => id !== "custom" && id !== "legacy"), "no invented/custom ids in the fallback");
   assert.equal(validateDraft(result.draft, 3).ok, true);
+});
+
+// ---------- Contextual replacement (Pull-up → Lat pulldown) ----------
+
+// A ~30-min draft already inside the target band — the coach's production
+// starting point for the reported bug.
+function productionThirtyMinuteDraft(): ProgrammeDraft {
+  const exercise = (libraryId: string, name: string) => ({
+    libraryId,
+    name,
+    sets: 3,
+    reps: "8-12",
+    rir: 2,
+    restSeconds: 90,
+    tempo: "",
+    note: "",
+    source: "library" as const,
+  });
+  return {
+    title: "3-Day Full Body Foundation",
+    overview: "",
+    goal: "Build muscle",
+    sessionsPerWeek: 3,
+    sessions: [
+      { name: "Full Body A", focus: "", exercises: [
+        exercise("builtin-back-squat", "Barbell back squat"),
+        exercise("builtin-barbell-bench-press", "Barbell bench press"),
+        exercise("builtin-seated-cable-row", "Seated cable row"),
+      ] },
+      { name: "Full Body B", focus: "", exercises: [
+        exercise("builtin-leg-press", "Leg press"),
+        exercise("builtin-overhead-press", "Overhead press"),
+        exercise("builtin-barbell-row", "Barbell row"),
+      ] },
+      { name: "Full Body C", focus: "", exercises: [
+        exercise("builtin-bulgarian-split-squat", "Bulgarian split squat"),
+        exercise("builtin-incline-dumbbell-press", "Incline dumbbell press"),
+        exercise("builtin-pull-up", "Pull-up"),
+      ] },
+    ],
+  };
+}
+
+// Pull-up in TWO sessions so unqualified replacements must stay ambiguous.
+function multiPullUpDraft(): ProgrammeDraft {
+  const exercise = (libraryId: string, name: string) => ({
+    libraryId,
+    name,
+    sets: 3,
+    reps: "8-12",
+    rir: 2,
+    restSeconds: 90,
+    tempo: "",
+    note: "",
+    source: "library" as const,
+  });
+  return {
+    title: "Full Body A/B/C",
+    overview: "",
+    goal: "Build muscle",
+    sessionsPerWeek: 3,
+    sessions: [
+      { name: "Full Body A", focus: "", exercises: [exercise("builtin-back-squat", "Barbell back squat")] },
+      { name: "Full Body B", focus: "", exercises: [exercise("builtin-pull-up", "Pull-up")] },
+      { name: "Full Body C", focus: "", exercises: [exercise("builtin-pull-up", "Pull-up"), exercise("builtin-bulgarian-split-squat", "Bulgarian split squat")] },
+    ],
+  };
+}
+
+test("contextual replacement variants resolve to the same scoped operation", () => {
+  const before = productionThirtyMinuteDraft();
+  const variants: Array<[string, string | undefined]> = [
+    ["Replace Pull-up with Lat pulldown", undefined],
+    ["Replace Pull-up on Full Body C with Lat pulldown", "Full Body C"],
+    ["Replace Pull-up in Full Body C with Lat pulldown", "Full Body C"],
+    ["Replace Pull-up on Day C with Lat pulldown", "Full Body C"],
+    ["Replace Pull-up with Lat pulldown on Full Body C", "Full Body C"],
+    ["Replace Pull-up with Lat pulldown because this client is a beginner", undefined],
+  ];
+  for (const [instruction, session] of variants) {
+    const intent = interpretAdjustmentInstruction(instruction, before);
+    assert.equal(intent.replacements.length, 1, `no replacement resolved for: ${instruction}`);
+    assert.equal(intent.replacements[0].from, "pull-up");
+    assert.equal(intent.replacements[0].to, "Lat pulldown");
+    assert.equal(intent.replacements[0].session, session, `wrong session for: ${instruction}`);
+  }
+});
+
+test("contextual replacement rejects fuzzy or non-canonical variants", () => {
+  const before = productionThirtyMinuteDraft();
+  const failing = [
+    "Replace pullup with pulldown",
+    "Replace Pull-up with lat machine",
+    "Replace a pull exercise with something easier",
+    "Replace Pull-up with an unknown exercise",
+    "Replace Pull-up on Day D with Lat pulldown",
+    "Replace Pull-up on Full Body with Lat pulldown",
+  ];
+  for (const instruction of failing) {
+    assert.deepEqual(interpretAdjustmentInstruction(instruction, before).replacements, [], `should not guess: ${instruction}`);
+  }
+});
+
+test("session-qualified replacement changes only the named session", () => {
+  const before = multiPullUpDraft();
+  const result = buildAdjustmentFallback(before, { targetDuration: null, instruction: "Replace Pull-up on Full Body C with Lat pulldown" });
+  assert.ok(result.draft.sessions[1].exercises.some((exercise) => exercise.name === "Pull-up"), "Full Body B untouched");
+  assert.ok(!result.draft.sessions[2].exercises.some((exercise) => exercise.name === "Pull-up"));
+  assert.ok(result.draft.sessions[2].exercises.some((exercise) => exercise.name === "Lat pulldown"));
+});
+
+test("unqualified replacement with multiple occurrences is not guessed", () => {
+  assert.deepEqual(interpretAdjustmentInstruction("Replace Pull-up with Lat pulldown", multiPullUpDraft()).replacements, []);
+});
+
+test("material-change verification flags an unperformed named replacement", () => {
+  const before = productionThirtyMinuteDraft();
+  const intent = interpretAdjustmentInstruction("Replace Pull-up on Full Body C with Lat pulldown because this client is a beginner.", before);
+  assert.equal(intent.replacements.length, 1);
+  const ignored = structuredClone(before);
+  assert.equal(adjustmentSatisfiesMaterial(intent, before, ignored), false);
+  const applied = buildAdjustmentFallback(before, { targetDuration: 30, instruction: "Replace Pull-up on Full Body C with Lat pulldown" }).draft;
+  assert.equal(adjustmentSatisfiesMaterial(intent, before, applied), true);
+});
+
+test("production regression: contextual replacement applies when the AI ignores it", () => {
+  const before = productionThirtyMinuteDraft();
+  const instruction = [
+    "Keep the current 30-minute Full Body A/B/C programme.",
+    "Replace Pull-up on Full Body C with Lat pulldown because this client is a beginner.",
+    "Preserve the current target duration of approximately 30 minutes and keep all other exercises unchanged unless necessary.",
+    "Do not increase session duration beyond the accepted target range.",
+  ].join(" ");
+  const result = buildAdjustmentFallback(before, { targetDuration: 30, instruction, goal: "Build muscle", sessionsPerWeek: 3 });
+  assert.equal(result.applied, true);
+  const draft = result.draft;
+  // Full Body A and B unchanged.
+  assert.deepEqual(draft.sessions[0].exercises.map((exercise) => exercise.name), before.sessions[0].exercises.map((exercise) => exercise.name));
+  assert.deepEqual(draft.sessions[1].exercises.map((exercise) => exercise.name), before.sessions[1].exercises.map((exercise) => exercise.name));
+  // Full Body C: Pull-up removed, Lat pulldown inserted, prescription preserved.
+  const dayC = draft.sessions[2];
+  assert.ok(!dayC.exercises.some((exercise) => exercise.name === "Pull-up"));
+  const lat = dayC.exercises.find((exercise) => exercise.name === "Lat pulldown");
+  assert.ok(lat);
+  assert.equal(lat!.libraryId, "builtin-lat-pulldown");
+  const source = before.sessions[2].exercises.find((exercise) => exercise.name === "Pull-up");
+  assert.equal(lat!.sets, source!.sets);
+  assert.equal(lat!.reps, source!.reps);
+  assert.equal(lat!.rir, source!.rir);
+  assert.equal(lat!.restSeconds, source!.restSeconds);
+  // Duration stays inside the accepted 30-min tolerance (±15%).
+  assert.equal(validateDraft(draft, 3).ok, true);
+  const estimated = estimateProgrammeDurationMinutes(draft);
+  assert.ok(estimated >= 25.5 && estimated <= 34.5, `expected ~30 min, got ${estimated}`);
+  // Truthful changes summary names the replacement and the session.
+  const summary = programmeChangeSummary(before, draft);
+  assert.ok(summary.dayChanges.some((day) => day.day === "Full Body C" && day.changes.includes("Replaced Pull-up with Lat pulldown")));
 });

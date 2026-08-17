@@ -519,10 +519,48 @@ function resolveBuiltInByName(name: string): ExerciseDefinition | null {
   return builtInExerciseFor(null, name);
 }
 
+// Trailing rationale is not part of the exercise names: "because this client
+// is a beginner" must not be treated as a destination name.
+const REPLACE_RATIONALE_RE = /\s+(?:because|since|due to)\b.*$/i;
+
+// A conservative session qualifier: "on Full Body C" / "in Full Body C" /
+// "on Day C". Only resolved against the current draft's session names — an
+// unresolvable qualifier is treated as ambiguous and dropped (no guessing).
+const SESSION_QUALIFIER_RE = /\b(?:on|in)\s+([A-Za-z0-9][A-Za-z0-9 ]*?)(?=\s+(?:because|since|due to)\b|[.,;!?]|$)/i;
+
+// Resolves a qualifier to an exact existing session name, or "Day A/B/C" to the
+// session whose name ends with that letter. Returns null when not unique.
+function resolveSessionName(qualifier: string, draft: ProgrammeDraft | null): string | null {
+  const q = normaliseName(qualifier);
+  if (!q || !draft) return null;
+  const byName = draft.sessions.filter((session) => normaliseName(session.name) === q);
+  if (byName.length === 1) return byName[0].name;
+  const dayMatch = q.match(/^day ([a-z])$/);
+  if (dayMatch) {
+    const byLetter = draft.sessions.filter((session) => normaliseName(session.name).endsWith(` ${dayMatch[1]}`));
+    if (byLetter.length === 1) return byLetter[0].name;
+  }
+  return null;
+}
+
+// Splits a "replace X with Y" segment into its exercise-name remainder and an
+// optional resolved session qualifier. `ambiguous` is true when a qualifier is
+// present but cannot be resolved uniquely — the caller must NOT fall back to a
+// global replacement in that case.
+function splitReplaceSegment(segment: string, draft: ProgrammeDraft | null): { name: string; session: string | null; ambiguous: boolean } {
+  const match = segment.match(SESSION_QUALIFIER_RE);
+  if (!match || match.index == null) return { name: segment.trim(), session: null, ambiguous: false };
+  const session = resolveSessionName(match[1].trim(), draft);
+  const remainder = `${segment.slice(0, match.index)} ${segment.slice(match.index + match[0].length)}`.replace(/\s+/g, " ").trim();
+  return { name: remainder, session, ambiguous: session === null };
+}
+
+export type ReplacementIntent = { from: string; to: string; session?: string };
+
 export type AdjustmentIntent = {
   shorten: boolean;
   targetExerciseCount: number | null;
-  replacements: { from: string; to: string }[];
+  replacements: ReplacementIntent[];
   removals: string[];
 };
 
@@ -539,11 +577,45 @@ export function interpretAdjustmentInstruction(instruction: string, draft: Progr
     const count = Number(countMatch[1]);
     if (count >= 1 && count <= 8) intent.targetExerciseCount = count;
   }
-  const replacementMatch = text.match(/replace\s+(.+?)\s+with\s+(.+?)(?:\.|,|$)/i);
-  if (replacementMatch) {
-    const from = normaliseName(replacementMatch[1]);
-    const target = resolveBuiltInByName(replacementMatch[2]);
-    if (from && target) intent.replacements.push({ from, to: target.name });
+  // Exact canonical replacements with conservative contextual qualifiers.
+  // "replace Pull-up with Lat pulldown", "…on Full Body C…", "…in Day C…",
+  // "…with Lat pulldown on Full Body C", and a trailing "because …" rationale
+  // all resolve to the SAME deterministic replacement ONLY when both names are
+  // exact canonical built-ins and the source is present in the current draft
+  // (scoped to one session). No fuzzy/substring/semantic matching.
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const clauseRegex = /replace\s+([^.]*?)\s+with\s+([^.]*?)(?=\s*(?:[.,;!?]|$|\breplace\b|\bremove\b))/gi;
+  let clause: RegExpExecArray | null;
+  while ((clause = clauseRegex.exec(normalized)) !== null) {
+    const sourceSeg = clause[1].trim();
+    const destSeg = clause[2].replace(REPLACE_RATIONALE_RE, "").trim();
+    const source = splitReplaceSegment(sourceSeg, draft);
+    const dest = splitReplaceSegment(destSeg, draft);
+    if (source.ambiguous || dest.ambiguous) continue;
+    // A session qualifier may sit on either side; if both, they must agree.
+    const session: string | null = source.session ?? dest.session;
+    if (source.session && dest.session && source.session !== dest.session) continue;
+    const sourceDef = resolveBuiltInByName(source.name);
+    if (!sourceDef) continue;
+    const destDef = resolveBuiltInByName(dest.name);
+    if (!destDef || destDef.id === sourceDef.id) continue;
+    const sourceName = normaliseName(sourceDef.name);
+    // The source must exist in the current draft. With an explicit session it
+    // must be in that session; without one it must appear in exactly ONE session
+    // (never a global replace across several sessions).
+    let sourceOk = false;
+    if (!draft) {
+      sourceOk = session === null;
+    } else if (session) {
+      sourceOk = draft.sessions.some((s) => normaliseName(s.name) === normaliseName(session) && (s.exercises ?? []).some((exercise) => normaliseName(exercise.name) === sourceName));
+    } else {
+      const present = draft.sessions.filter((s) => (s.exercises ?? []).some((exercise) => normaliseName(exercise.name) === sourceName));
+      sourceOk = present.length === 1;
+    }
+    if (!sourceOk) continue;
+    const replacement: ReplacementIntent = { from: sourceName, to: destDef.name };
+    if (session) replacement.session = session;
+    intent.replacements.push(replacement);
   }
   const removeMatch = text.match(/remove\s+(.+?)(?:\.|,|$)/i);
   if (removeMatch && draft) {
@@ -552,6 +624,37 @@ export function interpretAdjustmentInstruction(instruction: string, draft: Progr
     if (present) intent.removals.push(target);
   }
   return intent;
+}
+
+// High-confidence material-change verification for targeted adjustments. After
+// the AI (or any source) produces a draft, this checks that the explicitly
+// interpreted intents actually happened — a named exact replacement must have
+// occurred, an exact removal must be gone, an explicit exercise-count target
+// must be met. It never interprets free text; only intents that the strict
+// interpreter already resolved count. `shorten` is duration-domain and is
+// verified separately by the objective duration gate.
+export function adjustmentSatisfiesMaterial(intent: AdjustmentIntent, previous: ProgrammeDraft, next: ProgrammeDraft): boolean {
+  for (const replacement of intent.replacements) {
+    const scopedNames = replacement.session
+      ? [replacement.session]
+      : (() => {
+          const sourceSessions = previous.sessions.filter((session) => (session.exercises ?? []).some((exercise) => normaliseName(exercise.name) === replacement.from));
+          return sourceSessions.length === 1 ? [sourceSessions[0].name] : [];
+        })();
+    if (!scopedNames.length) continue;
+    const scoped = next.sessions.filter((session) => scopedNames.some((name) => normaliseName(session.name) === normaliseName(name)));
+    if (!scoped.length) return false;
+    const fromGone = scoped.every((session) => !(session.exercises ?? []).some((exercise) => normaliseName(exercise.name) === replacement.from));
+    const toPresent = scoped.some((session) => (session.exercises ?? []).some((exercise) => normaliseName(exercise.name) === normaliseName(replacement.to)));
+    if (!fromGone || !toPresent) return false;
+  }
+  for (const removal of intent.removals) {
+    if (next.sessions.some((session) => (session.exercises ?? []).some((exercise) => normaliseName(exercise.name) === removal))) return false;
+  }
+  if (intent.targetExerciseCount != null) {
+    if (next.sessions.some((session) => session.exercises.length > intent.targetExerciseCount!)) return false;
+  }
+  return true;
 }
 
 // Exercises that may be dropped when trimming/shortening: non-major
@@ -640,9 +743,11 @@ export function buildAdjustmentFallback(
   const work = structuredClone(previous) as ProgrammeDraft;
   const appliedChanges: string[] = [];
 
-  // 1) Exact canonical exercise replacements ("replace Pull-up with Lat pulldown").
+  // 1) Exact canonical exercise replacements ("replace Pull-up with Lat
+  //    pulldown", optionally scoped to one session: "…on Full Body C…").
   for (const replacement of intent.replacements) {
     for (const session of work.sessions) {
+      if (replacement.session && normaliseName(session.name) !== normaliseName(replacement.session)) continue;
       for (const exercise of session.exercises) {
         if (normaliseName(exercise.name) !== replacement.from) continue;
         const targetExercise = resolveBuiltInByName(replacement.to);
@@ -716,17 +821,19 @@ export function programmeChangeSummary(previous: ProgrammeDraft | null, next: Pr
     const changes: string[] = [];
     const beforeMap = new Map(before.map((exercise) => [exerciseKey(exercise), exercise]));
     const afterMap = new Map(after.map((exercise) => [exerciseKey(exercise), exercise]));
+    const added = after.filter((exercise) => !beforeMap.has(exerciseKey(exercise)));
+    const removed = before.filter((exercise) => !afterMap.has(exerciseKey(exercise)));
+    // A clean 1:1 swap in the same session reads as a replacement rather than
+    // a bare add + remove.
+    if (added.length === 1 && removed.length === 1 && added[0].name !== removed[0].name) {
+      changes.push(`Replaced ${removed[0].name} with ${added[0].name}`);
+    } else {
+      for (const exercise of added) changes.push(`Added ${exercise.name}`);
+      for (const exercise of removed) changes.push(`Removed ${exercise.name}`);
+    }
     after.forEach((exercise) => {
-      const key = exerciseKey(exercise);
-      const old = beforeMap.get(key);
-      if (!old) {
-        changes.push(`Added ${exercise.name}`);
-      } else if (old.sets !== exercise.sets) {
-        changes.push(`${exercise.name}: ${old.sets} sets → ${exercise.sets} sets`);
-      }
-    });
-    before.forEach((exercise) => {
-      if (!afterMap.has(exerciseKey(exercise))) changes.push(`Removed ${exercise.name}`);
+      const old = beforeMap.get(exerciseKey(exercise));
+      if (old && old.sets !== exercise.sets) changes.push(`${exercise.name}: ${old.sets} sets → ${exercise.sets} sets`);
     });
     if (changes.length) dayChanges.push({ day: session.name || `Day ${index + 1}`, changes });
   });
