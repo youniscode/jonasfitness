@@ -14,7 +14,7 @@ import {
   validateDraft,
   type ProgrammeDraft,
 } from "../../lib/ai-programme";
-import { askGatewayJson, askOllamaJson, getOllamaStatus, GATEWAY_MODEL, OLLAMA_MODEL, programmeProviderFor } from "../../lib/local-ai";
+import { askOllamaJson, askOpenRouterJson, getOllamaStatus, OLLAMA_MODEL, OPENROUTER_MODEL, programmeProviderFor } from "../../lib/local-ai";
 
 type Mode = "first" | "adapt" | "adjust";
 
@@ -161,31 +161,31 @@ export async function POST(request: Request) {
   ].filter(Boolean).join("\n");
 
   // Try the model; fall back to a deterministic library-grounded draft.
-  // Provider routing: local Ollama in development, Vercel AI Gateway in
-  // production/preview. The fallback is a reliability mechanism only — it is
-  // never presented as model output (see `generation` in the response).
+  // Provider routing: local Ollama in development, OpenRouter (fixed free
+  // model) in production/preview. The fallback is a reliability mechanism
+  // only — it is never presented as model output (see `generation`).
   let raw: unknown = null;
   let generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string } = {
     source: "fallback",
     provider: "deterministic",
     model: null,
   };
-  const useGateway = programmeProviderFor(process.env.NODE_ENV) === "gateway";
-  if (useGateway) {
-    const result = await askGatewayJson<unknown>(SAFETY_SYSTEM, userPrompt);
+  const useOpenRouter = programmeProviderFor(process.env.NODE_ENV) === "openrouter";
+  if (useOpenRouter) {
+    const result = await askOpenRouterJson<unknown>(SAFETY_SYSTEM, userPrompt);
     if (result.ok) {
       raw = result.value;
-      generation = { source: "ai", provider: "vercel-ai-gateway", model: GATEWAY_MODEL };
+      generation = { source: "ai", provider: "openrouter", model: OPENROUTER_MODEL };
     } else {
       // Distinguish provider failure from validation failure: the reason is a
       // safe code (never the raw error) surfaced to the coach UI and logs.
       generation = {
         source: "fallback",
-        provider: "vercel-ai-gateway",
-        model: GATEWAY_MODEL,
+        provider: "openrouter",
+        model: OPENROUTER_MODEL,
         fallbackReason: result.reason,
       };
-      console.error(`[coach-ai] gateway ${result.reason} for client ${clientId} (mode ${mode}) — deterministic fallback used`);
+      console.error(`[coach-ai] openrouter ${result.reason} for client ${clientId} (mode ${mode}) — deterministic fallback used`);
     }
   } else {
     const aiResult = await askOllamaJson<unknown>(SAFETY_SYSTEM, userPrompt);

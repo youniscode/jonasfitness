@@ -1,18 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { programmeProviderFor, GATEWAY_MODEL, OLLAMA_MODEL, type GatewayFailureReason } from "../app/lib/local-ai.ts";
+import { programmeProviderFor, GATEWAY_MODEL, OLLAMA_MODEL, OPENROUTER_MODEL, type GatewayFailureReason } from "../app/lib/local-ai.ts";
 import { buildFallbackDraft, validateDraft } from "../app/lib/ai-programme.ts";
 
 // ---------- Environment routing ----------
 
-test("production routes programme generation through the Vercel AI Gateway", () => {
-  assert.equal(programmeProviderFor("production"), "gateway");
+test("production routes programme generation through OpenRouter", () => {
+  assert.equal(programmeProviderFor("production"), "openrouter");
 });
 
-test("preview deployments prefer the production-capable gateway path", () => {
-  // Vercel previews run with NODE_ENV=production, so they route to the gateway.
-  assert.equal(programmeProviderFor("production"), "gateway");
+test("preview deployments prefer the production-capable OpenRouter path", () => {
+  // Vercel previews run with NODE_ENV=production, so they route to OpenRouter.
+  assert.equal(programmeProviderFor("production"), "openrouter");
 });
 
 test("development routes through local Ollama", () => {
@@ -22,10 +22,11 @@ test("development routes through local Ollama", () => {
 });
 
 test("model constants match the expected providers and contain no secrets", () => {
-  assert.match(GATEWAY_MODEL, /^[a-z0-9._-]+\/[a-z0-9._-]+$/);
+  assert.equal(OPENROUTER_MODEL, "nvidia/nemotron-3-super-120b-a12b:free");
   assert.equal(OLLAMA_MODEL, "qwen3:8b");
+  assert.match(GATEWAY_MODEL, /^[a-z0-9._-]+\/[a-z0-9._-]+$/);
   // Provider/model metadata must never carry credentials.
-  for (const value of [GATEWAY_MODEL, OLLAMA_MODEL]) {
+  for (const value of [OPENROUTER_MODEL, GATEWAY_MODEL, OLLAMA_MODEL]) {
     assert.ok(!/key|token|secret|bearer/i.test(value));
   }
 });

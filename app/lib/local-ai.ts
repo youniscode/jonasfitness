@@ -7,7 +7,18 @@ export const OLLAMA_MODEL = "qwen3:8b";
 // provider — the same gateway the programme translation route uses). The
 // gateway authenticates via the AI_GATEWAY_API_KEY env var or, in Vercel
 // deployments, an automatically-provisioned OIDC token — no client-side keys.
+// NOTE: kept implemented (and tested) but no longer selected for production —
+// Jonas Coach now routes through OpenRouter. Re-enable by routing production
+// through askGatewayJson again (see programmeProviderFor).
 export const GATEWAY_MODEL = "alibaba/qwen3.5-flash";
+
+// OpenRouter: the production/preview Jonas Coach provider. Fixed free model
+// chosen from OpenRouter's current :free list (verified 2026-08-17):
+//   nvidia/nemotron-3-super-120b-a12b:free — $0/$0, 262K context.
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
+export const OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+export const OPENROUTER_REFERER = "https://jonas-fitness.jonascode.com";
+export const OPENROUTER_TITLE = "Jonas-Fitness Coach AI";
 
 export type OllamaStatus = {
   connected: boolean;
@@ -20,10 +31,10 @@ function localAIEnabled() {
 }
 
 // Which provider Jonas Coach uses in this runtime.
-// Development: local Ollama. Production/preview: Vercel AI Gateway.
+// Development: local Ollama. Production/preview: OpenRouter (fixed free model).
 // Deterministic fallback always remains as reliability protection.
-export function programmeProviderFor(environment: string | undefined): "gateway" | "ollama" {
-  return environment === "production" ? "gateway" : "ollama";
+export function programmeProviderFor(environment: string | undefined): "openrouter" | "ollama" {
+  return environment === "production" ? "openrouter" : "ollama";
 }
 
 export async function getOllamaStatus(): Promise<OllamaStatus> {
@@ -164,10 +175,71 @@ export function parseGatewayJsonText<T>(text: string | null | undefined): Gatewa
   }
 }
 
+// Reads a safe error code (if any) from a non-ok OpenRouter response body.
+// Never reads or logs the error message or response body content.
+async function safeOpenRouterErrorCode(response: Response): Promise<string | null> {
+  try {
+    const data = await response.clone().json() as { error?: { code?: unknown } };
+    return typeof data.error?.code === "string" ? data.error.code : null;
+  } catch {
+    return null;
+  }
+}
+
+// Production/preview model call through OpenRouter's OpenAI-compatible chat
+// completions endpoint. Server-side fetch only — OPENROUTER_API_KEY stays in
+// process.env and is never logged, returned, or exposed client-side. Reuses
+// the same safe reason codes and output classification as the gateway path,
+// so callers cannot tell provider failure from validation failure apart by
+// accident: provider failures return ok:false, validation happens downstream.
+export async function askOpenRouterJson<T>(system: string, prompt: string, timeoutMs = 90000): Promise<GatewayResult<T>> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason: "auth", statusCode: null, model: OPENROUTER_MODEL, requestId: null, errorCode: null })}`);
+    return { ok: false, reason: "auth" };
+  }
+  try {
+    const response = await fetch(OPENROUTER_BASE_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+        "http-referer": OPENROUTER_REFERER,
+        "x-title": OPENROUTER_TITLE,
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        stream: false,
+        temperature: 0.2,
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: prompt },
+        ],
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+    });
+    const reason = response.ok ? null : gatewayFailureReason(undefined, response.status);
+    if (reason) {
+      const errorCode = await safeOpenRouterErrorCode(response);
+      console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason, statusCode: response.status, model: OPENROUTER_MODEL, requestId: null, errorCode })}`);
+      return { ok: false, reason };
+    }
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    return parseGatewayJsonText<T>(data.choices?.[0]?.message?.content);
+  } catch (error) {
+    const details = gatewayFailureDetails(error, OPENROUTER_MODEL);
+    console.error(`[coach-ai] openrouter failure ${JSON.stringify({ reason: details.reason, statusCode: details.statusCode, model: OPENROUTER_MODEL, requestId: null, errorCode: details.errorCode })}`);
+    return { ok: false, reason: details.reason };
+  }
+}
+
 // Production model call through Vercel AI Gateway, reusing the exact
 // infrastructure the programme translation route already uses (AI SDK
 // generateText with the gateway as the default provider). Returns a structured
 // result so callers can distinguish provider failure from validation failure.
+// Kept available for re-enabling; not currently selected by programmeProviderFor.
 export async function askGatewayJson<T>(system: string, prompt: string, timeoutMs = 90000): Promise<GatewayResult<T>> {
   try {
     const response = await generateText({
