@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { clientIntakes, clients, programmes } from "../../../db/schema";
-import { getCoachId } from "../../clerk-auth";
+import { coachAuthReason, getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
 import { publicIntake } from "../../lib/client-dto";
 import {
@@ -34,7 +34,12 @@ export async function GET(request: Request) {
 
   if (!coachId || !clientId) {
     const access = await getPortalAccess(previewId(request));
-    if (!access) return Response.json({ error: "Client access required." }, { status: 403 });
+    if (!access) {
+      // Server-side diagnostic only: the exact reason coach auth failed and
+      // portal fallback was attempted. Never sent to the client, no PII.
+      console.warn(`[coach-auth] client-onboarding denied: ${await coachAuthReason()}`);
+      return Response.json({ error: "Client access required." }, { status: 403 });
+    }
     ownerId = access.client.ownerId;
     safeClientId = access.client.id;
   }
