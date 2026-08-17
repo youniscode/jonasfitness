@@ -35,18 +35,65 @@ export function sessionDurationForClientChange(): string {
 
 export type CoachMode = "first" | "adapt" | "adjust";
 
+// The targeted-adjustment UI context. `avoid` (the persistent avoid-exercises
+// constraint) is deliberately NOT part of this type — the adjustment flow
+// never reads or writes it, so an adjustment instruction can never leak into
+// the avoid field (or vice-versa).
+export type AdjustmentContext = {
+  mode: CoachMode;
+  previousMode: CoachMode;
+  instruction: string;
+  baseDraft: Record<string, unknown> | null;
+};
+
+// The context for a fresh client / fresh component: no adjustment in progress
+// and back on the first-programme view.
+export const INITIAL_ADJUSTMENT_CONTEXT: AdjustmentContext = {
+  mode: "first",
+  previousMode: "first",
+  instruction: "",
+  baseDraft: null,
+};
+
 // Opening the targeted-adjustment UI. The coach stays in Jonas Coach on the
-// same client with the current draft preserved — this only switches the mode
-// and remembers where the coach was so Cancel can return there (no
-// regeneration, no state loss, no navigation).
-export function openAdjustment(currentMode: CoachMode): { mode: "adjust"; previousMode: CoachMode } {
-  return { mode: "adjust", previousMode: currentMode === "adjust" ? "first" : currentMode };
+// same client with the current draft preserved. The current draft is snapshotted
+// as baseDraft so Retry re-sends THIS draft as previousDraft — never the
+// fallback draft that replaces payload.draft after a failed adjustment. Any
+// prior instruction is cleared so a new adjustment starts clean.
+export function openAdjustmentContext(
+  currentMode: CoachMode,
+  currentDraft: Record<string, unknown> | null,
+): AdjustmentContext {
+  return {
+    mode: "adjust",
+    previousMode: currentMode === "adjust" ? "first" : currentMode,
+    instruction: "",
+    baseDraft: currentDraft,
+  };
 }
 
-// Cancel restores the mode the coach was in before opening the adjustment,
-// defaulting to the first-programme view. No generation happens on cancel.
-export function cancelAdjustment(previousMode: CoachMode | null | undefined): CoachMode {
-  return previousMode === "adapt" ? "adapt" : "first";
+// Cancel restores the mode the coach was in before opening the adjustment and
+// clears the transient instruction/base draft. No generation happens on cancel.
+export function cancelAdjustmentContext(context: AdjustmentContext): AdjustmentContext {
+  return {
+    mode: context.previousMode === "adapt" ? "adapt" : "first",
+    previousMode: "first",
+    instruction: "",
+    baseDraft: null,
+  };
+}
+
+// Selecting a mode from the dropdown. A plain mode selection always clears the
+// transient instruction/base draft so a stale adjustment request can never
+// linger in a hidden textarea and leak into a later interaction or client.
+export function modeSelectionContext(next: CoachMode): AdjustmentContext {
+  return { mode: next, previousMode: "first", instruction: "", baseDraft: null };
+}
+
+// Updating the adjustment instruction text (typed input). Only the instruction
+// changes — mode, previousMode and baseDraft are preserved verbatim.
+export function withAdjustmentInstruction(context: AdjustmentContext, instruction: string): AdjustmentContext {
+  return { ...context, instruction };
 }
 
 // The adjustment request must be a non-empty instruction. Returns an error

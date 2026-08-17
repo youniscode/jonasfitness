@@ -4,11 +4,14 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_SESSION_DURATION,
   adjustmentInstructionError,
-  cancelAdjustment,
+  cancelAdjustmentContext,
   coachRequestBody,
-  openAdjustment,
+  INITIAL_ADJUSTMENT_CONTEXT,
+  modeSelectionContext,
+  openAdjustmentContext,
   sessionDurationAfterGeneration,
   sessionDurationForClientChange,
+  withAdjustmentInstruction,
 } from "../app/lib/coach-controls.ts";
 
 // Target-duration persistence rules for the Jonas Coach panel: the coach's
@@ -59,24 +62,23 @@ test("empty field with a reported target stays empty (never invented)", () => {
 
 // ---------- Targeted adjustment flow ----------
 
-test("openAdjustment switches to adjust mode and remembers the previous mode", () => {
-  assert.deepEqual(openAdjustment("first"), { mode: "adjust", previousMode: "first" });
-  assert.deepEqual(openAdjustment("adapt"), { mode: "adjust", previousMode: "adapt" });
+test("openAdjustmentContext switches to adjust mode and remembers the previous mode", () => {
+  const draft = { title: "3-Day Full Body", sessions: [] };
+  assert.deepEqual(openAdjustmentContext("first", draft), { mode: "adjust", previousMode: "first", instruction: "", baseDraft: draft });
+  assert.deepEqual(openAdjustmentContext("adapt", draft), { mode: "adjust", previousMode: "adapt", instruction: "", baseDraft: draft });
   // Opening adjustment from adjustment never self-references — falls back to first.
-  assert.deepEqual(openAdjustment("adjust"), { mode: "adjust", previousMode: "first" });
+  assert.deepEqual(openAdjustmentContext("adjust", draft), { mode: "adjust", previousMode: "first", instruction: "", baseDraft: draft });
 });
 
-test("openAdjustment never changes the draft, duration, equipment or client", () => {
-  // The helper returns ONLY the mode transition — the current draft, target
-  // duration, equipment and selected client all stay in the component state.
-  assert.deepEqual(Object.keys(openAdjustment("first")).sort(), ["mode", "previousMode"]);
+test("openAdjustmentContext never changes duration, equipment or client", () => {
+  // The helper only snapshots the adjustment context — the target duration,
+  // equipment, avoid constraint and selected client all stay in the component.
+  assert.deepEqual(Object.keys(openAdjustmentContext("first", null)).sort(), ["baseDraft", "instruction", "mode", "previousMode"]);
 });
 
-test("cancelAdjustment restores the previous mode without regenerating", () => {
-  assert.equal(cancelAdjustment("first"), "first");
-  assert.equal(cancelAdjustment("adapt"), "adapt");
-  assert.equal(cancelAdjustment(null), "first");
-  assert.equal(cancelAdjustment(undefined), "first");
+test("cancelAdjustmentContext restores the previous mode and clears transient state", () => {
+  assert.deepEqual(cancelAdjustmentContext({ mode: "adjust", previousMode: "first", instruction: "x", baseDraft: {} }), { mode: "first", previousMode: "first", instruction: "", baseDraft: null });
+  assert.deepEqual(cancelAdjustmentContext({ mode: "adjust", previousMode: "adapt", instruction: "x", baseDraft: {} }), { mode: "adapt", previousMode: "first", instruction: "", baseDraft: null });
 });
 
 test("adjustmentInstructionError rejects blank/whitespace-only instructions", () => {
@@ -92,9 +94,9 @@ test("adjustmentInstructionError accepts a real instruction", () => {
 });
 
 test("opening adjustment preserves the current target duration", () => {
-  // Opening adjustment is a pure mode transition: the manual duration (e.g. 30)
-  // stays untouched, and a generation response still never overwrites it.
-  const opened = openAdjustment("first");
+  // Opening adjustment is a pure context transition: the manual duration (e.g.
+  // 30) stays untouched, and a generation response still never overwrites it.
+  const opened = openAdjustmentContext("first", null);
   assert.equal(opened.mode, "adjust");
   assert.equal(sessionDurationAfterGeneration("30", 60, 60), "30");
 });
@@ -151,4 +153,70 @@ test("retry body never leaks an adjustment instruction into non-adjust modes", (
   const adjust = coachRequestBody({ mode: "first", adjustInstruction: ADJUST_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT });
   assert.equal(adjust.instruction, "");
   assert.equal(adjust.previousDraft, undefined);
+});
+
+// ---------- State separation: avoid-exercises vs adjustment instruction ----------
+
+const REPLACE_INSTRUCTION = "Replace Pull-up on Full Body C with Lat pulldown.";
+
+test("coachRequestBody keeps avoid and instruction in separate fields", () => {
+  const body = coachRequestBody({ mode: "adjust", adjustInstruction: REPLACE_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT, avoid: "Barbell squat" });
+  assert.equal(body.avoid, "Barbell squat");
+  assert.equal(body.instruction, REPLACE_INSTRUCTION);
+  assert.notEqual(body.avoid, REPLACE_INSTRUCTION);
+});
+
+test("adjustment instruction never populates the avoid field (empty avoid stays empty)", () => {
+  const body = coachRequestBody({ mode: "adjust", adjustInstruction: REPLACE_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT, avoid: "" });
+  assert.equal(body.avoid, "");
+  assert.equal(body.instruction, REPLACE_INSTRUCTION);
+});
+
+test("avoid survives an adjustment unchanged", () => {
+  const body = coachRequestBody({ mode: "adjust", adjustInstruction: REPLACE_INSTRUCTION, previousDraft: PREVIOUS_DRAFT, ...RETRY_CONTEXT, avoid: "Barbell squat" });
+  assert.equal(body.avoid, "Barbell squat");
+});
+
+test("modeSelectionContext clears the instruction and base draft (no stale leak)", () => {
+  assert.deepEqual(modeSelectionContext("first"), { mode: "first", previousMode: "first", instruction: "", baseDraft: null });
+  assert.deepEqual(modeSelectionContext("adapt"), { mode: "adapt", previousMode: "first", instruction: "", baseDraft: null });
+  assert.deepEqual(modeSelectionContext("adjust"), { mode: "adjust", previousMode: "first", instruction: "", baseDraft: null });
+});
+
+test("withAdjustmentInstruction only changes the instruction", () => {
+  const context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  const updated = withAdjustmentInstruction(context, REPLACE_INSTRUCTION);
+  assert.equal(updated.mode, "adjust");
+  assert.equal(updated.previousMode, "first");
+  assert.equal(updated.baseDraft, PREVIOUS_DRAFT);
+  assert.equal(updated.instruction, REPLACE_INSTRUCTION);
+  // Pure: the original context is untouched.
+  assert.equal(context.instruction, "");
+});
+
+test("adjustment context has no avoid field (structurally separate)", () => {
+  assert.deepEqual(INITIAL_ADJUSTMENT_CONTEXT, { mode: "first", previousMode: "first", instruction: "", baseDraft: null });
+  assert.deepEqual(Object.keys(INITIAL_ADJUSTMENT_CONTEXT).sort(), ["baseDraft", "instruction", "mode", "previousMode"]);
+});
+
+test("full adjustment lifecycle keeps avoid untouched and stays in adjust after success", () => {
+  const avoid = "Barbell squat";
+  let context = INITIAL_ADJUSTMENT_CONTEXT;
+  // 1. Coach opens a targeted adjustment from the first-programme view.
+  context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  assert.equal(context.mode, "adjust");
+  // 2. Coach types the instruction.
+  context = withAdjustmentInstruction(context, REPLACE_INSTRUCTION);
+  // 3. The request maps the two fields separately — avoid is untouched.
+  const body = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid });
+  assert.equal(body.avoid, avoid);
+  assert.equal(body.instruction, REPLACE_INSTRUCTION);
+  // 4. Success is a no-op on the context: mode stays "adjust", avoid untouched.
+  assert.equal(context.mode, "adjust");
+  assert.equal(avoid, "Barbell squat");
+  // 5. Cancel exits adjustment and clears the transient instruction.
+  const cancelled = cancelAdjustmentContext(context);
+  assert.equal(cancelled.mode, "first");
+  assert.equal(cancelled.instruction, "");
+  assert.equal(avoid, "Barbell squat");
 });
