@@ -51,18 +51,37 @@ export type CoachAuthReason =
   | "email_not_allowed"
   | "allowed";
 
+/**
+ * A single atomic coach-auth result: the decision and the reason always come
+ * from the SAME evaluation, so a denial can never report a successful reason
+ * ("denied: allowed" is structurally impossible) and an allowance always
+ * carries the exact coach user id.
+ */
+export type CoachAuthResult =
+  | { allowed: true; coachId: string; reason: "allowed" }
+  | { allowed: false; coachId: null; reason: Exclude<CoachAuthReason, "allowed"> };
+
 export type CoachAuthInput = {
-  hasSession: boolean;
+  /** The session user id from auth(); null means no session. */
+  userId: string | null;
   userLookupFailed: boolean;
   primaryEmail: string | null | undefined;
   emailVerified: boolean;
   allowlistRaw: string | null | undefined;
 };
 
-export function coachAuthDecision(input: CoachAuthInput): CoachAuthReason {
-  if (!input.hasSession) return "no_session";
-  if (input.userLookupFailed) return "user_lookup_failed";
-  if (!input.primaryEmail) return "no_primary_email";
-  if (!input.emailVerified) return "email_unverified";
-  return isAllowedCoachEmail(input.primaryEmail, input.allowlistRaw) ? "allowed" : "email_not_allowed";
+/**
+ * Evaluates the full coach-auth gate in one pass and returns the coupled
+ * result. Invariant: `allowed === (reason === "allowed")` and
+ * `coachId === null ⇔ !allowed`.
+ */
+export function evaluateCoachAuthDecision(input: CoachAuthInput): CoachAuthResult {
+  if (!input.userId) return { allowed: false, coachId: null, reason: "no_session" };
+  if (input.userLookupFailed) return { allowed: false, coachId: null, reason: "user_lookup_failed" };
+  if (!input.primaryEmail) return { allowed: false, coachId: null, reason: "no_primary_email" };
+  if (!input.emailVerified) return { allowed: false, coachId: null, reason: "email_unverified" };
+  if (!isAllowedCoachEmail(input.primaryEmail, input.allowlistRaw)) {
+    return { allowed: false, coachId: null, reason: "email_not_allowed" };
+  }
+  return { allowed: true, coachId: input.userId, reason: "allowed" };
 }

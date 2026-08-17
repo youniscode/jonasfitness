@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  coachAuthDecision,
+  evaluateCoachAuthDecision,
   isAllowedCoachEmail,
   normalizeCoachEmail,
   parseCoachEmails,
@@ -119,48 +119,98 @@ test("multiple allowlist entries are all honoured", () => {
   assert.equal(isAllowedCoachEmail("third@example.com", raw), false);
 });
 
-// ---------- coachAuthDecision ----------
+// ---------- evaluateCoachAuthDecision (atomic result) ----------
 
-const allowed: Parameters<typeof coachAuthDecision>[0] = {
-  hasSession: true,
+const allowed: Parameters<typeof evaluateCoachAuthDecision>[0] = {
+  // Synthetic fixture id — proves the result carries the exact session id.
+  userId: "user_2abcdefghijklmnopqrstuvwx",
   userLookupFailed: false,
   primaryEmail: "jonas@example.com",
   emailVerified: true,
   allowlistRaw: "jonas@example.com",
 };
 
-test("authenticated + verified + allowed email is allowed", () => {
-  assert.equal(coachAuthDecision(allowed), "allowed");
+function result(input: Parameters<typeof evaluateCoachAuthDecision>[0]) {
+  return evaluateCoachAuthDecision(input);
+}
+
+test("authenticated + verified + allowed email is allowed with the exact Clerk userId", () => {
+  const r = result(allowed);
+  assert.equal(r.allowed, true);
+  assert.equal(r.reason, "allowed");
+  if (r.allowed) assert.equal(r.coachId, "user_2abcdefghijklmnopqrstuvwx");
 });
 
-test("no session is rejected", () => {
-  assert.equal(coachAuthDecision({ ...allowed, hasSession: false }), "no_session");
+test("invariant: allowed always carries a non-null coachId", () => {
+  const r = result(allowed);
+  assert.equal(r.allowed, true);
+  assert.ok(r.coachId, "allowed result must carry the coachId");
+  assert.equal(r.reason, "allowed");
 });
 
-test("user lookup failure is rejected", () => {
-  assert.equal(coachAuthDecision({ ...allowed, userLookupFailed: true }), "user_lookup_failed");
+test("invariant: 'allowed' never coexists with a null coachId", () => {
+  const withNullId = result({ ...allowed, userId: null });
+  assert.equal(withNullId.allowed, false);
+  assert.equal(withNullId.coachId, null);
+  assert.notEqual(withNullId.reason, "allowed");
 });
 
-test("missing primary email is rejected", () => {
-  assert.equal(coachAuthDecision({ ...allowed, primaryEmail: null }), "no_primary_email");
-  assert.equal(coachAuthDecision({ ...allowed, primaryEmail: undefined }), "no_primary_email");
+test("invariant: every denial reports coachId null and a truthful reason — 'denied: allowed' is impossible", () => {
+  const denials = [
+    { ...allowed, userId: null },
+    { ...allowed, userLookupFailed: true },
+    { ...allowed, primaryEmail: null },
+    { ...allowed, primaryEmail: undefined },
+    { ...allowed, emailVerified: false },
+    { ...allowed, primaryEmail: "someone-else@example.com" },
+  ];
+  for (const input of denials) {
+    const r = result(input);
+    assert.equal(r.allowed, false, `expected denial for ${JSON.stringify(input)}`);
+    assert.equal(r.coachId, null, "denied result must have coachId null");
+    assert.notEqual(r.reason, "allowed", "a denial must never report reason 'allowed'");
+    assert.ok(r.reason, "a denial must carry a reason");
+  }
 });
 
-test("unverified email is rejected even when allowlisted", () => {
-  assert.equal(coachAuthDecision({ ...allowed, emailVerified: false }), "email_unverified");
+test("no session → denied with null coachId", () => {
+  const r = result({ ...allowed, userId: null });
+  assert.equal(r.allowed, false);
+  assert.equal(r.coachId, null);
+  assert.equal(r.reason, "no_session");
 });
 
-test("verified email not in the allowlist is rejected", () => {
-  assert.equal(
-    coachAuthDecision({ ...allowed, primaryEmail: "someone-else@example.com" }),
-    "email_not_allowed",
-  );
+test("user lookup failure → denied with null coachId", () => {
+  const r = result({ ...allowed, userLookupFailed: true });
+  assert.equal(r.allowed, false);
+  assert.equal(r.coachId, null);
+  assert.equal(r.reason, "user_lookup_failed");
 });
 
-test("case and whitespace differences still allow", () => {
-  assert.equal(
-    coachAuthDecision({ ...allowed, primaryEmail: "  JONAS@Example.COM  " }),
-    "allowed",
-  );
-  assert.equal(coachAuthDecision({ ...allowed, allowlistRaw: '  "jonas@example.com"  ' }), "allowed");
+test("missing primary email → denied with null coachId", () => {
+  assert.equal(result({ ...allowed, primaryEmail: null }).reason, "no_primary_email");
+  assert.equal(result({ ...allowed, primaryEmail: undefined }).reason, "no_primary_email");
+  assert.equal(result({ ...allowed, primaryEmail: null }).coachId, null);
+});
+
+test("unverified email → denied with null coachId even when allowlisted", () => {
+  const r = result({ ...allowed, emailVerified: false });
+  assert.equal(r.allowed, false);
+  assert.equal(r.coachId, null);
+  assert.equal(r.reason, "email_unverified");
+});
+
+test("verified email not in the allowlist → denied with null coachId", () => {
+  const r = result({ ...allowed, primaryEmail: "someone-else@example.com" });
+  assert.equal(r.allowed, false);
+  assert.equal(r.coachId, null);
+  assert.equal(r.reason, "email_not_allowed");
+});
+
+test("case and whitespace differences still allow with the exact Clerk userId", () => {
+  const spaced = result({ ...allowed, primaryEmail: "  JONAS@Example.COM  " });
+  assert.equal(spaced.allowed, true);
+  if (spaced.allowed) assert.equal(spaced.coachId, allowed.userId);
+  const quoted = result({ ...allowed, allowlistRaw: '  "jonas@example.com"  ' });
+  assert.equal(quoted.allowed, true);
 });

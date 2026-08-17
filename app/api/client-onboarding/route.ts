@@ -1,9 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { clientIntakes, clients, programmes } from "../../../db/schema";
-import { coachAuthReason, getCoachId } from "../../clerk-auth";
+import { evaluateCoachAuth, getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
 import { publicIntake } from "../../lib/client-dto";
+import { positiveIntParam } from "../../lib/query-params";
 import {
   onboardingChecks,
   onboardingLanguages,
@@ -12,33 +13,32 @@ import {
   type OnboardingLanguage,
 } from "../../lib/client-onboarding";
 
-function previewId(request: Request) {
-  const value = Number(new URL(request.url).searchParams.get("preview"));
-  return Number.isInteger(value) && value > 0 ? value : undefined;
-}
-
-function clientIdFrom(request: Request) {
-  const value = Number(new URL(request.url).searchParams.get("clientId"));
-  return Number.isInteger(value) && value > 0 ? value : undefined;
-}
-
 function text(value: unknown, limit: number) {
   return String(value ?? "").trim().slice(0, limit);
 }
 
 export async function GET(request: Request) {
-  const clientId = clientIdFrom(request);
-  const coachId = await getCoachId();
-  let ownerId = coachId;
+  const searchParams = new URL(request.url).searchParams;
+  const clientId = positiveIntParam(searchParams, "clientId");
+  // ONE atomic evaluation: the decision and the diagnostic reason come from
+  // the same auth()/currentUser() pass, so a denial can never log "allowed".
+  const coachAuth = await evaluateCoachAuth();
+  let ownerId = coachAuth.allowed ? coachAuth.coachId : null;
   let safeClientId = clientId;
 
-  if (!coachId || !clientId) {
-    const access = await getPortalAccess(previewId(request));
+  if (!coachAuth.allowed || !clientId) {
+    const access = await getPortalAccess(positiveIntParam(searchParams, "preview"));
     if (!access) {
-      // Server-side diagnostic only: the exact reason coach auth failed and
-      // portal fallback was attempted. Never sent to the client, no PII.
-      console.warn(`[coach-auth] client-onboarding denied: ${await coachAuthReason()}`);
-      return Response.json({ error: "Client access required." }, { status: 403 });
+      if (!coachAuth.allowed) {
+        // Server-side diagnostic only. The reason comes from the SAME atomic
+        // evaluation that denied coach access — "denied: allowed" is
+        // structurally impossible here. Never sent to the client, no PII.
+        console.warn(`[coach-auth] client-onboarding denied: ${coachAuth.reason}`);
+        return Response.json({ error: "Client access required." }, { status: 403 });
+      }
+      // Authenticated coach with no valid client selection (and no preview
+      // match): a missing parameter, not an access denial.
+      return Response.json({ error: "Choose a client." }, { status: 400 });
     }
     ownerId = access.client.ownerId;
     safeClientId = access.client.id;
@@ -49,8 +49,9 @@ export async function GET(request: Request) {
   const [intake] = await db.select().from(clientIntakes)
     .where(and(eq(clientIntakes.clientId, safeClientId), eq(clientIntakes.ownerId, ownerId))).limit(1);
 
-  // Portal consumers receive only the whitelisted public intake shape.
-  if (!coachId || !clientId) return Response.json({ intake: intake ? publicIntake(intake) : null });
+  // Portal consumers (including coach previews) receive only the whitelisted
+  // public intake shape.
+  if (!coachAuth.allowed || !clientId) return Response.json({ intake: intake ? publicIntake(intake) : null });
 
   // Coach consumers get the full intake (private coach notes included) plus
   // the derived onboarding state and programme status for the panel.
