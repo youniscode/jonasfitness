@@ -16,6 +16,7 @@ import {
   type ProgrammeDraft,
 } from "../../lib/ai-programme";
 import { askOllamaJson, askOpenRouterJson, getOllamaStatus, OLLAMA_MODEL, OPENROUTER_MODEL, programmeProviderFor } from "../../lib/local-ai";
+import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
 type Mode = "first" | "adapt" | "adjust";
 
@@ -120,6 +121,15 @@ export async function POST(request: Request) {
     profile.training.availability,
     targetDuration,
   );
+  // The recommended split is a design contract: for a first programme the AI
+  // must produce sessions matching the blueprint names, so the recommendation
+  // label always describes the actual structure (no "Full body or Upper-Lower"
+  // claim while the draft implements Push & Squat / Pull & Hinge / Arms).
+  const expectedSessionNames = mode === "first" ? design.sessionBlueprint.map((day) => day.name) : [];
+  const blueprintBlock = expectedSessionNames.length
+    ? [`SESSION STRUCTURE (design contract — your session names must match these exactly):`,
+      ...design.sessionBlueprint.map((day) => `${day.name} — ${day.focus}`)].join("\n")
+    : "";
   const catalogue = compactCatalogue(equipment ?? profile.training.equipment);
 
   // Build the model prompt per mode.
@@ -149,9 +159,11 @@ export async function POST(request: Request) {
     context,
     "",
     `Requested programme: ${requestedSessions} sessions per week, goal "${goal}", target session duration ${targetDuration ? `~${targetDuration} minutes` : "as designed"}.`,
-    equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — do not assume a full commercial gym.",
+    equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
     avoid ? `Avoid these exercises/movements: ${avoid}.` : "",
     modePrompt,
+    "",
+    blueprintBlock,
     "",
     `Available library exercises (use these libraryIds):\n${catalogue.join("\n")}`,
     "",
@@ -234,6 +246,18 @@ export async function POST(request: Request) {
   const estimated = estimateProgrammeDurationMinutes(rehydrated);
   const duration = compareDuration(estimated, targetDuration);
 
+  // Coach-quality analysis (deterministic heuristics — never blocks on schema
+  // validity, which stays authoritative; surfaces REVIEW RECOMMENDED signals).
+  const quality = analyseProgrammeQuality(rehydrated, {
+    targetMinutes: targetDuration,
+    equipment,
+    experience: profile.training.experience,
+    expectedSessionNames: expectedSessionNames.length ? expectedSessionNames : undefined,
+  });
+  const equipmentNote = equipment
+    ? null
+    : "Equipment not specified — this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.";
+
   // Change summary for adaptations/adjustments of an existing draft or approved plan.
   let changeSummary = null;
   if (mode !== "first") {
@@ -292,6 +316,8 @@ export async function POST(request: Request) {
     context: profile,
     generation,
     notice,
+    equipmentNote,
+    quality,
     published: false,
   });
 }

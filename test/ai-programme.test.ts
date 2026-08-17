@@ -291,7 +291,8 @@ test("no-equipment client never assumes commercial gym machines", () => {
 
 test("missing equipment is flagged, not assumed", () => {
   const design = designRecommendation("Build muscle", 3, "beginner", "", "", "", 60);
-  assert.ok(design.constraints.some((c) => /full commercial gym/i.test(c)));
+  assert.ok(design.constraints.some((c) => /equipment not specified/i.test(c)));
+  assert.ok(design.rationale.some((r) => /confirm access/i.test(r)));
 });
 
 test("limitations flag coach review in design output", () => {

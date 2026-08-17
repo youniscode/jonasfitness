@@ -6,7 +6,15 @@
  * Everything here is pure so the whole pipeline is unit-testable.
  */
 
-import { aiGenerationExcludedExerciseIds, builtInExerciseFor, builtInExercises, type ExerciseDefinition } from "./exercise-catalogue.ts";
+import {
+  aiGenerationExcludedExerciseIds,
+  builtInExerciseFor,
+  builtInExercises,
+  MAJOR_PATTERNS,
+  movementPatternFor,
+  type ExerciseDefinition,
+  type MovementPattern,
+} from "./exercise-catalogue.ts";
 
 export type DraftExercise = {
   libraryId: string;
@@ -108,6 +116,14 @@ REPS RULES (STRICT):
 
 VALID EXAMPLE (barbell bench press is a real library exercise):
 {"title":"3-Day Full Body Foundation","overview":"Balanced strength plan built from the exercise library.","progressionStrategy":"Progressive overload with 1-3 RIR.","coachNotes":"Review loading before approval.","sessions":[{"name":"Full body A","focus":"Compound strength","exercises":[{"libraryId":"builtin-barbell-bench-press","name":"Barbell bench press","sets":3,"reps":"8-10","rir":2,"restSeconds":120,"tempo":"","note":""}]}]}
+
+DESIGN QUALITY RULES:
+- For a beginner building muscle 3 times per week, favour balanced full-body sessions (A/B/C) covering knee-dominant, hinge, push, pull and core across the week.
+- Avoid accessory-only sessions (a day made up only of arm/shoulder isolation).
+- Keep weekly push and pull stimulus roughly balanced; include vertical pull, knee-dominant and posterior-chain work somewhere in the week.
+- Prefer scalable exercises for beginners (e.g. Lat pulldown over Pull-up).
+- Respect the given equipment; never assume equipment the client may not have.
+- Session names must reflect the actual session contents.
 
 SELF-CHECK BEFORE OUTPUT (perform internally, then output ONLY the JSON object):
 - exact requested session count
@@ -213,18 +229,34 @@ export function validateDraft(value: unknown, expectedSessions: number): DraftVa
 
 // ---------- Duration estimation ----------
 
-// Deterministic estimate from the actual prescription (never the model's claim):
-// ~10s execution per set + rest time per set + a small setup buffer per exercise.
+// Deterministic estimate from the actual prescription (never the model's
+// claim): a session warm-up allowance, per-exercise transition/setup, working-
+// set execution scaled by the rep range, and the programmed rest. No invented
+// dead time — but a realistic PT-session structure (warm-up + transitions).
+const SESSION_WARMUP_SECONDS = 360; // ~6 min per session
+const EXERCISE_TRANSITION_SECONDS = 75; // setup + load change between exercises
+const SET_BASE_SECONDS = 12;
+const SET_SECONDS_PER_REP = 2.5;
+const MIN_SET_WORK_SECONDS = 25;
+
+export function workSecondsForSet(reps: string | undefined): number {
+  const value = (reps ?? "").trim();
+  const range = value.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  const midpoint = range ? (Number(range[1]) + Number(range[2])) / 2 : Number(value) || 8;
+  return Math.max(MIN_SET_WORK_SECONDS, SET_BASE_SECONDS + midpoint * SET_SECONDS_PER_REP);
+}
+
 export function estimateSessionDurationMinutes(session: DraftSession): number {
   const exercises = session.exercises ?? [];
   if (!exercises.length) return 0;
-  const perSetSeconds = exercises.reduce((total, exercise) => {
+  let seconds = SESSION_WARMUP_SECONDS;
+  for (const exercise of exercises) {
     const sets = integer(exercise.sets, 3, 1, 12);
     const rest = integer(exercise.restSeconds, 90, 15, 600);
-    return total + sets * (10 + rest);
-  }, 0);
-  const setupBuffer = exercises.length * 45;
-  return Math.max(0, Math.round((perSetSeconds + setupBuffer) / 60));
+    const work = workSecondsForSet(exercise.reps);
+    seconds += EXERCISE_TRANSITION_SECONDS + sets * (work + rest);
+  }
+  return Math.max(0, Math.round(seconds / 60));
 }
 
 export function estimateProgrammeDurationMinutes(draft: ProgrammeDraft): number {
@@ -233,24 +265,78 @@ export function estimateProgrammeDurationMinutes(draft: ProgrammeDraft): number 
   return Math.round(estimates.reduce((total, minutes) => total + minutes, 0) / estimates.length);
 }
 
+// ---------- Duration comparison policy ----------
+
+// Target tolerance: ±15%. A plan must land inside this window to be labelled
+// MATCH — a ~30 min plan against a 60 min target is UNDER, never "fits".
+export type DurationState = "match" | "under" | "over";
+export const DURATION_TOLERANCE = 0.15;
+
+export function durationState(expectedMinutes: number, targetMinutes: number | null): DurationState {
+  if (!targetMinutes || targetMinutes <= 0) return "match";
+  if (expectedMinutes < targetMinutes * (1 - DURATION_TOLERANCE)) return "under";
+  if (expectedMinutes > targetMinutes * (1 + DURATION_TOLERANCE)) return "over";
+  return "match";
+}
+
 export type DurationComparison = {
+  state: DurationState;
   expectedMinutes: number;
   targetMinutes: number | null;
   overTarget: boolean;
+  underTarget: boolean;
   differenceMinutes: number;
 };
 
 export function compareDuration(expectedMinutes: number, targetMinutes: number | null): DurationComparison {
-  if (!targetMinutes) return { expectedMinutes, targetMinutes: null, overTarget: false, differenceMinutes: 0 };
+  if (!targetMinutes) return { state: "match", expectedMinutes, targetMinutes: null, overTarget: false, underTarget: false, differenceMinutes: 0 };
+  const state = durationState(expectedMinutes, targetMinutes);
   return {
+    state,
     expectedMinutes,
     targetMinutes,
-    overTarget: expectedMinutes > targetMinutes,
+    overTarget: state === "over",
+    underTarget: state === "under",
     differenceMinutes: expectedMinutes - targetMinutes,
   };
 }
 
-// ---------- Design recommendation (deterministic fallback) ----------
+// ---------- Design recommendation (deterministic, split = blueprint) ----------
+
+// Session blueprints describe the concrete structure Jonas Coach designs to.
+// The AI prompt for a first programme requires the session names to match
+// these, so the recommendation label always describes the actual structure.
+export type SessionBlueprint = { name: string; focus: string; patterns: MovementPattern[] };
+
+export const FULL_BODY_DAY_BLUEPRINT: SessionBlueprint[] = [
+  { name: "Full Body A", focus: "Knee-dominant squat pattern, hip hinge, horizontal push and pull, core", patterns: ["knee_dominant", "hinge", "horizontal_push", "horizontal_pull", "core"] },
+  { name: "Full Body B", focus: "Knee-dominant pattern, hinge, vertical push and horizontal pull, isolation", patterns: ["knee_dominant", "hinge", "vertical_push", "horizontal_pull", "isolation"] },
+  { name: "Full Body C", focus: "Knee-dominant pattern, hinge, horizontal push and vertical pull, core", patterns: ["knee_dominant", "hinge", "horizontal_push", "vertical_pull", "core"] },
+];
+
+export const UPPER_LOWER_DAY_BLUEPRINT: SessionBlueprint[] = [
+  { name: "Upper Strength", focus: "Horizontal and vertical push, horizontal and vertical pull", patterns: ["horizontal_push", "vertical_push", "horizontal_pull", "vertical_pull", "isolation"] },
+  { name: "Lower Strength", focus: "Knee-dominant and hinge patterns, calves", patterns: ["knee_dominant", "hinge", "knee_dominant", "isolation"] },
+  { name: "Upper Hypertrophy", focus: "Push and pull volume with arm isolation", patterns: ["horizontal_push", "vertical_push", "horizontal_pull", "vertical_pull", "isolation"] },
+  { name: "Lower Hypertrophy", focus: "Quad, hamstring and glute volume", patterns: ["knee_dominant", "hinge", "knee_dominant", "isolation"] },
+];
+
+export const PUSH_PULL_LEGS_DAY_BLUEPRINT: SessionBlueprint[] = [
+  { name: "Push", focus: "Chest, shoulders and triceps", patterns: ["horizontal_push", "vertical_push", "isolation", "isolation"] },
+  { name: "Pull", focus: "Back and biceps", patterns: ["horizontal_pull", "vertical_pull", "isolation", "isolation"] },
+  { name: "Legs", focus: "Quads, hamstrings, glutes and calves", patterns: ["knee_dominant", "hinge", "knee_dominant", "isolation"] },
+  { name: "Upper", focus: "Balanced upper body", patterns: ["horizontal_push", "vertical_push", "horizontal_pull", "vertical_pull", "isolation"] },
+  { name: "Lower", focus: "Posterior chain focus", patterns: ["knee_dominant", "hinge", "isolation"] },
+];
+
+export function sessionBlueprintFor(sessionsPerWeek: number): SessionBlueprint[] {
+  const count = Math.min(7, Math.max(1, sessionsPerWeek || 3));
+  if (count <= 1) return [FULL_BODY_DAY_BLUEPRINT[0]];
+  if (count === 2) return FULL_BODY_DAY_BLUEPRINT.slice(0, 2);
+  if (count === 3) return FULL_BODY_DAY_BLUEPRINT;
+  if (count === 4) return UPPER_LOWER_DAY_BLUEPRINT;
+  return PUSH_PULL_LEGS_DAY_BLUEPRINT;
+}
 
 export type DesignRecommendation = {
   recommendedSplit: string;
@@ -260,6 +346,17 @@ export type DesignRecommendation = {
   priorities: string[];
   constraints: string[];
   progressionStrategy: string;
+  sessionBlueprint: SessionBlueprint[];
+};
+
+const SPLIT_LABEL: Record<number, string> = {
+  1: "Full Body",
+  2: "Full Body A / B",
+  3: "Full Body A / B / C",
+  4: "Upper / Lower (×2)",
+  5: "Push / Pull / Legs / Upper / Lower",
+  6: "Push / Pull / Legs (×2)",
+  7: "Push / Pull / Legs (×2)",
 };
 
 export function designRecommendation(
@@ -273,28 +370,22 @@ export function designRecommendation(
 ): DesignRecommendation {
   const experienceLevel = experience.toLowerCase();
   const beginner = experienceLevel.includes("beginner") || experienceLevel.includes("débutant") || !experienceLevel;
-  const frequencies: Record<number, string> = {
-    1: "Full body",
-    2: "Full body A / B",
-    3: "Full body or Upper-Lower-Full body",
-    4: "Upper-Lower",
-    5: "Push-Pull-Legs",
-    6: "Push-Pull-Legs + Upper",
-    7: "Push-Pull-Legs × 2",
-  };
-  const split = frequencies[Math.min(7, Math.max(1, sessionsPerWeek))] ?? "Full body";
+  const count = Math.min(7, Math.max(1, sessionsPerWeek || 3));
+  const split = SPLIT_LABEL[count] ?? "Full Body";
+  const sessionBlueprint = sessionBlueprintFor(count);
   const rationale: string[] = [];
-  if (beginner) rationale.push("Beginner client — prioritise a small set of compound patterns with controlled volume.");
+  if (beginner) rationale.push("Beginner client — prioritise a small set of compound patterns with controlled volume and scalable exercises.");
   else rationale.push(`${experience} level — allow more advanced loading and a wider exercise selection.`);
   rationale.push(`Training ${sessionsPerWeek} day${sessionsPerWeek === 1 ? "" : "s"} per week.`);
+  rationale.push(`Recommended structure: ${split}.`);
   if (equipment) rationale.push(`Available equipment: ${equipment}.`);
-  else rationale.push("Equipment unknown — exercises are neutral selections that avoid machine-only assumptions.");
+  else rationale.push("Equipment unknown — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.");
   if (considerations) rationale.push(`Limitations reported (${considerations}) — conservative selection, coach review required.`);
   if (availability) rationale.push(`Availability: ${availability}.`);
   const priorities = goal ? [goal] : [];
   const constraints: string[] = [];
   if (considerations) constraints.push("Respect the client's reported limitations and keep movements coach-reviewed.");
-  if (!equipment) constraints.push("Do not assume a full commercial gym.");
+  if (!equipment) constraints.push("Equipment not specified — confirm the client's actual gym access before approving this draft.");
   const equipmentContext = equipment.toLowerCase();
   if (equipmentContext.includes("no equipment") || equipmentContext.includes("bodyweight") || equipmentContext.includes("home")) {
     constraints.push("Bodyweight / minimal-equipment movements only — no machine or barbell-dependent exercises.");
@@ -311,6 +402,7 @@ export function designRecommendation(
     priorities,
     constraints,
     progressionStrategy,
+    sessionBlueprint,
   };
 }
 
@@ -320,49 +412,34 @@ export function designRecommendation(
 // production fallback when the local model is unavailable AND the baseline for
 // a brand-new client. Exercises come from the real catalogue (equipment-aware)
 // and are rehydrated with canonical names/images, so the draft is always valid.
-const splitTemplate: Record<number, { name: string; focus: string; muscles: string[] }[]> = {
-  1: [{ name: "Full body", focus: "Compound strength + full-body conditioning", muscles: ["Chest", "Back", "Quadriceps", "Hamstrings", "Core"] }],
-  2: [
-    { name: "Full body A", focus: "Horizontal push/pull + lower body", muscles: ["Chest", "Back", "Quadriceps", "Core"] },
-    { name: "Full body B", focus: "Vertical push/pull + posterior chain", muscles: ["Shoulders", "Back", "Hamstrings", "Core"] },
-  ],
-  3: [
-    { name: "Full body A", focus: "Strength compounds + controlled volume", muscles: ["Chest", "Back", "Quadriceps", "Core"] },
-    { name: "Full body B", focus: "Posterior chain + vertical pressing", muscles: ["Shoulders", "Back", "Hamstrings", "Core"] },
-    { name: "Full body C", focus: "Hypertrophy volume + weak points", muscles: ["Chest", "Back", "Quadriceps", "Shoulders"] },
-  ],
-  4: [
-    { name: "Upper strength", focus: "Horizontal + vertical pressing, back width", muscles: ["Chest", "Back", "Shoulders"] },
-    { name: "Lower strength", focus: "Squat + hinge pattern", muscles: ["Quadriceps", "Hamstrings", "Glutes"] },
-    { name: "Upper hypertrophy", focus: "Volume for chest, back, shoulders, arms", muscles: ["Chest", "Back", "Shoulders", "Biceps", "Triceps"] },
-    { name: "Lower hypertrophy", focus: "Volume for quads, hamstrings, glutes, calves", muscles: ["Quadriceps", "Hamstrings", "Glutes", "Calves"] },
-  ],
-  5: [
-    { name: "Push", focus: "Chest, shoulders, triceps", muscles: ["Chest", "Shoulders", "Triceps"] },
-    { name: "Pull", focus: "Back, biceps", muscles: ["Back", "Biceps"] },
-    { name: "Legs", focus: "Quads, hamstrings, glutes, calves", muscles: ["Quadriceps", "Hamstrings", "Glutes", "Calves"] },
-    { name: "Upper", focus: "Balanced upper body", muscles: ["Chest", "Back", "Shoulders"] },
-    { name: "Lower", focus: "Posterior chain focus", muscles: ["Hamstrings", "Glutes", "Quadriceps"] },
-  ],
-};
-
-function exercisesForMuscles(muscles: string[], pool: ExerciseDefinition[], count = 4): DraftExercise[] {
-  const matching = muscles.flatMap((muscle) => pool.filter((exercise) => exercise.muscleGroup === muscle));
-  const unique = [...new Map(matching.map((exercise) => [exercise.id, exercise])).values()];
-  const selected = unique.slice(0, count);
-  if (selected.length < count) {
-    unique.push(...pool.filter((exercise) => exercise.muscleGroup === "Full body"));
+// Selection is movement-pattern balanced (knee-dominant, hinge, push, pull,
+// core/isolation per full-body day) and avoids repeating the same exercise
+// across the week where the library allows.
+function exercisesForPatterns(patterns: MovementPattern[], pool: ExerciseDefinition[], used: Set<string>): DraftExercise[] {
+  const result: DraftExercise[] = [];
+  const sessionUsed = new Set<string>();
+  for (const pattern of patterns) {
+    const candidates = pool.filter((exercise) => movementPatternFor(exercise) === pattern);
+    // Prefer a fresh exercise this week; otherwise reuse one from another day
+    // (never twice within the same session — validateDraft rejects duplicates).
+    const pick = candidates.find((exercise) => !used.has(exercise.id) && !sessionUsed.has(exercise.id))
+      ?? candidates.find((exercise) => !sessionUsed.has(exercise.id));
+    if (!pick) continue;
+    used.add(pick.id);
+    sessionUsed.add(pick.id);
+    const compound = MAJOR_PATTERNS.has(pattern);
+    result.push({
+      libraryId: pick.id,
+      name: pick.name,
+      sets: compound ? 3 : 2,
+      reps: compound ? "8-12" : "10-15",
+      rir: 2,
+      restSeconds: compound ? 120 : 75,
+      note: "",
+      source: "library" as const,
+    });
   }
-  return selected.map((exercise) => ({
-    libraryId: exercise.id,
-    name: exercise.name,
-    sets: exercise.muscleGroup === "Core" || exercise.muscleGroup === "Calves" ? 3 : 3,
-    reps: "8–12",
-    rir: 2,
-    restSeconds: exercise.muscleGroup === "Core" || exercise.muscleGroup === "Calves" ? 75 : 90,
-    note: "",
-    source: "library" as const,
-  })).slice(0, count);
+  return result;
 }
 
 export function buildFallbackDraft(
@@ -372,13 +449,14 @@ export function buildFallbackDraft(
   experience: string | null | undefined,
 ): ProgrammeDraft {
   const days = Math.min(5, Math.max(1, sessionsPerWeek || 3));
-  const template = splitTemplate[days] ?? splitTemplate[3];
+  const blueprint = sessionBlueprintFor(days);
   const pool = candidateExercisesFor(equipment);
   const beginner = (experience ?? "").toLowerCase().includes("beginner");
-  const sessions: DraftSession[] = template.map((day) => ({
+  const used = new Set<string>();
+  const sessions: DraftSession[] = blueprint.map((day) => ({
     name: day.name,
     focus: day.focus,
-    exercises: exercisesForMuscles(day.muscles, pool, beginner ? 3 : 4),
+    exercises: exercisesForPatterns(day.patterns, pool, used),
   }));
   const duration = estimateProgrammeDurationMinutes({ title: "", overview: "", goal, sessionsPerWeek: days, sessions });
   return rehydrateDraft({

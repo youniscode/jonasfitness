@@ -3,16 +3,26 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
+type DurationState = "match" | "under" | "over";
 type CoachPayload = {
   draft: Record<string, unknown>;
   estimatedMinutes: number;
-  duration: { expectedMinutes: number; targetMinutes: number | null; overTarget: boolean; differenceMinutes: number };
+  duration: { state: DurationState; expectedMinutes: number; targetMinutes: number | null; overTarget: boolean; underTarget: boolean; differenceMinutes: number };
   validation: { ok: boolean; errors: { field: string; message: string; severity: string }[]; warnings: { field: string; message: string; severity: string }[] };
-  design: { recommendedSplit: string; sessionsPerWeek: number; sessionDurationMinutes: number | null; rationale: string[]; priorities: string[]; constraints: string[]; progressionStrategy: string; estimatedSessionDurationMinutes: number };
+  design: { recommendedSplit: string; sessionsPerWeek: number; sessionDurationMinutes: number | null; rationale: string[]; priorities: string[]; constraints: string[]; progressionStrategy: string; estimatedSessionDurationMinutes: number; sessionBlueprint?: { name: string; focus: string }[] };
   changeSummary: { dayChanges: { day: string; changes: string[] }[]; weeklyVolume: { area: string; deltaSets: number }[]; durationBefore: number | null; durationAfter: number | null } | null;
   context: Record<string, unknown>;
   generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string };
   notice: string;
+  equipmentNote: string | null;
+  quality: {
+    state: "ready" | "review";
+    checks: { key: string; label: string; ok: boolean; message?: string }[];
+    balance: { push: number; pull: number; verticalPull: number; kneeDominant: number; posteriorChain: number; core: number; isolation: number };
+    duration: DurationState;
+    durationDifferenceMinutes: number;
+    warnings: string[];
+  };
   published: boolean;
 };
 type ContextItem = { id: string; label: string; complete: boolean; detail: string; required: boolean };
@@ -38,6 +48,8 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [retryNotice, setRetryNotice] = useState("");
   const [sessionDuration, setSessionDuration] = useState("60");
   const [sessionsOverride, setSessionsOverride] = useState("");
+  const [equipmentPreset, setEquipmentPreset] = useState("auto");
+  const [equipmentCustom, setEquipmentCustom] = useState("");
   const [avoid, setAvoid] = useState("");
   const [draftGoal, setDraftGoal] = useState("");
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
@@ -53,6 +65,8 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setHasApproved(false);
       setDraftGoal("");
       setSessionsOverride("");
+      setEquipmentPreset("auto");
+      setEquipmentCustom("");
       setAvoid("");
       setAdjustInstruction("");
       setContextItems([]);
@@ -87,6 +101,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       goal,
       sessionsPerWeek: sessionsOverride ? Number(sessionsOverride) : client.sessionsPerWeek,
       sessionDurationMinutes: sessionDuration ? Number(sessionDuration) : null,
+      equipment: equipmentPreset === "custom" ? equipmentCustom : equipmentPreset === "auto" ? "" : equipmentPreset,
       avoid,
       instruction: mode === "adjust" ? adjustInstruction : "",
       previousDraft: mode === "adjust" ? payload?.draft : undefined,
@@ -155,6 +170,8 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
               <label>Sessions / week<input type="number" min="1" max="7" value={sessionsOverride || client.sessionsPerWeek} onChange={(event) => setSessionsOverride(event.target.value)} /></label>
               <label>Target duration (min)<input type="number" min="30" max="120" step="5" value={sessionDuration} onChange={(event) => setSessionDuration(event.target.value)} /></label>
             </div>
+            <label>Equipment<select value={equipmentPreset} onChange={(event) => setEquipmentPreset(event.target.value)}><option value="auto">Auto — from onboarding</option><option value="Full commercial gym">Full commercial gym</option><option value="Dumbbells">Dumbbells + bench</option><option value="Home">Home / basic equipment</option><option value="Bodyweight">Bodyweight</option><option value="custom">Custom…</option></select></label>
+            {equipmentPreset === "custom" && <label>Custom equipment<input value={equipmentCustom} onChange={(event) => setEquipmentCustom(event.target.value)} placeholder="e.g. squat rack + dumbbells" /></label>}
             <label>Avoid exercises<textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
             {mode === "adjust" && <label>Coach instruction<textarea value={adjustInstruction} onChange={(event) => setAdjustInstruction(event.target.value)} placeholder='e.g. "Keep the programme but replace barbell squats with something easier to learn."' required /></label>}
             {error && <p className="form-error" role="alert">{error}</p>}
@@ -165,7 +182,8 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
 
       {payload && <div className="jonas-draft">
         <div className="jonas-recommendation">
-          <div className="jonas-recommendation-head"><div><p>JONAS COACH RECOMMENDS</p><h3>{payload.design.recommendedSplit}</h3><span>{payload.design.sessionsPerWeek} sessions/week · {durationLabel(payload.design.estimatedSessionDurationMinutes)} per session</span></div>{errors.length === 0 && <b className="draft-valid">✓ VALID DRAFT</b>}</div>
+          <div className="jonas-recommendation-head"><div><p>JONAS COACH RECOMMENDS</p><h3>{payload.design.recommendedSplit}</h3><span>{payload.design.sessionsPerWeek} sessions/week · {durationLabel(payload.design.estimatedSessionDurationMinutes)} per session</span></div>{errors.length === 0 && <div className="jonas-validity"><b className="draft-valid">✓ VALID DRAFT</b>{payload.quality && <b className={payload.quality.state === "ready" ? "quality-ready" : "quality-review"}>{payload.quality.state === "ready" ? "READY FOR COACH REVIEW" : "REVIEW RECOMMENDED"}</b>}</div>}</div>
+          {payload.equipmentNote && <div className="jonas-equipment-note" role="note">⚠ {payload.equipmentNote}</div>}
           {payload.design.rationale.map((point, index) => <p key={point}><i>{index + 1}</i><span>{point}</span></p>)}
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
@@ -178,9 +196,17 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           {warnings.length > 0 && <div className="jonas-validation-warning">{warnings.slice(0, 4).map((issue) => <p key={issue.field}>⚠ {issue.message}</p>)}</div>}
           <div className="jonas-duration">
             <div><small>EXPECTED DURATION</small><strong>{durationLabel(payload.estimatedMinutes)}</strong>{payload.duration.targetMinutes ? <span>Client target: {payload.duration.targetMinutes} min</span> : <span>No client target set</span>}</div>
-            {payload.duration.overTarget && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} vs {payload.duration.targetMinutes} min target — you can still approve.</em>}
-            {!payload.duration.overTarget && payload.duration.targetMinutes && <em className="duration-ok">✓ Fits the {payload.duration.targetMinutes}-minute target.</em>}
+            {payload.duration.targetMinutes && payload.duration.state === "match" && <em className="duration-ok">✓ Fits the {payload.duration.targetMinutes}-minute target.</em>}
+            {payload.duration.targetMinutes && payload.duration.state === "under" && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} — about {Math.abs(payload.duration.differenceMinutes)} min under your {payload.duration.targetMinutes}-minute target.</em>}
+            {payload.duration.targetMinutes && payload.duration.state === "over" && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} — about {payload.duration.differenceMinutes} min over target.</em>}
+            {!payload.duration.targetMinutes && <em className="duration-ok">✓ No client target set — duration is advisory.</em>}
           </div>
+
+          {payload.quality && <div className="jonas-quality">
+            <div className="jonas-quality-head"><p>PROGRAMME QUALITY</p><b className={payload.quality.state === "ready" ? "quality-ready" : "quality-review"}>{payload.quality.state === "ready" ? "READY FOR COACH REVIEW" : "REVIEW RECOMMENDED"}</b></div>
+            <ul>{payload.quality.checks.map((check) => <li key={check.key}><i>{check.ok ? "✓" : "⚠"}</i><span><b>{check.label}</b><small>{check.ok ? (check.message ?? "Passed") : (check.message ?? "Review recommended")}</small></span></li>)}</ul>
+            <p className="jonas-quality-note">Technical validity and coaching quality are separate — schema validation is authoritative, these are coach-review signals. Not a medical assessment.</p>
+          </div>}
           <div className="jonas-draft-sessions">
             <div className="jonas-draft-title"><div><p>JONAS COACH DRAFT</p><h3>{text(payload.draft.title)}</h3></div><span>{sessionCount} SESSIONS</span></div>
             <p className="jonas-overview">{text(payload.draft.overview)}</p>

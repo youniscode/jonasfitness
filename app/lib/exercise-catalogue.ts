@@ -112,5 +112,86 @@ export const aiGenerationExcludedExerciseIds = new Set<string>([
   "builtin-farmer-carry",
 ]);
 
+// ---------- Movement patterns (coach-quality heuristics) ----------
+
+// Broad movement-pattern classification used for weekly balance analysis and
+// balanced fallback construction. Not medical precision — a coaching heuristic.
+export type MovementPattern =
+  | "knee_dominant"
+  | "hinge"
+  | "horizontal_push"
+  | "vertical_push"
+  | "horizontal_pull"
+  | "vertical_pull"
+  | "core"
+  | "isolation"
+  | "full_body"
+  | "other";
+
+const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
+  "builtin-barbell-bench-press": "horizontal_push",
+  "builtin-incline-dumbbell-press": "horizontal_push",
+  "builtin-cable-fly": "horizontal_push",
+  "builtin-pull-up": "vertical_pull",
+  "builtin-lat-pulldown": "vertical_pull",
+  "builtin-seated-cable-row": "horizontal_pull",
+  "builtin-barbell-row": "horizontal_pull",
+  "builtin-back-squat": "knee_dominant",
+  "builtin-leg-press": "knee_dominant",
+  "builtin-bulgarian-split-squat": "knee_dominant",
+  "builtin-romanian-deadlift": "hinge",
+  "builtin-hip-thrust": "hinge",
+  "builtin-seated-leg-curl": "isolation",
+  "builtin-standing-calf-raise": "isolation",
+  "builtin-overhead-press": "vertical_push",
+  "builtin-lateral-raise": "isolation",
+  "builtin-rear-delt-fly": "isolation",
+  "builtin-barbell-curl": "isolation",
+  "builtin-incline-curl": "isolation",
+  "builtin-triceps-pressdown": "isolation",
+  "builtin-overhead-triceps-extension": "isolation",
+  "builtin-plank": "core",
+  "builtin-cable-crunch": "core",
+  "builtin-farmer-carry": "full_body",
+};
+
+// The major compound patterns that should appear across a balanced week.
+export const MAJOR_PATTERNS: ReadonlySet<MovementPattern> = new Set<MovementPattern>([
+  "knee_dominant",
+  "hinge",
+  "horizontal_push",
+  "vertical_push",
+  "horizontal_pull",
+  "vertical_pull",
+]);
+
+export function movementPatternFor(exercise: { id?: string; libraryId?: string; name?: string }): MovementPattern {
+  const id = exercise.libraryId ?? exercise.id;
+  if (id && MOVEMENT_PATTERN_BY_ID[id]) return MOVEMENT_PATTERN_BY_ID[id];
+  const n = (exercise.name ?? "").toLowerCase();
+  if (/row/.test(n)) return "horizontal_pull";
+  if (/pull-?up|chin-?up|pulldown/.test(n)) return "vertical_pull";
+  if (/press/.test(n)) return /overhead|military|shoulder/.test(n) ? "vertical_push" : "horizontal_push";
+  if (/fly|flye/.test(n)) return "horizontal_push";
+  if (/squat|lunge|step-?up|leg press/.test(n)) return "knee_dominant";
+  if (/deadlift|hinge|hip thrust|good morning/.test(n)) return "hinge";
+  if (/curl|raise|extension|pressdown|fly/.test(n)) return "isolation";
+  if (/crunch|plank|core|ab/.test(n)) return "core";
+  return "other";
+}
+
+// Scalable alternatives for technically demanding exercises — used to prefer
+// friendlier options for untested beginners (never a medical claim).
+export const BEGINNER_ALTERNATIVES: Record<string, string> = {
+  "builtin-pull-up": "builtin-lat-pulldown",
+};
+
+export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: string }): ExerciseDefinition | null {
+  const id = exercise.libraryId ?? exercise.id;
+  if (!id) return null;
+  const alternativeId = BEGINNER_ALTERNATIVES[id];
+  return alternativeId ? (builtInById.get(alternativeId) ?? null) : null;
+}
+
 export const exerciseMuscleGroups = ["All", "Chest", "Back", "Quadriceps", "Hamstrings", "Glutes", "Calves", "Shoulders", "Biceps", "Triceps", "Core", "Full body", "Other"];
 export const exerciseEquipment = ["All", "Barbell", "Dumbbells", "Cable", "Machine", "Bodyweight", "Other"];
