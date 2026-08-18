@@ -200,10 +200,17 @@ test("planLeadResubmission reactivates a lost lead", () => {
   assert.deepEqual(planLeadResubmission({ id: 9, status: "lost", convertedClientId: null }), { kind: "reactivate", leadId: 9 });
 });
 
-test("planLeadResubmission protects converted/client leads", () => {
+test("planLeadResubmission protects converted/client leads with a live client", () => {
   assert.deepEqual(planLeadResubmission({ id: 3, status: "client", convertedClientId: 7 }), { kind: "already_client", leadId: 3 });
   // Defense-in-depth: a non-null convertedClientId is protected even if status is stale.
   assert.deepEqual(planLeadResubmission({ id: 3, status: "lost", convertedClientId: 7 }), { kind: "already_client", leadId: 3 });
+});
+
+test("a converted lead whose client was deleted allows reapplication (never blocked forever)", () => {
+  // Conversion sets status + convertedClientId atomically; a null reference on
+  // a "client" lead means the client row was deleted (FK set null). The email
+  // must be able to apply again.
+  assert.deepEqual(planLeadResubmission({ id: 3, status: "client", convertedClientId: null }), { kind: "reapply", leadId: 3 });
 });
 
 test("planConversion decides create, link and already", () => {

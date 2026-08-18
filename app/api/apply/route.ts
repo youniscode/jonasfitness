@@ -3,7 +3,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { leadActivities, leads } from "../../../db/schema";
 import { isUniqueViolation } from "../../lib/client-email";
-import { normaliseLeadEmail, planLeadResubmission, reviewApplication, SYSTEM_ACTIVITY_OWNER } from "../../lib/leads";
+import { applicationValues, normaliseLeadEmail, planLeadResubmission, reviewApplication, SYSTEM_ACTIVITY_OWNER } from "../../lib/leads";
 
 function fingerprint(request: Request) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -37,6 +37,36 @@ async function reactivateLead(leadId: number) {
   const db = getDb();
   await db.update(leads).set({ status: "new", nextFollowUpAt: null, updatedAt: new Date() }).where(eq(leads.id, leadId));
   await recordResubmission(leadId, "Application resubmitted — lead reactivated");
+}
+
+// A former client reapplies (their converted lead's client was removed): the
+// durable lead reopens as a fresh application — status back to "new", a
+// reappliedAt timestamp so it surfaces at the top of the active pipeline, and
+// a coach-facing timeline entry. The NEW submission's answers replace the
+// previous cycle's on the durable row (that is what the coach acts on now);
+// email, first-touch attribution and createdAt are preserved as history, and
+// the conversion timeline stays intact. Never deletes the lead.
+async function reopenLeadForReapplication(leadId: number, values: ReturnType<typeof applicationValues>) {
+  const db = getDb();
+  await db.update(leads).set({
+    name: values.name,
+    phone: values.phone,
+    country: values.country,
+    goal: values.goal,
+    secondaryGoals: JSON.stringify(values.secondaryGoals),
+    experience: values.experience,
+    trainingDays: values.trainingDays,
+    coachingFormat: values.coachingFormat,
+    contactPreference: values.contactPreference,
+    preferredLanguage: values.preferredLanguage,
+    message: values.message,
+    status: "new",
+    reappliedAt: new Date(),
+    nextFollowUpAt: null,
+    consentAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(leads.id, leadId));
+  await recordResubmission(leadId, "New application received — previous client record was removed; lead reopened");
 }
 
 export async function POST(request: Request) {
@@ -95,26 +125,36 @@ export async function POST(request: Request) {
         const [winner] = await db.select({ id: leads.id, status: leads.status, convertedClientId: leads.convertedClientId })
           .from(leads).where(sql`lower(trim(${leads.email})) = ${email}`).limit(1);
         const winnerPlan = planLeadResubmission(winner);
-        if (winnerPlan.kind === "reactivate") await reactivateLead(winnerPlan.leadId);
+        if (winnerPlan.kind === "reapply") await reopenLeadForReapplication(winnerPlan.leadId, values);
+        else if (winnerPlan.kind === "reactivate") await reactivateLead(winnerPlan.leadId);
         else if (winnerPlan.kind === "resubmitted") await recordResubmission(winnerPlan.leadId, "Application resubmitted");
-        return Response.json({ received: true }, { status: 201 });
+        return Response.json({ received: true, result: "duplicate_retry" }, { status: 201 });
       }
       throw error;
     }
-    return Response.json({ received: true }, { status: 201 });
+    return Response.json({ received: true, result: "created" }, { status: 201 });
+  }
+
+  if (plan.kind === "reapply") {
+    // Converted lead whose client was deleted: reopen the durable lead as a
+    // fresh application so the email is never permanently blocked. History is
+    // preserved on the same row.
+    await reopenLeadForReapplication(plan.leadId, values);
+    return Response.json({ received: true, result: "reapplication_created" }, { status: 201 });
   }
 
   if (plan.kind === "reactivate") {
     await reactivateLead(plan.leadId);
-    return Response.json({ received: true }, { status: 201 });
+    return Response.json({ received: true, result: "reapplication_created" }, { status: 201 });
   }
 
   if (plan.kind === "resubmitted") {
     await recordResubmission(plan.leadId, "Application resubmitted");
-    return Response.json({ received: true }, { status: 201 });
+    return Response.json({ received: true, result: "existing_active_lead" }, { status: 201 });
   }
 
-  // already_client: a converted person. Return a neutral idempotent success and
-  // expose no client details. Do not modify the client.
-  return Response.json({ received: true }, { status: 201 });
+  // already_client: a converted person with an active client. Return a neutral
+  // idempotent success (never a second client, never a duplicate lead) with a
+  // meaningful result the UI can confirm from.
+  return Response.json({ received: true, result: "existing_client" }, { status: 201 });
 }

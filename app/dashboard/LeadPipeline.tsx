@@ -13,7 +13,7 @@ type Lead = {
   id: number; name: string; email: string; phone: string; country: string; goal: string; experience: string;
   trainingDays: number; coachingFormat: string; contactPreference: string; preferredLanguage: string; message: string;
   status: Status; coachNotes: string; acquisitionSource: string; acquisitionCampaign: string; convertedClientId: number | null;
-  nextFollowUpAt: string | null; contactedAt: string | null; createdAt: string;
+  nextFollowUpAt: string | null; contactedAt: string | null; reappliedAt: string | null; createdAt: string;
 };
 type Activity = { id: number; leadId: number; type: ActivityType; title: string; detail: string; occurredAt: string; createdAt: string };
 type Consultation = { id: number; leadId: number; leadName?: string; preferredLanguage?: string; startAt: string; durationMinutes: number; status: ConsultationStatus; outcome: string; notes: string; createdAt: string };
@@ -116,6 +116,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
   const [templates, setTemplates] = useState<Record<number, TemplateKey>>({});
   const [clock, setClock] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
+  const [archiving, setArchiving] = useState<number | null>(null);
 
   // Debounce the search input so we don't hit the API on every keystroke.
   useEffect(() => {
@@ -266,6 +267,18 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     setNotice(`Lead ${lead.name} deleted.`); void load();
   }
 
+  // Archives a converted lead (status → lost): the row leaves the active
+  // pipeline (history preserved) and reappears under "Show archived". Sales
+  // attribution is never hard-deleted.
+  async function archiveLead(lead: Lead) {
+    if (!window.confirm(`Archive ${lead.name}? The converted lead moves out of the active pipeline (history is kept under Show archived).`)) return;
+    setArchiving(lead.id); setError("");
+    try {
+      await patchLead(lead.id, { status: "lost" });
+      setNotice(`${lead.name} archived — previous conversion history kept.`);
+    } finally { setArchiving(null); }
+  }
+
   async function convert(lead: Lead) {
     if (!window.confirm(`Convert ${lead.name} into a client?`)) return;
     setConverting(lead.id); setError("");
@@ -295,7 +308,8 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
 
   // Compact "applied" label for the new-leads panel, on the Paris calendar.
   // `clock` is the render-safe tick state (0 until the first tick, when the
-  // full date is shown instead of "Applied today").
+  // full date is shown instead of "Applied today"). A reapplication surfaces by
+  // its reappliedAt (the fresh cycle), never the original application date.
   function appliedLabel(value: string) {
     const created = new Date(value);
     const todayKey = clock ? parisDateKey(new Date(clock)) : "";
@@ -343,7 +357,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       <div className="sales-today-heading"><div><p>SALES TODAY</p><h3>What needs your attention.</h3></div><span>{clock ? new Intl.DateTimeFormat(undefined, { weekday:"long", day:"numeric", month:"long" }).format(new Date(clock)) : "Today"}</span></div>
       <div className="sales-metrics"><article className={today.overdue.length ? "urgent" : ""}><small>OVERDUE</small><strong>{today.overdue.length}</strong><span>follow-ups</span></article><article><small>DUE TODAY</small><strong>{today.dueToday.length}</strong><span>follow-ups</span></article><article><small>CONSULTATIONS</small><strong>{today.consultationsToday}</strong><span>today</span></article><article><small>NEW LEADS</small><strong>{counts.new}</strong><span>waiting</span></article></div>
       <div className="sales-task-grid">
-        <div><h4>NEW LEADS WAITING</h4>{today.newLeads.length === 0 ? <p className="pipeline-empty">No new leads waiting.</p> : today.newLeads.slice(0, 6).map((lead) => <article className="sales-task new-lead-task" key={lead.id}><span>{appliedLabel(lead.createdAt)}</span><div><strong>{lead.name}</strong><small>{lead.acquisitionSource} · {lead.goal}</small></div><button onClick={() => openLead(lead)}>Open →</button></article>)}</div>
+        <div><h4>NEW LEADS WAITING</h4>{today.newLeads.length === 0 ? <p className="pipeline-empty">No new leads waiting.</p> : today.newLeads.slice(0, 6).map((lead) => <article className="sales-task new-lead-task" key={lead.id}><span>{appliedLabel(lead.reappliedAt ?? lead.createdAt)}</span><div><strong>{lead.name}</strong><small>{lead.acquisitionSource} · {lead.goal}</small></div><button onClick={() => openLead(lead)}>Open →</button></article>)}</div>
         <div><h4>FOLLOW-UP QUEUE</h4>{followUpQueue.length === 0 ? <p className="pipeline-empty">Nothing overdue or due today.</p> : followUpQueue.map(({ lead, overdue }) => <article className="sales-task" key={lead.id}><span className={overdue ? "task-alert" : ""}>{lead.nextFollowUpAt ? formatDateTime(lead.nextFollowUpAt) : ""}</span><div><strong>{lead.name}</strong><small>{lead.goal} · {lead.acquisitionSource}</small></div><button onClick={() => setActivityLead(lead)}>Log contact →</button></article>)}</div>
         <div><h4>UPCOMING CONSULTATIONS</h4>{today.upcomingConsultations.length === 0 ? <p className="pipeline-empty">No consultations scheduled.</p> : today.upcomingConsultations.slice(0, 6).map((item) => <article className="sales-task consultation-task" key={item.id}><span>{formatDateTime(item.startAt)}</span><div><strong>{item.leadName ?? "Lead"}</strong><small>{item.durationMinutes} min · {(item.preferredLanguage ?? "fr").toUpperCase()}</small></div><button onClick={() => setManagedConsultation(item)}>Manage →</button></article>)}</div>
       </div>
@@ -355,7 +369,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       {leads.filter((lead) => lead.status === column.status).map((lead) => {
         const leadActivities = activitiesByLead.get(lead.id) ?? []; const leadConsultations = consultationsByLead.get(lead.id) ?? []; const followUpTime = lead.nextFollowUpAt ? new Date(lead.nextFollowUpAt).getTime() : 0;
         return <details className="lead-card" id={`lead-card-${lead.id}`} key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}{consultationBadge(leadConsultations, now)}</span><b>＋</b></summary><div className="lead-detail">
-          <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "—"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.createdAt).toLocaleDateString()}</b></span></div>
+          <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "—"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.reappliedAt ?? lead.createdAt).toLocaleDateString()}</b></span></div>
           {lead.message ? <p>{lead.message}</p> : null}
           <div className="contact-workbench"><label>Message template<select value={chosenTemplate(lead)} onChange={(event) => setTemplates((current) => ({ ...current, [lead.id]: event.target.value as TemplateKey }))}><option value="initial">Initial reply · {lead.preferredLanguage.toUpperCase()}</option><option value="followup">Follow-up · {lead.preferredLanguage.toUpperCase()}</option><option value="consultation">Consultation · {lead.preferredLanguage.toUpperCase()}</option></select></label><div><button onClick={() => void copyTemplate(lead)}>Copy</button><button onClick={() => openContact(lead, "email")}>Email</button><button className="whatsapp-contact" onClick={() => openContact(lead, "whatsapp")}>WhatsApp ↗</button></div></div>
           <div className="lead-action-row"><button onClick={() => setActivityLead(lead)}>+ Log interaction</button><button onClick={() => setConsultationLead(lead)}>+ Consultation</button></div>
@@ -365,8 +379,9 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
           <label>Coach notes<textarea defaultValue={lead.coachNotes} onBlur={(event) => { if (event.target.value !== lead.coachNotes) void patchLead(lead.id, { coachNotes: event.target.value }); }} placeholder="Fit, objections, next step…" /></label>
           {leadConsultations.length ? <div className="lead-consultations"><h5>CONSULTATIONS</h5>{leadConsultations.slice(0, 3).map((item) => consultationRowAction(item.status) === "manage" ? <div className="consultation-row" key={item.id}><span>{formatDateTime(item.startAt)}</span><b>{item.status.replace("_", " ")}</b><button className="consultation-manage" onClick={() => setManagedConsultation(item)}>Manage →</button></div> : <button className="consultation-row" key={item.id} onClick={() => setManagedConsultation(item)}><span>{formatDateTime(item.startAt)}</span><b>{item.status.replace("_", " ")}</b></button>)}{nextStep(lead, leadConsultations)}</div> : null}
           <div className="lead-timeline"><h5>ACTIVITY</h5>{leadActivities.length === 0 ? <p>No activity recorded yet.</p> : leadActivities.slice(0, 6).map((activity) => <article key={activity.id}><i>{activityLabels[activity.type]?.slice(0, 1) ?? "•"}</i><span><b>{activity.title}</b><small>{formatDateTime(activity.occurredAt)}</small>{activity.detail && activity.type !== "email" && activity.type !== "whatsapp" ? <em>{activity.detail}</em> : null}</span></article>)}</div>
-          {lead.status !== "client" ? <button className="convert-lead" disabled={converting === lead.id} onClick={() => void convert(lead)}>{converting === lead.id ? "Converting…" : "Convert to client →"}</button> : <p className="converted-label">✓ Client created</p>}
-          {lead.status !== "client" ? <button className="delete-lead" onClick={() => void deleteLead(lead)}>Delete lead</button> : null}
+          {lead.status !== "client" && lead.convertedClientId === null ? <button className="convert-lead" disabled={converting === lead.id} onClick={() => void convert(lead)}>{converting === lead.id ? "Converting…" : "Convert to client →"}</button> : <p className="converted-label">✓ Client created</p>}
+          {lead.status === "client" ? <button className="archive-lead" disabled={archiving === lead.id} onClick={() => void archiveLead(lead)}>{archiving === lead.id ? "Archiving…" : "Archive"}</button> : null}
+          {lead.status !== "client" && lead.convertedClientId === null ? <button className="delete-lead" onClick={() => void deleteLead(lead)}>Delete lead</button> : null}
         </div></details>;
       })}
       {leads.filter((lead) => lead.status === column.status).length === 0 ? <p className="pipeline-empty">No {column.label.toLowerCase()} leads.</p> : null}

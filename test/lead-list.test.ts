@@ -106,6 +106,16 @@ test("newLeadsAttention surfaces only status=new leads, newest first", () => {
   assert.deepEqual(result.map((row) => row.id), [2, 1]);
 });
 
+test("a reopened application surfaces by reappliedAt, not the original date", () => {
+  const rows = [
+    leadRow({ id: 1, name: "Old original date", createdAt: new Date("2026-08-01T08:00:00.000Z") }),
+    leadRow({ id: 2, name: "Reapplied", createdAt: new Date("2026-08-01T08:00:00.000Z"), reappliedAt: new Date("2026-08-18T09:00:00.000Z") }),
+    leadRow({ id: 3, name: "Brand new", createdAt: new Date("2026-08-17T08:00:00.000Z") }),
+  ];
+  const result = newLeadsAttention(rows);
+  assert.deepEqual(result.map((row) => row.id), [2, 3, 1]);
+});
+
 test("newLeadsAttention represents multiple new leads", () => {
   const rows = [1, 2, 3, 4, 5].map((id) => leadRow({ id, createdAt: new Date(Date.UTC(2026, 7, 16, 0, 0, id)) }));
   const result = newLeadsAttention(rows);

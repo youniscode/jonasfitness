@@ -38,6 +38,8 @@ export type NewLeadAttentionRow = {
   acquisitionSource: string;
   goal: string;
   createdAt: Date;
+  /** Set when a former client's durable lead reopened as a fresh application. */
+  reappliedAt?: Date | string | null;
 };
 
 // Pure projection of the leads waiting for first contact: status "new" only.
@@ -45,10 +47,17 @@ export type NewLeadAttentionRow = {
 // status changes — no separate state is kept. Deterministic (newest first,
 // bounded, input not mutated) so it is unit-testable and safe to run on every
 // dashboard poll.
+// A reapplication's "applied" instant is its reappliedAt (the fresh cycle);
+// otherwise the original createdAt. Pure so it stays unit-testable.
+function appliedInstant(row: NewLeadAttentionRow): number {
+  const reapplied = row.reappliedAt ? new Date(row.reappliedAt).getTime() : 0;
+  return Number.isFinite(reapplied) && reapplied > 0 ? reapplied : new Date(row.createdAt).getTime();
+}
+
 export function newLeadsAttention<T extends NewLeadAttentionRow>(rows: T[]): T[] {
   return [...rows]
     .filter((row) => row.status === "new")
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .sort((a, b) => appliedInstant(b) - appliedInstant(a))
     .slice(0, NEW_LEADS_ATTENTION_LIMIT);
 }
 

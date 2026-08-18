@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { getDb } from "../../../db";
 import { leadActivities, leadConsultations, leads } from "../../../db/schema";
@@ -52,6 +52,7 @@ const leadColumns = {
   consentAt: leads.consentAt,
   contactedAt: leads.contactedAt,
   nextFollowUpAt: leads.nextFollowUpAt,
+  reappliedAt: leads.reappliedAt,
   updatedAt: leads.updatedAt,
   createdAt: leads.createdAt,
 };
@@ -74,9 +75,12 @@ export async function GET(request: Request) {
   const where = and(...conditions);
   const offset = (query.page - 1) * query.pageSize;
 
+  // Ordering: a reapplication (reappliedAt) surfaces by its new application
+  // date; everything else by original createdAt. History is never reordered
+  // away — the coalesce only promotes the reopened cycle.
   const [rows, totalRows] = await Promise.all([
     db.select(leadColumns).from(leads).where(where)
-      .orderBy(desc(leads.createdAt), desc(leads.id))
+      .orderBy(desc(sql`COALESCE(${leads.reappliedAt}, ${leads.createdAt})`), desc(leads.id))
       .limit(query.pageSize).offset(offset),
     db.select({ value: count() }).from(leads).where(where),
   ]);
@@ -119,10 +123,11 @@ export async function GET(request: Request) {
     db.select(leadColumns).from(leads)
       .where(and(inArray(leads.status, OPEN_LEAD_STATUSES), gte(leads.nextFollowUpAt, start), lt(leads.nextFollowUpAt, end)))
       .orderBy(asc(leads.nextFollowUpAt)).limit(100),
-    // Brand-new leads waiting for first contact. Bounded like the other panels.
+    // Brand-new leads waiting for first contact. Reopened applications surface
+    // by reappliedAt. Bounded like the other panels.
     db.select(leadColumns).from(leads)
       .where(eq(leads.status, "new"))
-      .orderBy(desc(leads.createdAt), desc(leads.id)).limit(NEW_LEADS_ATTENTION_LIMIT),
+      .orderBy(desc(sql`COALESCE(${leads.reappliedAt}, ${leads.createdAt})`), desc(leads.id)).limit(NEW_LEADS_ATTENTION_LIMIT),
     db.select(consultationColumns).from(leadConsultations)
       .innerJoin(leads, eq(leads.id, leadConsultations.leadId))
       .where(and(eq(leadConsultations.status, "scheduled"), gte(leadConsultations.startAt, new Date(Date.now() - 30 * 60 * 1000))))

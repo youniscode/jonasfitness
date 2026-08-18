@@ -149,12 +149,22 @@ export type LeadResubmissionPlan =
   | { kind: "create" }
   | { kind: "resubmitted"; leadId: number }
   | { kind: "reactivate"; leadId: number }
+  // A converted lead whose linked client no longer exists (the client was
+  // deleted; the FK nulled convertedClientId). This email is NOT blocked: the
+  // durable lead reopens as a fresh application while its history stays intact.
+  | { kind: "reapply"; leadId: number }
   | { kind: "already_client"; leadId: number };
 
 export function planLeadResubmission(
   existing: { id: number; status: string; convertedClientId: number | null } | null | undefined,
 ): LeadResubmissionPlan {
   if (!existing) return { kind: "create" };
+  // A "client"-status lead with a null convertedClientId can only mean the
+  // linked client was deleted (conversion sets both atomically; the FK nulls
+  // the reference on delete). It must never permanently block reapplication.
+  if (existing.status === "client" && existing.convertedClientId === null) {
+    return { kind: "reapply", leadId: existing.id };
+  }
   if (existing.status === "client" || existing.convertedClientId !== null) {
     return { kind: "already_client", leadId: existing.id };
   }

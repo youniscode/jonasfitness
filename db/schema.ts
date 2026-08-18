@@ -53,6 +53,11 @@ export const leads = pgTable("leads", {
   // canonical goal values (lead.goal stays the PRIMARY objective). "[]" when
   // the prospect selected only one goal. Kept structured, never comma-crammed.
   secondaryGoals: text("secondary_goals").notNull().default("[]"),
+  // Set when a former client's durable lead reopens as a fresh application
+  // (converted lead whose client was removed). Ordering/"applied" labels use
+  // COALESCE(reappliedAt, createdAt) so the reapplication surfaces as new while
+  // the original createdAt stays preserved as history.
+  reappliedAt: timestamp("reapplied_at", { withTimezone: true }),
   experience: text("experience").notNull().default(""),
   trainingDays: integer("training_days").notNull().default(3),
   coachingFormat: text("coaching_format").notNull().default("Online"),
