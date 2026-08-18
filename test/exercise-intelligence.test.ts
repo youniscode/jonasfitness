@@ -24,6 +24,7 @@ import {
   intelligenceCoversAllBuiltIns,
   scoreExerciseForClient,
   type ClientFitContext,
+  type ExerciseExplanation,
 } from "../app/lib/exercise-intelligence.ts";
 import {
   buildFallbackDraft,
@@ -194,6 +195,133 @@ test("why panel never exposes medical diagnosis", () => {
     const text = [...explanation.why, ...explanation.watchFor].join(" ").toLowerCase();
     assert.ok(!/unsafe|contraindicated|dangerous|diagnos|medical condition|injury/i.test(text), `${exercise.id} exposed a medical claim: ${text}`);
   }
+});
+
+// ---------- V1.1: client-specific, session-aware explanations ----------
+
+// Representative production scenario: beginner, build muscle, 3×/week, 30 min,
+// full commercial gym, no limitations, recent completed workout = chest+biceps.
+const V11_CONTEXT: ClientFitContext = {
+  goal: "Build muscle",
+  experience: "beginner",
+  equipment: "Full commercial gym",
+  sessionDurationMinutes: 30,
+  sessionsPerWeek: 3,
+  recentMuscles: ["chest", "biceps"],
+  recentIds: ["builtin-machine-chest-press"],
+};
+const V11_SESSION_EXERCISES = [
+  { libraryId: "builtin-machine-row", name: "Machine row" },
+  { libraryId: "builtin-assisted-pull-up", name: "Assisted pull-up" },
+  { libraryId: "builtin-triceps-pressdown", name: "Triceps pressdown" },
+  { libraryId: "builtin-lat-pulldown", name: "Lat pulldown" },
+];
+const v11Session = { exercises: V11_SESSION_EXERCISES };
+
+function v11Explanation(libraryId: string, name: string): ExerciseExplanation {
+  return explainExerciseForClient({ libraryId, name }, V11_CONTEXT, v11Session);
+}
+
+const explanationText = (explanation: ExerciseExplanation) => [...explanation.why, ...explanation.watchFor].join(" ");
+
+test("recent chest/biceps context changes the WHY text", () => {
+  const before = explainExerciseForClient({ libraryId: "builtin-machine-row", name: "Machine row" }, { ...V11_CONTEXT, recentMuscles: undefined, recentIds: undefined });
+  const after = v11Explanation("builtin-machine-row", "Machine row");
+  assert.ok(!explanationText(before).includes("recent chest/biceps"), "no recent signal without history");
+  assert.match(explanationText(after), /recent chest\/biceps training/i);
+});
+
+test("Machine row explanation mentions back priority and horizontal/vertical complement", () => {
+  const explanation = v11Explanation("builtin-machine-row", "Machine row");
+  const text = explanationText(explanation);
+  assert.match(text, /back work after recent chest\/biceps/i);
+  assert.match(text, /stable horizontal pull for a beginner/i);
+  assert.match(text, /complement the vertical pulling/i);
+  assert.match(text, /short commercial-gym session with low setup complexity/i);
+});
+
+test("Lat pulldown explanation mentions scalable vertical pulling and progression", () => {
+  const explanation = v11Explanation("builtin-lat-pulldown", "Lat pulldown");
+  const text = explanationText(explanation);
+  assert.match(text, /scalable vertical pull/i);
+  assert.match(text, /horizontal pulling in this session/i);
+  assert.match(text, /beginner/i);
+  assert.match(text, /pull-up/i, "progression path toward Pull-up expected");
+});
+
+test("Assisted pull-up explanation mentions assistance and load scaling", () => {
+  const explanation = v11Explanation("builtin-assisted-pull-up", "Assisted pull-up");
+  const text = explanationText(explanation);
+  assert.match(text, /stable vertical pull for a beginner/i);
+  assert.match(text, /assistance/i, "adjustable assistance expected");
+  assert.match(text, /scales/i);
+  assert.match(text, /horizontal pulling in this session/i);
+});
+
+test("Triceps pressdown adds direct triceps work without claiming biceps was trained today", () => {
+  const explanation = v11Explanation("builtin-triceps-pressdown", "Triceps pressdown");
+  const text = explanationText(explanation);
+  assert.match(text, /adds direct triceps work/i);
+  assert.match(text, /without repeating recent biceps/i);
+  assert.doesNotMatch(text, /trained biceps today|biceps was trained today|\btoday\b/i);
+  assert.doesNotMatch(text, /recover|48 hours|fully recovered/i);
+});
+
+test("short-session explanation appears only when metadata supports it", () => {
+  // 30-min context + low technical/setup demand → setup-efficiency line.
+  const supported = explainExerciseForClient({ libraryId: "builtin-triceps-pressdown", name: "Triceps pressdown" }, V11_CONTEXT);
+  assert.match(explanationText(supported), /low setup complexity for a short session|short commercial-gym session with low setup complexity/i);
+  // A technically demanding lift does not claim setup efficiency.
+  const demanding = explainExerciseForClient({ libraryId: "builtin-back-squat", name: "Barbell back squat" }, { ...V11_CONTEXT, experience: "intermediate", recentMuscles: undefined, recentIds: undefined });
+  assert.doesNotMatch(explanationText(demanding), /low setup complexity|short session/i);
+});
+
+test("generic reasons are not identical across unrelated exercises", () => {
+  const lat = v11Explanation("builtin-lat-pulldown", "Lat pulldown");
+  const triceps = v11Explanation("builtin-triceps-pressdown", "Triceps pressdown");
+  const deadBug = v11Explanation("builtin-dead-bug", "Dead bug");
+  const sets = new Set([lat.why.join("|"), triceps.why.join("|"), deadBug.why.join("|")]);
+  assert.ok(sets.size >= 2, "unrelated exercises must surface different reason mixes");
+});
+
+test("explanations never contain medical diagnosis or recovery-time language", () => {
+  for (const exercise of V11_SESSION_EXERCISES) {
+    const text = explanationText(v11Explanation(exercise.libraryId!, exercise.name!));
+    assert.doesNotMatch(text, /unsafe|contraindicated|dangerous|diagnos|medical condition|injury/i, exercise.name);
+    assert.doesNotMatch(text, /recover|48 hours|fully recovered|rest day/i, exercise.name);
+  }
+});
+
+test("explanation caps are respected (WHY 3-5, WATCH 0-3, ALTS ≤4, CUES ≤3)", () => {
+  for (const exercise of V11_SESSION_EXERCISES) {
+    const explanation = v11Explanation(exercise.libraryId!, exercise.name!);
+    assert.ok(explanation.why.length >= 3 && explanation.why.length <= 5, `${exercise.name} why=${explanation.why.length}`);
+    assert.ok(explanation.watchFor.length <= 3, `${exercise.name} watch=${explanation.watchFor.length}`);
+    assert.ok(explanation.alternatives.length <= 4, `${exercise.name} alts=${explanation.alternatives.length}`);
+    assert.ok(explanation.coachingCues.length >= 2 && explanation.coachingCues.length <= 3, `${exercise.name} cues=${explanation.coachingCues.length}`);
+  }
+});
+
+test("empty recent history still gives useful explanations", () => {
+  const explanation = explainExerciseForClient(
+    { libraryId: "builtin-machine-chest-press", name: "Machine chest press" },
+    { goal: "Build muscle", experience: "beginner", equipment: "Full commercial gym", sessionDurationMinutes: 30 },
+  );
+  assert.ok(explanation.why.length >= 3, "useful reasons without recent history");
+  assert.ok(explanation.why.some((reason) => /stable|beginner/i.test(reason)));
+  assert.ok(explanation.why.some((reason) => /goal/i.test(reason)));
+  assert.ok(explanation.why.some((reason) => /scale|progress/i.test(reason)));
+});
+
+test("limitation context surfaces coach-review watch points, never a diagnosis", () => {
+  const explanation = explainExerciseForClient(
+    { libraryId: "builtin-overhead-press", name: "Overhead press" },
+    { ...V11_CONTEXT, limitations: "shoulder discomfort", limitationsReviewed: true, recentMuscles: undefined, recentIds: undefined },
+  );
+  const text = explanationText(explanation);
+  assert.match(text, /reported shoulder limitation — coach review recommended/i);
+  assert.match(text, /monitor comfort through the chosen range/i);
+  assert.doesNotMatch(text, /unsafe|contraindicated|dangerous|diagnos/i);
 });
 
 // ---------- Quality-engine integration ----------

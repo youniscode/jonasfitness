@@ -20,6 +20,7 @@ import {
   builtInExerciseFor,
   builtInExercises,
   difficultyTierFor,
+  MAJOR_PATTERNS,
   movementPatternFor,
   type MovementPattern,
 } from "./exercise-catalogue.ts";
@@ -1047,7 +1048,7 @@ export function scoreExerciseForClient(
   if (secondaryHit.length) score -= 6;
   if (recentIds.includes(id)) score -= 8;
   if (primaryHit.length) concerns.push(`repeats a heavily trained ${muscleLabel(primaryHit[0]).toLowerCase()} pattern from a recent session.`);
-  else if (secondaryHit.length) concerns.push(`partially overlaps muscles trained in a recent session.`);
+  else if (secondaryHit.length) concerns.push(`partially overlaps recently trained ${muscleLabel(secondaryHit[0]).toLowerCase()} work.`);
 
   // ---- Limitations (conservative, advisory, never exclusion) ----
   const limitationText = (context?.limitations ?? "").toLowerCase();
@@ -1083,46 +1084,315 @@ export function scoreExerciseForClient(
   };
 }
 
-// ---------- "Why this exercise?" explanation ----------
+// ---------- "Why this exercise?" explanation (V1.1 — client-specific) ----------
 
 export type ExerciseExplanation = {
+  /** 3–5 coach-facing reasons, most client/session-specific first. */
   why: string[];
+  /** 0–3 advisory watch points (cautions, limitations, recent overlap, avoid). */
   watchFor: string[];
+  /** 2–4 canonical alternatives. */
   alternatives: { id: string; name: string }[];
+  /** 2–3 coaching cues. */
+  coachingCues: string[];
+};
+
+// Optional session context: the other exercises already in the current session
+// day, used for complement/role reasons. Never claims perfect balance — only
+// states what is deterministically present.
+export type ExplanationSession = {
+  exercises?: Array<{ id?: string; libraryId?: string; name?: string }>;
 };
 
 const capitalise = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-// Concise coach-facing reasons for including an exercise for THIS client.
-// Never a medical statement — watchFor stays advisory and coaching-focused.
+const PATTERN_LABEL: Record<MovementPattern, string> = {
+  knee_dominant: "knee-dominant",
+  hinge: "hip hinge",
+  horizontal_push: "horizontal push",
+  vertical_push: "vertical push",
+  horizontal_pull: "horizontal pull",
+  vertical_pull: "vertical pull",
+  core: "core",
+  isolation: "isolation",
+  full_body: "full body",
+  other: "movement",
+};
+
+const muscleLower = (muscle: MuscleGroupId) => muscleLabel(muscle).toLowerCase();
+
+// Adjacent-muscle grouping used ONLY to phrase the recent-exposure reason for
+// isolations ("without repeating recent biceps training" for a triceps move).
+const MUSCLE_CATEGORY: Partial<Record<MuscleGroupId, MuscleGroupId[]>> = {
+  biceps: ["biceps", "triceps"],
+  triceps: ["biceps", "triceps"],
+  quads: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors"],
+  hamstrings: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors"],
+  glutes: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors"],
+  calves: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors"],
+  adductors: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors"],
+  abductors: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors"],
+  chest: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
+  lats: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
+  upper_back: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
+  rear_delts: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
+  shoulders: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
+  core: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
+};
+
+// A. Client-specific — recent exposure. The exercise's primary muscles do NOT
+// overlap recently trained groups, so the pick deliberately prioritises fresh
+// work. A coaching signal only — never a recovery-time claim.
+function recentExposureReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
+  const recent = context?.recentMuscles ?? [];
+  if (!recent.length) return null;
+  const primary = intel.primaryMuscles[0];
+  if (intel.primaryMuscles.some((m) => recent.includes(m))) return null; // overlap → watch-for concern instead
+  const recentText = recent.map(muscleLower).join("/");
+  if (intel.exerciseType === "isolation" || intel.exerciseType === "core") {
+    const adjacent = MUSCLE_CATEGORY[primary]?.filter((m) => recent.includes(m)) ?? [];
+    if (adjacent.length) {
+      return `Adds direct ${muscleLower(primary)} work without repeating recent ${adjacent.map(muscleLower).join("/")} training.`;
+    }
+    return `Adds direct ${muscleLower(primary)} work with no overlap with recent training.`;
+  }
+  return `Prioritises ${muscleLower(primary)} work after recent ${recentText} training.`;
+}
+
+// A. Client-specific — experience level.
+function experienceReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
+  const beginner = isBeginner(context?.experience);
+  if (beginner) {
+    if (intel.exerciseType === "isolation" || intel.exerciseType === "core") {
+      return `Beginner-friendly ${intel.modality} setup.`;
+    }
+    return intel.beginnerTier === 1
+      ? `Gives a stable ${PATTERN_LABEL[intel.movementPattern]} for a beginner.`
+      : `A coachable ${PATTERN_LABEL[intel.movementPattern]} option for a beginner.`;
+  }
+  if (isExperienced(context?.experience) && intel.technicalDemand >= 2) {
+    return `Matches an ${normalise(context?.experience)} trainee's technical level.`;
+  }
+  return null;
+}
+
+// C. Progression/scalability — modality-scaled so it reads specifically (e.g.
+// "adjustable assistance" for the assist machine, "cable load" for cables).
+function progressionReason(intel: ExerciseIntelligence): string | null {
+  if (!intel.progressions.length) return null;
+  const targets = intel.progressions.map((id) => builtInExerciseFor(id, null)?.name ?? id).join(" or ");
+  if (intel.modality === "machine") {
+    return intel.movementPattern === "vertical_pull"
+      ? `Adjustable assistance scales the movement toward ${targets}.`
+      : `Adjustable machine load scales smoothly toward ${targets}.`;
+  }
+  if (intel.modality === "cable") return `Cable load scales smoothly toward ${targets}.`;
+  if (intel.modality === "bodyweight") return `Bodyweight progressions scale toward ${targets} as strength improves.`;
+  if (intel.modality === "smith") return `Guided-bar load scales smoothly toward ${targets}.`;
+  return `Clear progression path toward ${targets}.`;
+}
+
+// A. Client-specific — goal relevance (exact goal only).
+function goalReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
+  const goal = goalTagFor(context?.goal);
+  if (!goal || !intel.goalTags.includes(goal)) return null;
+  return `Supports the ${GOAL_LABEL[goal] ?? goal} goal.`;
+}
+
+// A. Client-specific — short session (only when the metadata supports a fast setup).
+function shortSessionReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
+  const short = context?.sessionDurationMinutes != null && context.sessionDurationMinutes > 0 && context.sessionDurationMinutes <= 30;
+  if (!short || intel.technicalDemand > 1 || intel.stabilityDemand < 2) return null;
+  return equipmentContext(context?.equipment).fullGym
+    ? "Fits a short commercial-gym session with low setup complexity."
+    : "Low setup complexity for a short session.";
+}
+
+// A. Client-specific — available equipment (never claimed when unknown).
+function equipmentReason(context: ClientFitContext | null | undefined): string | null {
+  const equip = equipmentContext(context?.equipment);
+  if (equip.unknown) return null;
+  if (equip.fullGym) return "Fits a full commercial-gym setting.";
+  if (equip.homeLike) return "Works with home or minimal equipment.";
+  if (equip.dumbbellsOnly) return "Works with dumbbells and bodyweight.";
+  return null;
+}
+
+// B. Session-aware — the other exercises already in this session day.
+function otherSessionExercises(
+  exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
+  session: ExplanationSession | null | undefined,
+): Array<{ id?: string; libraryId?: string; name?: string }> {
+  const id = exercise?.libraryId ?? exercise?.id;
+  return (session?.exercises ?? []).filter((other) => {
+    const otherId = other.libraryId ?? other.id;
+    if (id && otherId) return otherId !== id;
+    return (other.name ?? "") !== (exercise?.name ?? "");
+  });
+}
+
+// B. Session-aware — complement pairing or unique session role for major patterns.
+function sessionComplementReason(
+  exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
+  intel: ExerciseIntelligence,
+  session: ExplanationSession | null | undefined,
+): string | null {
+  const others = otherSessionExercises(exercise, session);
+  if (!others.length) return null;
+  const otherPatterns = new Set(others.map((other) => movementPatternFor(other)));
+  const pairs: Partial<Record<MovementPattern, { pattern: MovementPattern; text: string }>> = {
+    horizontal_pull: { pattern: "vertical_pull", text: "Provides horizontal pulling to complement the vertical pulling in this session." },
+    vertical_pull: { pattern: "horizontal_pull", text: "Provides a scalable vertical pull alongside the horizontal pulling in this session." },
+    horizontal_push: { pattern: "vertical_push", text: "Adds horizontal pressing to complement the vertical pressing in this session." },
+    vertical_push: { pattern: "horizontal_push", text: "Adds vertical pressing to complement the horizontal pressing in this session." },
+    knee_dominant: { pattern: "hinge", text: "Pairs knee-dominant work with the hip-hinge work in this session." },
+    hinge: { pattern: "knee_dominant", text: "Pairs hip-hinge work with the knee-dominant work in this session." },
+  };
+  const pair = pairs[intel.movementPattern];
+  if (pair && otherPatterns.has(pair.pattern)) return pair.text;
+  if (MAJOR_PATTERNS.has(intel.movementPattern) && !others.some((other) => movementPatternFor(other) === intel.movementPattern)) {
+    return `Covers the ${PATTERN_LABEL[intel.movementPattern]} role in this session.`;
+  }
+  return null;
+}
+
+// B. Session-aware — isolation volume after the matching compound in the session.
+function isolationComplementReason(
+  exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
+  intel: ExerciseIntelligence,
+  session: ExplanationSession | null | undefined,
+): string | null {
+  if (intel.exerciseType !== "isolation") return null;
+  const primary = intel.primaryMuscles[0];
+  const others = otherSessionExercises(exercise, session);
+  const hasCompound = others.some((other) => {
+    const otherIntel = exerciseIntelligenceFor(other);
+    return Boolean(otherIntel && otherIntel.exerciseType === "compound" && otherIntel.primaryMuscles.includes(primary));
+  });
+  return hasCompound ? `Adds direct ${muscleLower(primary)} volume after the compound work in this session.` : null;
+}
+
+// C. Generic fallbacks — used only when client/session reasons don't fill the panel.
+function stabilityReason(intel: ExerciseIntelligence): string | null {
+  if (intel.stabilityDemand >= 2 && (intel.modality === "machine" || intel.modality === "cable" || intel.modality === "smith")) {
+    return "Stable machine/cable pattern that is easy to scale.";
+  }
+  return null;
+}
+
+function modalityReason(intel: ExerciseIntelligence): string | null {
+  switch (intel.modality) {
+    case "cable": return "Cable loading keeps constant tension through the range.";
+    case "machine": return "Machine-guided path simplifies the movement.";
+    case "barbell": return "Barbell loading is easy to progress with small jumps.";
+    case "dumbbell": return "Dumbbells allow a natural, adjustable range.";
+    case "bodyweight": return "Bodyweight keeps the session equipment-light.";
+    case "smith": return "The guided bar path simplifies balance demands.";
+    default: return null;
+  }
+}
+
+function simplicityReason(intel: ExerciseIntelligence): string | null {
+  return intel.technicalDemand <= 1 && intel.coordinationDemand <= 1 ? "Simple technique with low coaching overhead." : null;
+}
+
+// WATCH FOR — advisory only. Limitations/cautions become coach-review lines;
+// recent overlap surfaces as a coaching signal; the avoid list is the only
+// exclusion. Never a diagnosis, never "unsafe".
+function watchForFrom(
+  exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
+  intel: ExerciseIntelligence,
+  context: ClientFitContext | null | undefined,
+  fit: ExerciseFitResult,
+): string[] {
+  const watch: string[] = [];
+  if (fit.exclusion) {
+    watch.push("On the avoid list for this client.");
+    return watch;
+  }
+  const limitationText = (context?.limitations ?? "").toLowerCase();
+  const limitationHits = limitationText.trim()
+    ? LIMITATION_RULES.filter((rule) => rule.pattern.test(limitationText) && rule.applies(intel))
+    : [];
+  for (const hit of limitationHits) watch.push(`Reported ${hit.label} limitation — coach review recommended.`);
+  if (limitationText.trim() && !context?.limitationsReviewed) {
+    watch.push("Reported limitations are not yet coach-reviewed — review before finalising.");
+  }
+  if (limitationHits.length) watch.push("Monitor comfort through the chosen range.");
+  for (const concern of fit.concerns) {
+    if (concern.startsWith("repeats") || concern.startsWith("partially")) {
+      const line = capitalise(concern);
+      if (!watch.includes(line)) watch.push(line);
+    }
+  }
+  for (const tag of intel.cautionTags) {
+    const label = CAUTION_LABEL[tag];
+    if (label && !watch.some((line) => line.includes(label))) {
+      watch.push(`${label} — monitor through the chosen range.`);
+    }
+  }
+  return watch.slice(0, 3);
+}
+
+// Concise coach-facing reasons for including an exercise for THIS client in
+// THIS session. Deterministic reason ranking: client-specific context first
+// (recent exposure, experience, goal, duration, equipment), then session
+// context (complement/role), then generic fallbacks (progression, stability,
+// modality). Generic reasons only fill the panel — they are never the first
+// three when client/session context exists. Never a medical statement.
 export function explainExerciseForClient(
   exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
   context: ClientFitContext | null | undefined,
+  session?: ExplanationSession | null,
 ): ExerciseExplanation {
   const fit = scoreExerciseForClient(exercise, context);
   const intel = exerciseIntelligenceFor(exercise);
-  const why = [...fit.positives];
-  if (intel && why.length < 3) {
+  if (!intel) {
+    return { why: [], watchFor: [], alternatives: [], coachingCues: [] };
+  }
+
+  // Reason candidates with specificity scores (higher = more client/session
+  // specific). Generic fallbacks rank below every client/session reason.
+  type Reason = { score: number; type: string; text: string };
+  const reasons: Reason[] = [];
+  const push = (score: number, type: string, text: string | null) => {
+    if (text && !reasons.some((reason) => reason.text === text)) reasons.push({ score, type, text });
+  };
+  push(100, "recent", recentExposureReason(intel, context));
+  push(97, "complement", sessionComplementReason(exercise, intel, session));
+  push(94, "experience", experienceReason(intel, context));
+  push(92, "progression", progressionReason(intel));
+  push(90, "short-session", shortSessionReason(intel, context));
+  push(86, "goal", goalReason(intel, context));
+  push(84, "equipment", equipmentReason(context));
+  push(80, "isolation-complement", isolationComplementReason(exercise, intel, session));
+  // Generic fallbacks (never duplicate an already-used reason type).
+  if (!reasons.some((reason) => reason.type === "experience")) push(74, "stability", stabilityReason(intel));
+  push(70, "modality", modalityReason(intel));
+  push(66, "simplicity", simplicityReason(intel));
+  const sorted = reasons.sort((a, b) => b.score - a.score);
+  const why = sorted.map((reason) => reason.text).slice(0, 5);
+  // Never below 3 bullets: fall back to the exercise's coaching benefits.
+  if (why.length < 3) {
     for (const benefit of intel.coachingBenefits) {
-      why.push(benefit);
-      if (why.length >= 4) break;
+      if (!why.includes(benefit)) {
+        why.push(benefit);
+        if (why.length >= 3) break;
+      }
     }
   }
-  const watchFor: string[] = [];
-  if (intel) {
-    for (const tag of intel.cautionTags) {
-      const label = CAUTION_LABEL[tag];
-      if (label && !watchFor.includes(label)) watchFor.push(label);
-    }
-  }
-  for (const concern of fit.concerns) {
-    const line = capitalise(concern);
-    if (!watchFor.includes(line)) watchFor.push(line);
-  }
-  const alternatives = (intel?.alternatives ?? [])
+
+  const alternatives = (intel.alternatives ?? [])
     .map((alternativeId) => ({ id: alternativeId, name: builtInExerciseFor(alternativeId, null)?.name ?? alternativeId }))
-    .filter((alternative) => alternative.name !== (exercise?.name ?? ""));
-  return { why: why.slice(0, 5), watchFor: watchFor.slice(0, 4), alternatives };
+    .filter((alternative) => alternative.name !== (exercise?.name ?? ""))
+    .slice(0, 4);
+
+  return {
+    why: why.slice(0, 5),
+    watchFor: watchForFrom(exercise, intel, context, fit),
+    alternatives,
+    coachingCues: intel.coachingCues.slice(0, 3),
+  };
 }
 
 // ---------- Quality-engine integration (advisory warnings) ----------
