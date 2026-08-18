@@ -2,11 +2,19 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  builtInExerciseFor,
   exerciseEquipment,
   exerciseMuscleGroups,
   exerciseSearchText,
   type ExerciseDefinition,
 } from "../lib/exercise-catalogue";
+import {
+  exerciseIntelligenceFor,
+  explainExerciseForClient,
+  muscleLabel,
+  type ClientFitContext,
+  type ExerciseExplanation,
+} from "../lib/exercise-intelligence";
 import {
   exerciseFromDefinition,
   formatProgrammeExercise,
@@ -97,6 +105,56 @@ function customNumericId(exercise: ExerciseDefinition) {
   return match ? Number(match[1]) : null;
 }
 
+const MOVEMENT_LABEL: Record<string, string> = {
+  knee_dominant: "Knee-dominant",
+  hinge: "Hip hinge",
+  horizontal_push: "Horizontal push",
+  vertical_push: "Vertical push",
+  horizontal_pull: "Horizontal pull",
+  vertical_pull: "Vertical pull",
+  core: "Core",
+  isolation: "Isolation",
+  full_body: "Full body",
+  other: "Other",
+};
+
+const USE_LABEL: Record<string, string> = {
+  primary: "Primary movement",
+  secondary: "Secondary movement",
+  accessory: "Accessory",
+  finisher: "Finisher",
+  core: "Core",
+};
+
+// Small expandable "Why this exercise?" panel — coaching reasons for THIS
+// client (goal + frequency), watch-for guidance and canonical alternatives.
+// Advisory only: it never makes a medical claim.
+function WhyThisExercise({ explanation, intelligence }: { explanation: ExerciseExplanation; intelligence: NonNullable<ReturnType<typeof exerciseIntelligenceFor>> }) {
+  return <div className="why-exercise-panel" role="note">
+    {explanation.why.length > 0 && <div className="why-exercise-block"><strong>WHY FOR THIS CLIENT</strong>{explanation.why.map((reason) => <p key={reason}>· {reason}</p>)}</div>}
+    {explanation.watchFor.length > 0 && <div className="why-exercise-block"><strong>WATCH FOR</strong>{explanation.watchFor.map((item) => <p key={item}>· {item}</p>)}</div>}
+    {explanation.alternatives.length > 0 && <div className="why-exercise-block"><strong>ALTERNATIVES</strong>{explanation.alternatives.map((alternative) => <p key={alternative.id}>· {alternative.name}</p>)}</div>}
+    {intelligence.coachingCues.length > 0 && <div className="why-exercise-block"><strong>COACHING CUES</strong>{intelligence.coachingCues.map((cue) => <p key={cue}>· {cue}</p>)}</div>}
+  </div>;
+}
+
+// Compact essentials block for a library exercise card — structured metadata,
+// not free text.
+function LibraryExerciseEssentials({ exercise }: { exercise: ExerciseDefinition }) {
+  const intelligence = exerciseIntelligenceFor(exercise);
+  if (!intelligence) return null;
+  const primary = intelligence.primaryMuscles.map(muscleLabel).join(" + ");
+  const secondary = intelligence.secondaryMuscles.length ? intelligence.secondaryMuscles.map(muscleLabel).join(" + ") : "—";
+  return <div className="exercise-intel-essentials">
+    <p><b>Muscles</b> {primary} <small>(secondary: {secondary})</small></p>
+    <p><b>Pattern</b> {MOVEMENT_LABEL[intelligence.movementPattern] ?? intelligence.movementPattern} · <b>Type</b> {intelligence.exerciseType} · <b>{intelligence.laterality}</b> · <b>Tier</b> {intelligence.beginnerTier}</p>
+    <p><b>Best for</b> {USE_LABEL[intelligence.sessionUse] ?? intelligence.sessionUse} · <b>Equipment</b> {intelligence.equipment.join(" / ")}</p>
+    {intelligence.coachingCues.length > 0 && <p><b>Cues</b> {intelligence.coachingCues.slice(0, 2).join(" · ")}</p>}
+    {intelligence.commonMistakes.length > 0 && <p><b>Common mistakes</b> {intelligence.commonMistakes.slice(0, 2).join(" · ")}</p>}
+    {intelligence.alternatives.length > 0 && <p><b>Alternatives</b> {intelligence.alternatives.map((id) => builtInExerciseFor(id, null)?.name ?? id).join(", ")}</p>}
+  </div>;
+}
+
 export default function ProgrammeLibrary({ client }: { client: Client }) {
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -117,6 +175,15 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   const [equipment, setEquipment] = useState("All");
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [libraryNotice, setLibraryNotice] = useState("");
+  // Which exercise row has its "Why this exercise?" panel open (by exercise id).
+  const [whyOpen, setWhyOpen] = useState<string | null>(null);
+
+  // Selected-client context for the "Why this exercise?" panel: the goal and
+  // frequency available on the selected client. Advisory coaching reasons only.
+  const clientFitContext: ClientFitContext = {
+    goal: client.goal,
+    sessionsPerWeek: client.sessionsPerWeek,
+  };
 
   const loadProgrammes = useCallback(async () => {
     if (client.id < 1) { setProgrammes([]); setSelectedId(null); setDraft(null); return; }
@@ -382,7 +449,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
         {Object.keys(draft.translations).length > 0 && <p className="programme-translation-status">Client versions saved: {Object.keys(draft.translations).map((language) => language.toUpperCase()).join(" · ")}</p>}
         {editing ? <textarea className="programme-overview-input" aria-label="Programme overview" value={draft.overview} onChange={(event) => setDraft({ ...draft, overview: event.target.value })} /> : <p className="programme-overview">{draft.overview}</p>}
         <div className="programme-sessions">{draft.sessions.map((session, sessionIndex) => <section className="programme-session programme-builder-session" key={sessionIndex}><div className="programme-session-top"><span>DAY {String(sessionIndex + 1).padStart(2, "0")}</span>{editing && draft.sessions.length > 1 && <button type="button" className="remove-session" onClick={() => setDraft({ ...draft, sessionsPerWeek: draft.sessions.length - 1, sessions: draft.sessions.filter((_, index) => index !== sessionIndex) })}>Remove day</button>}</div>{editing ? <><input aria-label={`Session ${sessionIndex + 1} name`} value={session.name} onChange={(event) => updateSession(sessionIndex, { name: event.target.value })} /><input aria-label={`Session ${sessionIndex + 1} focus`} value={session.focus} onChange={(event) => updateSession(sessionIndex, { focus: event.target.value })} /></> : <><h4>{session.name}</h4><p>{session.focus}</p></>}
-          <div className="programme-exercise-list">{session.exercises.length ? session.exercises.map((exercise, exerciseIndex) => <article className="programme-exercise-row" key={exercise.id}><div className="programme-exercise-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} compact /></div><div className="programme-exercise-body"><div className="programme-exercise-title"><div><strong>{exercise.name}</strong><span>{exercise.muscleGroup} · {exercise.equipment}</span></div>{editing && <div><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, -1)} disabled={exerciseIndex === 0} aria-label="Move exercise up">↑</button><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, 1)} disabled={exerciseIndex === session.exercises.length - 1} aria-label="Move exercise down">↓</button><button type="button" onClick={() => openLibrary(sessionIndex, exerciseIndex)}>Replace</button><button type="button" className="remove-exercise" onClick={() => updateSession(sessionIndex, { exercises: session.exercises.filter((_, index) => index !== exerciseIndex) })}>Remove</button></div>}</div>{editing ? <div className="prescription-grid"><label>Sets<input type="number" min="1" max="12" value={exercise.sets} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { sets: Number(event.target.value) })} /></label><label>Reps<input value={exercise.reps} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { reps: event.target.value })} /></label><label>Target RIR<input type="number" min="0" max="6" value={exercise.rir} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { rir: Number(event.target.value) })} /></label><label>Rest (sec)<input type="number" min="30" max="600" step="15" value={exercise.restSeconds} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { restSeconds: Number(event.target.value) })} /></label><label>Target load (kg)<input type="number" min="0" max="1000" step="0.5" value={exercise.targetWeight ?? ""} placeholder="Not set" onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { targetWeight: event.target.value === "" ? null : Number(event.target.value) })} /></label><label className="prescription-notes">Coach cue / note<input value={exercise.notes} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { notes: event.target.value })} placeholder="Tempo, technique or variation…" /></label></div> : <div className="prescription-summary"><b>{exercise.sets} sets</b><b>{exercise.reps} reps</b><b>RIR {exercise.rir}</b><b>{exercise.restSeconds}s rest</b><b>{exercise.targetWeight === null ? "Load not set" : `${exercise.targetWeight} kg`}</b></div>}{exercise.instructions && <p className="exercise-instructions">{exercise.instructions}</p>}{exercise.videoUrl && <a className="exercise-demo-link" href={exercise.videoUrl} target="_blank" rel="noreferrer">Open demonstration ↗</a>}</div></article>) : <p className="programme-no-exercises">No exercises yet.</p>}</div>
+          <div className="programme-exercise-list">{session.exercises.length ? session.exercises.map((exercise, exerciseIndex) => <article className="programme-exercise-row" key={exercise.id}><div className="programme-exercise-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} compact /></div><div className="programme-exercise-body"><div className="programme-exercise-title"><div><strong>{exercise.name}</strong><span>{exercise.muscleGroup} · {exercise.equipment}</span></div>{editing && <div><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, -1)} disabled={exerciseIndex === 0} aria-label="Move exercise up">↑</button><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, 1)} disabled={exerciseIndex === session.exercises.length - 1} aria-label="Move exercise down">↓</button><button type="button" onClick={() => openLibrary(sessionIndex, exerciseIndex)}>Replace</button><button type="button" className="remove-exercise" onClick={() => updateSession(sessionIndex, { exercises: session.exercises.filter((_, index) => index !== exerciseIndex) })}>Remove</button></div>}</div>{editing ? <div className="prescription-grid"><label>Sets<input type="number" min="1" max="12" value={exercise.sets} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { sets: Number(event.target.value) })} /></label><label>Reps<input value={exercise.reps} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { reps: event.target.value })} /></label><label>Target RIR<input type="number" min="0" max="6" value={exercise.rir} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { rir: Number(event.target.value) })} /></label><label>Rest (sec)<input type="number" min="30" max="600" step="15" value={exercise.restSeconds} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { restSeconds: Number(event.target.value) })} /></label><label>Target load (kg)<input type="number" min="0" max="1000" step="0.5" value={exercise.targetWeight ?? ""} placeholder="Not set" onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { targetWeight: event.target.value === "" ? null : Number(event.target.value) })} /></label><label className="prescription-notes">Coach cue / note<input value={exercise.notes} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { notes: event.target.value })} placeholder="Tempo, technique or variation…" /></label></div> : <div className="prescription-summary"><b>{exercise.sets} sets</b><b>{exercise.reps} reps</b><b>RIR {exercise.rir}</b><b>{exercise.restSeconds}s rest</b><b>{exercise.targetWeight === null ? "Load not set" : `${exercise.targetWeight} kg`}</b></div>}{exercise.instructions && <p className="exercise-instructions">{exercise.instructions}</p>}{exercise.videoUrl && <a className="exercise-demo-link" href={exercise.videoUrl} target="_blank" rel="noreferrer">Open demonstration ↗</a>}{(() => { const intelligence = exerciseIntelligenceFor(exercise); if (!intelligence) return null; return <><button type="button" className="why-exercise-toggle" onClick={() => setWhyOpen((current) => current === exercise.id ? null : exercise.id)} aria-expanded={whyOpen === exercise.id}>{whyOpen === exercise.id ? "Hide why this exercise" : "Why this exercise?"}</button>{whyOpen === exercise.id && <WhyThisExercise explanation={explainExerciseForClient(exercise, clientFitContext)} intelligence={intelligence} />}</>; })()}</div></article>) : <p className="programme-no-exercises">No exercises yet.</p>}</div>
           {editing && <button type="button" className="add-exercise-button" onClick={() => openLibrary(sessionIndex)}>+ Add exercise from library</button>}
         </section>)}</div>
         {editing && draft.sessions.length < 7 && <button type="button" className="add-session" onClick={() => resizeSessions(draft.sessions.length + 1)}>+ Add training day</button>}
@@ -393,7 +460,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     {picker && <div className="exercise-library-backdrop" role="presentation" onMouseDown={() => setPicker(null)}><section className="exercise-library-modal" role="dialog" aria-modal="true" aria-label="Exercise library" onMouseDown={(event) => event.stopPropagation()}><header><div><p>EXERCISE LIBRARY</p><h2>{picker.sessionIndex === null ? "Manage your catalogue." : picker.replaceIndex === null ? "Add an exercise." : "Replace exercise."}</h2><span>Built-in exercises are free. Your custom exercises are private to your coach account.</span></div><button type="button" aria-label="Close exercise library" onClick={() => setPicker(null)}>×</button></header><div className="exercise-library-tools"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search exercise, muscle or equipment…" /><select aria-label="Muscle group" value={muscleGroup} onChange={(event) => setMuscleGroup(event.target.value)}>{exerciseMuscleGroups.map((value) => <option key={value}>{value}</option>)}</select><select aria-label="Equipment" value={equipment} onChange={(event) => setEquipment(event.target.value)}>{exerciseEquipment.map((value) => <option key={value}>{value}</option>)}</select><button type="button" className="dark-button" onClick={() => setShowCustomForm((value) => !value)}>+ Custom exercise</button></div>
       {showCustomForm && <form className="custom-exercise-form" onSubmit={(event) => void createCustomExercise(event)}><label>Name (English)<input name="name" required maxLength={120} /></label><label>Nom (Français)<input name="nameFr" maxLength={120} /></label><label>الاسم (العربية)<input name="nameAr" dir="rtl" maxLength={120} /></label><label>Muscle group<select name="muscleGroup" defaultValue="Other">{exerciseMuscleGroups.filter((value) => value !== "All").map((value) => <option key={value}>{value}</option>)}</select></label><label>Equipment<select name="equipment" defaultValue="Other">{exerciseEquipment.filter((value) => value !== "All").map((value) => <option key={value}>{value}</option>)}</select></label><label className="custom-exercise-wide">Coaching instructions<textarea name="instructions" maxLength={1000} placeholder="Setup and execution cues…" /></label><label>Image URL (optional)<input name="imageUrl" type="url" placeholder="https://…" /></label><label>Video URL (optional)<input name="videoUrl" type="url" placeholder="https://…" /></label><button className="dark-button">Save custom exercise</button></form>}
       {libraryNotice && <p className="programme-notice">{libraryNotice}</p>}
-      {libraryLoading ? <p className="exercise-library-empty">Loading exercises…</p> : <div className="exercise-library-grid">{filteredLibrary.map((exercise) => <article key={exercise.id}><div className="exercise-library-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} />{exercise.isCustom && <b>CUSTOM</b>}</div><div><small>{exercise.muscleGroup} · {exercise.equipment}</small><h3>{exercise.name}</h3>{(exercise.nameFr || exercise.nameAr) && <p className="exercise-alt-names">{[exercise.nameFr, exercise.nameAr].filter(Boolean).join(" · ")}</p>}<p>{exercise.instructions || "Add this exercise and customise the prescription for the client."}</p><div>{exercise.videoUrl && <a href={exercise.videoUrl} target="_blank" rel="noreferrer">Demo ↗</a>}{picker.sessionIndex !== null && <button type="button" onClick={() => chooseExercise(exercise)}>{picker.replaceIndex === null ? "Add" : "Use this"}</button>}{exercise.isCustom && <button type="button" className="delete-library-exercise" onClick={() => void deleteCustomExercise(exercise)}>Delete</button>}</div></div></article>)}</div>}
+      {libraryLoading ? <p className="exercise-library-empty">Loading exercises…</p> : <div className="exercise-library-grid">{filteredLibrary.map((exercise) => <article key={exercise.id}><div className="exercise-library-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} />{exercise.isCustom && <b>CUSTOM</b>}</div><div><small>{exercise.muscleGroup} · {exercise.equipment}</small><h3>{exercise.name}</h3>{(exercise.nameFr || exercise.nameAr) && <p className="exercise-alt-names">{[exercise.nameFr, exercise.nameAr].filter(Boolean).join(" · ")}</p>}<p>{exercise.instructions || "Add this exercise and customise the prescription for the client."}</p><LibraryExerciseEssentials exercise={exercise} /><div>{exercise.videoUrl && <a href={exercise.videoUrl} target="_blank" rel="noreferrer">Demo ↗</a>}{picker.sessionIndex !== null && <button type="button" onClick={() => chooseExercise(exercise)}>{picker.replaceIndex === null ? "Add" : "Use this"}</button>}{exercise.isCustom && <button type="button" className="delete-library-exercise" onClick={() => void deleteCustomExercise(exercise)}>Delete</button>}</div></div></article>)}</div>}
     </section></div>}
     {deleteTarget && <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteTarget(null)}><form className="modal delete-modal" onSubmit={confirmDelete} onMouseDown={(event) => event.stopPropagation()}><div><p>DELETE PROGRAMME</p><button type="button" aria-label="Close" onClick={() => setDeleteTarget(null)}>×</button></div><h2>Delete “{deleteTarget.title}”?</h2><p className="modal-hint">This removes the plan from {client.name}’s saved programmes. Completed workouts, progress history, measurements and check-ins stay untouched. This cannot be undone.</p>{deleteError && <p className="form-error" role="alert">{deleteError}</p>}<button className="danger-confirm" disabled={deleting}>{deleting ? "Deleting…" : "Delete programme"}<span>×</span></button></form></div>}
   </section>;

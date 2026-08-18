@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     db.select().from(programmes)
       .where(and(eq(programmes.clientId, clientId), eq(programmes.ownerId, ownerId)))
       .orderBy(desc(programmes.createdAt)).limit(12),
-    db.select({ status: workoutSessions.status, startedBy: workoutSessions.startedBy, completedAt: workoutSessions.completedAt })
+    db.select({ status: workoutSessions.status, startedBy: workoutSessions.startedBy, completedAt: workoutSessions.completedAt, exercises: workoutSessions.exercises })
       .from(workoutSessions)
       .where(and(eq(workoutSessions.clientId, clientId), eq(workoutSessions.ownerId, ownerId)))
       .orderBy(desc(workoutSessions.completedAt)).limit(200),

@@ -11,6 +11,8 @@
  */
 
 import type { OnboardingLanguage } from "./client-onboarding.ts";
+import { parseExercises } from "./workouts.ts";
+import { exerciseIntelligenceFor, type MuscleGroupId } from "./exercise-intelligence.ts";
 
 export type CoachingProfile = {
   client: {
@@ -45,6 +47,10 @@ export type CoachingProfile = {
     completedWorkouts: number;
     skippedWorkouts: number;
     latestCompletedAt: string | null;
+    /** Muscle groups trained in the most recent completed workout (coaching signal). */
+    exposedMuscles: MuscleGroupId[];
+    /** Canonical libraryIds trained in the most recent completed workout. */
+    exposedIds: string[];
   };
   progressSignals: {
     latestWeight: number | null;
@@ -86,6 +92,8 @@ export type CoachWorkoutRow = {
   status: string;
   startedBy: string;
   completedAt: Date | string | null;
+  /** Raw exercises JSON — optional; only the most recent completed workout is read. */
+  exercises?: string | null;
 };
 
 export type CoachProgressRow = {
@@ -115,6 +123,28 @@ export function buildClientCoachingProfile(
     .filter((time) => Number.isFinite(time) && time > 0)
     .sort((a, b) => b - a)[0];
   const latestProgress = progressEntries.filter((entry) => entry.weight !== null).sort((a, b) => b.adherence - a.adherence)[0];
+
+  // Recent muscle/movement exposure: read ONLY the most recent completed
+  // workout's exercises and map them through the exercise-intelligence layer.
+  // A pure coaching signal ("chest was trained recently") — never a recovery or
+  // medical estimate. Unknown/custom exercises are ignored safely.
+  const exposure = (() => {
+    const ordered = completed
+      .slice()
+      .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime());
+    const latest = ordered[0];
+    if (!latest?.exercises) return { muscles: [] as MuscleGroupId[], ids: [] as string[] };
+    const muscles = new Set<MuscleGroupId>();
+    const ids = new Set<string>();
+    for (const exercise of parseExercises(latest.exercises)) {
+      if (exercise.libraryId) ids.add(exercise.libraryId);
+      const intel = exerciseIntelligenceFor(exercise);
+      if (intel) {
+        for (const muscle of [...intel.primaryMuscles, ...intel.secondaryMuscles]) muscles.add(muscle);
+      }
+    }
+    return { muscles: [...muscles], ids: [...ids] };
+  })();
 
   return {
     client: {
@@ -151,6 +181,8 @@ export function buildClientCoachingProfile(
       completedWorkouts: completed.length,
       skippedWorkouts: skipped.length,
       latestCompletedAt: latestCompleted ? new Date(latestCompleted).toISOString() : null,
+      exposedMuscles: exposure.muscles,
+      exposedIds: exposure.ids,
     },
     progressSignals: {
       latestWeight: latestProgress?.weight ?? client.currentWeight,

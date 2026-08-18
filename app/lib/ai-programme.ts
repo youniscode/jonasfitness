@@ -16,6 +16,7 @@ import {
   type ExerciseDefinition,
   type MovementPattern,
 } from "./exercise-catalogue.ts";
+import { exerciseIntelligenceFor } from "./exercise-intelligence.ts";
 
 export type DraftExercise = {
   libraryId: string;
@@ -87,10 +88,17 @@ export function candidateExercisesFor(equipment: string | null | undefined): Exe
   return matches.length ? matches : list;
 }
 
-// Compact catalogue lines sent to the model: stable id + English name only.
-// No instructions, image URLs or translation bloat — keep the prompt lean.
+// Compact catalogue lines sent to the model: stable id + English name plus the
+// high-value structured fields the model needs to make a client-aware choice
+// (movement pattern, beginner tier, equipment, goal tags and the three demand
+// ratings). Deliberately excludes all long coaching text (cues, mistakes,
+// benefits) to keep the prompt lean.
 export function compactCatalogue(equipment: string | null | undefined): string[] {
-  return candidateExercisesFor(equipment).map((exercise) => `${exercise.id} · ${exercise.name}`);
+  return candidateExercisesFor(equipment).map((exercise) => {
+    const intel = exerciseIntelligenceFor(exercise);
+    if (!intel) return `${exercise.id} · ${exercise.name}`;
+    return `${exercise.id} · ${exercise.name} · ${intel.movementPattern} · Tier ${intel.beginnerTier} · ${intel.equipment.join("/")} · ${intel.goalTags.join("+")} · tech ${intel.technicalDemand} · stable ${intel.stabilityDemand} · fatigue ${intel.fatigueCost}`;
+  });
 }
 
 // Hardened output contract sent to AI providers (Ollama + OpenRouter). The

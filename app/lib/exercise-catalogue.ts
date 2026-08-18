@@ -103,6 +103,32 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("rope-overhead-triceps-extension", "Rope overhead triceps extension", "Extension triceps au-dessus de la tête à la corde", "تمديد الترايسبس بالحبل فوق الرأس", "Triceps", "Cable", "Keep the upper arms close to the head and extend under control.", "/exercises/rope-overhead-triceps-extension.webp"),
   builtIn("pallof-press", "Pallof press", "Pallof press", "تمرين بالوف الضغط", "Core", "Cable", "Brace the trunk and press the cable out in front without rotating the hips.", "/exercises/pallof-press.webp"),
   builtIn("cable-lateral-raise", "Cable lateral raise", "Élévation latérale à la poulie", "الرفرفة الجانبية بالكابل", "Shoulders", "Cable", "Lead with the elbows and raise under control without shrugging.", "/exercises/cable-lateral-raise.webp"),
+  // Library expansion #2 (25 net-new): machines, cables and bodyweight staples.
+  builtIn("adductor-machine", "Adductor machine", "Machine adducteurs", "آلة تقريب الفخذين", "Adductors", "Machine", "Squeeze the legs together under control and return slowly without using momentum.", "/exercises/adductor-machine.webp"),
+  builtIn("abductor-machine", "Abductor machine", "Machine abducteurs", "آلة إبعاد الفخذين", "Abductors", "Machine", "Press the legs apart under control and return slowly without leaning forward.", "/exercises/abductor-machine.webp"),
+  builtIn("seated-calf-raise", "Seated calf raise", "Extension des mollets assis", "رفع السمانة جالسًا", "Calves", "Machine", "Use a full comfortable range with the knees bent and pause at the top and bottom.", "/exercises/seated-calf-raise.webp"),
+  builtIn("leg-press-calf-raise", "Leg press calf raise", "Extension des mollets à la presse", "رفع السمانة بآلة ضغط الأرجل", "Calves", "Machine", "Place the balls of the feet on the platform edge and push through a full range.", "/exercises/leg-press-calf-raise.webp"),
+  builtIn("walking-lunge", "Walking lunge", "Fente marchée", "الاندفاع بالمشي", "Quadriceps", "Bodyweight", "Keep the torso upright and step forward with a controlled knee bend on each side.", "/exercises/walking-lunge.webp"),
+  builtIn("reverse-lunge", "Reverse lunge", "Fente inversée", "الاندفاع العكسي", "Quadriceps", "Bodyweight", "Step back under control, bend both knees and drive through the front foot.", "/exercises/reverse-lunge.webp"),
+  builtIn("step-up", "Step-up", "Montée sur marche", "الصعود على الصندوق", "Quadriceps", "Bodyweight", "Drive through the working heel to step up and lower under control.", "/exercises/step-up.webp"),
+  builtIn("single-leg-press", "Single-leg press", "Presse unilatérale", "ضغط الأرجل بساق واحدة", "Quadriceps", "Machine", "Keep the pelvis stable and press through the whole foot of the working leg.", "/exercises/single-leg-press.webp"),
+  builtIn("smith-split-squat", "Smith split squat", "Split squat à la Smith machine", "سبليت سكوات بآلة سميث", "Quadriceps", "Machine", "Set a staggered stance under the bar and descend under control on the working leg.", "/exercises/smith-split-squat.webp"),
+  builtIn("t-bar-row", "T-bar row", "Rowing T-bar", "تجديف T بار", "Back", "Barbell", "Keep the chest up and row the load toward the lower ribs without torso momentum.", "/exercises/t-bar-row.webp"),
+  builtIn("one-arm-dumbbell-row", "One-arm dumbbell row", "Rowing haltère unilatéral", "تجديف الدمبل بذراع واحدة", "Back", "Dumbbells", "Support the torso with one hand and pull the dumbbell to the hip without rotating.", "/exercises/one-arm-dumbbell-row.webp"),
+  builtIn("straight-arm-pulldown", "Straight-arm pulldown", "Tirage bras tendus", "سحب الكابل بأذرع مستقيمة", "Back", "Cable", "Keep the arms long and pull the cable down to the thighs with a braced trunk.", "/exercises/straight-arm-pulldown.webp"),
+  builtIn("face-pull", "Face pull", "Face pull", "سحب الوجه", "Shoulders", "Cable", "Pull the rope toward the face with the elbows high and finish through the rear shoulders.", "/exercises/face-pull.webp"),
+  builtIn("machine-pullover", "Machine pullover", "Pull-over machine", "آلة البول أوفر", "Back", "Machine", "Keep the chest stable and pull the lever down in a long arc without bending the elbows.", "/exercises/machine-pullover.webp"),
+  builtIn("standard-push-up", "Standard push-up", "Pompes classiques", "تمرين الضغط القياسي", "Chest", "Bodyweight", "Keep a straight line from head to heels and lower the chest to just above the floor.", "/exercises/standard-push-up.webp"),
+  builtIn("decline-machine-chest-press", "Decline machine chest press", "Développé décliné machine", "ضغط الصدر المائل للأسفل بالآلة", "Chest", "Machine", "Set the handles at lower-chest height and press without locking the elbows.", "/exercises/decline-machine-chest-press.webp"),
+  builtIn("arnold-press", "Arnold press", "Développé Arnold", "ضغط أرنولد", "Shoulders", "Dumbbells", "Rotate the palms from facing you to pressing overhead with a braced trunk.", "/exercises/arnold-press.webp"),
+  builtIn("hammer-curl", "Hammer curl", "Curl marteau", "بايسبس هامر", "Biceps", "Dumbbells", "Curl with a neutral grip and keep the upper arms quiet without leaning back.", "/exercises/hammer-curl.webp"),
+  builtIn("rope-hammer-curl", "Rope hammer curl", "Curl marteau à la corde", "بايسبس هامر بالحبل", "Biceps", "Cable", "Keep the elbows pinned and curl the rope with a neutral grip.", "/exercises/rope-hammer-curl.webp"),
+  builtIn("skull-crusher", "Skull crusher", "Barre au front", "سكول كرشر", "Triceps", "Barbell", "Keep the upper arms stable and lower the bar toward the forehead under control.", "/exercises/skull-crusher.webp"),
+  builtIn("assisted-dip", "Assisted dip", "Dips assistés", "الغطس المساعد", "Triceps", "Machine", "Use a light assist and control the descent without bouncing at the bottom.", "/exercises/assisted-dip.webp"),
+  builtIn("ab-crunch-machine", "Ab crunch machine", "Machine à crunch", "آلة تمارين البطن", "Core", "Machine", "Curl the trunk against the pad under control and return slowly.", "/exercises/ab-crunch-machine.webp"),
+  builtIn("hanging-knee-raise", "Hanging knee raise", "Relevé de genoux suspendu", "رفع الركبتين معلقًا", "Core", "Bodyweight", "Brace the trunk and raise the knees to hip height without swinging.", "/exercises/hanging-knee-raise.webp"),
+  builtIn("dead-bug", "Dead bug", "Dead bug", "ديد باج", "Core", "Bodyweight", "Keep the lower back pressed down and lower opposite arm and leg under control.", "/exercises/dead-bug.webp"),
+  builtIn("reverse-crunch", "Reverse crunch", "Crunch inversé", "الكرانش العكسي", "Core", "Bodyweight", "Curl the pelvis toward the ribs and control the return without momentum.", "/exercises/reverse-crunch.webp"),
 ];
 
 // ——— Stable rehydration of saved programme exercises ———
@@ -233,6 +259,32 @@ const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-rope-overhead-triceps-extension": "isolation",
   "builtin-pallof-press": "core",
   "builtin-cable-lateral-raise": "isolation",
+  // Library expansion #2 (25 net-new).
+  "builtin-adductor-machine": "isolation",
+  "builtin-abductor-machine": "isolation",
+  "builtin-seated-calf-raise": "isolation",
+  "builtin-leg-press-calf-raise": "isolation",
+  "builtin-walking-lunge": "knee_dominant",
+  "builtin-reverse-lunge": "knee_dominant",
+  "builtin-step-up": "knee_dominant",
+  "builtin-single-leg-press": "knee_dominant",
+  "builtin-smith-split-squat": "knee_dominant",
+  "builtin-t-bar-row": "horizontal_pull",
+  "builtin-one-arm-dumbbell-row": "horizontal_pull",
+  "builtin-straight-arm-pulldown": "vertical_pull",
+  "builtin-face-pull": "horizontal_pull",
+  "builtin-machine-pullover": "vertical_pull",
+  "builtin-standard-push-up": "horizontal_push",
+  "builtin-decline-machine-chest-press": "horizontal_push",
+  "builtin-arnold-press": "vertical_push",
+  "builtin-hammer-curl": "isolation",
+  "builtin-rope-hammer-curl": "isolation",
+  "builtin-skull-crusher": "isolation",
+  "builtin-assisted-dip": "vertical_push",
+  "builtin-ab-crunch-machine": "core",
+  "builtin-hanging-knee-raise": "core",
+  "builtin-dead-bug": "core",
+  "builtin-reverse-crunch": "core",
 };
 
 // The major compound patterns that should appear across a balanced week.
@@ -328,6 +380,33 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   // Tier 2 — coachable, slightly more technical.
   "builtin-smith-machine-squat": 2,
   "builtin-cable-lateral-raise": 2,
+  // Library expansion #2 (25 net-new): Tier 1 — stable machines/cables/bodyweight core.
+  "builtin-adductor-machine": 1,
+  "builtin-abductor-machine": 1,
+  "builtin-seated-calf-raise": 1,
+  "builtin-leg-press-calf-raise": 1,
+  "builtin-straight-arm-pulldown": 1,
+  "builtin-face-pull": 1,
+  "builtin-machine-pullover": 1,
+  "builtin-decline-machine-chest-press": 1,
+  "builtin-rope-hammer-curl": 1,
+  "builtin-ab-crunch-machine": 1,
+  "builtin-dead-bug": 1,
+  "builtin-reverse-crunch": 1,
+  // Tier 2 — coachable, slightly more technical (unilateral, free-weight or bodyweight).
+  "builtin-walking-lunge": 2,
+  "builtin-reverse-lunge": 2,
+  "builtin-step-up": 2,
+  "builtin-single-leg-press": 2,
+  "builtin-smith-split-squat": 2,
+  "builtin-t-bar-row": 2,
+  "builtin-one-arm-dumbbell-row": 2,
+  "builtin-standard-push-up": 2,
+  "builtin-arnold-press": 2,
+  "builtin-hammer-curl": 2,
+  "builtin-skull-crusher": 2,
+  "builtin-assisted-dip": 2,
+  "builtin-hanging-knee-raise": 2,
 };
 
 // Exact libraryId lookup — never name-based guessing. Unknown/custom exercises
@@ -348,10 +427,12 @@ export function difficultyTierFor(exercise: { id?: string; libraryId?: string })
 export const BEGINNER_ALTERNATIVES: Record<string, string[]> = {
   "builtin-pull-up": ["builtin-assisted-pull-up", "builtin-neutral-grip-lat-pulldown", "builtin-lat-pulldown"],
   "builtin-back-squat": ["builtin-hack-squat", "builtin-smith-machine-squat", "builtin-goblet-squat", "builtin-leg-press"],
-  "builtin-bulgarian-split-squat": ["builtin-hack-squat", "builtin-goblet-squat", "builtin-leg-press"],
+  // The same unilateral pattern with a stable Smith track as the second option.
+  "builtin-bulgarian-split-squat": ["builtin-hack-squat", "builtin-smith-split-squat", "builtin-goblet-squat", "builtin-leg-press"],
   "builtin-romanian-deadlift": ["builtin-cable-pull-through", "builtin-seated-leg-curl", "builtin-lying-leg-curl", "builtin-glute-bridge", "builtin-hip-thrust-machine"],
   "builtin-hip-thrust": ["builtin-hip-thrust-machine"],
-  "builtin-barbell-row": ["builtin-machine-row", "builtin-one-arm-cable-row", "builtin-chest-supported-row", "builtin-seated-cable-row"],
+  // The supported T-bar row as a middle step toward the free-weight barbell row.
+  "builtin-barbell-row": ["builtin-machine-row", "builtin-t-bar-row", "builtin-one-arm-cable-row", "builtin-chest-supported-row", "builtin-seated-cable-row"],
   "builtin-barbell-bench-press": ["builtin-incline-machine-chest-press", "builtin-machine-chest-press", "builtin-dumbbell-bench-press"],
   "builtin-overhead-press": ["builtin-machine-shoulder-press", "builtin-seated-dumbbell-shoulder-press"],
 };
@@ -368,5 +449,5 @@ export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: stri
   return null;
 }
 
-export const exerciseMuscleGroups = ["All", "Chest", "Back", "Quadriceps", "Hamstrings", "Glutes", "Calves", "Shoulders", "Biceps", "Triceps", "Core", "Full body", "Other"];
+export const exerciseMuscleGroups = ["All", "Chest", "Back", "Quadriceps", "Hamstrings", "Glutes", "Calves", "Adductors", "Abductors", "Shoulders", "Biceps", "Triceps", "Core", "Full body", "Other"];
 export const exerciseEquipment = ["All", "Barbell", "Dumbbells", "Cable", "Machine", "Bodyweight", "Other"];

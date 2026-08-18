@@ -22,6 +22,7 @@ import {
 } from "../../lib/ai-programme";
 import { askOllamaJson, coachAiModelFor, coachAiProviderFor, generateCoachDraft, getOllamaStatus, OLLAMA_MODEL } from "../../lib/local-ai";
 import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
+import type { ClientFitContext } from "../../lib/exercise-intelligence";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
 type Mode = "first" | "adapt" | "adjust";
@@ -56,6 +57,9 @@ function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): str
   }
   if (profile.recentTraining.completedWorkouts > 0) {
     lines.push(`Recent training: ${profile.recentTraining.completedWorkouts} completed workout${profile.recentTraining.completedWorkouts === 1 ? "" : "s"}${profile.recentTraining.latestCompletedAt ? `, latest ${new Date(profile.recentTraining.latestCompletedAt).toLocaleDateString("en-CA")}` : ""}${profile.recentTraining.skippedWorkouts ? `, ${profile.recentTraining.skippedWorkouts} skipped` : ""}`);
+    if (profile.recentTraining.exposedMuscles.length) {
+      lines.push(`Recent muscle exposure: ${profile.recentTraining.exposedMuscles.join(", ")} (from the most recent completed session — prioritise other muscle groups unless the coach explicitly requests these)`);
+    }
   } else {
     lines.push("Recent training: none completed — insufficient data for progression-based adaptation");
   }
@@ -163,6 +167,7 @@ function finalizeDraft(base: ProgrammeDraft, opts: {
   equipment: string | null;
   experience: string | null | undefined;
   expectedSessionNames: string[] | undefined;
+  clientFitContext: ClientFitContext | null;
 }) {
   const validation = validateDraft(base, opts.requestedSessions);
   const rehydrated = rehydrateDraft(base);
@@ -173,6 +178,7 @@ function finalizeDraft(base: ProgrammeDraft, opts: {
     equipment: opts.equipment,
     experience: opts.experience ?? null,
     expectedSessionNames: opts.expectedSessionNames,
+    clientFitContext: opts.clientFitContext,
   });
   return { validation, rehydrated, estimated, duration, quality };
 }
@@ -211,7 +217,7 @@ export async function POST(request: Request) {
     db.select().from(programmes)
       .where(and(eq(programmes.clientId, clientId), eq(programmes.ownerId, ownerId)))
       .orderBy(desc(programmes.createdAt)).limit(12),
-    db.select({ status: workoutSessions.status, startedBy: workoutSessions.startedBy, completedAt: workoutSessions.completedAt })
+    db.select({ status: workoutSessions.status, startedBy: workoutSessions.startedBy, completedAt: workoutSessions.completedAt, exercises: workoutSessions.exercises })
       .from(workoutSessions)
       .where(and(eq(workoutSessions.clientId, clientId), eq(workoutSessions.ownerId, ownerId)))
       .orderBy(desc(workoutSessions.completedAt)).limit(200),
@@ -372,12 +378,29 @@ export async function POST(request: Request) {
         );
 
   // Validate, rehydrate and score against the library (deterministic pipeline).
+  // Deterministic client-fit context for the quality engine: goal, experience,
+  // equipment, target duration, reported limitations, the coach's avoid list
+  // and the most recent muscle exposure. Advisory only — REVIEW RECOMMENDED,
+  // never a block.
+  const clientFitContext: ClientFitContext = {
+    goal,
+    experience: profile.training.experience,
+    equipment: equipment ?? profile.training.equipment,
+    sessionDurationMinutes: targetDuration,
+    sessionsPerWeek: requestedSessions,
+    limitations: profile.readiness.considerations || null,
+    limitationsReviewed: profile.readiness.coachReviewed,
+    avoidExercises: avoid || null,
+    recentMuscles: profile.recentTraining.exposedMuscles,
+    recentIds: profile.recentTraining.exposedIds,
+  };
   const finalizeOptions = {
     requestedSessions,
     targetDuration,
     equipment,
     experience: profile.training.experience,
     expectedSessionNames: expectedSessionNames.length ? expectedSessionNames : undefined,
+    clientFitContext,
   };
   let result = finalizeDraft(base, finalizeOptions);
 

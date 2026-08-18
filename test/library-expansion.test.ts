@@ -1,12 +1,12 @@
 /**
- * Library-expansion invariants (34 → 53 built-ins).
+ * Library-expansion invariants (34 → 53 → 78 built-ins).
  *
- * The 20 delivered images map to 19 net-new catalogue entries: seated-leg-curl
- * was already registered (builtin-seated-leg-curl) and stays untouched, so the
- * canonical library is 53, not 54. Every new exercise must be fully integrated:
- * EN/FR/AR metadata, movement classification, beginner tier, local genuine-WebP
- * image, alternative-map reachability, AI catalogue exposure, fallback
- * selection and rehydration by stable libraryId.
+ * The 20 delivered images mapped to 19 net-new entries (seated-leg-curl already
+ * existed), taking the library to 53; a further 25 images are all net-new,
+ * taking it to 78. Every new exercise must be fully integrated: EN/FR/AR
+ * metadata, movement classification, beginner tier, local genuine-WebP image,
+ * alternative-map reachability, AI catalogue exposure, fallback selection and
+ * rehydration by stable libraryId.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -35,6 +35,7 @@ import { beginnerSuitability } from "../app/lib/programme-quality.ts";
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const NEW_IDS = [
+  // Expansion #1 (19 net-new).
   "builtin-hack-squat",
   "builtin-leg-extension",
   "builtin-lying-leg-curl",
@@ -54,6 +55,32 @@ const NEW_IDS = [
   "builtin-rope-overhead-triceps-extension",
   "builtin-pallof-press",
   "builtin-cable-lateral-raise",
+  // Expansion #2 (25 net-new).
+  "builtin-adductor-machine",
+  "builtin-abductor-machine",
+  "builtin-seated-calf-raise",
+  "builtin-leg-press-calf-raise",
+  "builtin-walking-lunge",
+  "builtin-reverse-lunge",
+  "builtin-step-up",
+  "builtin-single-leg-press",
+  "builtin-smith-split-squat",
+  "builtin-t-bar-row",
+  "builtin-one-arm-dumbbell-row",
+  "builtin-straight-arm-pulldown",
+  "builtin-face-pull",
+  "builtin-machine-pullover",
+  "builtin-standard-push-up",
+  "builtin-decline-machine-chest-press",
+  "builtin-arnold-press",
+  "builtin-hammer-curl",
+  "builtin-rope-hammer-curl",
+  "builtin-skull-crusher",
+  "builtin-assisted-dip",
+  "builtin-ab-crunch-machine",
+  "builtin-hanging-knee-raise",
+  "builtin-dead-bug",
+  "builtin-reverse-crunch",
 ];
 
 // The 34 pre-expansion canonical ids — a snapshot guard: any drift below means
@@ -103,9 +130,9 @@ function isGenuineWebP(buffer: Buffer): boolean {
 
 // ---------- Catalogue invariants ----------
 
-test("catalogue count is 53 (34 + 19 net-new, seated-leg-curl already existed)", () => {
-  assert.equal(builtInExercises.length, 53);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 53, "duplicate id");
+test("catalogue count is 78 (34 + 19 net-new + 25 net-new, seated-leg-curl already existed)", () => {
+  assert.equal(builtInExercises.length, 78);
+  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 78, "duplicate id");
 });
 
 test("all previous 34 canonical ids are present and unchanged", () => {
@@ -117,12 +144,12 @@ test("all previous 34 canonical ids are present and unchanged", () => {
   assert.equal(builtInExercises.filter((exercise) => exercise.id === "builtin-seated-leg-curl").length, 1);
 });
 
-test("all 53 normalized English names are unique", () => {
+test("all 78 normalized English names are unique", () => {
   const normalized = builtInExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate normalized EN name");
 });
 
-test("every built-in has EN/FR/AR, movement classification and a beginner tier (53/53)", () => {
+test("every built-in has EN/FR/AR, movement classification and a beginner tier (78/78)", () => {
   for (const exercise of builtInExercises) {
     assert.ok(exercise.name.trim(), `missing EN name for ${exercise.id}`);
     assert.ok(exercise.nameFr.trim(), `missing FR name for ${exercise.name}`);
@@ -133,7 +160,7 @@ test("every built-in has EN/FR/AR, movement classification and a beginner tier (
   }
 });
 
-test("image coverage invariant — every built-in resolves to an existing local genuine WebP (53/53)", () => {
+test("image coverage invariant — every built-in resolves to an existing local genuine WebP (78/78)", () => {
   for (const exercise of builtInExercises) {
     const slug = exercise.id.slice("builtin-".length);
     assert.ok(exercise.imageUrl.startsWith("/exercises/"), `${exercise.id} image path prefix`);
@@ -144,7 +171,7 @@ test("image coverage invariant — every built-in resolves to an existing local 
   }
 });
 
-test("all 19 new ids resolve with full metadata and rehydrate by libraryId", () => {
+test("all 44 new ids resolve with full metadata and rehydrate by libraryId", () => {
   for (const id of NEW_IDS) {
     const exercise = builtInExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);

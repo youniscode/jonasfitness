@@ -114,6 +114,32 @@ const EXPECTED_TIERS: Array<[string, 1 | 2 | 3]> = [
   ["builtin-rope-overhead-triceps-extension", 1],
   ["builtin-pallof-press", 1],
   ["builtin-cable-lateral-raise", 2],
+  // Library expansion #2 (25 net-new).
+  ["builtin-adductor-machine", 1],
+  ["builtin-abductor-machine", 1],
+  ["builtin-seated-calf-raise", 1],
+  ["builtin-leg-press-calf-raise", 1],
+  ["builtin-walking-lunge", 2],
+  ["builtin-reverse-lunge", 2],
+  ["builtin-step-up", 2],
+  ["builtin-single-leg-press", 2],
+  ["builtin-smith-split-squat", 2],
+  ["builtin-t-bar-row", 2],
+  ["builtin-one-arm-dumbbell-row", 2],
+  ["builtin-straight-arm-pulldown", 1],
+  ["builtin-face-pull", 1],
+  ["builtin-machine-pullover", 1],
+  ["builtin-standard-push-up", 2],
+  ["builtin-decline-machine-chest-press", 1],
+  ["builtin-arnold-press", 2],
+  ["builtin-hammer-curl", 2],
+  ["builtin-rope-hammer-curl", 1],
+  ["builtin-skull-crusher", 2],
+  ["builtin-assisted-dip", 2],
+  ["builtin-ab-crunch-machine", 1],
+  ["builtin-hanging-knee-raise", 2],
+  ["builtin-dead-bug", 1],
+  ["builtin-reverse-crunch", 1],
 ];
 
 test("every built-in exercise is tier-classified (no gaps)", () => {
@@ -178,10 +204,10 @@ test("tier classification matches the intended coaching tiers", () => {
   for (const [id, tier] of EXPECTED_TIERS) {
     assert.equal(difficultyTierFor({ libraryId: id }), tier, id);
   }
-  // The catalogue must have exactly 53 built-ins — the audit table above is the
+  // The catalogue must have exactly 78 built-ins — the audit table above is the
   // complete classification, so a drift here means a new exercise was added
   // without a tier.
-  assert.equal(builtInExercises.length, 53);
+  assert.equal(builtInExercises.length, 78);
 });
 
 test("difficultyTierFor is exact — unknown ids and missing ids return null", () => {
