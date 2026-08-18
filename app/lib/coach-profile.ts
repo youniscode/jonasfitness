@@ -24,6 +24,8 @@ export type CoachingProfile = {
   goals: {
     primary: string;
     detail: string;
+    /** Secondary objectives (from a multi-goal application + onboarding lifestyle goals). */
+    secondary: string[];
   };
   training: {
     experience: string;
@@ -170,6 +172,9 @@ export function buildClientCoachingProfile(
     goals: {
       primary: client.goal,
       detail: trimmed(intake?.goalsDetail),
+      // Secondary objectives stay softer context — the primary goal remains the
+      // programme-design driver; these only inform accessory/rep structure.
+      secondary: survey.goals.secondary,
     },
     training: {
       experience: trimmed(intake?.trainingExperience),

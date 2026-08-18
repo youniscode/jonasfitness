@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { builtInExercises } from "../app/lib/exercise-catalogue.ts";
 import {
+  appGoalToCanonical,
+  applyGoalSelection,
   compactInitialPreferenceSummary,
   emptyProfile,
   initialPreferenceContextFrom,
   onboardingPreferenceConflictNotes,
+  parseLeadSecondaryGoals,
   profileFromLead,
   representativeExercises,
   sanitizeProfile,
@@ -40,6 +43,86 @@ test("a non-canonical lead goal is preserved as a note, never faked", () => {
   const profile = profileFromLead({ goal: "Run a marathon" });
   assert.equal(profile.goals.primary, "");
   assert.equal(profile.goals.note, "Run a marathon");
+});
+
+test("legacy application goal values map onto canonical onboarding values", () => {
+  assert.equal(appGoalToCanonical("Build strength"), "Get stronger");
+  assert.equal(appGoalToCanonical("Fat loss"), "Lose body fat");
+  assert.equal(appGoalToCanonical("General fitness"), "Improve fitness");
+  assert.equal(appGoalToCanonical("Build muscle"), "Build muscle");
+  assert.equal(appGoalToCanonical("Run a marathon"), "");
+  assert.equal(appGoalToCanonical(""), "");
+});
+
+test("a legacy single-goal lead prefills primary and stays compatible", () => {
+  const profile = profileFromLead({ goal: "Build strength", experience: "Beginner", trainingDays: 3, coachingFormat: "Online" });
+  assert.equal(profile.goals.primary, "Get stronger");
+  assert.deepEqual(profile.goals.secondary, []);
+  assert.deepEqual(profile.prefillSource, ["goal", "experience", "frequency", "format"]);
+});
+
+test("lead secondary objectives transfer into profile.goals.secondary", () => {
+  const profile = profileFromLead({
+    goal: "Build muscle",
+    secondaryGoals: ["Get stronger", "Improve fitness"],
+    experience: "Beginner",
+    trainingDays: 3,
+    coachingFormat: "Online",
+  });
+  assert.equal(profile.goals.primary, "Build muscle");
+  assert.deepEqual(profile.goals.secondary, ["Get stronger", "Improve fitness"]);
+  assert.ok(profile.prefillSource.includes("goal"));
+});
+
+test("lead secondary objectives are canonicalized, deduped and never repeat the primary", () => {
+  const profile = profileFromLead({
+    goal: "Build muscle",
+    secondaryGoals: ["Fat loss", "Build muscle", "General fitness", "Build strength", "Build strength"],
+  });
+  assert.equal(profile.goals.primary, "Build muscle");
+  assert.deepEqual(profile.goals.secondary, ["Lose body fat", "Improve fitness", "Get stronger"]);
+});
+
+test("prefilled goals survive sanitization (secondary objectives kept)", () => {
+  const prefilled = profileFromLead({ goal: "Build muscle", secondaryGoals: ["Get stronger", "Improve fitness"] });
+  const cleaned = sanitizeProfile(JSON.parse(JSON.stringify(prefilled)));
+  assert.equal(cleaned.goals.primary, "Build muscle");
+  assert.deepEqual(cleaned.goals.secondary, ["Get stronger", "Improve fitness"]);
+});
+
+test("parseLeadSecondaryGoals is safe with missing, malformed or junk values", () => {
+  assert.deepEqual(parseLeadSecondaryGoals(""), []);
+  assert.deepEqual(parseLeadSecondaryGoals("not json"), []);
+  assert.deepEqual(parseLeadSecondaryGoals(null), []);
+  assert.deepEqual(parseLeadSecondaryGoals(JSON.stringify(["Get stronger", "junk", 42, "Fat loss"])), ["Get stronger", "Lose body fat"]);
+  assert.deepEqual(parseLeadSecondaryGoals(JSON.stringify(["Build muscle", "Build muscle"]), "Build muscle"), []);
+  assert.deepEqual(parseLeadSecondaryGoals(JSON.stringify(["Get stronger", "Improve fitness", "Return to training", "Improve general health", "Lose body fat", "Build muscle"])).length, 5);
+});
+
+// ---------- Multi-goal selection rules (application Step 1) ----------
+
+test("first selected goal becomes primary, later selections become secondary", () => {
+  let state = applyGoalSelection({ primary: "", secondary: [] }, "Build muscle");
+  assert.deepEqual(state, { primary: "Build muscle", secondary: [] });
+  state = applyGoalSelection(state, "Get stronger");
+  assert.deepEqual(state, { primary: "Build muscle", secondary: ["Get stronger"] });
+  state = applyGoalSelection(state, "Improve fitness");
+  assert.deepEqual(state, { primary: "Build muscle", secondary: ["Get stronger", "Improve fitness"] });
+});
+
+test("deselecting a secondary goal removes it cleanly", () => {
+  const state = applyGoalSelection({ primary: "Build muscle", secondary: ["Get stronger", "Improve fitness"] }, "Get stronger");
+  assert.deepEqual(state, { primary: "Build muscle", secondary: ["Improve fitness"] });
+});
+
+test("deselecting the primary promotes the earliest secondary deterministically", () => {
+  const state = applyGoalSelection({ primary: "Build muscle", secondary: ["Get stronger", "Improve fitness"] }, "Build muscle");
+  assert.deepEqual(state, { primary: "Get stronger", secondary: ["Improve fitness"] });
+});
+
+test("deselecting the only goal leaves no primary (at least one required for Continue)", () => {
+  const state = applyGoalSelection({ primary: "Build muscle", secondary: [] }, "Build muscle");
+  assert.deepEqual(state, { primary: "", secondary: [] });
 });
 
 test("online coaching is NOT conflated with a home-gym venue", () => {

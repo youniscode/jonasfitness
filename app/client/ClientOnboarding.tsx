@@ -22,7 +22,7 @@ import {
   NUTRITION_TRACKING,
   PRIMARY_GOALS,
   RECOVERY_LEVELS,
-  SECONDARY_GOALS,
+  SECONDARY_GOAL_VALUES,
   SESSION_DURATIONS,
   SLEEP_HOURS,
   STEP_COUNTS,
@@ -254,7 +254,10 @@ function StepContent({ step, profile, update, t }: { step: StepKey; profile: Onb
         <h3>{t.qPrimary}{fromAppTag("goal")}</h3>
         <SingleSelect options={PRIMARY_GOALS} value={profile.goals.primary} onChange={(value) => update((draft) => { draft.goals.primary = value; })} />
         <h3>{t.qSecondary}</h3>
-        <MultiSelect options={SECONDARY_GOALS} values={profile.goals.secondary} onChange={(next) => update((draft) => { draft.goals.secondary = next; })} />
+        {/* SECONDARY_GOAL_VALUES (lifestyle + objective goals) so secondary
+            objectives carried from a multi-goal application render preselected
+            and are never dropped when the client edits this step. */}
+        <MultiSelect options={SECONDARY_GOAL_VALUES} values={profile.goals.secondary} onChange={(next) => update((draft) => { draft.goals.secondary = next; })} />
         <Note label={t.noteGoal} value={profile.goals.note} onChange={(value) => update((draft) => { draft.goals.note = value; })} />
       </div>;
     case "timeline":

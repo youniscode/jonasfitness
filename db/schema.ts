@@ -49,6 +49,10 @@ export const leads = pgTable("leads", {
   phone: text("phone").notNull().default(""),
   country: text("country").notNull().default(""),
   goal: text("goal").notNull().default("General fitness"),
+  // Extra objectives from the multi-goal application wizard: JSON array of
+  // canonical goal values (lead.goal stays the PRIMARY objective). "[]" when
+  // the prospect selected only one goal. Kept structured, never comma-crammed.
+  secondaryGoals: text("secondary_goals").notNull().default("[]"),
   experience: text("experience").notNull().default(""),
   trainingDays: integer("training_days").notNull().default(3),
   coachingFormat: text("coaching_format").notNull().default("Online"),

@@ -1,4 +1,19 @@
 import { safeSource, safeText, type Attribution } from "./attribution.ts";
+import { appGoalToCanonical } from "./onboarding-profile.ts";
+
+// Secondary objectives from the multi-goal application: validated against the
+// canonical APP_GOALS vocabulary, deduplicated, never repeating the primary
+// goal, capped at 5. Junk entries are dropped — free text is never persisted.
+export function applicationSecondaryGoals(value: unknown, primaryGoal: string): string[] {
+  if (!Array.isArray(value)) return [];
+  const goals: string[] = [];
+  for (const entry of value) {
+    const canonical = appGoalToCanonical(entry);
+    if (canonical && canonical !== primaryGoal && !goals.includes(canonical)) goals.push(canonical);
+    if (goals.length >= 5) break;
+  }
+  return goals;
+}
 
 // Canonical lead status vocabulary. "client" (not "converted") is the state a
 // lead reaches once it has been converted into a real client row.
@@ -34,12 +49,16 @@ export function applicationValues(body: Record<string, unknown>) {
   const language = safeText(body.preferredLanguage, 2);
   const contactPreference = safeText(body.contactPreference, 20);
   const coachingFormat = safeText(body.coachingFormat, 30);
+  // The primary objective is canonicalized (legacy aliases map onto APP_GOALS);
+  // extra objectives are validated below against the same vocabulary.
+  const goal = appGoalToCanonical(safeText(body.goal, 80)) || "Improve fitness";
   return {
     name: safeText(body.name, 100),
     email: safeText(body.email, 180).toLowerCase(),
     phone: safeText(body.phone, 40),
     country: safeText(body.country, 80),
-    goal: safeText(body.goal, 80) || "General fitness",
+    goal,
+    secondaryGoals: applicationSecondaryGoals(body.secondaryGoals, goal),
     experience: safeText(body.experience, 80),
     trainingDays: Math.min(7, Math.max(1, Number(body.trainingDays) || 3)),
     coachingFormat: formats.has(coachingFormat) ? coachingFormat : "Online",

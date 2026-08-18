@@ -94,7 +94,36 @@ test("applicationValues truncates excessive lengths and clamps ranges", () => {
   assert.equal(values.coachingFormat, "Online");
   assert.equal(values.contactPreference, "WhatsApp");
   assert.equal(values.preferredLanguage, "fr");
-  assert.equal(values.goal, "General fitness");
+  // The goal default is the canonical onboarding value ("General fitness" was
+  // a legacy app label; canonical is "Improve fitness").
+  assert.equal(values.goal, "Improve fitness");
+});
+
+test("applicationValues canonicalizes the primary goal and keeps it in lead.goal", () => {
+  const values = applicationValues({ goal: "Build strength", consent: true });
+  assert.equal(values.goal, "Get stronger");
+  const canonical = applicationValues({ goal: "Build muscle" });
+  assert.equal(canonical.goal, "Build muscle");
+});
+
+test("applicationValues accepts and canonicalizes secondary objectives", () => {
+  const values = applicationValues({
+    goal: "Build muscle",
+    secondaryGoals: ["Get stronger", "Fat loss", "General fitness", "junk", "Get stronger"],
+  });
+  assert.deepEqual(values.secondaryGoals, ["Get stronger", "Lose body fat", "Improve fitness"]);
+});
+
+test("applicationValues drops secondaries that repeat the primary or are not arrays", () => {
+  const values = applicationValues({ goal: "Build muscle", secondaryGoals: ["Build muscle", "Fat loss"] });
+  assert.deepEqual(values.secondaryGoals, ["Lose body fat"]);
+  assert.deepEqual(applicationValues({ goal: "Build muscle" }).secondaryGoals, []);
+  assert.deepEqual(applicationValues({ goal: "Build muscle", secondaryGoals: "Build strength" }).secondaryGoals, []);
+});
+
+test("applicationSecondaryGoals caps at five entries", () => {
+  const values = applicationValues({ goal: "Build muscle", secondaryGoals: ["Get stronger", "Improve fitness", "Return to training", "Improve general health", "Fat loss", "Other"] });
+  assert.equal(values.secondaryGoals.length, 5);
 });
 
 test("malformed attribution source is normalized to Other", () => {

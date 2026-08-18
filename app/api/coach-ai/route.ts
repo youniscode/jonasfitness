@@ -65,6 +65,9 @@ function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): str
   const lines = [
     `Preferred language: ${profile.client.preferredLanguage ?? "not set"}`,
     `Primary goal: ${profile.goals.primary}`,
+    // Secondary objectives are softer context only — they must never override
+    // the primary goal, which remains the programme-design driver.
+    ...(profile.goals.secondary.length ? [`Secondary goals: ${profile.goals.secondary.join(", ")} (supporting context only — primary goal stays the design priority)`] : []),
     `Goal detail: ${profile.goals.detail || "not provided"}`,
     `Experience: ${profile.training.experience || "not provided"}`,
     `Sessions per week: ${profile.training.sessionsPerWeek}`,

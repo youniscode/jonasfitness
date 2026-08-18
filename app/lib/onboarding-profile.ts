@@ -27,6 +27,27 @@ import { builtInExerciseFor } from "./exercise-catalogue.ts";
 
 export const PRIMARY_GOALS = ["Build muscle", "Lose body fat", "Get stronger", "Improve fitness", "Improve body composition", "Return to training", "Improve general health", "Performance/sport", "Other"] as const;
 export const SECONDARY_GOALS = ["Confidence", "Energy", "Routine", "Mobility", "Posture", "Endurance", "Technique", "Other"] as const;
+// Canonical objective vocabulary of the public application (shorter than
+// PRIMARY_GOALS for conversion). Every value is a canonical PRIMARY_GOALS value,
+// so `lead.goal` stays canonical and maps 1:1 into the onboarding profile.
+export const APP_GOALS = ["Build muscle", "Lose body fat", "Get stronger", "Improve fitness", "Return to training", "Improve general health", "Other"] as const;
+// Persisted values allowed for profile.goals.secondary: the onboarding survey's
+// lifestyle secondary goals PLUS the objective goals (a multi-goal application
+// carries extra objectives — e.g. "Get stronger" — as secondary goals). The
+// survey chip list stays SECONDARY_GOALS; this broader set only widens what the
+// profile may store and display.
+export const SECONDARY_GOAL_VALUES = [...new Set([...SECONDARY_GOALS, ...PRIMARY_GOALS])];
+// Legacy application values (stored before the canonical vocabulary was adopted)
+// mapped onto canonical APP_GOALS values — never a duplicate vocabulary.
+const APP_GOAL_ALIASES: Record<string, string> = {
+  "Build strength": "Get stronger",
+  "Fat loss": "Lose body fat",
+  "General fitness": "Improve fitness",
+};
+export function appGoalToCanonical(value: unknown): string {
+  const goal = text(value, 80);
+  return APP_GOAL_ALIASES[goal] ?? ((APP_GOALS as readonly string[]).includes(goal) ? goal : "");
+}
 export const TARGET_DATES = ["No specific date", "In 1–3 months", "In 3–6 months", "In 6–12 months", "Specific event/date"] as const;
 export const EXPERIENCE_LEVELS = ["Never trained", "Beginner", "Some experience", "Regular lifter", "Advanced"] as const;
 export const EXPERIENCE_YEARS = ["Never", "Less than 6 months", "6–12 months", "1–3 years", "3–5 years", "5+ years"] as const;
@@ -133,7 +154,10 @@ export function sanitizeProfile(input: unknown): OnboardingProfile {
   const source = record(input);
   const profile = emptyProfile();
   profile.goals.primary = oneOf(record(source.goals).primary, PRIMARY_GOALS);
-  profile.goals.secondary = manyOf(record(source.goals).secondary, SECONDARY_GOALS);
+  // Secondary goals accept the survey's lifestyle vocabulary AND objective goals
+  // (carried from a multi-goal application), so prefilled objectives survive
+  // re-save instead of being dropped by sanitization.
+  profile.goals.secondary = manyOf(record(source.goals).secondary, SECONDARY_GOAL_VALUES);
   profile.goals.note = text(record(source.goals).note, 500);
   const timeline = record(source.timeline);
   profile.timeline.targetDate = oneOf(timeline.targetDate, TARGET_DATES);
@@ -358,10 +382,55 @@ export function leadExperienceToLevel(value: string): string {
 
 export type LeadPrefill = {
   goal?: string;
+  /** Extra objectives selected in the application (first = primary, rest = secondary). */
+  secondaryGoals?: string[];
   experience?: string;
   trainingDays?: number;
   coachingFormat?: string;
 };
+
+// Multi-goal selection rules for the application Step 1 (pure, tested):
+//   - the first selected goal becomes PRIMARY
+//   - later selections become SECONDARY
+//   - tapping the PRIMARY deselects it and deterministically promotes the
+//     earliest remaining secondary
+//   - tapping a SECONDARY removes it
+// The result always keeps the primary first in semantics; secondary order
+// preserves selection order (earliest secondary is the promotion candidate).
+export function applyGoalSelection(
+  current: { primary: string; secondary: string[] },
+  tapped: string,
+): { primary: string; secondary: string[] } {
+  if (current.primary === tapped) {
+    const [promoted, ...rest] = current.secondary;
+    return { primary: promoted ?? "", secondary: rest };
+  }
+  if (current.secondary.includes(tapped)) {
+    return { primary: current.primary, secondary: current.secondary.filter((goal) => goal !== tapped) };
+  }
+  if (!current.primary) return { primary: tapped, secondary: current.secondary };
+  return { primary: current.primary, secondary: [...current.secondary, tapped] };
+}
+
+// Safely parses the stored `leads.secondary_goals` JSON array and canonicalizes
+// every value (legacy aliases included). Unknown/junk entries are dropped;
+// duplicates collapse; the primary goal is never repeated as a secondary;
+// capped at 5 so a stored value can never grow unbounded.
+export function parseLeadSecondaryGoals(value: unknown, primaryGoal = ""): string[] {
+  let parsed: unknown[] = [];
+  if (typeof value === "string") {
+    try { parsed = JSON.parse(value); } catch { parsed = []; }
+  } else if (Array.isArray(value)) {
+    parsed = value;
+  }
+  const goals: string[] = [];
+  for (const entry of parsed) {
+    const canonical = appGoalToCanonical(entry);
+    if (canonical && canonical !== primaryGoal && !goals.includes(canonical)) goals.push(canonical);
+    if (goals.length >= 5) break;
+  }
+  return goals;
+}
 
 /**
  * Seeds an onboarding profile from a converted lead's structured application
@@ -376,15 +445,23 @@ export type LeadPrefill = {
  */
 export function profileFromLead(lead: LeadPrefill): OnboardingProfile {
   const profile = emptyProfile();
-  const goal = text(lead.goal, 80);
+  // Canonicalize first (legacy application values like "Build strength" map to
+  // "Get stronger"); an unrecognized goal is still kept as a note, never faked.
+  const rawGoal = text(lead.goal, 80);
+  const goal = appGoalToCanonical(rawGoal);
   if ((PRIMARY_GOALS as readonly string[]).includes(goal)) {
     profile.goals.primary = goal;
     profile.prefillSource.push("goal");
-  } else if (goal) {
+  } else if (rawGoal) {
     // A non-canonical goal still matters: keep it as an explicit goal note so
     // the coach sees it, without faking a canonical answer.
-    profile.goals.note = goal;
+    profile.goals.note = rawGoal;
     profile.prefillSource.push("goal");
+  }
+  const secondaryGoals = parseLeadSecondaryGoals(lead.secondaryGoals, goal);
+  if (secondaryGoals.length) {
+    profile.goals.secondary = secondaryGoals;
+    if (!profile.prefillSource.includes("goal")) profile.prefillSource.push("goal");
   }
   const level = leadExperienceToLevel(text(lead.experience, 80));
   if (level) {

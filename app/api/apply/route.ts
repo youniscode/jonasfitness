@@ -73,6 +73,7 @@ export async function POST(request: Request) {
         phone: values.phone,
         country: values.country,
         goal: values.goal,
+        secondaryGoals: JSON.stringify(values.secondaryGoals),
         experience: values.experience,
         trainingDays: values.trainingDays,
         coachingFormat: values.coachingFormat,

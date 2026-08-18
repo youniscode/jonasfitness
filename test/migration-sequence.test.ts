@@ -27,12 +27,23 @@ test("journal entries are monotonically increasing with matching SQL files", () 
   }
 });
 
-test("the latest migration is additive-only and matches the onboarding profile column", () => {
-  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
-  const latest = journal.entries[journal.entries.length - 1];
-  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+test("the onboarding profile migration (0007) is additive-only and adds only the profile column", () => {
+  const sql = readFileSync(join(DRIZZLE, "0007_amused_pride.sql"), "utf8");
   // The onboarding V2 migration must ONLY add the client_intakes.profile column.
   assert.match(sql, /ALTER TABLE "client_intakes" ADD COLUMN "profile" text DEFAULT '\{\}' NOT NULL/);
+  assert.doesNotMatch(sql, /\bDROP\b/i, "DROP is not allowed");
+  assert.doesNotMatch(sql, /\bDELETE\b/i, "DELETE is not allowed");
+  assert.doesNotMatch(sql, /\bTRUNCATE\b/i, "TRUNCATE is not allowed");
+  assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
+});
+
+test("the latest migration (0008) is additive-only and adds only the leads secondary_goals column", () => {
+  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
+  const latest = journal.entries[journal.entries.length - 1];
+  assert.equal(latest.tag, "0008_daily_steve_rogers");
+  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+  // The multi-goal application migration must ONLY add the leads.secondary_goals column.
+  assert.match(sql, /ALTER TABLE "leads" ADD COLUMN "secondary_goals" text DEFAULT '\[\]' NOT NULL/);
   // No destructive or unrelated operations anywhere in the latest migration.
   assert.doesNotMatch(sql, /\bDROP\b/i, "DROP is not allowed");
   assert.doesNotMatch(sql, /\bDELETE\b/i, "DELETE is not allowed");

@@ -3,7 +3,7 @@ import { getCoachId } from "../../../../clerk-auth";
 import { isUniqueViolation, normaliseClientEmail } from "../../../../lib/client-email";
 import { onboardingState } from "../../../../lib/client-onboarding";
 import { planConversion } from "../../../../lib/leads";
-import { profileFromLead, type OnboardingProfile } from "../../../../lib/onboarding-profile";
+import { parseLeadSecondaryGoals, profileFromLead, type OnboardingProfile } from "../../../../lib/onboarding-profile";
 import { getDb } from "../../../../../db";
 import { clientIntakes, clients, leadActivities, leads } from "../../../../../db/schema";
 
@@ -90,6 +90,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!existingIntake) {
     const prefill = profileFromLead({
       goal: lead.goal,
+      secondaryGoals: parseLeadSecondaryGoals(lead.secondaryGoals),
       experience: lead.experience,
       trainingDays: lead.trainingDays,
       coachingFormat: lead.coachingFormat,
@@ -124,6 +125,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   // request created it) so the coach immediately sees the next required item.
   const clientWithOnboarding = withOnboarding(client, existingIntake ? null : profileFromLead({
     goal: lead.goal,
+    secondaryGoals: parseLeadSecondaryGoals(lead.secondaryGoals),
     experience: lead.experience,
     trainingDays: lead.trainingDays,
     coachingFormat: lead.coachingFormat,
