@@ -87,6 +87,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [goalSecondary, setGoalSecondary] = useState<string[]>([]);
   const [goalSource, setGoalSource] = useState<"onboarding" | "draft">("onboarding");
   const [goalBaseline, setGoalBaseline] = useState<{ primary: string; secondary: string[] } | null>(null);
+  // Secondary-objective editor: the default view shows only the selected
+  // objectives as compact tags; editing opens the full canonical list as
+  // toggleable chips. Purely presentational — generation semantics unchanged.
+  const [secondaryEdit, setSecondaryEdit] = useState(false);
   const seededGoalsRef = useRef(false);
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
@@ -115,6 +119,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setGoalSecondary([]);
       setGoalSource("onboarding");
       setGoalBaseline(null);
+      setSecondaryEdit(false);
       seededGoalsRef.current = false;
       setSessionsOverride("");
       setEquipmentPreset("auto");
@@ -292,10 +297,21 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
                 </select>
               </label>
               <div className="jonas-secondary-goals">
-                <span className="jonas-secondary-label">Secondary objectives</span>
-                <div className="jonas-goal-chips">
-                  {secondaryOptions.map((option) => <button key={option} type="button" className={`jonas-goal-chip ${goalSecondary.includes(option) ? "selected" : ""}`} onClick={() => toggleSecondary(option)}>{option}{goalSecondary.includes(option) ? " ✓" : ""}</button>)}
+                <div className="jonas-secondary-head">
+                  <span className="jonas-secondary-label">Secondary objectives</span>
+                  <button type="button" className="jonas-secondary-edit" aria-expanded={secondaryEdit} onClick={() => setSecondaryEdit((open) => !open)}>{secondaryEdit ? "Done" : "Edit secondary objectives"}</button>
                 </div>
+                {secondaryEdit ? (
+                  <div className="jonas-goal-chips">
+                    {secondaryOptions.map((option) => <button key={option} type="button" className={`jonas-goal-chip ${goalSecondary.includes(option) ? "selected" : ""}`} onClick={() => toggleSecondary(option)}>{option}{goalSecondary.includes(option) ? " ✓" : ""}</button>)}
+                  </div>
+                ) : goalSecondary.length === 0 ? (
+                  <span className="jonas-secondary-empty">No secondary objectives</span>
+                ) : (
+                  <div className="jonas-goal-chips">
+                    {goalSecondary.map((option) => <span key={option} className="jonas-goal-tag">{option} ✓</span>)}
+                  </div>
+                )}
               </div>
             </div>
             <div className="jonas-controls-pair">
