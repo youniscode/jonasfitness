@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -238,6 +239,39 @@ function isGenuineWebP(buffer: Buffer): boolean {
     && buffer.toString("ascii", 8, 12) === "WEBP";
 }
 
+// Parses the canonical width/height straight from the WebP container header,
+// so tests never depend on a native image decoder. Handles the three chunk
+// layouts (VP8 lossy, VP8L lossless, VP8X extended).
+function webpDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (!isGenuineWebP(buffer)) return null;
+  const chunk = buffer.toString("ascii", 12, 16);
+  if (chunk === "VP8 ") {
+    // Key-frame header: 3-byte start code at offset 20, then 4 bytes holding
+    // the 14-bit width and height (little-endian).
+    const width = (buffer[26] | ((buffer[27] & 0x3f) << 8)) & 0x3fff;
+    const height = (buffer[28] | ((buffer[29] & 0x3f) << 8)) & 0x3fff;
+    return { width, height };
+  }
+  if (chunk === "VP8L") {
+    // 0x2f signature at offset 20, then 4 bytes encoding (width - 1) and
+    // (height - 1) as 14 bits each.
+    const b1 = buffer[21];
+    const b2 = buffer[22];
+    const b3 = buffer[23];
+    const b4 = buffer[24];
+    const width = (b1 | ((b2 & 0x3f) << 8)) + 1;
+    const height = (((b2 >> 6) | (b3 << 2) | ((b4 & 0x0f) << 10))) + 1;
+    return { width, height };
+  }
+  if (chunk === "VP8X") {
+    // Canvas size (minus 1) as three little-endian bytes each.
+    const width = 1 + (buffer[24] | (buffer[25] << 8) | (buffer[26] << 16));
+    const height = 1 + (buffer[27] | (buffer[28] << 8) | (buffer[29] << 16));
+    return { width, height };
+  }
+  return null;
+}
+
 test("all 78 built-ins have non-empty imageUrl under /exercises/", () => {
   assert.equal(builtInExercises.length, 78);
   for (const item of builtInExercises) {
@@ -260,6 +294,28 @@ test("all 78 referenced files are genuine WebP (RIFF…WEBP)", () => {
     const buffer = readFileSync(imageAssetPath(slug));
     assert.ok(isGenuineWebP(buffer), `${slug} is not a genuine WebP file`);
   }
+});
+
+test("all 78 referenced images are canonical 1448×1086 (4:3)", () => {
+  for (const item of builtInExercises) {
+    const slug = item.id.slice("builtin-".length);
+    const dimensions = webpDimensions(readFileSync(imageAssetPath(slug)));
+    assert.ok(dimensions, `${slug} has an unrecognised WebP header`);
+    assert.equal(dimensions?.width, 1448, `${slug} width is not 1448`);
+    assert.equal(dimensions?.height, 1086, `${slug} height is not 1086`);
+  }
+});
+
+test("no two distinct built-ins share identical image content", () => {
+  const byHash = new Map<string, string>();
+  for (const item of builtInExercises) {
+    const slug = item.id.slice("builtin-".length);
+    const hash = createHash("sha256").update(readFileSync(imageAssetPath(slug))).digest("hex");
+    const other = byHash.get(hash);
+    assert.equal(other, undefined, `${item.name} duplicates the image of ${other ?? "?"} (${hash})`);
+    byHash.set(hash, item.name);
+  }
+  assert.equal(byHash.size, builtInExercises.length, "expected one distinct image per built-in");
 });
 
 test("imageUrl propagates through programme helpers for every built-in", () => {
