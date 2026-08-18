@@ -14,6 +14,7 @@ import {
 } from "./exercise-catalogue.ts";
 import { clientFitWarnings, type ClientFitContext } from "./exercise-intelligence.ts";
 import { preferenceFitWarnings } from "./exercise-preference.ts";
+import { feedbackFitWarnings } from "./exercise-feedback.ts";
 import {
   durationState,
   estimateProgrammeDurationMinutes,
@@ -290,6 +291,15 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   // scoring (authoritative); strongly learned negative patterns surface a
   // substitution suggestion as REVIEW RECOMMENDED, never a schema error.
   const preferenceWarnings = preferenceFitWarnings(draft, options.clientFitContext?.preferenceContext ?? null);
+  // V2.1: client feedback fit — discomfort and repeated dislike surface
+  // REVIEW RECOMMENDED; "too easy" is a progression note (not a poor-fit
+  // failure); a coach-vs-client conflict is surfaced explicitly. Never a
+  // schema error, never a medical claim.
+  const feedbackWarnings = feedbackFitWarnings(
+    draft,
+    options.clientFitContext?.feedbackContext ?? null,
+    options.clientFitContext?.preferenceContext ?? null,
+  );
 
   const checks: ProgrammeQualityCheck[] = [];
   const frequencyOk = draft.sessions.length === draft.sessionsPerWeek;
@@ -306,6 +316,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   checks.push({ key: "redundancy", label: "No major redundancy", ok: redundancyWarnings.length === 0, message: redundancyWarnings[0] });
   checks.push({ key: "clientFit", label: "Client exercise fit", ok: fitWarnings.length === 0, message: fitWarnings[0] });
   checks.push({ key: "clientPreferenceFit", label: "Client preference fit", ok: preferenceWarnings.length === 0, message: preferenceWarnings[0] });
+  checks.push({ key: "clientFeedbackFit", label: "Client feedback fit", ok: feedbackWarnings.length === 0, message: feedbackWarnings[0] });
   checks.push({ key: "progression", label: "Progression defined", ok: Boolean(draft.progressionStrategy && draft.progressionStrategy.trim()) });
 
   let splitOk = true;
@@ -324,6 +335,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
     ...redundancyWarnings,
     ...fitWarnings,
     ...preferenceWarnings,
+    ...feedbackWarnings,
     ...(equipmentOk ? [] : ["Equipment not specified — confirm access before approval."]),
   ];
   const state = checks.every((check) => check.ok) ? "ready" : "review";

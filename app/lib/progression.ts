@@ -1,5 +1,6 @@
 import { formatProgrammeExercise, programmeExercise, type ProgrammeExercise } from "./programme-builder";
 import { isCompletedWorkoutSet, type WorkoutExercise } from "./workouts";
+import { progressionFeedbackNote, type ClientFeedbackContext } from "./exercise-feedback";
 
 export type ProgressionWorkout = {
   id: number;
@@ -93,7 +94,7 @@ function reasonFor(action: ProgressionSuggestion["action"], averageReps: number,
   return `Performance stayed inside the ${bounds.low}–${bounds.high} range near target RIR ${targetRir}. Keep the same load.`;
 }
 
-export function buildProgressionSuggestions(contentValue: string | Record<string, unknown>, workouts: ProgressionWorkout[]) {
+export function buildProgressionSuggestions(contentValue: string | Record<string, unknown>, workouts: ProgressionWorkout[], feedbackContext?: ClientFeedbackContext | null) {
   let content: Record<string, unknown>;
   try { content = typeof contentValue === "string" ? asRecord(JSON.parse(contentValue)) : contentValue; } catch { return []; }
   const ordered = [...workouts].sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime());
@@ -123,6 +124,11 @@ export function buildProgressionSuggestions(contentValue: string | Record<string
     const increment = loadIncrement(exercise);
     const proposedWeight = round(Math.max(increment, performedWeight + (action === "increase" ? increment : action === "decrease" ? -increment : 0)), 1);
     const completedAt = latest.workout.completedAt ? new Date(latest.workout.completedAt).toISOString() : new Date().toISOString();
+    // V2.1: client feedback is an additional, advisory signal — it never changes
+    // the load by itself (reps/RIR/completion still drive the engine) but it may
+    // add a caution/context note to the suggestion.
+    const feedbackNote = progressionFeedbackNote(feedbackContext?.profile?.[exercise.libraryId]);
+    const reason = feedbackNote ? `${reasonFor(action, averageReps, averageRir, bounds, exercise.rir)} ${feedbackNote}` : reasonFor(action, averageReps, averageRir, bounds, exercise.rir);
     const suggestion: ProgressionSuggestion = {
       id: `${latest.workout.id}:${exercise.id || `${sessionIndex}-${exerciseIndex}`}`,
       workoutId: latest.workout.id,
@@ -141,7 +147,7 @@ export function buildProgressionSuggestions(contentValue: string | Record<string
       averageRir: round(averageRir),
       repRange: exercise.reps,
       targetRir: exercise.rir,
-      reason: reasonFor(action, averageReps, averageRir, bounds, exercise.rir),
+      reason,
       confidence: appearances.length >= 2 && completed.length >= 3 ? "high" : appearances.length >= 2 || completed.length >= 3 ? "moderate" : "baseline",
     };
     return [suggestion];

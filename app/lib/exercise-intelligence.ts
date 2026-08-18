@@ -30,6 +30,12 @@ import {
   preferenceExplanationLines,
   type ClientPreferenceContext,
 } from "./exercise-preference.ts";
+import {
+  clientFeedbackImpact,
+  feedbackConflictNote,
+  feedbackExplanationLines,
+  type ClientFeedbackContext,
+} from "./exercise-feedback.ts";
 
 // ---------- Canonical muscle groups (shared vocabulary) ----------
 
@@ -893,6 +899,14 @@ export type ClientFitContext = {
    * override equipment incompatibility or validation.
    */
   preferenceContext?: ClientPreferenceContext | null;
+  /**
+   * Exercise Intelligence V2.1 — the client's own structured exercise feedback
+   * (liked/disliked, comfort, difficulty, confidence). A separate signal from
+   * coach preference and from health/limitation data: it nudges scores modestly
+   * and can surface a coach-review concern, but NEVER excludes an exercise and
+   * NEVER turns "uncomfortable" into a diagnosis.
+   */
+  feedbackContext?: ClientFeedbackContext | null;
 };
 
 export type ExerciseFitResult = {
@@ -1126,6 +1140,24 @@ export function scoreExerciseForClient(
     } else if (delta < 0) {
       score += delta;
       concerns.push("has a negative learned preference from prior coaching actions.");
+    }
+  }
+
+  // ---- V2.1: client exercise feedback (separate from coach preference) ----
+  // Feedback is the client's own report: liked/confident nudge up, dislike/
+  // low-confidence nudge down, discomfort surfaces coach-review. It NEVER
+  // excludes — explicit coach avoid and authoritative validation stay the only
+  // exclusions. It is deliberately applied AFTER coach preference so the
+  // priority hierarchy (coach > feedback > generic fit) is explicit.
+  const feedbackProfile = id ? context?.feedbackContext?.profile?.[id] : undefined;
+  if (feedbackProfile) {
+    const feedback = clientFeedbackImpact(feedbackProfile);
+    score += feedback.delta;
+    for (const positive of feedback.positives) {
+      if (!positives.includes(positive)) positives.push(positive);
+    }
+    for (const concern of feedback.concerns) {
+      if (!concerns.includes(concern)) concerns.push(concern);
     }
   }
 
@@ -1402,6 +1434,16 @@ function watchForFrom(
     for (const line of preferenceExplanationLines(context?.preferenceContext, exerciseId).watchFor) {
       if (!watch.includes(line)) watch.push(line);
     }
+    // V2.1: client feedback watch points (factual — discomfort surfaces
+    // coach review, never a diagnosis or an exclusion).
+    const feedbackProfile = context?.feedbackContext?.profile?.[exerciseId];
+    for (const line of feedbackExplanationLines(feedbackProfile).watchFor) {
+      if (!watch.includes(line)) watch.push(line);
+    }
+    const conflict = feedbackConflictNote(context?.preferenceContext, feedbackProfile, exerciseId);
+    if (conflict.kind === "conflict" && conflict.text && !watch.includes(conflict.text)) {
+      watch.push(conflict.text);
+    }
   }
   return watch.slice(0, 3);
 }
@@ -1437,6 +1479,16 @@ export function explainExerciseForClient(
   if (exerciseId) {
     for (const line of preferenceExplanationLines(context?.preferenceContext, exerciseId).why) {
       push(line.priority, "preference", line.text);
+    }
+    // V2.1: client feedback reasons (separate from coach preference) and the
+    // explicit coach-vs-client conflict/alignment note.
+    const feedbackProfile = context?.feedbackContext?.profile?.[exerciseId];
+    for (const line of feedbackExplanationLines(feedbackProfile).why) {
+      push(line.priority, "feedback", line.text);
+    }
+    const conflict = feedbackConflictNote(context?.preferenceContext, feedbackProfile, exerciseId);
+    if (conflict.kind === "aligned" && conflict.text) {
+      push(95, "feedback-aligned", conflict.text);
     }
   }
   push(94, "experience", experienceReason(intel, context));

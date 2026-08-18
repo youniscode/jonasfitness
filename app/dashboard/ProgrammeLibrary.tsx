@@ -22,6 +22,7 @@ import {
   type ProgrammeExercise,
 } from "../lib/programme-builder";
 import { compareProgrammeFrequency } from "../lib/workouts";
+import type { ClientFeedbackRow, FeedbackExerciseProfile } from "../lib/exercise-feedback";
 import ExerciseVisual from "../components/ExerciseVisual";
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
@@ -185,12 +186,19 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   const [preferenceRows, setPreferenceRows] = useState<PreferenceRow[]>([]);
   const [replacementRows, setReplacementRows] = useState<ReplacementRow[]>([]);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  // Exercise Intelligence V2.1 — the client's own structured exercise feedback
+  // (liked/disliked, comfort, difficulty, confidence). Kept visually separate
+  // from coach preferences; comments stay coach-facing only.
+  const [feedbackProfile, setFeedbackProfile] = useState<Record<string, FeedbackExerciseProfile>>({});
+  const [feedbackHistory, setFeedbackHistory] = useState<Record<string, ClientFeedbackRow[]>>({});
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Selected-client context for the "Why this exercise?" panel: the goal and
   // frequency available on the selected client. Advisory coaching reasons only.
   const clientFitContext: ClientFitContext = {
     goal: client.goal,
     sessionsPerWeek: client.sessionsPerWeek,
+    feedbackContext: { profile: feedbackProfile, history: feedbackHistory },
   };
 
   const loadPreferences = useCallback(async () => {
@@ -247,6 +255,26 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     if (response.ok) void loadPreferences();
   }
 
+  const loadFeedback = useCallback(async () => {
+    if (client.id < 1) { setFeedbackProfile({}); setFeedbackHistory({}); return; }
+    const response = await fetch(`/api/client-exercise-feedback?clientId=${client.id}`);
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setFeedbackProfile(payload.profile ?? {});
+      setFeedbackHistory(payload.history ?? {});
+    }
+  }, [client.id]);
+
+  async function resetFeedback(action: "reset-exercise" | "delete", exerciseId: string, feedbackId?: number) {
+    if (client.id < 1) return;
+    const response = await fetch("/api/client-exercise-feedback", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(feedbackId ? { clientId: client.id, action: "delete", feedbackId } : { clientId: client.id, action, exerciseId }),
+    });
+    if (response.ok) void loadFeedback();
+  }
+
   const preferenceName = (exerciseId: string) => builtInExerciseFor(exerciseId, null)?.name ?? library.find((exercise) => exercise.id === exerciseId)?.name ?? exerciseId;
 
   const loadProgrammes = useCallback(async () => {
@@ -285,9 +313,9 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     return () => window.clearTimeout(timer);
   }, [loadProgrammes]);
   useEffect(() => {
-    const timer = window.setTimeout(() => { void loadPreferences(); }, 0);
+    const timer = window.setTimeout(() => { void loadPreferences(); void loadFeedback(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadPreferences]);
+  }, [loadPreferences, loadFeedback]);
   useEffect(() => {
     const refresh = (event: Event) => {
       const clientId = (event as CustomEvent<{ clientId?: number }>).detail?.clientId;
@@ -545,6 +573,26 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
             <div className="preference-summary-list"><h4>Explicit — Avoid</h4>{avoided.length === 0 ? <span className="preference-empty">None set.</span> : avoided.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
             <div className="preference-summary-list"><h4>Learned patterns</h4>{replacementRows.length === 0 ? <span className="preference-empty">None yet.</span> : replacementRows.map((row) => <div key={`${row.fromExerciseId}->${row.toExerciseId}`}><span>{preferenceName(row.fromExerciseId)} → {preferenceName(row.toExerciseId)} <b>×{row.count}</b></span><button type="button" onClick={() => void resetReplacementPattern(row.fromExerciseId, row.toExerciseId)}>Reset</button></div>)}</div>
             <div className="preference-summary-list"><h4>Learned signals</h4>{learned.length === 0 ? <span className="preference-empty">None yet.</span> : learned.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)} <small>{[row.approvedCount ? `approved ×${row.approvedCount}` : "", row.manualAddCount ? `added ×${row.manualAddCount}` : "", row.manualRemoveCount ? `removed ×${row.manualRemoveCount}` : "", row.replacementOutCount ? `replaced ×${row.replacementOutCount}` : "", row.replacementInCount ? `kept as replacement ×${row.replacementInCount}` : ""].filter(Boolean).join(" · ")}</small></span><button type="button" onClick={() => void resetPreference("reset-learned", row.exerciseId)}>Reset</button></div>)}</div>
+          </div>
+        </div>}
+      </div>;
+    })()}
+    {(() => {
+      const entries = Object.entries(feedbackProfile);
+      const positive = entries.filter(([, profile]) => profile.sentimentScore > 0 || profile.recentConfidence === "confident");
+      const review = entries.filter(([, profile]) => profile.recentComfort === "uncomfortable" || profile.discomfortCount >= 2 || profile.dislikeCount >= 2 || profile.notConfidentCount >= 2);
+      const difficulty = entries.filter(([, profile]) => profile.recentDifficulty === "too_easy" || profile.recentDifficulty === "too_hard");
+      const signalLabel = (profile: FeedbackExerciseProfile) => [profile.likeCount ? `liked ×${profile.likeCount}` : "", profile.dislikeCount ? `disliked ×${profile.dislikeCount}` : "", profile.discomfortCount ? `uncomfortable ×${profile.discomfortCount}` : "", profile.notConfidentCount ? `low confidence ×${profile.notConfidentCount}` : ""].filter(Boolean).join(" · ");
+      const historyLabel = (row: ClientFeedbackRow) => [row.sentiment, row.comfort, row.difficulty, row.confidence].filter(Boolean).map((value) => String(value).replace(/_/g, " ")).join(" · ") || "noted";
+      return <div className="feedback-summary">
+        <button type="button" className="preference-summary-toggle" onClick={() => setFeedbackOpen((value) => !value)} aria-expanded={feedbackOpen}><span>CLIENT EXERCISE FEEDBACK</span><em>{entries.length ? `${entries.length} exercise${entries.length === 1 ? "" : "s"} with feedback` : "No feedback yet"}</em><b>{feedbackOpen ? "−" : "+"}</b></button>
+        {feedbackOpen && <div className="preference-summary-body">
+          <p className="preference-summary-note">The <b>client’s own</b> reports — kept separate from coach preferences. Comments are coach-facing only and never sent to the AI. Feedback never restricts the coach.</p>
+          <div className="preference-summary-columns">
+            <div className="preference-summary-list"><h4>Positive</h4>{positive.length === 0 ? <span className="preference-empty">None yet.</span> : positive.map(([exerciseId, profile]) => <div key={exerciseId}><span>{preferenceName(exerciseId)} <small>{signalLabel(profile)}</small></span><button type="button" onClick={() => void resetFeedback("reset-exercise", exerciseId)}>Reset</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Review</h4>{review.length === 0 ? <span className="preference-empty">None yet.</span> : review.map(([exerciseId, profile]) => <div key={exerciseId}><span>{preferenceName(exerciseId)} <small>{signalLabel(profile)}</small></span><button type="button" onClick={() => void resetFeedback("reset-exercise", exerciseId)}>Reset</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Difficulty</h4>{difficulty.length === 0 ? <span className="preference-empty">None yet.</span> : difficulty.map(([exerciseId, profile]) => <div key={exerciseId}><span>{preferenceName(exerciseId)} <small>{profile.recentDifficulty === "too_easy" ? "latest: too easy" : "latest: too hard"}</small></span><button type="button" onClick={() => void resetFeedback("reset-exercise", exerciseId)}>Reset</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Recent history</h4>{entries.length === 0 ? <span className="preference-empty">None yet.</span> : entries.map(([exerciseId]) => (feedbackHistory[exerciseId] ?? []).slice(0, 3).map((row) => <div key={row.id}><span>{preferenceName(exerciseId)} <small>{new Date(row.createdAt).toLocaleDateString()} · {historyLabel(row)}{row.comment ? ` · “${row.comment}”` : ""}</small></span><button type="button" onClick={() => void resetFeedback("delete", exerciseId, row.id)}>Delete</button></div>))}</div>
           </div>
         </div>}
       </div>;

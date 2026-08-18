@@ -1,9 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { applyProgressionSuggestion, buildProgressionSuggestions } from "../../lib/progression";
+import { buildClientExerciseFeedbackProfile, type ClientFeedbackRow } from "../../lib/exercise-feedback";
 import { parseExercises } from "../../lib/workouts";
 import { getDb } from "../../../db";
-import { clients, programmes, workoutSessions } from "../../../db/schema";
+import { clients, clientExerciseFeedback, programmes, workoutSessions } from "../../../db/schema";
 
 function clientIdFrom(request: Request, body?: Record<string, unknown>) {
   const value = body?.clientId ?? new URL(request.url).searchParams.get("clientId");
@@ -29,7 +30,25 @@ async function progressionContext(ownerId: string, clientId: number) {
     eq(workoutSessions.status, "completed"),
   )).orderBy(desc(workoutSessions.completedAt)).limit(60);
   const workouts = rows.map((workout) => ({ ...workout, exercises: parseExercises(workout.exercises) }));
-  return { client, programme, workouts, suggestions: buildProgressionSuggestions(programme.content, workouts) };
+  // V2.1: client exercise feedback is an advisory note on progression — loaded
+  // once per client (never per exercise) and aggregated in memory.
+  const feedbackRows = await db.select().from(clientExerciseFeedback).where(and(
+    eq(clientExerciseFeedback.ownerId, ownerId),
+    eq(clientExerciseFeedback.clientId, clientId),
+  )).orderBy(desc(clientExerciseFeedback.createdAt)).limit(200);
+  const feedbackContext = buildClientExerciseFeedbackProfile(feedbackRows.map((row): ClientFeedbackRow => ({
+    id: row.id,
+    clientId: row.clientId,
+    exerciseId: row.exerciseId,
+    sentiment: row.sentiment as ClientFeedbackRow["sentiment"],
+    comfort: row.comfort as ClientFeedbackRow["comfort"],
+    difficulty: row.difficulty as ClientFeedbackRow["difficulty"],
+    confidence: row.confidence as ClientFeedbackRow["confidence"],
+    comment: row.comment,
+    source: row.source,
+    createdAt: row.createdAt.toISOString(),
+  })));
+  return { client, programme, workouts, suggestions: buildProgressionSuggestions(programme.content, workouts, feedbackContext) };
 }
 
 export async function GET(request: Request) {

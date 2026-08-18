@@ -344,6 +344,39 @@ export const clientExerciseEvents = pgTable("client_exercise_events", {
   uniqueIndex("client_exercise_events_owner_key_unique").on(table.ownerId, table.operationKey),
 ]);
 
+// Exercise Intelligence V2.1 — structured client exercise feedback. Append-only
+// history (never collapsed into one mutable row) so a client's experience across
+// sessions stays visible: liked today, too hard last week, confident later.
+// Feedback is a coaching signal, kept strictly separate from coach preference
+// (client_exercise_preferences) and from health/limitation/pain information
+// (the session Pulse flags). "Uncomfortable" is coaching feedback only — never
+// a diagnosis, never an automatic exclusion. Each dimension is optional so a
+// client may send a single signal (e.g. just sentiment). `operationKey` makes a
+// retried submission idempotent; the unique (owner, client, operationKey) guard
+// means the same UI action can never create a duplicate row. The coach remains
+// the final authority — feedback never writes the preference tables.
+export const clientExerciseFeedback = pgTable("client_exercise_feedback", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  exerciseId: text("exercise_id").notNull(),
+  workoutSessionId: integer("workout_session_id").references(() => workoutSessions.id, { onDelete: "set null" }),
+  programmeId: integer("programme_id").references(() => programmes.id, { onDelete: "set null" }),
+  sentiment: text("sentiment"),
+  comfort: text("comfort"),
+  difficulty: text("difficulty"),
+  confidence: text("confidence"),
+  comment: text("comment").notNull().default(""),
+  source: text("source").notNull().default("client_portal"),
+  operationKey: text("operation_key").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("client_exercise_feedback_owner_client_idx").on(table.ownerId, table.clientId),
+  index("client_exercise_feedback_client_exercise_idx").on(table.clientId, table.exerciseId, table.createdAt),
+  uniqueIndex("client_exercise_feedback_owner_client_key_unique").on(table.ownerId, table.clientId, table.operationKey),
+]);
+
 export const communicationLogs = pgTable("communication_logs", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),

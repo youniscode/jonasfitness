@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { getDb } from "../../../db";
-import { clients, clientExercisePreferences, clientExerciseReplacements, clientIntakes, programmes, progressEntries, workoutSessions } from "../../../db/schema";
+import { clients, clientExerciseFeedback, clientExercisePreferences, clientExerciseReplacements, clientIntakes, programmes, progressEntries, workoutSessions } from "../../../db/schema";
 import { buildClientCoachingProfile, coachGenerationBlocked } from "../../lib/coach-profile";
 import {
   adjustmentSatisfiesMaterial,
@@ -23,6 +23,7 @@ import {
 import { askOllamaJson, coachAiModelFor, coachAiProviderFor, generateCoachDraft, getOllamaStatus, OLLAMA_MODEL } from "../../lib/local-ai";
 import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
 import { compactPreferenceSummary, preferenceContextFrom } from "../../lib/exercise-preference";
+import { buildClientExerciseFeedbackProfile, compactFeedbackSummary, type ClientFeedbackRow } from "../../lib/exercise-feedback";
 import type { ClientFitContext } from "../../lib/exercise-intelligence";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
@@ -214,7 +215,7 @@ export async function POST(request: Request) {
 
   const [intake] = await db.select().from(clientIntakes)
     .where(and(eq(clientIntakes.clientId, clientId), eq(clientIntakes.ownerId, ownerId))).limit(1);
-  const [programmeRows, workoutRows, progressRows, preferenceRows, replacementRows] = await Promise.all([
+  const [programmeRows, workoutRows, progressRows, preferenceRows, replacementRows, feedbackRows] = await Promise.all([
     db.select().from(programmes)
       .where(and(eq(programmes.clientId, clientId), eq(programmes.ownerId, ownerId)))
       .orderBy(desc(programmes.createdAt)).limit(12),
@@ -230,6 +231,9 @@ export async function POST(request: Request) {
       .where(and(eq(clientExercisePreferences.clientId, clientId), eq(clientExercisePreferences.ownerId, ownerId))),
     db.select().from(clientExerciseReplacements)
       .where(and(eq(clientExerciseReplacements.clientId, clientId), eq(clientExerciseReplacements.ownerId, ownerId))),
+    db.select().from(clientExerciseFeedback)
+      .where(and(eq(clientExerciseFeedback.clientId, clientId), eq(clientExerciseFeedback.ownerId, ownerId)))
+      .orderBy(desc(clientExerciseFeedback.createdAt)).limit(200),
   ]);
 
   const profile = buildClientCoachingProfile(client, intake ?? null, programmeRows, workoutRows, progressRows);
@@ -338,6 +342,24 @@ export async function POST(request: Request) {
   const preferenceSummary = compactPreferenceSummary(preferenceRowsMapped, replacementRowsMapped);
   const preferenceContext = preferenceContextFrom(preferenceRowsMapped, replacementRowsMapped);
 
+  // V2.1: compact client feedback context (exercise names + counts only). Raw
+  // comment text is never sent; comments stay coach-facing. The AI treats this
+  // as client-reported coaching feedback — never a medical restriction.
+  const feedbackRowsMapped = feedbackRows.map((row): ClientFeedbackRow => ({
+    id: row.id,
+    clientId: row.clientId,
+    exerciseId: row.exerciseId,
+    sentiment: row.sentiment as ClientFeedbackRow["sentiment"],
+    comfort: row.comfort as ClientFeedbackRow["comfort"],
+    difficulty: row.difficulty as ClientFeedbackRow["difficulty"],
+    confidence: row.confidence as ClientFeedbackRow["confidence"],
+    comment: row.comment,
+    source: row.source,
+    createdAt: row.createdAt.toISOString(),
+  }));
+  const feedbackContext = buildClientExerciseFeedbackProfile(feedbackRowsMapped);
+  const feedbackSummary = compactFeedbackSummary(feedbackContext);
+
   const userPrompt = [
     context,
     "",
@@ -345,6 +367,7 @@ export async function POST(request: Request) {
     equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
     avoid ? `Avoid these exercises/movements: ${avoid}.` : "",
     preferenceSummary,
+    feedbackSummary,
     modePrompt,
     "",
     blueprintBlock,
@@ -431,6 +454,7 @@ export async function POST(request: Request) {
     recentMuscles: profile.recentTraining.exposedMuscles,
     recentIds: profile.recentTraining.exposedIds,
     preferenceContext,
+    feedbackContext,
   };
   const finalizeOptions = {
     requestedSessions,
