@@ -36,6 +36,7 @@ import {
   feedbackExplanationLines,
   type ClientFeedbackContext,
 } from "./exercise-feedback.ts";
+import type { InitialPreferenceContext } from "./onboarding-profile.ts";
 
 // ---------- Canonical muscle groups (shared vocabulary) ----------
 
@@ -907,7 +908,19 @@ export type ClientFitContext = {
    * NEVER turns "uncomfortable" into a diagnosis.
    */
   feedbackContext?: ClientFeedbackContext | null;
+  /**
+   * Initial client exercise preferences reported during onboarding (pre-training
+   * preference/familiarity, CLIENT-originated — never coach preference). The
+   * weakest personalization signal: a modest nudge only, applied AFTER coach
+   * preference and post-workout feedback, never an exclusion, and it never
+   * overrides coach explicit preference or equipment/validation gates.
+   * "Not sure"/neutral always have zero effect.
+   */
+  initialPreferenceContext?: InitialPreferenceContext | null;
 };
+
+export const ONBOARDING_LIKE_BONUS = 3;
+export const ONBOARDING_DISLIKE_PENALTY = 3;
 
 export type ExerciseFitResult = {
   /** 0–100, higher = better fit. 0 means explicitly excluded. */
@@ -1158,6 +1171,36 @@ export function scoreExerciseForClient(
     }
     for (const concern of feedback.concerns) {
       if (!concerns.includes(concern)) concerns.push(concern);
+    }
+  }
+
+  // ---- Initial onboarding client preferences (weakest signal, applied last) ----
+  // Client-reported pre-training preference: a modest nudge only, deliberately
+  // weaker than coach preference and post-workout feedback (actual repeated
+  // experience outweighs an old onboarding like). It NEVER excludes, NEVER
+  // overrides coach explicit preference or equipment/validation gates, and
+  // "Not sure"/neutral always have zero effect.
+  const initialPrefs = context?.initialPreferenceContext;
+  if (id && initialPrefs) {
+    let delta = 0;
+    if (initialPrefs.disliked.includes(id)) delta -= ONBOARDING_DISLIKE_PENALTY;
+    else if (initialPrefs.liked.includes(id)) delta += ONBOARDING_LIKE_BONUS;
+    if (delta > 0) {
+      // A positive onboarding like never overrides equipment incompatibility
+      // (same policy as learned signals — the client's equipment is factual).
+      const equipmentPenalized = equip.homeLike
+        ? !(intel.modality === "bodyweight" || intel.modality === "dumbbell")
+        : equip.dumbbellsOnly
+          ? !(intel.modality === "dumbbell" || intel.modality === "bodyweight")
+          : false;
+      if (equipmentPenalized) delta = 0;
+    }
+    if (delta > 0) {
+      score += delta;
+      positives.push("Client indicated during onboarding that they like this exercise.");
+    } else if (delta < 0) {
+      score += delta;
+      concerns.push("client indicated during onboarding they would prefer another exercise.");
     }
   }
 
@@ -1422,6 +1465,22 @@ function watchForFrom(
       if (!watch.includes(line)) watch.push(line);
     }
   }
+  // Initial onboarding client preference — client-specific and ranked ahead of
+  // generic caution labels (factual wording, never "coach prefers" and never
+  // "client cannot do this exercise").
+  const exerciseId = exercise?.libraryId ?? exercise?.id;
+  const initialPrefs = context?.initialPreferenceContext;
+  if (exerciseId && initialPrefs) {
+    if (initialPrefs.disliked.includes(exerciseId)) {
+      const line = "Client indicated during onboarding that they would prefer another exercise.";
+      if (!watch.includes(line)) watch.push(line);
+    }
+    const coachExplicit = context?.preferenceContext?.explicit?.[exerciseId];
+    if (coachExplicit === "preferred" && initialPrefs.disliked.includes(exerciseId)) {
+      const line = "Coach preference and initial client preference conflict — review.";
+      if (!watch.includes(line)) watch.push(line);
+    }
+  }
   for (const tag of intel.cautionTags) {
     const label = CAUTION_LABEL[tag];
     if (label && !watch.some((line) => line.includes(label))) {
@@ -1429,7 +1488,6 @@ function watchForFrom(
     }
   }
   // V2: learned preference watch points (factual — never a medical claim).
-  const exerciseId = exercise?.libraryId ?? exercise?.id;
   if (exerciseId) {
     for (const line of preferenceExplanationLines(context?.preferenceContext, exerciseId).watchFor) {
       if (!watch.includes(line)) watch.push(line);
@@ -1489,6 +1547,11 @@ export function explainExerciseForClient(
     const conflict = feedbackConflictNote(context?.preferenceContext, feedbackProfile, exerciseId);
     if (conflict.kind === "aligned" && conflict.text) {
       push(95, "feedback-aligned", conflict.text);
+    }
+    // Initial onboarding client preference — weakest reason tier (below coach
+    // preference and post-workout feedback), client-reported wording only.
+    if (context?.initialPreferenceContext?.liked.includes(exerciseId)) {
+      push(88, "initial-preference", "Client indicated during onboarding that they like this exercise.");
     }
   }
   push(94, "experience", experienceReason(intel, context));

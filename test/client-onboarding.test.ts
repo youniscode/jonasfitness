@@ -7,6 +7,7 @@ import {
   type OnboardingIntake,
 } from "../app/lib/client-onboarding.ts";
 import { publicIntake } from "../app/lib/client-dto.ts";
+import { emptyProfile, type OnboardingProfile } from "../app/lib/onboarding-profile.ts";
 
 // ---------- Fixtures ----------
 
@@ -18,17 +19,42 @@ function intake(overrides: Partial<OnboardingIntake> = {}): OnboardingIntake {
   return {
     preferredLanguage: "fr",
     trainingExperience: "Intermediate",
-    availability: "Mon/Wed evenings",
+    availability: "Mon/Wed evenings, 45–60 min",
     equipment: "Full gym",
     goalsDetail: "Add lean mass and strength",
+    // Legacy flat rows cannot express a structured "none" answer, so the check
+    // defaults to incomplete until the client (or coach) confirms the status.
     trainingConsiderations: "",
     readinessReviewedAt: null,
     ...overrides,
   };
 }
 
-function check(id: string, clientRow = client, intakeRow = intake(), hasProgramme = false) {
-  return onboardingChecks(clientRow, intakeRow, hasProgramme).find((item) => item.id === id);
+// A fully-answered structured profile (the V2 path the client survey produces).
+function structuredProfile(overrides: Partial<OnboardingProfile> = {}): OnboardingProfile {
+  const base = emptyProfile();
+  base.goals.primary = "Build muscle";
+  base.experience.level = "Some experience";
+  base.schedule.daysPerWeek = 3;
+  base.schedule.duration = "45–60 min";
+  base.location.venue = "Full commercial gym";
+  base.limitations.status = "none";
+  return { ...base, ...overrides };
+}
+
+function profile(overrides: Partial<OnboardingProfile> = {}): OnboardingProfile {
+  const base = emptyProfile();
+  base.goals.primary = "Build muscle";
+  base.experience.level = "Some experience";
+  base.schedule.daysPerWeek = 3;
+  base.schedule.duration = "45–60 min";
+  base.location.venue = "Full commercial gym";
+  base.limitations.status = "none";
+  return { ...base, ...overrides };
+}
+
+function check(id: string, clientRow = client, intakeRow = intake(), hasProgramme = false, structured: OnboardingProfile | null = null) {
+  return onboardingChecks(clientRow, intakeRow, hasProgramme, structured).find((item) => item.id === id);
 }
 
 // ---------- Derived lifecycle ----------
@@ -40,7 +66,7 @@ test("a client with no intake is NEW with the full required checklist pending", 
   assert.equal(state.nextAction, "Complete onboarding");
   // Contact details are complete (sign-in email present) and no limitations have
   // been reported yet, so readiness is "noted" rather than missing.
-  assert.deepEqual(state.missingRequired, ["Goal set", "Training experience", "Availability", "Language"]);
+  assert.deepEqual(state.missingRequired, ["Goal set", "Training experience", "Availability", "Session duration", "Limitation status", "Language"]);
   assert.equal(state.readiness, "noted");
 });
 
@@ -55,7 +81,13 @@ test("a partial intake is ONBOARDING and only reports genuinely missing items", 
 });
 
 test("a complete intake with no programme is READY FOR PROGRAMME", () => {
-  const state = onboardingState(client, intake(), false);
+  // Legacy flat row with a duration range but no limitation status → the new
+  // limitation_status check stays required, so the client is still onboarding.
+  const legacyState = onboardingState(client, intake(), false);
+  assert.equal(legacyState.stage, "onboarding");
+  assert.deepEqual(legacyState.missingRequired, ["Limitation status"]);
+  // A structured profile with the limitation status answered completes the gate.
+  const state = onboardingState(client, intake(), false, structuredProfile());
   assert.equal(state.stage, "ready_for_programme");
   assert.equal(state.label, "READY FOR PROGRAMME");
   assert.equal(state.nextAction, "Ready for first programme");
@@ -71,6 +103,42 @@ test("the next action names the first missing required item", () => {
   assert.equal(onboardingState(noEmail, intake(), false).nextAction, "Save the client's sign-in email");
   assert.equal(onboardingState(client, intake({ availability: "" }), false).nextAction, "Record availability");
   assert.equal(onboardingState(client, intake({ trainingConsiderations: "Knee pain" }), false).nextAction, "Review injury / limitation notes");
+  assert.equal(onboardingState(client, intake({ availability: "Mon evenings" }), false).nextAction, "Record the client's session duration");
+});
+
+test("session duration is a required check parsed from availability or the structured profile", () => {
+  // Flat availability without a duration range → incomplete.
+  assert.equal(check("duration", client, intake({ availability: "Mon/Wed evenings" }))?.complete, false);
+  assert.equal(check("duration", client, intake({ availability: "Mon/Wed evenings" }))?.detail, "Record the client's session duration");
+  // A duration range in the flat availability completes the check.
+  assert.equal(check("duration")?.complete, true);
+  assert.equal(check("duration")?.detail, "Session duration: 45–60 min");
+  // The structured profile duration is authoritative.
+  const structured = profile({ schedule: { ...emptyProfile().schedule, duration: "30–45 min" } });
+  assert.equal(check("duration", client, intake({ availability: "" }), false, structured)?.complete, true);
+});
+
+test("limitation status is a required check answered by the structured profile", () => {
+  // Legacy flat: no considerations → incomplete until answered.
+  assert.equal(check("limitation_status", client, intake({ trainingConsiderations: "" }))?.complete, false);
+  // Legacy flat: considerations → captured.
+  assert.equal(check("limitation_status", client, intake({ trainingConsiderations: "Knee pain" }))?.complete, true);
+  // Structured "none" is a definitive answer.
+  const none = profile({ limitations: { ...emptyProfile().limitations, status: "none" } });
+  assert.equal(check("limitation_status", client, intake(), false, none)?.complete, true);
+  assert.equal(check("limitation_status", client, intake(), false, none)?.detail, "No limitations reported");
+  // Structured areas → captured and requires readiness review.
+  const areas = profile({ limitations: { ...emptyProfile().limitations, status: "areas", areas: ["Knee"], areaKinds: { Knee: "Current discomfort" } } });
+  assert.equal(check("limitation_status", client, intake(), false, areas)?.complete, true);
+  assert.equal(check("readiness", client, intake(), false, areas)?.complete, false);
+  assert.equal(onboardingState(client, intake(), false, areas).readiness, "needs_review");
+});
+
+test("structured none-limitations never blocks readiness", () => {
+  const none = profile({ limitations: { ...emptyProfile().limitations, status: "none" } });
+  const state = onboardingState(client, intake(), false, none);
+  assert.equal(state.readiness, "noted");
+  assert.equal(check("readiness", client, intake(), false, none)?.complete, true);
 });
 
 // ---------- Checklist required vs optional ----------
@@ -90,10 +158,12 @@ test("language accepts EN, FR and AR clients", () => {
 });
 
 test("optional fields never block progression to ready for programme", () => {
-  const minimal = intake({ equipment: "", trainingConsiderations: "" });
-  const state = onboardingState(client, minimal, false);
+  const minimal = structuredProfile();
+  minimal.location.venue = "";
+  minimal.location.equipment = [];
+  const state = onboardingState(client, intake(), false, minimal);
   assert.equal(state.stage, "ready_for_programme");
-  const noBaseline = onboardingState({ ...client, currentWeight: null }, intake(), false);
+  const noBaseline = onboardingState({ ...client, currentWeight: null }, intake(), false, structuredProfile());
   assert.equal(noBaseline.stage, "ready_for_programme");
 });
 
@@ -146,19 +216,20 @@ test("onboarding badge labels are canonical distinct values that never embed cli
   // A long client name must never become part of the badge text: the label is
   // a separate derived value, rendered as its own chip beside the name.
   const longNameClient = { email: "mohamed.ali.very.long@example.com", goal: "Build muscle", currentWeight: 82 };
-  const cases: [OnboardingIntake | null, boolean, string][] = [
-    [null, false, "NEW"],
-    [intake({ trainingExperience: "" }), false, "ONBOARDING"],
-    [intake(), false, "READY FOR PROGRAMME"],
-    [intake(), true, "READY TO TRAIN"],
+  const cases: [OnboardingIntake | null, boolean, string, OnboardingProfile | null][] = [
+    [null, false, "NEW", null],
+    [intake({ trainingExperience: "" }), false, "ONBOARDING", structuredProfile()],
+    [intake(), false, "READY FOR PROGRAMME", structuredProfile()],
+    [intake(), true, "READY TO TRAIN", structuredProfile()],
   ];
   const labels = new Set<string>();
-  for (const [row, hasProgramme, expected] of cases) {
-    const state = onboardingState(longNameClient, row, hasProgramme);
+  for (const [row, hasProgramme, expected, structured] of cases) {
+    const state = onboardingState(longNameClient, row, hasProgramme, structured);
     assert.equal(state.label, expected);
     assert.ok(!state.label.includes("mohamed") && !state.label.includes("example"), "badge must not embed client data");
     labels.add(state.label);
   }
+
   assert.equal(labels.size, 4, "all four stages produce distinct labels");
 });
 

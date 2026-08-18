@@ -4,6 +4,14 @@ import { clientIntakes, clients, programmes } from "../../../db/schema";
 import { evaluateCoachAuth, getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
 import { publicIntake } from "../../lib/client-dto";
+import {
+  deriveIntakeFields,
+  parseProfile,
+  profileFromIntake,
+  profileMinimum,
+  profileSummary,
+  sanitizeProfile,
+} from "../../lib/onboarding-profile";
 import { positiveIntParam } from "../../lib/query-params";
 import {
   onboardingChecks,
@@ -25,9 +33,12 @@ export async function GET(request: Request) {
   const coachAuth = await evaluateCoachAuth();
   let ownerId = coachAuth.allowed ? coachAuth.coachId : null;
   let safeClientId = clientId;
+  // Portal access is only resolved in the client/preview branch below; declared
+  // here so the branch can narrow it without leaving the rest of the handler blind.
+  let access: Awaited<ReturnType<typeof getPortalAccess>> = null;
 
   if (!coachAuth.allowed || !clientId) {
-    const access = await getPortalAccess(positiveIntParam(searchParams, "preview"));
+    access = await getPortalAccess(positiveIntParam(searchParams, "preview"));
     if (!access) {
       if (!coachAuth.allowed) {
         // Server-side diagnostic only. The reason comes from the SAME atomic
@@ -50,11 +61,19 @@ export async function GET(request: Request) {
     .where(and(eq(clientIntakes.clientId, safeClientId), eq(clientIntakes.ownerId, ownerId))).limit(1);
 
   // Portal consumers (including coach previews) receive only the whitelisted
-  // public intake shape.
-  if (!coachAuth.allowed || !clientId) return Response.json({ intake: intake ? publicIntake(intake) : null });
+  // public intake shape. Legacy clients without a structured profile get a
+  // synthesized one (best-effort, from their flat answers + client row), so the
+  // V2 survey opens pre-filled instead of empty.
+  if ((!coachAuth.allowed || !clientId) && access) {
+    const profile = parseProfile(intake?.profile) ?? profileFromIntake(intake ?? null, access.client);
+    return Response.json({
+      intake: intake ? { ...publicIntake(intake), profile } : null,
+      client: { id: access.client.id, name: access.client.name, goal: access.client.goal, sessionsPerWeek: access.client.sessionsPerWeek, currentWeight: access.client.currentWeight },
+    });
+  }
 
   // Coach consumers get the full intake (private coach notes included) plus
-  // the derived onboarding state and programme status for the panel.
+  // the derived onboarding state, the structured profile and programme status.
   const [client] = await db.select().from(clients)
     .where(and(eq(clients.id, safeClientId), eq(clients.ownerId, ownerId))).limit(1);
   if (!client) return Response.json({ error: "Client not found." }, { status: 404 });
@@ -62,13 +81,17 @@ export async function GET(request: Request) {
     .from(programmes)
     .where(and(eq(programmes.clientId, safeClientId), eq(programmes.ownerId, ownerId), eq(programmes.status, "approved")))
     .orderBy(desc(programmes.createdAt)).limit(1);
+  const profile = parseProfile(intake?.profile) ?? profileFromIntake(intake ?? null, client);
 
   return Response.json({
     intake: intake ?? null,
+    profile,
     client: { id: client.id, name: client.name, email: client.email, goal: client.goal, currentWeight: client.currentWeight },
     programme: programme ?? null,
-    state: onboardingState(client, intake ?? null, Boolean(programme)),
-    checks: onboardingChecks(client, intake ?? null, Boolean(programme)),
+    state: onboardingState(client, intake ?? null, Boolean(programme), profile),
+    checks: onboardingChecks(client, intake ?? null, Boolean(programme), profile),
+    // Coach-facing structured summary (compact blocks, not a raw answer dump).
+    summary: profileSummary(profile),
   });
 }
 
@@ -90,6 +113,12 @@ export async function PATCH(request: Request) {
   const [existing] = await db.select().from(clientIntakes)
     .where(and(eq(clientIntakes.clientId, clientId), eq(clientIntakes.ownerId, ownerId))).limit(1);
 
+  // Structured survey: the coach may correct the client's structured profile.
+  // When provided, the critical flat fields are re-derived from it so every
+  // downstream consumer stays in sync.
+  const incomingProfile = body.profile && typeof body.profile === "object" ? sanitizeProfile(body.profile) : null;
+  const derived = incomingProfile ? deriveIntakeFields(incomingProfile) : null;
+
   // Partial update: only fields present in the body are written, so a quick
   // action (e.g. marking readiness reviewed) never wipes the client's answers.
   if (body.preferredLanguage !== undefined) {
@@ -103,19 +132,19 @@ export async function PATCH(request: Request) {
     : existing?.preferredLanguage ?? "fr";
   const trainingExperience = body.trainingExperience !== undefined
     ? text(body.trainingExperience, 80)
-    : existing?.trainingExperience ?? "";
+    : derived?.trainingExperience ?? existing?.trainingExperience ?? "";
   const availability = body.availability !== undefined
     ? text(body.availability, 300)
-    : existing?.availability ?? "";
+    : derived?.availability ?? existing?.availability ?? "";
   const equipment = body.equipment !== undefined
     ? text(body.equipment, 180)
-    : existing?.equipment ?? "";
+    : derived?.equipment ?? existing?.equipment ?? "";
   const goalsDetail = body.goalsDetail !== undefined
     ? text(body.goalsDetail, 500)
-    : existing?.goalsDetail ?? "";
+    : derived?.goalsDetail ?? existing?.goalsDetail ?? "";
   const trainingConsiderations = body.trainingConsiderations !== undefined
     ? text(body.trainingConsiderations, 500)
-    : existing?.trainingConsiderations ?? "";
+    : derived?.trainingConsiderations ?? existing?.trainingConsiderations ?? "";
   const coachNotes = body.coachNotes !== undefined
     ? text(body.coachNotes, 1000)
     : existing?.coachNotes ?? "";
@@ -129,6 +158,7 @@ export async function PATCH(request: Request) {
     equipment,
     goalsDetail,
     trainingConsiderations,
+    profile: incomingProfile ? JSON.stringify(incomingProfile) : (existing?.profile ?? "{}"),
     coachNotes,
     readinessReviewedAt: reviewNow ? new Date() : (existing?.readinessReviewedAt ?? null),
     updatedAt: new Date(),
@@ -141,15 +171,18 @@ export async function PATCH(request: Request) {
     .from(programmes)
     .where(and(eq(programmes.clientId, clientId), eq(programmes.ownerId, ownerId), eq(programmes.status, "approved")))
     .orderBy(desc(programmes.createdAt)).limit(1);
+  const savedProfile = parseProfile(intake.profile) ?? profileFromIntake(intake, client);
 
   return Response.json({
     intake,
-    state: onboardingState(client, intake, Boolean(programme)),
-    checks: onboardingChecks(client, intake, Boolean(programme)),
+    profile: savedProfile,
+    state: onboardingState(client, intake, Boolean(programme), savedProfile),
+    checks: onboardingChecks(client, intake, Boolean(programme), savedProfile),
   });
 }
 
-// Client-facing writer: consent-gated, portal-authenticated. A change to the
+// Client-facing writer: consent-gated, portal-authenticated. Accepts either the
+// structured survey (profile) or the legacy flat fields. A change to the
 // limitation notes invalidates a previous coach readiness review so the coach
 // re-reviews the new information before programme assignment.
 export async function POST(request: Request) {
@@ -160,12 +193,29 @@ export async function POST(request: Request) {
 
   const preferredLanguage = text(body.preferredLanguage, 2);
   if (!["fr", "en", "ar"].includes(preferredLanguage)) return Response.json({ error: "Choose a valid language." }, { status: 400 });
-  const trainingExperience = text(body.trainingExperience, 80);
-  const availability = text(body.availability, 300);
-  const equipment = text(body.equipment, 180);
-  const goalsDetail = text(body.goalsDetail, 500);
-  const trainingConsiderations = text(body.trainingConsiderations, 500);
-  if (!trainingExperience || !availability || !goalsDetail) return Response.json({ error: "Please complete your experience, availability and goals." }, { status: 400 });
+
+  // Structured survey (V2): the client sends their full profile state on every
+  // save (autosave per step and the final submit). The critical flat fields are
+  // derived from it. `complete: true` only on the final submit enforces the
+  // required minimum; intermediate autosaves may be partial.
+  const incomingProfile = body.profile && typeof body.profile === "object" ? sanitizeProfile(body.profile) : null;
+  if (incomingProfile && body.complete === true) {
+    const minimum = profileMinimum(incomingProfile);
+    if (!minimum.complete) {
+      return Response.json({ error: `Complete the required sections first: ${minimum.missing.join(", ")}.` }, { status: 400 });
+    }
+  }
+  const derived = incomingProfile ? deriveIntakeFields(incomingProfile) : null;
+
+  const trainingExperience = derived?.trainingExperience ?? text(body.trainingExperience, 80);
+  const availability = derived?.availability ?? text(body.availability, 300);
+  const equipment = derived?.equipment ?? text(body.equipment, 180);
+  const goalsDetail = derived?.goalsDetail ?? text(body.goalsDetail, 500);
+  const trainingConsiderations = derived?.trainingConsiderations ?? text(body.trainingConsiderations, 500);
+  // Legacy flat-only submissions keep the V1 required-field contract.
+  if (!incomingProfile && (!trainingExperience || !availability || !goalsDetail)) {
+    return Response.json({ error: "Please complete your experience, availability and goals." }, { status: 400 });
+  }
 
   const db = getDb();
   const [existing] = await db.select().from(clientIntakes).where(and(eq(clientIntakes.clientId, access.client.id), eq(clientIntakes.ownerId, access.client.ownerId))).limit(1);
@@ -175,9 +225,27 @@ export async function POST(request: Request) {
     existing?.readinessReviewedAt ?? null,
   );
   const readinessReviewedAt = plannedReview ? new Date(plannedReview) : null;
-  const values = { ownerId: access.client.ownerId, preferredLanguage, trainingExperience, availability, equipment, goalsDetail, trainingConsiderations, readinessReviewedAt, updatedAt: new Date() };
+  const values = {
+    ownerId: access.client.ownerId,
+    preferredLanguage,
+    trainingExperience,
+    availability,
+    equipment,
+    goalsDetail,
+    trainingConsiderations,
+    profile: incomingProfile ? JSON.stringify(incomingProfile) : (existing?.profile ?? "{}"),
+    readinessReviewedAt,
+    updatedAt: new Date(),
+  };
   const [intake] = existing
     ? await db.update(clientIntakes).set(values).where(eq(clientIntakes.id, existing.id)).returning()
     : await db.insert(clientIntakes).values({ clientId: access.client.id, consentAt: new Date(), ...values }).returning();
-  return Response.json({ intake: publicIntake(intake) });
+  const savedProfile = parseProfile(intake.profile) ?? null;
+
+  return Response.json({
+    intake: publicIntake(intake),
+    state: onboardingState(access.client, intake, false, savedProfile),
+    checks: onboardingChecks(access.client, intake, false, savedProfile),
+  });
 }
+

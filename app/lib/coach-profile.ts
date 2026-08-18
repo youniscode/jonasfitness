@@ -11,6 +11,7 @@
  */
 
 import type { OnboardingLanguage } from "./client-onboarding.ts";
+import { parseProfile, profileFromIntake, type OnboardingProfile } from "./onboarding-profile.ts";
 import { parseExercises } from "./workouts.ts";
 import { exerciseIntelligenceFor, type MuscleGroupId } from "./exercise-intelligence.ts";
 
@@ -41,6 +42,14 @@ export type CoachingProfile = {
   coaching: {
     privateCoachNotes: string;
   };
+  /**
+   * Structured onboarding survey V2 (parsed canonical shape). Always present —
+   * legacy clients without a stored profile get a synthesized one from their
+   * flat intake answers. Pure coaching context; PII-free by construction.
+   */
+  survey: OnboardingProfile;
+  /** True when the client has a real structured profile (not just the legacy synthesis). */
+  surveyComplete: boolean;
   currentProgramme: unknown | null;
   programmeHistory: unknown[];
   recentTraining: {
@@ -75,6 +84,7 @@ export type CoachIntakeRow = {
   equipment: string;
   goalsDetail: string;
   trainingConsiderations: string;
+  profile?: string | null;
   readinessReviewedAt: Date | string | null;
   coachNotes: string;
 };
@@ -116,6 +126,11 @@ export function buildClientCoachingProfile(
   const language = (["fr", "en", "ar"] as const).includes((intake?.preferredLanguage ?? "") as OnboardingLanguage)
     ? (intake?.preferredLanguage as OnboardingLanguage)
     : null;
+  // Structured survey: the stored canonical profile when present, otherwise a
+  // best-effort synthesis from the legacy flat intake answers so every consumer
+  // (AI context, readiness gate, coach summary) works for old and new clients.
+  const storedProfile = parseProfile(intake?.profile);
+  const survey = storedProfile ?? profileFromIntake(intake, client);
   const completed = workouts.filter((workout) => workout.status === "completed" && workout.startedBy !== "coach");
   const skipped = workouts.filter((workout) => workout.status === "skipped");
   const latestCompleted = completed
@@ -175,6 +190,8 @@ export function buildClientCoachingProfile(
       // real situation (schedule, attitude, preferences). Coach-only data.
       privateCoachNotes: trimmed(intake?.coachNotes),
     },
+    survey,
+    surveyComplete: Boolean(storedProfile),
     currentProgramme: approved[0] ? { id: approved[0].id, title: approved[0].title, content: approved[0].content } : null,
     programmeHistory: approved.slice(1).map((programme) => ({ id: programme.id, title: programme.title, content: programme.content })),
     recentTraining: {
@@ -251,6 +268,15 @@ export function coachContextCompleteness(profile: CoachingProfile): { complete: 
       required: false,
       complete: Boolean(profile.training.equipment),
       detail: profile.training.equipment || "Equipment not specified — the AI will not assume a full gym",
+    },
+    {
+      id: "survey",
+      label: "Structured onboarding survey",
+      required: false,
+      complete: profile.surveyComplete,
+      detail: profile.surveyComplete
+        ? "Client completed the structured survey"
+        : "Legacy profile — derived from existing answers; the client survey is optional",
     },
     {
       id: "limitations",

@@ -23,10 +23,28 @@ const client: CoachProfileRow = {
 const intake: CoachIntakeRow = {
   preferredLanguage: "fr",
   trainingExperience: "Beginner",
-  availability: "Monday / Wednesday / Friday evenings",
+  availability: "Monday / Wednesday / Friday evenings, 45–60 min",
   equipment: "Commercial gym",
   goalsDetail: "Build a balanced physique and improve pull-up strength.",
   trainingConsiderations: "Knee discomfort on deep squats",
+  profile: JSON.stringify({
+    version: 2,
+    goals: { primary: "Build muscle", secondary: ["Confidence"], note: "" },
+    timeline: { targetDate: "In 3–6 months", targetDateValue: "", importance: 5 },
+    experience: { level: "Beginner", years: "Less than 6 months", used: ["Machines"] },
+    confidence: { alone: "A little confident", help: ["Exercise technique"] },
+    schedule: { daysPerWeek: 3, days: ["Mon", "Wed", "Fri"], time: "Evening", duration: "45–60 min" },
+    location: { venue: "Full commercial gym", equipment: ["Cable station"], unsure: false },
+    preferences: { style: ["Machines"], liked: [], disliked: [], note: "" },
+    limitations: { status: "areas", areas: ["Knee"], areaKinds: { Knee: "Current discomfort" }, note: "" },
+    lifestyle: { activity: "Some walking", steps: "3–6k", work: "Desk job" },
+    recovery: { sleepHours: "6–7h", sleepQuality: 4, stress: 3, recovery: "Good" },
+    motivation: { drivers: ["Health"], barriers: ["Lack of time"] },
+    coaching: { accountability: "High — keep me accountable", feedback: "Direct and concise", focus: ["Technique"] },
+    nutrition: { tracking: "Roughly", pattern: "", note: "" },
+    measurements: { heightCm: null, weightKg: null, waistCm: null },
+    openNote: "",
+  }),
   readinessReviewedAt: new Date("2026-08-17T10:00:00Z"),
   coachNotes: "Client is motivated but travels weekly.",
 };
@@ -55,7 +73,7 @@ test("onboarding data maps into the structured profile", () => {
   assert.equal(profile.goals.detail, "Build a balanced physique and improve pull-up strength.");
   assert.equal(profile.training.experience, "Beginner");
   assert.equal(profile.training.sessionsPerWeek, 3);
-  assert.equal(profile.training.availability, "Monday / Wednesday / Friday evenings");
+  assert.equal(profile.training.availability, "Monday / Wednesday / Friday evenings, 45–60 min");
   assert.equal(profile.training.equipment, "Commercial gym");
   assert.equal(profile.body.currentWeight, 82.5);
   assert.equal(profile.readiness.hasReportedLimitations, true);
@@ -109,6 +127,55 @@ test("missing intake produces safe empty fields without throwing", () => {
   assert.equal(profile.readiness.coachReviewed, false);
   assert.equal(profile.client.preferredLanguage, null);
   assert.equal(profile.recentTraining.completedWorkouts, 0);
+  // A synthesized empty survey is still present and safe. The client's stored
+  // sessionsPerWeek is the only legacy signal available, so it seeds the survey.
+  assert.equal(profile.surveyComplete, false);
+  assert.equal(profile.survey.goals.primary, "");
+  assert.equal(profile.survey.schedule.daysPerWeek, 3);
+});
+
+test("the structured survey is parsed into the coaching profile (PII-free compact context)", () => {
+  const profile = buildClientCoachingProfile(client, intake, programmes, workouts, progress);
+  assert.equal(profile.surveyComplete, true);
+  assert.equal(profile.survey.goals.primary, "Build muscle");
+  assert.equal(profile.survey.goals.secondary.join(","), "Confidence");
+  assert.equal(profile.survey.schedule.daysPerWeek, 3);
+  assert.equal(profile.survey.schedule.duration, "45–60 min");
+  assert.equal(profile.survey.location.venue, "Full commercial gym");
+  assert.equal(profile.survey.limitations.status, "areas");
+  assert.equal(profile.survey.limitations.areas.join(","), "Knee");
+  assert.equal(profile.survey.motivation.drivers.join(","), "Health");
+});
+
+test("a legacy intake without a stored profile is synthesized for compatibility", () => {
+  const legacy: CoachIntakeRow = { ...intake, profile: null };
+  const profile = buildClientCoachingProfile(client, legacy, [], [], []);
+  assert.equal(profile.surveyComplete, false);
+  assert.equal(profile.survey.experience.level, "Beginner");
+  assert.equal(profile.survey.schedule.duration, "45–60 min");
+  assert.equal(profile.survey.schedule.time, "Evening");
+  // Legacy free-text limitations synthesize as a reported "Other" area.
+  assert.equal(profile.survey.limitations.status, "areas");
+  assert.equal(profile.survey.limitations.note, "Knee discomfort on deep squats");
+});
+
+test("a legacy intake with no flat considerations synthesizes an unanswered limitation status", () => {
+  const legacy: CoachIntakeRow = { ...intake, profile: null, trainingConsiderations: "" };
+  const profile = buildClientCoachingProfile(client, legacy, [], [], []);
+  assert.equal(profile.survey.limitations.status, "");
+  assert.equal(profile.readiness.hasReportedLimitations, false);
+});
+
+test("survey completeness appears in the context checklist as optional", () => {
+  const profile = buildClientCoachingProfile(client, intake, programmes, workouts, progress);
+  const { items } = coachContextCompleteness(profile);
+  const survey = items.find((item) => item.id === "survey");
+  assert.equal(survey?.required, false);
+  assert.equal(survey?.complete, true);
+  const legacy = buildClientCoachingProfile(client, { ...intake, profile: null }, [], [], []);
+  const legacySurvey = coachContextCompleteness(legacy).items.find((item) => item.id === "survey");
+  assert.equal(legacySurvey?.complete, false);
+  assert.equal(coachContextCompleteness(legacy).complete, true);
 });
 
 test("coach-only workouts are not counted as client training history", () => {

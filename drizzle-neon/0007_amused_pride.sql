@@ -1,0 +1,1 @@
+ALTER TABLE "client_intakes" ADD COLUMN "profile" text DEFAULT '{}' NOT NULL;

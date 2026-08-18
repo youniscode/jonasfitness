@@ -1,3 +1,5 @@
+import { parseProfile } from "./onboarding-profile.ts";
+
 /**
  * Explicit client-facing response shapes. Every client API must return only
  * these whitelisted fields — never the full database row — so internal columns
@@ -54,6 +56,7 @@ type IntakeRow = {
   equipment: string;
   goalsDetail: string;
   trainingConsiderations: string;
+  profile?: string | null;
   consentAt: Date | string;
   updatedAt: Date | string;
 };
@@ -115,6 +118,9 @@ export function publicIntake(intake: IntakeRow) {
     equipment: intake.equipment,
     goalsDetail: intake.goalsDetail,
     trainingConsiderations: intake.trainingConsiderations,
+    // Structured onboarding survey (client's own answers) — parsed to the safe
+    // canonical shape; null when the client has no structured profile yet.
+    profile: parseProfile(intake.profile),
     consentAt: intake.consentAt,
     updatedAt: intake.updatedAt,
   };

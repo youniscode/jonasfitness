@@ -6,9 +6,10 @@ import { isPositiveInt } from "../lib/query-params";
 type Client = { id: number; name: string };
 type Check = { id: string; label: string; required: boolean; complete: boolean; detail: string };
 type Intake = { preferredLanguage: string; trainingExperience: string; availability: string; equipment: string; goalsDetail: string; trainingConsiderations: string; readinessReviewedAt: string | null; coachNotes: string };
+type ProfileBlock = { section: string; lines: string[] };
 type Programme = { id: number; title: string; status: string } | null;
 type State = { stage: string; label: string; nextAction: string; missingRequired: string[]; readiness: "noted" | "needs_review" | "ok" };
-type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[] };
+type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[] };
 
 const experienceOptions = ["Beginner", "Intermediate", "Advanced", "Experienced"];
 
@@ -156,6 +157,9 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       <div><small>CLIENT PRIORITIES</small><p>{intake?.goalsDetail || "Not captured yet."}</p></div>
       {intake?.trainingConsiderations && <div><small>TRAINING CONSIDERATIONS</small><p>{intake.trainingConsiderations}</p></div>}
     </div>
+    {payload.summary && Array.isArray(payload.summary) && (
+      <div className="onboarding-survey-summary">{payload.summary.map((block) => block.lines.length > 0 ? <div className="onboarding-survey-block" key={block.section}><small>{block.section.toUpperCase()}</small>{block.lines.map((line) => <p key={line}>{line}</p>)}</div> : null)}</div>
+    )}
     <div className="coach-onboarding-notes coach-private-notes"><div><small>COACH NOTES · PRIVATE</small><p>{intake?.coachNotes || "No private coach notes yet."}</p></div><div><small>PROFILE</small><p>{payload.client?.goal || "—"} · {payload.client?.email || "No sign-in email"}{payload.client?.currentWeight ? ` · ${payload.client.currentWeight} kg` : ""}</p></div></div>
 
     {showEdit && <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowEdit(false)}><form className="modal onboarding-form coach-onboarding-form" onSubmit={saveOnboarding} onMouseDown={(event) => event.stopPropagation()}><div className="portal-form-head"><div><p>ONBOARDING · {client.name}</p><h2>Complete the coaching foundations.</h2></div><button type="button" aria-label="Close" onClick={() => setShowEdit(false)}>×</button></div>

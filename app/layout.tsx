@@ -15,6 +15,7 @@ import "./history-acquisition.css";
 import "./lead-pipeline.css";
 import "./coach-command-center.css";
 import "./coach-notifications.css";
+import "./onboarding-v2.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });

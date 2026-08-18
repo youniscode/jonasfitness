@@ -234,6 +234,12 @@ export const clientIntakes = pgTable("client_intakes", {
   equipment: text("equipment").notNull().default(""),
   goalsDetail: text("goals_detail").notNull().default(""),
   trainingConsiderations: text("training_considerations").notNull().default(""),
+  // Structured onboarding survey V2 (JSON). The critical flat fields above
+  // (trainingExperience, availability, equipment, goalsDetail,
+  // trainingConsiderations) are derived from this profile on every client save,
+  // so existing consumers keep working unchanged. `profile` is client-reported
+  // coaching context only — never a medical record.
+  profile: text("profile").notNull().default("{}"),
   readinessReviewedAt: timestamp("readiness_reviewed_at", { withTimezone: true }),
   coachNotes: text("coach_notes").notNull().default(""),
   consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),

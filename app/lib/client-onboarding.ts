@@ -13,6 +13,8 @@
  * Node's built-in test runner, and shared by every coach-facing endpoint.
  */
 
+import type { OnboardingProfile } from "./onboarding-profile.ts";
+
 export const onboardingLanguages = ["fr", "en", "ar"] as const;
 export type OnboardingLanguage = (typeof onboardingLanguages)[number];
 
@@ -37,6 +39,8 @@ export type OnboardingCheckId =
   | "goal"
   | "experience"
   | "availability"
+  | "duration"
+  | "limitation_status"
   | "language"
   | "readiness"
   | "programme"
@@ -54,7 +58,7 @@ export type OnboardingCheck = {
 // The first missing item drives the coach's "next action". Order matters:
 // contact details first (portal access), then the coaching foundations, then
 // readiness review, then the programme itself.
-const requiredOrder: OnboardingCheckId[] = ["contact", "goal", "experience", "availability", "language", "readiness", "programme"];
+const requiredOrder: OnboardingCheckId[] = ["contact", "goal", "experience", "availability", "duration", "limitation_status", "language", "readiness", "programme"];
 
 function trimmed(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -64,14 +68,35 @@ function readinessReviewed(intake: OnboardingIntake | null): boolean {
   return Boolean(intake?.readinessReviewedAt);
 }
 
-function hasLimitations(intake: OnboardingIntake | null): boolean {
+function hasLimitations(intake: OnboardingIntake | null, profile: OnboardingProfile | null = null): boolean {
+  // Structured "none" is a definitive no-limitations answer. "areas" or legacy
+  // flat notes mean limitations were reported.
+  if (profile?.limitations.status === "none") return false;
+  if (profile?.limitations.status === "areas") return true;
   return Boolean(trimmed(intake?.trainingConsiderations));
+}
+
+// Parses a session duration from the structured schedule (authoritative) or the
+// legacy flat availability text (best effort).
+function sessionDuration(intake: OnboardingIntake | null, profile: OnboardingProfile | null): string {
+  if (profile?.schedule.duration) return profile.schedule.duration;
+  const availability = trimmed(intake?.availability);
+  const match = availability.match(/(20–30|30–45|45–60|60–75|75\+)/);
+  return match ? `${match[1]} min` : "";
+}
+
+// Structured limitation status: "none" or "areas" is a definitive answer even
+// before any free-text note exists. Legacy clients answer via the flat notes.
+function limitationStatusAnswer(intake: OnboardingIntake | null, profile: OnboardingProfile | null): string {
+  if (profile?.limitations.status) return profile.limitations.status;
+  return hasLimitations(intake) ? "areas" : "";
 }
 
 export function onboardingChecks(
   client: OnboardingClient,
   intake: OnboardingIntake | null,
   hasApprovedProgramme: boolean,
+  profile: OnboardingProfile | null = null,
 ): OnboardingCheck[] {
   const items: Record<OnboardingCheckId, OnboardingCheck> = {
     contact: {
@@ -99,8 +124,28 @@ export function onboardingChecks(
       id: "availability",
       label: "Availability",
       required: true,
+      // Availability is complete once days/time exist (schedule availability).
+      // Structured profiles always derive it; legacy flat rows keep the old rule.
       complete: Boolean(trimmed(intake?.availability)),
       detail: trimmed(intake?.availability) ? "Availability recorded" : "Record availability",
+    },
+    duration: {
+      id: "duration",
+      label: "Session duration",
+      required: true,
+      complete: Boolean(sessionDuration(intake, profile)),
+      detail: sessionDuration(intake, profile) ? `Session duration: ${sessionDuration(intake, profile)}` : "Record the client's session duration",
+    },
+    limitation_status: {
+      id: "limitation_status",
+      label: "Limitation status",
+      required: true,
+      complete: Boolean(limitationStatusAnswer(intake, profile)),
+      detail: limitationStatusAnswer(intake, profile) === "none"
+        ? "No limitations reported"
+        : limitationStatusAnswer(intake, profile) === "areas"
+          ? "Limitations captured"
+          : "Confirm whether the client has limitations",
     },
     language: {
       id: "language",
@@ -115,8 +160,8 @@ export function onboardingChecks(
       id: "readiness",
       label: "Readiness reviewed",
       required: true,
-      complete: !hasLimitations(intake) || readinessReviewed(intake),
-      detail: !hasLimitations(intake)
+      complete: !hasLimitations(intake, profile) || readinessReviewed(intake),
+      detail: !hasLimitations(intake, profile)
         ? "No limitations reported"
         : readinessReviewed(intake)
           ? "Limitations reviewed by coach"
@@ -170,8 +215,9 @@ export function onboardingState(
   client: OnboardingClient,
   intake: OnboardingIntake | null,
   hasApprovedProgramme: boolean,
+  profile: OnboardingProfile | null = null,
 ): OnboardingState {
-  const checks = onboardingChecks(client, intake, hasApprovedProgramme);
+  const checks = onboardingChecks(client, intake, hasApprovedProgramme, profile);
   const required = checks.filter((check) => check.required);
   // The programme check belongs to the stage decision, not the onboarding gaps:
   // a client with complete onboarding but no programme is READY FOR PROGRAMME.
@@ -197,7 +243,7 @@ export function onboardingState(
     }
   }
 
-  const readiness: OnboardingState["readiness"] = hasLimitations(intake)
+  const readiness: OnboardingState["readiness"] = hasLimitations(intake, profile)
     ? readinessReviewed(intake)
       ? "ok"
       : "needs_review"

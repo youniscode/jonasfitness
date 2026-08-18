@@ -24,12 +24,39 @@ import { askOllamaJson, coachAiModelFor, coachAiProviderFor, generateCoachDraft,
 import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
 import { compactPreferenceSummary, preferenceContextFrom } from "../../lib/exercise-preference";
 import { buildClientExerciseFeedbackProfile, compactFeedbackSummary, type ClientFeedbackRow } from "../../lib/exercise-feedback";
+import {
+  compactInitialPreferenceSummary,
+  initialPreferenceContextFrom,
+  onboardingPreferenceConflictNotes,
+  parseProfile,
+} from "../../lib/onboarding-profile";
 import type { ClientFitContext } from "../../lib/exercise-intelligence";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
 type Mode = "first" | "adapt" | "adjust";
 
 const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury — flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
+
+// Compact structured-survey signals (V2 onboarding): only the coaching-relevant
+// fields, only when answered. PII-free — never raw survey labels verbatim.
+function surveyContext(profile: ReturnType<typeof buildClientCoachingProfile>): string[] {
+  const survey = profile.survey;
+  const lines: string[] = [];
+  if (survey.schedule.duration) lines.push(`Preferred session duration: ${survey.schedule.duration}`);
+  if (survey.schedule.daysPerWeek) lines.push(`Preferred days: ${survey.schedule.daysPerWeek}×/week`);
+  if (survey.schedule.time) lines.push(`Preferred training time: ${survey.schedule.time}`);
+  if (survey.schedule.days.length) lines.push(`Available days: ${survey.schedule.days.join(", ")}`);
+  if (survey.location.venue) lines.push(`Training venue: ${survey.location.venue}`);
+  if (survey.location.unsure) lines.push("Equipment: client is unsure — coach should choose");
+  if (survey.experience.years) lines.push(`Training history: ${survey.experience.years}`);
+  if (survey.experience.used.length) lines.push(`Previously used: ${survey.experience.used.join(", ")}`);
+  if (survey.confidence.alone) lines.push(`Confidence training alone: ${survey.confidence.alone}`);
+  if (survey.confidence.help.length) lines.push(`Client wants help with: ${survey.confidence.help.join(", ")}`);
+  if (survey.preferences.style.length) lines.push(`Exercise style preference: ${survey.preferences.style.join(", ")}`);
+  if (survey.nutrition.tracking) lines.push(`Nutrition tracking: ${survey.nutrition.tracking}`);
+  if (survey.coaching.coachingFormat) lines.push(`Coaching format: ${survey.coaching.coachingFormat}`);
+  return lines;
+}
 
 // Compact, PII-free context: goals, training, body, readiness and a trimmed
 // history summary. No email, phone, acquisition, billing or credit data — and
@@ -44,6 +71,7 @@ function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): str
     `Availability: ${profile.training.availability || "not provided"}`,
     `Equipment: ${profile.training.equipment || "not provided (do not assume a full gym)"}`,
     `Current weight: ${profile.body.currentWeight ?? "not provided"} kg`,
+    ...surveyContext(profile),
     profile.readiness.hasReportedLimitations
       ? `Limitations reported: ${profile.readiness.considerations} (coach review required; be conservative, do not claim safety)`
       : "Limitations: none reported",
@@ -360,6 +388,17 @@ export async function POST(request: Request) {
   const feedbackContext = buildClientExerciseFeedbackProfile(feedbackRowsMapped);
   const feedbackSummary = compactFeedbackSummary(feedbackContext);
 
+  // Initial client exercise preferences (onboarding survey): CLIENT-reported
+  // pre-training preference, kept strictly separate from coach preference and
+  // post-workout feedback. PII-free names only. Never sent as coach preference
+  // and never a restriction.
+  const onboardingProfile = parseProfile(intake?.profile ?? null) ?? null;
+  const initialPreferenceSummary = onboardingProfile ? compactInitialPreferenceSummary(onboardingProfile) : "";
+  const initialPreferenceContext = onboardingProfile ? initialPreferenceContextFrom(onboardingProfile) : null;
+  const initialConflictNotes = onboardingProfile
+    ? onboardingPreferenceConflictNotes(onboardingProfile, preferenceContext.explicit)
+    : [];
+
   const userPrompt = [
     context,
     "",
@@ -368,6 +407,8 @@ export async function POST(request: Request) {
     avoid ? `Avoid these exercises/movements: ${avoid}.` : "",
     preferenceSummary,
     feedbackSummary,
+    initialPreferenceSummary,
+    initialConflictNotes.length ? `PREFERENCE CONFLICTS TO REVIEW:\n${initialConflictNotes.join("\n")}` : "",
     modePrompt,
     "",
     blueprintBlock,
@@ -455,6 +496,7 @@ export async function POST(request: Request) {
     recentIds: profile.recentTraining.exposedIds,
     preferenceContext,
     feedbackContext,
+    initialPreferenceContext,
   };
   const finalizeOptions = {
     requestedSessions,

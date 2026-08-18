@@ -3,14 +3,16 @@ import { getCoachId } from "../../../../clerk-auth";
 import { isUniqueViolation, normaliseClientEmail } from "../../../../lib/client-email";
 import { onboardingState } from "../../../../lib/client-onboarding";
 import { planConversion } from "../../../../lib/leads";
+import { profileFromLead, type OnboardingProfile } from "../../../../lib/onboarding-profile";
 import { getDb } from "../../../../../db";
-import { clients, leadActivities, leads } from "../../../../../db/schema";
+import { clientIntakes, clients, leadActivities, leads } from "../../../../../db/schema";
 
-// A freshly converted/linked client has no onboarding answers yet: the derived
-// state is NEW, which lets the roster badge and onboarding panel show the next
-// step immediately after conversion.
-function withOnboarding(client: typeof clients.$inferSelect) {
-  return { ...client, onboarding: onboardingState(client, null, false) };
+// A freshly converted client is seeded with a structured prefill from their
+// application, so the derived state shows the first genuinely missing item
+// (goal/experience/frequency are pre-filled; duration, venue and limitation
+// status remain for the client). A linked existing client keeps its own state.
+function withOnboarding(client: typeof clients.$inferSelect, profile: OnboardingProfile | null = null) {
+  return { ...client, onboarding: onboardingState(client, null, false, profile) };
 }
 
 // Converts a lead into a client. There is no DB transaction available on the
@@ -77,7 +79,55 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
   }
   if (!client) return Response.json({ error: "The client could not be created. Please try again." }, { status: 500 });
-  const clientWithOnboarding = withOnboarding(client);
+
+  // Application → client structured prefill: seed a brand-new intake from the
+  // lead's structured answers (goal, experience, frequency, format) so the
+  // client is not asked to repeat them. Only written when NO intake exists yet
+  // (a completed/edited onboarding is never overwritten — re-conversion and
+  // idempotent retries are no-ops here).
+  const [existingIntake] = await db.select({ id: clientIntakes.id }).from(clientIntakes)
+    .where(and(eq(clientIntakes.clientId, client.id), eq(clientIntakes.ownerId, ownerId))).limit(1);
+  if (!existingIntake) {
+    const prefill = profileFromLead({
+      goal: lead.goal,
+      experience: lead.experience,
+      trainingDays: lead.trainingDays,
+      coachingFormat: lead.coachingFormat,
+    });
+    const derived = {
+      trainingExperience: prefill.experience.level,
+      availability: prefill.schedule.daysPerWeek ? `${prefill.schedule.daysPerWeek}×/week` : "",
+      equipment: "",
+      goalsDetail: prefill.goals.primary,
+      trainingConsiderations: "",
+    };
+    try {
+      await db.insert(clientIntakes).values({
+        clientId: client.id,
+        ownerId,
+        preferredLanguage: lead.preferredLanguage,
+        trainingExperience: derived.trainingExperience,
+        availability: derived.availability,
+        equipment: derived.equipment,
+        goalsDetail: derived.goalsDetail,
+        trainingConsiderations: derived.trainingConsiderations,
+        profile: JSON.stringify(prefill),
+        consentAt: new Date(),
+      });
+    } catch (error) {
+      // A concurrent request seeded the intake first — fine, keep theirs.
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
+
+  // The client's derived onboarding state uses the seeded prefill (when this
+  // request created it) so the coach immediately sees the next required item.
+  const clientWithOnboarding = withOnboarding(client, existingIntake ? null : profileFromLead({
+    goal: lead.goal,
+    experience: lead.experience,
+    trainingDays: lead.trainingDays,
+    coachingFormat: lead.coachingFormat,
+  }));
 
   // Single-writer commit gate: only one request flips convertedClientId from null.
   const [convertedLead] = await db.update(leads).set({
