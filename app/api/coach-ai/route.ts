@@ -33,8 +33,16 @@ import {
 import { boundedSecondaryGoals } from "../../lib/coach-controls";
 import type { ClientFitContext } from "../../lib/exercise-intelligence";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
+import {
+  applyRepairActions,
+  planProgrammeRepair,
+  type ProgrammeRepairOptions,
+  type RepairAction,
+} from "../../lib/programme-repair";
 
 type Mode = "first" | "adapt" | "adjust";
+
+const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury — flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
 
@@ -523,6 +531,94 @@ export async function POST(request: Request) {
     expectedSessionNames: expectedSessionNames.length ? expectedSessionNames : undefined,
     clientFitContext,
   };
+  // Smart Draft Repair V1 — deterministic repair context. Structured limitation
+  // areas come from the onboarding profile when available; legacy clients fall
+  // back to the free-text considerations (regex-derived). Never a second AI
+  // call and never a schema/medical conclusion.
+  const repairOptions: ProgrammeRepairOptions = {
+    targetMinutes: targetDuration,
+    goal,
+    secondaryGoals,
+    experience: profile.training.experience,
+    equipment: equipment ?? profile.training.equipment,
+    limitationAreas: onboardingProfile?.limitations.status === "areas" ? onboardingProfile.limitations.areas : [],
+    limitationsReviewed: profile.readiness.coachReviewed,
+    limitationsText: profile.readiness.considerations || null,
+    avoidExercises: avoid || null,
+    preferenceContext,
+    feedbackContext,
+    initialPreferenceContext,
+  };
+
+  // ---- Smart Draft Repair application (deterministic, NO AI call) ----
+  // The coach clicked "Apply duration repair" or "Replace with alternative".
+  // The plan is ALWAYS recomputed server-side from the current draft + client
+  // context (never trusted from the client body); only the explicit apply
+  // intent is honoured. The result goes through the SAME finalize pipeline as
+  // any draft (validate → rehydrate → estimate → quality), so repair never
+  // bypasses validation.
+  if (body.action === "repair") {
+    const baseDraft = normaliseProgrammeRecord(body.previousDraft, goal, requestedSessions);
+    if (!baseDraft || !baseDraft.sessions.length) {
+      return Response.json({ error: "Repair requires a current draft." }, { status: 400 });
+    }
+    const plan = planProgrammeRepair(baseDraft, repairOptions);
+    let actions: RepairAction[] = [];
+    if (body.apply === "duration") {
+      actions = plan.durationRepair?.actions ?? [];
+      if (!actions.length) {
+        return Response.json({ error: "No safe automatic duration repair is available — review the draft manually." }, { status: 422 });
+      }
+    } else if (body.apply === "replace") {
+      const replacement = record(body.replacement);
+      const sessionIndex = Number(replacement.sessionIndex);
+      const exerciseId = String(replacement.exerciseId ?? "").trim();
+      const alternativeId = String(replacement.alternativeId ?? "").trim();
+      // Resolve the alternative against the server-computed limitation review
+      // (canonical ids only — a client-supplied id is never trusted blindly).
+      const item = plan.limitationReview
+        ?.flatMap((group) => group.items)
+        .find((candidate) => candidate.sessionIndex === sessionIndex && candidate.exerciseId === exerciseId);
+      const alternative = item?.alternatives.find((candidate) => candidate.id === alternativeId);
+      if (!item || !alternative) {
+        return Response.json({ error: "That replacement is not available for this draft." }, { status: 422 });
+      }
+      const exercise = baseDraft.sessions[sessionIndex]?.exercises.find((candidate) => candidate.libraryId === exerciseId);
+      const areaGroup = plan.limitationReview?.find((group) => group.items.some((candidate) => candidate.sessionIndex === sessionIndex && candidate.exerciseId === exerciseId));
+      actions = [{
+        type: "replace_exercise" as const,
+        sessionIndex,
+        exerciseId,
+        exerciseName: exercise?.name ?? item.exerciseName,
+        alternativeId: alternative.id,
+        alternativeName: alternative.name,
+        reason: `Replace ${item.exerciseName} with ${alternative.name} — canonical alternative with equal or lower relevance to the ${areaGroup?.label ?? "reported area"} concern.`,
+      }];
+    } else {
+      return Response.json({ error: "Unknown repair action." }, { status: 400 });
+    }
+    const applied = applyRepairActions(baseDraft, actions);
+    if (!applied.applied || applied.error) {
+      return Response.json({ error: applied.error ?? "Repair could not be applied — review manually." }, { status: 422 });
+    }
+    const repairedResult = finalizeDraft(applied.draft, finalizeOptions);
+    return Response.json({
+      draft: repairedResult.rehydrated,
+      estimatedMinutes: repairedResult.estimated,
+      duration: repairedResult.duration,
+      validation: repairedResult.validation,
+      design: { ...design, estimatedSessionDurationMinutes: repairedResult.estimated },
+      changeSummary: programmeChangeSummary(baseDraft, repairedResult.rehydrated),
+      context: profile,
+      generation: { source: "fallback", provider: "deterministic", model: null, fallbackReason: "smart_repair", adjustmentApplied: true },
+      notice: "Smart Draft Repair applied a deterministic repair to the draft. Review the changes before approval. Nothing has been published.",
+      equipmentNote: equipment ? null : "Equipment not specified — this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.",
+      quality: repairedResult.quality,
+      repair: planProgrammeRepair(repairedResult.rehydrated, repairOptions),
+      published: false,
+    });
+  }
+
   let result = finalizeDraft(base, finalizeOptions);
 
   // ---- Objective compliance gate (deterministic, NO second AI call) ----
@@ -618,6 +714,9 @@ export async function POST(request: Request) {
     notice,
     equipmentNote,
     quality,
+    // Smart Draft Repair V1 — deterministic proposal computed from the final
+    // draft (after any objective-compliance repair), purely advisory.
+    repair: planProgrammeRepair(rehydrated, repairOptions),
     published: false,
   });
 }

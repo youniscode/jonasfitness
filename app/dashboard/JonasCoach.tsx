@@ -21,6 +21,13 @@ import { PRIMARY_GOALS, SECONDARY_GOAL_VALUES } from "../lib/onboarding-profile"
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
 type DurationState = "match" | "under" | "over";
+type RepairActionType = "add_set" | "remove_set" | "add_exercise" | "remove_exercise" | "replace_exercise" | "adjust_rest";
+type RepairAction = { type: RepairActionType; sessionIndex: number; exerciseId: string | null; exerciseName: string | null; beforeValue?: number; afterValue?: number; reason: string; estimatedDeltaMinutes?: number; prescription?: { sets: number; reps: string; rir: number; restSeconds: number }; alternativeId?: string; alternativeName?: string };
+type LimitationReviewItem = { sessionIndex: number; exerciseId: string; exerciseName: string; level: "LOW" | "MODERATE" | "HIGH"; reason: string; alternatives: { id: string; name: string }[] };
+type LimitationReviewGroup = { area: string; label: string; reviewed: boolean; items: LimitationReviewItem[] };
+type DurationRepairPlan = { direction: "none" | "under" | "over"; currentMinutes: number; targetMinutes: number | null; estimatedAfterMinutes: number; withinTolerance: boolean; actions: RepairAction[]; summary: string };
+type ProgrammeRepairPlan = { status: "NO_REPAIR_NEEDED" | "REPAIR_AVAILABLE" | "COACH_REVIEW_REQUIRED"; durationRepair: DurationRepairPlan | null; limitationReview: LimitationReviewGroup[] | null; estimatedBeforeMinutes: number; actions: RepairAction[]; warnings: string[] };
+
 type CoachPayload = {
   draft: Record<string, unknown>;
   estimatedMinutes: number;
@@ -31,8 +38,7 @@ type CoachPayload = {
   context: Record<string, unknown>;
   generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string; adjustmentApplied?: boolean };
   notice: string;
-  equipmentNote: string | null;
-  quality: {
+  equipmentNote: string | null;    quality: {
     state: "ready" | "review";
     checks: { key: string; label: string; ok: boolean; message?: string }[];
     balance: { push: number; pull: number; verticalPull: number; kneeDominant: number; posteriorChain: number; core: number; isolation: number };
@@ -40,6 +46,7 @@ type CoachPayload = {
     durationDifferenceMinutes: number;
     warnings: string[];
   };
+  repair: ProgrammeRepairPlan | null;
   published: boolean;
 };
 type ContextItem = { id: string; label: string; complete: boolean; detail: string; required: boolean };
@@ -93,6 +100,10 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [secondaryEdit, setSecondaryEdit] = useState(false);
   const seededGoalsRef = useRef(false);
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
+  // Smart Draft Repair V1 — deterministic proposal + apply state.
+  const [repairing, setRepairing] = useState(false);
+  const [repairError, setRepairError] = useState("");
+  const [limitationReviewOpen, setLimitationReviewOpen] = useState(false);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [contextComplete, setContextComplete] = useState(false);
   const [hasApproved, setHasApproved] = useState(false);
@@ -120,6 +131,8 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setGoalSource("onboarding");
       setGoalBaseline(null);
       setSecondaryEdit(false);
+      setLimitationReviewOpen(false);
+      setRepairError("");
       seededGoalsRef.current = false;
       setSessionsOverride("");
       setEquipmentPreset("auto");
@@ -247,6 +260,39 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     setError("");
   }
 
+  // Smart Draft Repair — deterministic apply (no AI call). The plan is always
+  // recomputed server-side; the client only sends the current draft and the
+  // explicit intent ("duration" or a canonical replacement). The response goes
+  // through the same finalize pipeline, so quality is re-run on the repaired
+  // draft before it is shown.
+  async function applyRepair(intent: { apply: "duration"; replacement?: never } | { apply: "replace"; replacement: { sessionIndex: number; exerciseId: string; alternativeId: string } }) {
+    if (!payload || repairing) return;
+    setRepairing(true); setRepairError("");
+    try {
+      const body = {
+        clientId: client.id,
+        action: "repair",
+        apply: intent.apply,
+        ...(intent.apply === "replace" ? { replacement: intent.replacement } : {}),
+        previousDraft: payload.draft,
+        goal: effectivePrimary,
+        secondaryGoals: goalSecondary,
+        sessionsPerWeek: sessionsOverride ? Number(sessionsOverride) : client.sessionsPerWeek,
+        sessionDurationMinutes: sessionDuration ? Number(sessionDuration) : null,
+        equipment: equipmentPreset === "custom" ? equipmentCustom : equipmentPreset === "auto" ? "" : equipmentPreset,
+        avoid,
+      };
+      const response = await fetch("/api/coach-ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setRepairError(data.error ?? "Repair could not be applied — review manually."); return; }
+      setPayload(data as CoachPayload);
+      setSavedDraftId(null);
+      setSavedNotice("");
+    } catch (issue) {
+      setRepairError(issue instanceof Error ? issue.message : "Repair could not be applied — review manually.");
+    } finally { setRepairing(false); }
+  }
+
   // Save as a DRAFT first — the coach approves explicitly afterwards.
   async function saveAsDraft() {
     if (!payload || client.id < 1) return;
@@ -355,6 +401,37 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             <div className="jonas-quality-head"><p>PROGRAMME QUALITY</p><b className={payload.quality.state === "ready" ? "quality-ready" : "quality-review"}>{payload.quality.state === "ready" ? "READY FOR COACH REVIEW" : "REVIEW RECOMMENDED"}</b></div>
             <ul>{payload.quality.checks.map((check) => <li key={check.key}><i>{check.ok ? "✓" : "⚠"}</i><span><b>{check.label}</b><small>{check.ok ? (check.message ?? "Passed") : (check.message ?? "Review recommended")}</small></span></li>)}</ul>
             <p className="jonas-quality-note">Technical validity and coaching quality are separate — schema validation is authoritative, these are coach-review signals. Not a medical assessment.</p>
+          </div>}
+
+          {payload.repair && payload.repair.status !== "NO_REPAIR_NEEDED" && <div className="jonas-repair">
+            <div className="jonas-repair-head"><p>SMART DRAFT REPAIR</p><b className={payload.repair.status === "REPAIR_AVAILABLE" ? "quality-ready" : "quality-review"}>{payload.repair.status === "REPAIR_AVAILABLE" ? "REPAIR AVAILABLE" : "COACH REVIEW RECOMMENDED"}</b></div>
+            <p className="jonas-repair-note">Deterministic repair suggestions — nothing changes until you apply them. No second AI call, never a medical claim.</p>
+            {payload.repair.durationRepair && payload.repair.durationRepair.direction !== "none" && <div className="jonas-repair-block">
+              <strong>DURATION</strong>
+              <p>Current: {durationLabel(payload.repair.durationRepair.currentMinutes)} · Target: {payload.repair.durationRepair.targetMinutes} min</p>
+              <p className="jonas-repair-summary">{payload.repair.durationRepair.summary}</p>
+              {payload.repair.durationRepair.actions.length > 0 && <>
+                <ul className="jonas-repair-actions">{payload.repair.durationRepair.actions.map((action, index) => <li key={`${action.type}-${action.sessionIndex}-${action.exerciseName}-${index}`}>
+                  <span>{action.type === "add_set" ? "+1 set" : action.type === "remove_set" ? "−1 set" : action.type === "add_exercise" ? "Add exercise" : action.type === "remove_exercise" ? "Remove exercise" : action.type === "replace_exercise" ? "Replace" : "Rest"} — {action.exerciseName}{action.type === "add_set" ? ` (${action.beforeValue} → ${action.afterValue} sets)` : ""}{action.type === "replace_exercise" ? ` with ${action.alternativeName}` : ""}{action.estimatedDeltaMinutes != null ? ` · ${action.estimatedDeltaMinutes >= 0 ? "+" : ""}${action.estimatedDeltaMinutes} min` : ""}</span>
+                  <small>{action.reason}</small>
+                </li>)}</ul>
+                <p className="jonas-repair-estimate">Estimated after: {durationLabel(payload.repair.durationRepair.estimatedAfterMinutes)}</p>
+                <button type="button" className="generate repair-apply" disabled={repairing} onClick={() => void applyRepair({ apply: "duration" })}>{repairing ? "Applying…" : "Apply duration repair"}</button>
+              </>}
+            </div>}
+            {payload.repair.limitationReview && payload.repair.limitationReview.length > 0 && <div className="jonas-repair-block">
+              <div className="jonas-repair-limitation-head">
+                <div><strong>LIMITATION REVIEW</strong><p>{payload.repair.limitationReview.map((group) => group.label).join(" · ")} — {payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0)} exercise{payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0) === 1 ? "" : "s"} involve the reported area{payload.repair.limitationReview.every((group) => group.reviewed) ? " (coach reviewed)" : ""}.</p></div>
+                <button type="button" className="ghost-button" aria-expanded={limitationReviewOpen} onClick={() => setLimitationReviewOpen((open) => !open)}>{limitationReviewOpen ? "Close review" : "Review exercises"}</button>
+              </div>
+              {limitationReviewOpen && <ul className="jonas-repair-limitation-list">{payload.repair.limitationReview.map((group) => group.items.map((item) => <li key={`${group.area}-${item.exerciseId}-${item.sessionIndex}`}>
+                <span className="jonas-repair-item-head"><b>{item.exerciseName}</b><em className={`repair-level repair-level-${item.level.toLowerCase()}`}>{item.level}</em><small>DAY {String(item.sessionIndex + 1).padStart(2, "0")}</small></span>
+                <p>{item.reason}</p>
+                {item.alternatives.length > 0 && <div className="jonas-repair-alternatives"><strong>Alternatives:</strong>{item.alternatives.map((alternative) => <button key={alternative.id} type="button" className="ghost-button" disabled={repairing} onClick={() => void applyRepair({ apply: "replace", replacement: { sessionIndex: item.sessionIndex, exerciseId: item.exerciseId, alternativeId: alternative.id } })}>Replace with {alternative.name}</button>)}</div>}
+              </li>))}</ul>}
+            </div>}
+            {payload.repair.warnings.map((warning) => <p className="jonas-repair-warning" key={warning}>⚠ {warning}</p>)}
+            {repairError && <p className="form-error" role="alert">{repairError}</p>}
           </div>}
           <div className="jonas-draft-sessions">
             <div className="jonas-draft-title"><div><p>JONAS COACH DRAFT</p><h3>{text(payload.draft.title)}</h3></div><span>{sessionCount} SESSIONS</span></div>
