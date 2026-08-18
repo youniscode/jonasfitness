@@ -1,6 +1,6 @@
 /* global importScripts */
-const SHELL_CACHE = "jonas-fitness-shell-v5";
-const STATIC_CACHE = "jonas-fitness-static-v5";
+const SHELL_CACHE = "jonas-fitness-shell-v6";
+const STATIC_CACHE = "jonas-fitness-static-v6";
 const ACTIVE_CACHES = new Set([SHELL_CACHE, STATIC_CACHE]);
 const SHELL_FILES = ["/", "/offline.html"];
 

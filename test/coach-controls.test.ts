@@ -220,3 +220,74 @@ test("full adjustment lifecycle keeps avoid untouched and stays in adjust after 
   assert.equal(cancelled.instruction, "");
   assert.equal(avoid, "Barbell squat");
 });
+
+// ---------- Production regression: instruction must NEVER reach the avoid field ----------
+
+// The exact production report: the coach typed this as the targeted-adjustment
+// instruction and it appeared inside the "Avoid exercises" textarea too. These
+// guards would fail against any code path that aliases or copies
+// adjustment.instruction into avoid.
+const PRODUCTION_INSTRUCTION = [
+  "Replace Romanian deadlift on Full Body A with Glute bridge.",
+  "",
+  "Preserve the current weekly movement balance and do not increase session duration beyond the accepted 30-minute target range.",
+].join("\n");
+
+test("production regression: empty avoid stays empty while the instruction is typed", () => {
+  let context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  context = withAdjustmentInstruction(context, PRODUCTION_INSTRUCTION);
+  const body = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid: "" });
+  assert.equal(body.avoid, "", "avoid must stay empty during adjustment");
+  assert.equal(body.instruction, PRODUCTION_INSTRUCTION);
+  assert.notEqual(body.avoid, body.instruction, "the two fields must never alias");
+});
+
+test("production regression: empty avoid stays empty after a successful adjustment", () => {
+  let context = INITIAL_ADJUSTMENT_CONTEXT;
+  context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  context = withAdjustmentInstruction(context, PRODUCTION_INSTRUCTION);
+  // Post-success invariants: mode stays adjust, instruction retained verbatim,
+  // avoid untouched (the success handler never reads or writes either).
+  assert.equal(context.mode, "adjust");
+  assert.equal(context.instruction, PRODUCTION_INSTRUCTION);
+  const body = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid: "" });
+  assert.equal(body.avoid, "");
+  assert.equal(body.instruction, PRODUCTION_INSTRUCTION);
+});
+
+test("production regression: non-empty avoid survives a successful adjustment unchanged", () => {
+  let context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  context = withAdjustmentInstruction(context, PRODUCTION_INSTRUCTION);
+  const body = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid: "Barbell back squat" });
+  assert.equal(body.avoid, "Barbell back squat");
+  assert.equal(body.instruction, PRODUCTION_INSTRUCTION);
+  assert.notEqual(body.avoid, body.instruction);
+  // Retry reproduces the same separate channels.
+  const retry = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid: "Barbell back squat" });
+  assert.equal(retry.avoid, "Barbell back squat");
+  assert.equal(retry.instruction, PRODUCTION_INSTRUCTION);
+});
+
+test("production regression: Cancel clears the instruction without touching avoid", () => {
+  let context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  context = withAdjustmentInstruction(context, PRODUCTION_INSTRUCTION);
+  const cancelled = cancelAdjustmentContext(context);
+  assert.equal(cancelled.instruction, "");
+  assert.equal(cancelled.mode, "first");
+  // avoid lives outside the context — the context has no avoid key at all.
+  assert.deepEqual(Object.keys(cancelled).sort(), ["baseDraft", "instruction", "mode", "previousMode"]);
+});
+
+test("production regression: switching clients cannot leak the instruction", () => {
+  let context = openAdjustmentContext("first", PREVIOUS_DRAFT);
+  context = withAdjustmentInstruction(context, PRODUCTION_INSTRUCTION);
+  // Client switch re-initializes the adjustment context; the component also
+  // resets avoid independently — the two channels reset separately.
+  context = INITIAL_ADJUSTMENT_CONTEXT;
+  assert.equal(context.instruction, "");
+  assert.equal(context.mode, "first");
+  assert.equal(context.baseDraft, null);
+  const body = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid: "" });
+  assert.equal(body.avoid, "");
+  assert.equal(body.instruction, "");
+});

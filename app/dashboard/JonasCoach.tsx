@@ -60,6 +60,12 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   // mode, instruction and base draft always move together. `avoid` (below) is
   // a separate, persistent coach constraint that the adjustment flow never
   // reads or writes — so the two can never cross-contaminate.
+  //
+  // JSX binding contract (keep it this way): the "Avoid exercises" textarea
+  // (id="coach-avoid-input", name="avoidExercises") binds to `avoid`/`setAvoid`
+  // ONLY; the adjustment textarea (id="coach-adjust-input") binds to
+  // `adjustment.instruction` ONLY. The two are separate DOM nodes and separate
+  // state channels — never alias, copy or share values between them.
   const [adjustment, setAdjustment] = useState<AdjustmentContext>(INITIAL_ADJUSTMENT_CONTEXT);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
@@ -220,7 +226,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             </div>
             <label>Equipment<select value={equipmentPreset} onChange={(event) => setEquipmentPreset(event.target.value)}><option value="auto">Auto — from onboarding</option><option value="Full commercial gym">Full commercial gym</option><option value="Dumbbells">Dumbbells + bench</option><option value="Home">Home / basic equipment</option><option value="Bodyweight">Bodyweight</option><option value="custom">Custom…</option></select></label>
             {equipmentPreset === "custom" && <label>Custom equipment<input value={equipmentCustom} onChange={(event) => setEquipmentCustom(event.target.value)} placeholder="e.g. squat rack + dumbbells" /></label>}
-            <label>Avoid exercises<textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
+            <label>Avoid exercises<textarea id="coach-avoid-input" name="avoidExercises" value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
             {adjustment.mode === "adjust" && <div className="jonas-adjust-row"><label className="jonas-adjust-label">What would you like Jonas Coach to change?<textarea id="coach-adjust-input" value={adjustment.instruction} onChange={(event) => setAdjustment(withAdjustmentInstruction(adjustment, event.target.value))} placeholder="e.g. shorten sessions to 30 min, replace Romanian deadlift on Day C, reduce volume…" required /></label><button type="button" className="ghost-button" onClick={() => { setAdjustment(cancelAdjustmentContext(adjustment)); setError(""); }}>Cancel</button></div>}
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="generate" disabled={loading}>{loading ? loadingMessage : adjustment.mode === "first" ? "Generate first programme" : adjustment.mode === "adapt" ? "Adapt current programme" : "Adjust programme"}<span>✦</span></button>
