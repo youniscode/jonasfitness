@@ -94,6 +94,26 @@ const EXPECTED_TIERS: Array<[string, 1 | 2 | 3]> = [
   ["builtin-seated-dumbbell-shoulder-press", 2],
   ["builtin-dumbbell-bench-press", 2],
   ["builtin-back-extension", 2],
+  // Library expansion (19 net-new).
+  ["builtin-hack-squat", 1],
+  ["builtin-leg-extension", 1],
+  ["builtin-lying-leg-curl", 1],
+  ["builtin-smith-machine-squat", 2],
+  ["builtin-cable-pull-through", 1],
+  ["builtin-assisted-pull-up", 1],
+  ["builtin-neutral-grip-lat-pulldown", 1],
+  ["builtin-one-arm-cable-row", 1],
+  ["builtin-machine-row", 1],
+  ["builtin-incline-machine-chest-press", 1],
+  ["builtin-pec-deck-fly", 1],
+  ["builtin-cable-chest-fly", 1],
+  ["builtin-machine-lateral-raise", 1],
+  ["builtin-reverse-pec-deck", 1],
+  ["builtin-preacher-curl", 1],
+  ["builtin-cable-biceps-curl", 1],
+  ["builtin-rope-overhead-triceps-extension", 1],
+  ["builtin-pallof-press", 1],
+  ["builtin-cable-lateral-raise", 2],
 ];
 
 test("every built-in exercise is tier-classified (no gaps)", () => {
@@ -124,14 +144,44 @@ test("the 10 new built-ins resolve and are pattern/tier classified", () => {
   }
 });
 
+test("the 19 expansion built-ins resolve and are pattern/tier classified", () => {
+  const expected: Array<[string, string, 1 | 2 | 3]> = [
+    ["builtin-hack-squat", "knee_dominant", 1],
+    ["builtin-leg-extension", "knee_dominant", 1],
+    ["builtin-lying-leg-curl", "hinge", 1],
+    ["builtin-smith-machine-squat", "knee_dominant", 2],
+    ["builtin-cable-pull-through", "hinge", 1],
+    ["builtin-assisted-pull-up", "vertical_pull", 1],
+    ["builtin-neutral-grip-lat-pulldown", "vertical_pull", 1],
+    ["builtin-one-arm-cable-row", "horizontal_pull", 1],
+    ["builtin-machine-row", "horizontal_pull", 1],
+    ["builtin-incline-machine-chest-press", "horizontal_push", 1],
+    ["builtin-pec-deck-fly", "horizontal_push", 1],
+    ["builtin-cable-chest-fly", "horizontal_push", 1],
+    ["builtin-machine-lateral-raise", "isolation", 1],
+    ["builtin-reverse-pec-deck", "horizontal_pull", 1],
+    ["builtin-preacher-curl", "isolation", 1],
+    ["builtin-cable-biceps-curl", "isolation", 1],
+    ["builtin-rope-overhead-triceps-extension", "isolation", 1],
+    ["builtin-pallof-press", "core", 1],
+    ["builtin-cable-lateral-raise", "isolation", 2],
+  ];
+  for (const [id, pattern, tier] of expected) {
+    const exercise = builtInExercises.find((item) => item.id === id);
+    assert.ok(exercise, `${id} must exist in the catalogue`);
+    assert.equal(movementPatternFor(exercise), pattern, id);
+    assert.equal(difficultyTierFor(exercise), tier, id);
+  }
+});
+
 test("tier classification matches the intended coaching tiers", () => {
   for (const [id, tier] of EXPECTED_TIERS) {
     assert.equal(difficultyTierFor({ libraryId: id }), tier, id);
   }
-  // The catalogue must have exactly 34 built-ins — the audit table above is the
+  // The catalogue must have exactly 53 built-ins — the audit table above is the
   // complete classification, so a drift here means a new exercise was added
   // without a tier.
-  assert.equal(builtInExercises.length, 34);
+  assert.equal(builtInExercises.length, 53);
 });
 
 test("difficultyTierFor is exact — unknown ids and missing ids return null", () => {
@@ -144,13 +194,15 @@ test("difficultyTierFor is exact — unknown ids and missing ids return null", (
 
 test("beginner alternatives resolve to real canonical exercises", () => {
   const cases: Array<[string, string]> = [
-    ["builtin-pull-up", "builtin-lat-pulldown"],
-    ["builtin-back-squat", "builtin-goblet-squat"],
-    ["builtin-bulgarian-split-squat", "builtin-leg-press"],
-    ["builtin-romanian-deadlift", "builtin-glute-bridge"],
+    // The expansion's stable machine/cable options are the preferred first
+    // choice for each demanding Tier 3 lift.
+    ["builtin-pull-up", "builtin-assisted-pull-up"],
+    ["builtin-back-squat", "builtin-hack-squat"],
+    ["builtin-bulgarian-split-squat", "builtin-hack-squat"],
+    ["builtin-romanian-deadlift", "builtin-cable-pull-through"],
     ["builtin-hip-thrust", "builtin-hip-thrust-machine"],
-    ["builtin-barbell-row", "builtin-chest-supported-row"],
-    ["builtin-barbell-bench-press", "builtin-machine-chest-press"],
+    ["builtin-barbell-row", "builtin-machine-row"],
+    ["builtin-barbell-bench-press", "builtin-incline-machine-chest-press"],
     ["builtin-overhead-press", "builtin-machine-shoulder-press"],
   ];
   for (const [source, alternative] of cases) {
@@ -158,10 +210,21 @@ test("beginner alternatives resolve to real canonical exercises", () => {
   }
 });
 
+test("fallback alternatives resolve in order — first available canonical option wins", () => {
+  // All alternative ids exist, so the first entry of each list is returned.
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-pull-up" })?.id, "builtin-assisted-pull-up");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-barbell-row" })?.id, "builtin-machine-row");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-back-squat" })?.id, "builtin-hack-squat");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-romanian-deadlift" })?.id, "builtin-cable-pull-through");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-barbell-bench-press" })?.id, "builtin-incline-machine-chest-press");
+});
+
 test("every alternative id exists in the catalogue (nothing invented)", () => {
   const ids = new Set(builtInExercises.map((exercise) => exercise.id));
-  for (const alternativeId of Object.values(BEGINNER_ALTERNATIVES)) {
-    assert.ok(ids.has(alternativeId), `alternative ${alternativeId} must be a real built-in`);
+  for (const alternatives of Object.values(BEGINNER_ALTERNATIVES)) {
+    for (const alternativeId of alternatives) {
+      assert.ok(ids.has(alternativeId), `alternative ${alternativeId} must be a real built-in`);
+    }
   }
 });
 
@@ -258,8 +321,8 @@ test("AI contract guides beginners toward stable Tier 1–2 exercises", () => {
   assert.match(AI_DRAFT_CONTRACT, /For true beginners, prefer stable, scalable Tier 1–2 exercises/);
   assert.match(AI_DRAFT_CONTRACT, /Avoid stacking more than one technically demanding Tier 3 movement/);
   assert.match(AI_DRAFT_CONTRACT, /When a simpler canonical alternative exists, prefer it/);
-  assert.match(AI_DRAFT_CONTRACT, /Leg press over Barbell back squat/);
-  assert.match(AI_DRAFT_CONTRACT, /Lat pulldown over Pull-up/);
+  assert.match(AI_DRAFT_CONTRACT, /Hack squat or Leg press over Barbell back squat/);
+  assert.match(AI_DRAFT_CONTRACT, /Assisted pull-up over Pull-up/);
 });
 
 // ---------- Movement classification: cable fly is NOT a press ----------
@@ -327,9 +390,11 @@ test("beginner fallback varies the week — no exercise appears in every session
   for (const [id, count] of counts) {
     assert.ok(count < 3, `${id} appears in all ${count} sessions — fallback must vary the week`);
   }
-  // Once the Tier 1 fixture (leg press) would repeat a third time, the fresh
-  // Tier 2 alternative is used instead.
-  assert.ok(fallbackIds(draft).includes("builtin-goblet-squat"), "goblet squat should appear as the fresh knee option");
+  // The expansion added Tier 1 knee options, so once the first Tier 1 fixture
+  // (leg press) would repeat a third time, a fresh machine knee option is used
+  // instead — no need to fall back to the Tier 2 goblet squat.
+  const freshKnee = fallbackIds(draft).filter((id) => id === "builtin-hack-squat" || id === "builtin-leg-extension" || id === "builtin-goblet-squat");
+  assert.ok(freshKnee.length > 0, "a fresh knee option should appear across the week");
 });
 
 test("representative 30-minute beginner fallback is READY FOR COACH REVIEW", () => {

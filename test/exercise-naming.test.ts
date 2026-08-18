@@ -59,8 +59,8 @@ test("exerciseSearchText matches English, French and Arabic names", () => {
   assert.ok(text.includes("chest"));
 });
 
-test("all 34 built-ins have English, French and Arabic names", () => {
-  assert.equal(builtInExercises.length, 34);
+test("all 53 built-ins have English, French and Arabic names", () => {
+  assert.equal(builtInExercises.length, 53);
   for (const item of builtInExercises) {
     assert.ok(item.name.trim(), `missing English name for ${item.id}`);
     assert.ok(item.nameFr.trim(), `missing French name for ${item.name}`);
@@ -224,7 +224,7 @@ test("parseExercises tolerates saved workouts without FR/AR names", () => {
   assert.equal(exercises[0].nameAr, "");
 });
 
-// ——— Phase 1C: real exercise images (24/24) ———
+// ——— Phase 1C: real exercise images (53/53) ———
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -238,8 +238,8 @@ function isGenuineWebP(buffer: Buffer): boolean {
     && buffer.toString("ascii", 8, 12) === "WEBP";
 }
 
-test("all 34 built-ins have non-empty imageUrl under /exercises/", () => {
-  assert.equal(builtInExercises.length, 34);
+test("all 53 built-ins have non-empty imageUrl under /exercises/", () => {
+  assert.equal(builtInExercises.length, 53);
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(item.imageUrl.startsWith("/exercises/"), `${item.name} should use the /exercises/ prefix`);
@@ -247,14 +247,14 @@ test("all 34 built-ins have non-empty imageUrl under /exercises/", () => {
   }
 });
 
-test("all 34 referenced local assets exist", () => {
+test("all 53 referenced local assets exist", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(existsSync(imageAssetPath(slug)), `missing asset for ${slug}`);
   }
 });
 
-test("all 34 referenced files are genuine WebP (RIFF…WEBP)", () => {
+test("all 53 referenced files are genuine WebP (RIFF…WEBP)", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     const buffer = readFileSync(imageAssetPath(slug));

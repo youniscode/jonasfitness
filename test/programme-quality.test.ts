@@ -143,7 +143,7 @@ test("unknown equipment is explicitly surfaced as a quality signal", () => {
 test("beginner with pull-up gets a scalable-alternative warning", () => {
   const draft = rehydrateDraft(draftFixture([{ name: "Full Body A", focus: "f", exercises: [pullup, squat, bench, row] }], 1));
   const warnings = beginnerSuitability(draft, "beginner");
-  assert.ok(warnings.some((warning) => /Pull-up/.test(warning) && /Lat pulldown/.test(warning)));
+  assert.ok(warnings.some((warning) => /Pull-up/.test(warning) && /Assisted pull-up/.test(warning)));
   // Intermediate experience does not trigger the warning.
   assert.equal(beginnerSuitability(draft, "intermediate").length, 0);
 });

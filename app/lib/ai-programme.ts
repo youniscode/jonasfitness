@@ -126,7 +126,7 @@ DESIGN QUALITY RULES:
 - Avoid repeating the exact same technically demanding compound exercise in every weekly session unless client context or coach instruction specifically justifies it.
 - For true beginners, prefer stable, scalable Tier 1–2 exercises (machines, cables, dumbbells).
 - Avoid stacking more than one technically demanding Tier 3 movement (barbell squat/deadlift/bench/row, standing overhead press, barbell hip thrust, Bulgarian split squat, pull-up) in a single session.
-- When a simpler canonical alternative exists, prefer it for initial beginner programming (e.g. Leg press over Barbell back squat, Lat pulldown over Pull-up, Seated cable row over Barbell row, Seated leg curl over Romanian deadlift, Incline dumbbell press over Barbell bench press).
+- When a simpler canonical alternative exists, prefer it for initial beginner programming (e.g. Hack squat or Leg press over Barbell back squat, Assisted pull-up over Pull-up, Machine row over Barbell row, Cable pull-through or Seated leg curl over Romanian deadlift, Machine chest press over Barbell bench press).
 - Respect the given equipment; never assume equipment the client may not have.
 - Session names must reflect the actual session contents.
 
