@@ -260,6 +260,28 @@ export function beginnerSuitability(
   return warnings.slice(0, BEGINNER_SUITABILITY_WARNING_CAP);
 }
 
+// ---------- Goal alignment (advisory) ----------
+
+// Primary-goal alignment: a resistance-training primary objective with NO
+// compound resistance movement anywhere in the week is a REVIEW signal — the
+// draft does not serve the primary objective. Secondary-goal omission is NEVER
+// a warning (a structurally valid programme need not represent every
+// supporting objective), and this is advisory only — never a schema error.
+// Exact canonical matching only (no fuzzy goal guessing); unrecognized goal
+// values simply pass.
+const RESISTANCE_PRIMARY_GOALS = ["build muscle", "get stronger", "improve body composition", "lose body fat"];
+
+export function goalAlignment(draft: ProgrammeDraft, primaryGoal: string | null | undefined): { ok: boolean; message?: string } {
+  const goal = (primaryGoal ?? "").trim().toLowerCase();
+  if (!RESISTANCE_PRIMARY_GOALS.includes(goal)) return { ok: true };
+  const majorCount = draft.sessions.reduce(
+    (total, session) => total + (session.exercises ?? []).filter((exercise) => MAJOR_PATTERNS.has(movementPatternFor(exercise))).length,
+    0,
+  );
+  if (majorCount > 0) return { ok: true };
+  return { ok: false, message: `No compound resistance movements in the programme — doesn't align with the ${primaryGoal} primary objective.` };
+}
+
 // ---------- Aggregate quality report ----------
 
 function durationMessage(state: DurationState, estimated: number, targetMinutes: number | null): string | undefined {
@@ -286,6 +308,9 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   // the client's goal, experience, equipment, limitations, avoid list and
   // recent training. Advisory only — an avoid match or a limitation/recent-
   // training concern surfaces REVIEW RECOMMENDED, never a schema error.
+  // Goal alignment: advisory primary-objective check (a muscle/strength primary
+  // with zero compound movements is REVIEW; secondary-goal omission never is).
+  const alignment = goalAlignment(draft, options.clientFitContext?.goal);
   const fitWarnings = clientFitWarnings(draft, options.clientFitContext);
   // V2: client preference fit — explicit avoid is already blocked/excluded by
   // scoring (authoritative); strongly learned negative patterns surface a
@@ -314,6 +339,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   checks.push({ key: "weeklyBalance", label: "Weekly movement balance", ok: balanceAnalysis.warnings.length === 0, message: balanceAnalysis.warnings[0] });
   checks.push({ key: "equipment", label: "Equipment compatibility", ok: equipmentOk, message: equipmentOk ? undefined : "Equipment not specified — confirm the client's gym access before approval." });
   checks.push({ key: "redundancy", label: "No major redundancy", ok: redundancyWarnings.length === 0, message: redundancyWarnings[0] });
+  checks.push({ key: "goalAlignment", label: "Goal alignment", ok: alignment.ok, message: alignment.message });
   checks.push({ key: "clientFit", label: "Client exercise fit", ok: fitWarnings.length === 0, message: fitWarnings[0] });
   checks.push({ key: "clientPreferenceFit", label: "Client preference fit", ok: preferenceWarnings.length === 0, message: preferenceWarnings[0] });
   checks.push({ key: "clientFeedbackFit", label: "Client feedback fit", ok: feedbackWarnings.length === 0, message: feedbackWarnings[0] });

@@ -17,6 +17,7 @@ import {
   type MovementPattern,
 } from "./exercise-catalogue.ts";
 import { exerciseIntelligenceFor } from "./exercise-intelligence.ts";
+import { boundedSecondaryGoals } from "./coach-controls.ts";
 
 export type DraftExercise = {
   libraryId: string;
@@ -372,6 +373,12 @@ export type DesignRecommendation = {
   constraints: string[];
   progressionStrategy: string;
   sessionBlueprint: SessionBlueprint[];
+  /**
+   * Objective summary for the draft review: the primary (design driver) plus
+   * the bounded supporting objectives. Secondary objectives never override
+   * the primary — they are supporting context only.
+   */
+  objectives: { primary: string; supports: string[] };
 };
 
 const SPLIT_LABEL: Record<number, string> = {
@@ -392,6 +399,7 @@ export function designRecommendation(
   considerations: string,
   availability: string,
   targetDurationMinutes: number | null,
+  secondaryGoals?: string[],
 ): DesignRecommendation {
   const experienceLevel = experience.toLowerCase();
   const beginner = experienceLevel.includes("beginner") || experienceLevel.includes("débutant") || !experienceLevel;
@@ -407,6 +415,10 @@ export function designRecommendation(
   else rationale.push("Equipment unknown — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.");
   if (considerations) rationale.push(`Limitations reported (${considerations}) — conservative selection, coach review required.`);
   if (availability) rationale.push(`Availability: ${availability}.`);
+  const objectives = { primary: goal, supports: boundedSecondaryGoals(secondaryGoals) };
+  if (objectives.supports.length) {
+    rationale.push(`Secondary objectives (${objectives.supports.join(", ")}) are supporting context — the programme stays ${goal || "the primary objective"}-focused while accommodating only compatible structure choices (density, rest, conditioning/accessories).`);
+  }
   const priorities = goal ? [goal] : [];
   const constraints: string[] = [];
   if (considerations) constraints.push("Respect the client's reported limitations and keep movements coach-reviewed.");
@@ -428,6 +440,7 @@ export function designRecommendation(
     constraints,
     progressionStrategy,
     sessionBlueprint,
+    objectives,
   };
 }
 

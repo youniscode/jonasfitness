@@ -53,6 +53,41 @@ const inclinePress = { libraryId: "builtin-incline-dumbbell-press", name: "Incli
 const legCurl = { libraryId: "builtin-seated-leg-curl", name: "Seated leg curl", sets: 3, reps: "10-15", rir: 2, restSeconds: 90 };
 const lateralRaise = { libraryId: "builtin-lateral-raise", name: "Dumbbell lateral raise", sets: 3, reps: "10-15", rir: 2, restSeconds: 75 };
 
+// ---------- Goal alignment ----------
+
+test("goal alignment flags a muscle-primary programme with no compound movements", () => {
+  const draft = draftFixture([{ name: "Day 1", focus: "Isolation", exercises: [crunch, lateralRaise] }]);
+  const report = analyseProgrammeQuality(draft, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner", clientFitContext: { goal: "Build muscle", secondaryGoals: ["Improve fitness"] } });
+  const check = report.checks.find((c) => c.key === "goalAlignment");
+  assert.ok(check);
+  assert.equal(check.ok, false);
+  assert.match(check.message ?? "", /no compound resistance movements/i);
+});
+
+test("goal alignment passes when the primary is served by compound movements", () => {
+  const draft = draftFixture([{ name: "Day 1", focus: "Full body", exercises: [bench, squat, row, crunch] }]);
+  const report = analyseProgrammeQuality(draft, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner", clientFitContext: { goal: "Build muscle", secondaryGoals: ["Improve fitness", "Lose body fat"] } });
+  const check = report.checks.find((c) => c.key === "goalAlignment");
+  assert.ok(check);
+  assert.equal(check.ok, true);
+});
+
+test("omitting a secondary goal never flags goal alignment", () => {
+  const draft = draftFixture([{ name: "Day 1", focus: "Full body", exercises: [bench, squat, row] }]);
+  const report = analyseProgrammeQuality(draft, { targetMinutes: null, equipment: "Full commercial gym", experience: "intermediate", clientFitContext: { goal: "Build muscle", secondaryGoals: ["Improve fitness"] } });
+  const check = report.checks.find((c) => c.key === "goalAlignment");
+  assert.ok(check);
+  assert.equal(check.ok, true);
+});
+
+test("goal alignment is advisory-only, never a schema error", () => {
+  const draft = draftFixture([{ name: "Day 1", focus: "Isolation", exercises: [crunch, lateralRaise] }]);
+  const report = analyseProgrammeQuality(draft, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner", clientFitContext: { goal: "Build muscle" } });
+  const check = report.checks.find((c) => c.key === "goalAlignment");
+  assert.ok(check && !check.ok);
+  assert.equal(report.state, "review");
+});
+
 // ---------- Duration policy ----------
 
 test("30 min vs 60 min target → UNDER (never 'fits')", () => {

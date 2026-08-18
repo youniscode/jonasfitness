@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_SESSION_DURATION,
   adjustmentInstructionError,
@@ -11,10 +11,13 @@ import {
   openAdjustmentContext,
   sessionDurationAfterGeneration,
   sessionDurationForClientChange,
+  toggleSecondaryGoal,
   withAdjustmentInstruction,
+  withPrimaryGoal,
   type AdjustmentContext,
   type CoachMode,
 } from "../lib/coach-controls";
+import { PRIMARY_GOALS, SECONDARY_GOAL_VALUES } from "../lib/onboarding-profile";
 
 type Client = { id: number; name: string; goal: string; sessionsPerWeek: number };
 type DurationState = "match" | "under" | "over";
@@ -23,7 +26,7 @@ type CoachPayload = {
   estimatedMinutes: number;
   duration: { state: DurationState; expectedMinutes: number; targetMinutes: number | null; overTarget: boolean; underTarget: boolean; differenceMinutes: number };
   validation: { ok: boolean; errors: { field: string; message: string; severity: string }[]; warnings: { field: string; message: string; severity: string }[] };
-  design: { recommendedSplit: string; sessionsPerWeek: number; sessionDurationMinutes: number | null; rationale: string[]; priorities: string[]; constraints: string[]; progressionStrategy: string; estimatedSessionDurationMinutes: number; sessionBlueprint?: { name: string; focus: string }[] };
+  design: { recommendedSplit: string; sessionsPerWeek: number; sessionDurationMinutes: number | null; rationale: string[]; priorities: string[]; constraints: string[]; progressionStrategy: string; estimatedSessionDurationMinutes: number; sessionBlueprint?: { name: string; focus: string }[]; objectives?: { primary: string; supports: string[] } };
   changeSummary: { dayChanges: { day: string; changes: string[] }[]; weeklyVolume: { area: string; deltaSets: number }[]; durationBefore: number | null; durationAfter: number | null } | null;
   context: Record<string, unknown>;
   generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string; adjustmentApplied?: boolean };
@@ -75,7 +78,16 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [equipmentPreset, setEquipmentPreset] = useState("auto");
   const [equipmentCustom, setEquipmentCustom] = useState("");
   const [avoid, setAvoid] = useState("");
-  const [draftGoal, setDraftGoal] = useState("");
+  // Multi-objective draft context: the primary objective (single select) plus
+  // secondary objectives (chips), seeded from the client's onboarding profile.
+  // `goalSource` tracks whether the coach adjusted them for THIS draft — the
+  // onboarding profile is never mutated from Coach Controls; a fresh draft or
+  // a client switch re-seeds from onboarding.
+  const [goalPrimary, setGoalPrimary] = useState("");
+  const [goalSecondary, setGoalSecondary] = useState<string[]>([]);
+  const [goalSource, setGoalSource] = useState<"onboarding" | "draft">("onboarding");
+  const [goalBaseline, setGoalBaseline] = useState<{ primary: string; secondary: string[] } | null>(null);
+  const seededGoalsRef = useRef(false);
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [contextComplete, setContextComplete] = useState(false);
@@ -99,7 +111,11 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       setPayload(null);
       setSavedDraftId(null);
       setHasApproved(false);
-      setDraftGoal("");
+      setGoalPrimary("");
+      setGoalSecondary([]);
+      setGoalSource("onboarding");
+      setGoalBaseline(null);
+      seededGoalsRef.current = false;
       setSessionsOverride("");
       setEquipmentPreset("auto");
       setEquipmentCustom("");
@@ -116,13 +132,37 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       let active = true;
       void fetch("/api/coach-context?clientId=" + client.id)
         .then((response) => response.json().catch(() => ({})))
-        .then((data) => { if (active && data.profile) { setContextItems(data.items ?? []); setContextComplete(Boolean(data.complete)); setHasApproved(Boolean(data.hasApproved)); } })
+        .then((data) => {
+          if (!active || !data.profile) return;
+          setContextItems(data.items ?? []);
+          setContextComplete(Boolean(data.complete));
+          setHasApproved(Boolean(data.hasApproved));
+          // Seed the objective controls from the onboarding profile exactly once
+          // per client (before any coach edit). profile.goals.primary is the
+          // same value the generation request defaults to, so the UI and the
+          // request always agree unless the coach overrides for this draft.
+          if (!seededGoalsRef.current) {
+            seededGoalsRef.current = true;
+            const primary = String(data.profile.goals?.primary ?? "") || client.goal;
+            const secondary = Array.isArray(data.profile.goals?.secondary) ? data.profile.goals.secondary.map(String) : [];
+            setGoalBaseline({ primary, secondary });
+            setGoalPrimary(primary);
+            setGoalSecondary(secondary);
+          }
+        })
         .catch(() => {});
       return () => { active = false; };
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [client.id]);
+  }, [client.id, client.goal]);
 
+  // Effective objectives: before the onboarding context loads the controls fall
+  // back to the client's stored goal; once seeded they follow the onboarding
+  // profile (or the coach's draft override). Secondary goals are bounded for
+  // the generation request — the UI keeps the full list.
+  const effectivePrimary = goalPrimary || client.goal || "Build muscle";
+  const primaryOptions = [...new Set([...(PRIMARY_GOALS as readonly string[]), effectivePrimary])];
+  const secondaryOptions = SECONDARY_GOAL_VALUES.filter((goal) => goal !== effectivePrimary);
   const sessionCount = sessionsOf(payload?.draft ?? {}).length;
   const errors = payload?.validation.errors.filter((issue) => issue.severity === "error") ?? [];
   const warnings = payload?.validation.warnings ?? [];
@@ -142,7 +182,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     // current draft visible and confirms the outcome below.
     if (event) setRetryNotice("");
     setLoading(true); setLoadingMessage("Building programme with Jonas Coach…"); setError(""); setSavedNotice(""); setSavedDraftId(null);
-    const goal = draftGoal || client.goal;
+    const goal = effectivePrimary;
     // The exact same request context must be reproduced on Retry (generate
     // with event === null) — mode, previousDraft, instruction, duration and
     // controls all come from live state, never from a changed payload.
@@ -150,6 +190,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       clientId: client.id,
       mode: adjustment.mode,
       goal,
+      secondaryGoals: goalSecondary,
       sessionsPerWeek: sessionsOverride ? Number(sessionsOverride) : client.sessionsPerWeek,
       sessionDurationMinutes: sessionDuration ? Number(sessionDuration) : null,
       equipment: equipmentPreset === "custom" ? equipmentCustom : equipmentPreset === "auto" ? "" : equipmentPreset,
@@ -178,6 +219,27 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : "Jonas Coach couldn't create a valid draft. Try again.");
     } finally { setLoading(false); }
+  }
+
+  // Multi-objective controls: changing the primary promotes/drops a secondary
+  // deterministically; toggling a chip adds/removes it; the source label flips
+  // to "Adjusted for this draft" (the onboarding profile is never written).
+  function changePrimary(next: string) {
+    if (next === effectivePrimary) return;
+    setGoalPrimary(next);
+    setGoalSecondary((current) => withPrimaryGoal(effectivePrimary, current, next));
+    setGoalSource("draft");
+  }
+  function toggleSecondary(goal: string) {
+    setGoalSecondary((current) => toggleSecondaryGoal(effectivePrimary, current, goal));
+    setGoalSource("draft");
+  }
+  function resetGoals() {
+    if (!goalBaseline) return;
+    setGoalPrimary(goalBaseline.primary);
+    setGoalSecondary(goalBaseline.secondary);
+    setGoalSource("onboarding");
+    setError("");
   }
 
   // Save as a DRAFT first — the coach approves explicitly afterwards.
@@ -219,7 +281,23 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           <div className="jonas-controls-head"><p>COACH CONTROLS</p><span>AUTO — defaults come from onboarding</span></div>
           <form className="jonas-controls-form" onSubmit={generate}>
             <label>Mode<select value={adjustment.mode} onChange={(event) => setAdjustment(modeSelectionContext(event.target.value as CoachMode))}><option value="first">Generate first programme</option><option value="adapt">Adapt current programme</option><option value="adjust">Targeted adjustment</option></select></label>
-            <label>Goal<input value={draftGoal || client.goal} onChange={(event) => setDraftGoal(event.target.value)} /></label>
+            <div className="jonas-goal-block">
+              <div className="jonas-goal-meta">
+                <span className={`goal-source ${goalSource === "draft" ? "draft" : ""}`}>{goalSource === "onboarding" ? "Defaults from onboarding" : "Adjusted for this draft"}</span>
+                {goalBaseline && goalSource === "draft" && <button type="button" className="goal-reset" onClick={resetGoals}>Reset to onboarding</button>}
+              </div>
+              <label>Primary objective
+                <select value={effectivePrimary} onChange={(event) => changePrimary(event.target.value)}>
+                  {primaryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+              <div className="jonas-secondary-goals">
+                <span className="jonas-secondary-label">Secondary objectives</span>
+                <div className="jonas-goal-chips">
+                  {secondaryOptions.map((option) => <button key={option} type="button" className={`jonas-goal-chip ${goalSecondary.includes(option) ? "selected" : ""}`} onClick={() => toggleSecondary(option)}>{option}{goalSecondary.includes(option) ? " ✓" : ""}</button>)}
+                </div>
+              </div>
+            </div>
             <div className="jonas-controls-pair">
               <label>Sessions / week<input type="number" min="1" max="7" value={sessionsOverride || client.sessionsPerWeek} onChange={(event) => setSessionsOverride(event.target.value)} /></label>
               <label>Target duration (min)<input type="number" min="30" max="120" step="5" value={sessionDuration} onChange={(event) => setSessionDuration(event.target.value)} /></label>
@@ -239,6 +317,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           <div className="jonas-recommendation-head"><div><p>JONAS COACH RECOMMENDS</p><h3>{payload.design.recommendedSplit}</h3><span>{payload.design.sessionsPerWeek} sessions/week · {durationLabel(payload.design.estimatedSessionDurationMinutes)} per session</span></div>{errors.length === 0 && <div className="jonas-validity"><b className="draft-valid">✓ VALID DRAFT</b>{payload.quality && <b className={payload.quality.state === "ready" ? "quality-ready" : "quality-review"}>{payload.quality.state === "ready" ? "READY FOR COACH REVIEW" : "REVIEW RECOMMENDED"}</b>}</div>}</div>
           {payload.equipmentNote && <div className="jonas-equipment-note" role="note">⚠ {payload.equipmentNote}</div>}
           {payload.design.rationale.map((point, index) => <p key={point}><i>{index + 1}</i><span>{point}</span></p>)}
+          {payload.design.objectives && <div className="jonas-objectives"><strong>PROGRAMME OBJECTIVES</strong><p><b>Primary:</b> {payload.design.objectives.primary}</p>{payload.design.objectives.supports.length > 0 && <p><b>Supports:</b> {payload.design.objectives.supports.join(", ")}</p>}<small>Secondary objectives are supporting context — the primary objective stays the programme priority.</small></div>}
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
 

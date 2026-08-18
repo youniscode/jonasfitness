@@ -120,6 +120,67 @@ test("intermediate strength client: barbell squat is not penalised as if beginne
   assert.ok(intermediate.score >= 50, "intermediate squat should not be penalised");
 });
 
+// ---------- Secondary objectives (supporting context only) ----------
+
+test("secondary 'Get stronger' modestly boosts stable compounds with a strength tag", () => {
+  const compound = builtInExercises.find((exercise) => {
+    const intel = exerciseIntelligenceFor(exercise);
+    return intel?.exerciseType === "compound" && intel.goalTags.includes("strength");
+  });
+  assert.ok(compound, "expected at least one compound strength exercise in the catalogue");
+  const base = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle", experience: "Intermediate", equipment: "Full commercial gym" });
+  const withSecondary = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle", experience: "Intermediate", equipment: "Full commercial gym", secondaryGoals: ["Get stronger"] });
+  assert.equal(withSecondary.score, base.score + 2);
+  assert.ok(withSecondary.positives.some((p) => /secondary objective of getting stronger/i.test(p)));
+});
+
+test("secondary 'Get stronger' does not boost non-compound movements", () => {
+  const isolation = builtInExercises.find((exercise) => exerciseIntelligenceFor(exercise)?.exerciseType !== "compound");
+  assert.ok(isolation);
+  const base = scoreExerciseForClient({ libraryId: isolation.id, name: isolation.name }, { goal: "Build muscle", experience: "Intermediate", equipment: "Full commercial gym" });
+  const withSecondary = scoreExerciseForClient({ libraryId: isolation.id, name: isolation.name }, { goal: "Build muscle", experience: "Intermediate", equipment: "Full commercial gym", secondaryGoals: ["Get stronger"] });
+  assert.equal(withSecondary.score, base.score);
+});
+
+test("secondary 'Improve fitness' modestly boosts low-fatigue exercises only", () => {
+  const low = builtInExercises.find((exercise) => (exerciseIntelligenceFor(exercise)?.fatigueCost ?? 0) <= 2);
+  const high = builtInExercises.find((exercise) => (exerciseIntelligenceFor(exercise)?.fatigueCost ?? 0) >= 3);
+  assert.ok(low && high, "expected both low- and high-fatigue exercises in the catalogue");
+  const lowBase = scoreExerciseForClient({ libraryId: low.id, name: low.name }, { goal: "Build muscle" });
+  const lowFit = scoreExerciseForClient({ libraryId: low.id, name: low.name }, { goal: "Build muscle", secondaryGoals: ["Improve fitness"] });
+  const highBase = scoreExerciseForClient({ libraryId: high.id, name: high.name }, { goal: "Build muscle" });
+  const highFit = scoreExerciseForClient({ libraryId: high.id, name: high.name }, { goal: "Build muscle", secondaryGoals: ["Improve fitness"] });
+  assert.equal(lowFit.score, lowBase.score + 1);
+  assert.equal(highFit.score, highBase.score);
+});
+
+test("unrelated/lifestyle secondary goals have zero effect and never exclude", () => {
+  const compound = builtInExercises.find((exercise) => exerciseIntelligenceFor(exercise)?.exerciseType === "compound");
+  assert.ok(compound);
+  const base = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle" });
+  const withLifestyle = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle", secondaryGoals: ["Energy", "Routine", "Confidence"] });
+  assert.equal(withLifestyle.score, base.score);
+  assert.equal(withLifestyle.exclusion, false);
+  assert.ok(withLifestyle.score > 0);
+});
+
+test("secondary goals never override coach explicit avoid or the primary goal", () => {
+  const compound = builtInExercises.find((exercise) => {
+    const intel = exerciseIntelligenceFor(exercise);
+    return intel?.exerciseType === "compound" && intel.goalTags.includes("strength");
+  });
+  assert.ok(compound);
+  // Coach explicit avoid stays an exclusion even with a matching secondary.
+  const avoided = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle", secondaryGoals: ["Get stronger"], preferenceContext: { explicit: { [compound.id]: "avoid" }, learned: {}, replacements: {} } });
+  assert.equal(avoided.score, 0);
+  assert.equal(avoided.exclusion, true);
+  // The primary goal match stays authoritative — a strength secondary only
+  // adds a small nudge on top of whatever the primary dictates.
+  const conditioning = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Lose body fat", secondaryGoals: ["Get stronger"] });
+  const plain = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Lose body fat" });
+  assert.equal(conditioning.score, plain.score + 2);
+});
+
 test("recent chest training reduces the chest exercise score the next day", () => {
   const baseline = scoreExerciseForClient({ libraryId: "builtin-machine-chest-press", name: "Machine chest press" }, beginnerHypertrophyFullGym);
   const afterChest = scoreExerciseForClient({ libraryId: "builtin-machine-chest-press", name: "Machine chest press" }, { ...beginnerHypertrophyFullGym, recentMuscles: ["chest"] });

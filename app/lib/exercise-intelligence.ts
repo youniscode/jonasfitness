@@ -879,6 +879,14 @@ export function intelligenceCoversAllBuiltIns(): string[] {
 // (never guesses) when context is missing.
 export type ClientFitContext = {
   goal?: string | null;
+  /**
+   * Secondary objectives (multi-goal onboarding / coach draft override).
+   * Supporting context only: a small deterministic bonus for clearly
+   * compatible exercises, applied with the generic fit — never equal to the
+   * primary goal, never an exclusion, never overriding coach explicit
+   * preference or equipment/validation gates.
+   */
+  secondaryGoals?: string[] | null;
   experience?: string | null;
   equipment?: string | null;
   sessionDurationMinutes?: number | null;
@@ -921,6 +929,29 @@ export type ClientFitContext = {
 
 export const ONBOARDING_LIKE_BONUS = 3;
 export const ONBOARDING_DISLIKE_PENALTY = 3;
+
+// Small deterministic support for clearly compatible secondary objectives.
+// Deliberately tiny and positive-only: secondary goals are supporting context,
+// never the design driver and never an exclusion. Only high-confidence
+// compatible combinations nudge (e.g. "Get stronger" supporting a hypertrophy
+// primary on stable compounds); lifestyle goals (Energy, Routine, …) and
+// body-composition goals have NO exercise-level effect.
+export const SECONDARY_GOAL_SUPPORT_BONUS = 2;
+
+export function secondaryGoalSupport(
+  intel: ExerciseIntelligence | null | undefined,
+  secondaryGoals: string[] | null | undefined,
+): { delta: number; reason: string | null } {
+  if (!intel || !secondaryGoals?.length) return { delta: 0, reason: null };
+  const goals = secondaryGoals.map((goal) => goal.toLowerCase());
+  if (goals.includes("get stronger") && intel.goalTags.includes("strength") && intel.exerciseType === "compound") {
+    return { delta: SECONDARY_GOAL_SUPPORT_BONUS, reason: "Also supports the client's secondary objective of getting stronger." };
+  }
+  if (goals.includes("improve fitness") && intel.fatigueCost <= 2) {
+    return { delta: 1, reason: "Efficient movement — also supports the client's fitness objective." };
+  }
+  return { delta: 0, reason: null };
+}
 
 export type ExerciseFitResult = {
   /** 0–100, higher = better fit. 0 means explicitly excluded. */
@@ -1125,6 +1156,16 @@ export function scoreExerciseForClient(
   // ---- Progression potential ----
   if (intel.progressions.length) { score += 3; positives.push("Clear progression path."); }
   if (intel.regressions.length) score += 2;
+
+  // ---- Secondary objectives (supporting context, tiny positive nudge) ----
+  // Applied with the generic fit, after the primary-goal match: a secondary
+  // objective can never equal the primary, never exclude, and never override
+  // coach preference, feedback or equipment/validation gates.
+  const secondarySupport = secondaryGoalSupport(intel, context?.secondaryGoals);
+  if (secondarySupport.delta > 0) {
+    score += secondarySupport.delta;
+    positives.push(secondarySupport.reason!);
+  }
 
   // ---- V2: coach preference memory (explicit preferred + learned signals) ----
   if (explicitState === "preferred") {

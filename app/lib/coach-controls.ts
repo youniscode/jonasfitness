@@ -112,6 +112,8 @@ export function coachRequestBody(opts: {
   clientId: number;
   mode: CoachMode;
   goal: string;
+  /** Secondary objectives for this draft — supporting context, bounded below. */
+  secondaryGoals?: string[];
   sessionsPerWeek: number;
   sessionDurationMinutes: number | null;
   equipment: string;
@@ -123,6 +125,10 @@ export function coachRequestBody(opts: {
     clientId: opts.clientId,
     mode: opts.mode,
     goal: opts.goal,
+    // Always sent (possibly empty): an explicit [] means the coach cleared all
+    // secondaries for this draft — the route distinguishes "cleared" from
+    // "legacy caller didn't send secondary goals" via Array.isArray.
+    secondaryGoals: boundedSecondaryGoals(opts.secondaryGoals),
     sessionsPerWeek: opts.sessionsPerWeek,
     sessionDurationMinutes: opts.sessionDurationMinutes,
     equipment: opts.equipment,
@@ -130,4 +136,50 @@ export function coachRequestBody(opts: {
     instruction: opts.mode === "adjust" ? opts.adjustInstruction : "",
     previousDraft: opts.mode === "adjust" ? (opts.previousDraft ?? undefined) : undefined,
   };
+}
+
+// ---------- Multi-objective coach controls ----------
+
+// Secondary objectives are supporting context only: bounded for the generation
+// request so Jonas Coach is never asked to optimize every goal equally.
+export const GOAL_MAX_SECONDARIES = 5;
+
+// Normalizes raw secondary-goal input (UI selection, request body or the
+// onboarding profile): trimmed, deduped, empty entries dropped, capped at
+// GOAL_MAX_SECONDARIES. Deterministic priority is the input order — the
+// coach's explicit selection order, or the onboarding order when not
+// overridden.
+export function boundedSecondaryGoals(value: unknown): string[] {
+  const goals = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const entry of goals) {
+    const goal = String(entry ?? "").trim();
+    if (!goal || seen.has(goal)) continue;
+    seen.add(goal);
+    result.push(goal);
+    if (result.length >= GOAL_MAX_SECONDARIES) break;
+  }
+  return result;
+}
+
+// Changing the primary objective for a draft: the new primary is dropped from
+// the secondary list (a goal can never be both primary and secondary); every
+// other selected secondary is preserved.
+export function withPrimaryGoal(primary: string, secondary: string[], nextPrimary: string): string[] {
+  return secondary.filter((goal) => goal !== nextPrimary);
+}
+
+// Toggling a secondary objective chip. The current primary can never become a
+// secondary (it is the single primary select); toggling it off removes it.
+export function toggleSecondaryGoal(primary: string, secondary: string[], goal: string): string[] {
+  if (!goal.trim() || goal === primary) return secondary;
+  return secondary.includes(goal) ? secondary.filter((entry) => entry !== goal) : [...secondary, goal];
+}
+
+// True when the draft's goal selection differs from the onboarding baseline —
+// drives the "Adjusted for this draft" label and the Reset-to-onboarding
+// control. Never mutates the onboarding profile itself.
+export function draftGoalsAdjusted(primary: string, onboardingPrimary: string, secondary: string[], onboardingSecondary: string[]): boolean {
+  return primary !== onboardingPrimary || secondary.join("|") !== onboardingSecondary.join("|");
 }

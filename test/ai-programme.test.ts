@@ -309,6 +309,18 @@ test("limitations flag coach review in design output", () => {
   assert.ok(design.rationale.some((r) => /coach review required/i.test(r)));
 });
 
+test("designRecommendation surfaces secondary objectives as supporting context only", () => {
+  const design = designRecommendation("Build muscle", 3, "beginner", "Commercial gym", "", "", 60, ["Get stronger", "Improve fitness", "Energy"]);
+  assert.deepEqual(design.objectives, { primary: "Build muscle", supports: ["Get stronger", "Improve fitness", "Energy"] });
+  assert.ok(design.rationale.some((r) => /secondary objectives/i.test(r) && /supporting context/i.test(r)));
+});
+
+test("designRecommendation without secondary goals has empty supports and no extra rationale", () => {
+  const design = designRecommendation("Build muscle", 3, "beginner", "Commercial gym", "", "", 60);
+  assert.deepEqual(design.objectives, { primary: "Build muscle", supports: [] });
+  assert.ok(!design.rationale.some((r) => /secondary objectives/i.test(r)));
+});
+
 // ---------- Change summary ----------
 
 test("programmeChangeSummary derives deterministic diffs", () => {

@@ -30,6 +30,7 @@ import {
   onboardingPreferenceConflictNotes,
   parseProfile,
 } from "../../lib/onboarding-profile";
+import { boundedSecondaryGoals } from "../../lib/coach-controls";
 import type { ClientFitContext } from "../../lib/exercise-intelligence";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
@@ -271,9 +272,14 @@ export async function POST(request: Request) {
   const blocked = coachGenerationBlocked(profile);
   if (blocked) return Response.json({ error: blocked, blocked: true }, { status: 409 });
 
-  // Coach overrides, defaulting to the client's onboarding profile.
+  // Coach overrides, defaulting to the client's onboarding profile. An explicit
+  // array (even empty) means the coach cleared the secondaries for this draft;
+  // a legacy caller that sends no field falls back to the onboarding order.
   const requestedSessions = Math.min(7, Math.max(1, Number(body.sessionsPerWeek) || profile.training.sessionsPerWeek || 3));
   const goal = String(body.goal ?? profile.goals.primary ?? "Build muscle").trim();
+  const secondaryGoals = boundedSecondaryGoals(
+    Array.isArray(body.secondaryGoals) ? body.secondaryGoals : profile.goals.secondary,
+  );
   const targetDuration = Number(body.sessionDurationMinutes) || null;
   const equipment = String(body.equipment ?? profile.training.equipment ?? "").trim() || null;
   const avoid = String(body.avoid ?? "").trim();
@@ -287,6 +293,7 @@ export async function POST(request: Request) {
     profile.readiness.considerations,
     profile.training.availability,
     targetDuration,
+    secondaryGoals,
   );
 
   // The draft the coach is working from: for a targeted adjustment it is the
@@ -405,7 +412,11 @@ export async function POST(request: Request) {
   const userPrompt = [
     context,
     "",
-    `Requested programme: ${requestedSessions} sessions per week, goal "${goal}", target session duration ${targetDuration ? `~${targetDuration} minutes` : "as designed"}.`,
+    `Requested programme: ${requestedSessions} sessions per week, target session duration ${targetDuration ? `~${targetDuration} minutes` : "as designed"}.`,
+    "OBJECTIVE HIERARCHY:",
+    `PRIMARY OBJECTIVE: ${goal}`,
+    `SECONDARY OBJECTIVES: ${secondaryGoals.length ? secondaryGoals.join(", ") : "none"}`,
+    "RULE: The primary objective is the programme-design priority. Secondary objectives are supporting constraints/preferences that may influence programme details (exercise density, rest periods, conditioning/accessory choices, movement variety, session structure, sustainable workload) ONLY when compatible with the primary objective. Never treat all goals as equal, never satisfy secondary goals at the expense of the primary objective, and never draw medical or nutritional conclusions from any goal.",
     equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
     avoid ? `Avoid these exercises/movements: ${avoid}.` : "",
     preferenceSummary,
@@ -488,6 +499,9 @@ export async function POST(request: Request) {
   // never a block.
   const clientFitContext: ClientFitContext = {
     goal,
+    // Supporting context only — the deterministic scoring keeps the primary
+    // goal authoritative (secondary goals never equal or override it).
+    secondaryGoals,
     experience: profile.training.experience,
     equipment: equipment ?? profile.training.equipment,
     sessionDurationMinutes: targetDuration,

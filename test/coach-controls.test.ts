@@ -4,14 +4,19 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_SESSION_DURATION,
   adjustmentInstructionError,
+  boundedSecondaryGoals,
   cancelAdjustmentContext,
   coachRequestBody,
+  draftGoalsAdjusted,
+  GOAL_MAX_SECONDARIES,
   INITIAL_ADJUSTMENT_CONTEXT,
   modeSelectionContext,
   openAdjustmentContext,
   sessionDurationAfterGeneration,
   sessionDurationForClientChange,
+  toggleSecondaryGoal,
   withAdjustmentInstruction,
+  withPrimaryGoal,
 } from "../app/lib/coach-controls.ts";
 
 // Target-duration persistence rules for the Jonas Coach panel: the coach's
@@ -197,6 +202,51 @@ test("withAdjustmentInstruction only changes the instruction", () => {
 test("adjustment context has no avoid field (structurally separate)", () => {
   assert.deepEqual(INITIAL_ADJUSTMENT_CONTEXT, { mode: "first", previousMode: "first", instruction: "", baseDraft: null });
   assert.deepEqual(Object.keys(INITIAL_ADJUSTMENT_CONTEXT).sort(), ["baseDraft", "instruction", "mode", "previousMode"]);
+});
+
+// ---------- Multi-objective coach controls ----------
+
+test("coachRequestBody sends secondary goals alongside the primary goal", () => {
+  const body = coachRequestBody({ mode: "first", adjustInstruction: "", previousDraft: null, ...RETRY_CONTEXT, secondaryGoals: ["Improve fitness", "Lose body fat"] });
+  assert.deepEqual(body.secondaryGoals, ["Improve fitness", "Lose body fat"]);
+  assert.equal(body.goal, "Build muscle");
+  assert.equal(body.sessionsPerWeek, 3);
+});
+
+test("coachRequestBody with no secondary goals sends an explicit empty array", () => {
+  // An explicit [] means "coach cleared all secondaries for this draft" — the
+  // route distinguishes it from a legacy caller that sends no field at all.
+  const body = coachRequestBody({ mode: "first", adjustInstruction: "", previousDraft: null, ...RETRY_CONTEXT });
+  assert.deepEqual(body.secondaryGoals, []);
+});
+
+test("boundedSecondaryGoals trims, dedupes, drops blanks and caps at 5", () => {
+  assert.equal(GOAL_MAX_SECONDARIES, 5);
+  assert.deepEqual(
+    boundedSecondaryGoals([" Improve fitness ", "Improve fitness", "", "   ", "Get stronger", "Energy", "Routine", "Confidence", "Mobility", "Posture", "Endurance"]),
+    ["Improve fitness", "Get stronger", "Energy", "Routine", "Confidence"],
+  );
+  assert.deepEqual(boundedSecondaryGoals(null), []);
+  assert.deepEqual(boundedSecondaryGoals("not an array"), []);
+});
+
+test("withPrimaryGoal drops the new primary from the secondary list only", () => {
+  assert.deepEqual(withPrimaryGoal("Build muscle", ["Get stronger", "Improve fitness"], "Get stronger"), ["Improve fitness"]);
+  assert.deepEqual(withPrimaryGoal("Build muscle", ["Get stronger", "Improve fitness"], "Lose body fat"), ["Get stronger", "Improve fitness"]);
+});
+
+test("toggleSecondaryGoal adds, removes and never allows the primary as a secondary", () => {
+  assert.deepEqual(toggleSecondaryGoal("Build muscle", ["Get stronger"], "Improve fitness"), ["Get stronger", "Improve fitness"]);
+  assert.deepEqual(toggleSecondaryGoal("Build muscle", ["Get stronger", "Improve fitness"], "Improve fitness"), ["Get stronger"]);
+  assert.deepEqual(toggleSecondaryGoal("Build muscle", ["Get stronger"], "Build muscle"), ["Get stronger"]);
+  assert.deepEqual(toggleSecondaryGoal("Build muscle", ["Get stronger"], ""), ["Get stronger"]);
+});
+
+test("draftGoalsAdjusted detects a coach draft override vs the onboarding defaults", () => {
+  assert.equal(draftGoalsAdjusted("Build muscle", "Build muscle", ["Improve fitness"], ["Improve fitness"]), false);
+  assert.equal(draftGoalsAdjusted("Get stronger", "Build muscle", ["Build muscle"], ["Improve fitness"]), true);
+  assert.equal(draftGoalsAdjusted("Build muscle", "Build muscle", ["Lose body fat"], ["Improve fitness"]), true);
+  assert.equal(draftGoalsAdjusted("Build muscle", "Build muscle", ["Improve fitness", "Energy"], ["Improve fitness"]), true);
 });
 
 test("full adjustment lifecycle keeps avoid untouched and stays in adjust after success", () => {
