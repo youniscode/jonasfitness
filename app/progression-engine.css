@@ -26,7 +26,7 @@
 .progression-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:22px}
 .progression-card{display:grid;grid-template-columns:145px minmax(0,1fr);border:1px solid #d9dbd2;background:#f8f8f3;overflow:hidden}
 .progression-card.increase{border-top:3px solid var(--lime)}.progression-card.decrease{border-top:3px solid #d76154}.progression-card.maintain{border-top:3px solid #98a08f}
-.progression-card>.exercise-visual-svg{height:100%;min-height:255px}.progression-card>.exercise-visual-svg svg{min-height:210px}
+.progression-card>.exercise-visual-svg,.progression-card>.exercise-visual-image{height:100%;min-height:255px}.progression-card>.exercise-visual-svg svg{min-height:210px}
 .progression-card-body{padding:17px;min-width:0}
 .progression-card-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .progression-card-title small{color:#687642;font-size:7px;font-weight:800;letter-spacing:.13em}

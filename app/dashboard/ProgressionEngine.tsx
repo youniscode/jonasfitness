@@ -73,7 +73,7 @@ export default function ProgressionEngine({ client }: { client: Client }) {
     {notice && <p className="progression-notice">✓ {notice}</p>}
     {error && <p className="progression-error" role="alert">{error}</p>}
     {!data.programme ? <div className="progression-empty"><strong>No approved programme.</strong><span>Approve a programme before using progression recommendations.</span></div> : data.suggestions.length ? <div className="progression-grid">{data.suggestions.map((suggestion) => <article className={`progression-card ${suggestion.action}`} key={suggestion.id}>
-      <ExerciseVisual name={suggestion.exerciseName} compact />
+      <ExerciseVisual name={suggestion.exerciseName} imageUrl={suggestion.imageUrl} compact />
       <div className="progression-card-body"><div className="progression-card-title"><div><small>{actionLabel(suggestion.action)} · {suggestion.confidence.toUpperCase()}</small><h3>{suggestion.exerciseName}</h3><span>From {new Date(suggestion.completedAt).toLocaleDateString()} · {suggestion.completedSets} completed sets</span></div><b>{suggestion.change > 0 ? "+" : ""}{suggestion.change} kg</b></div>
         <div className="progression-metrics"><span>Performed<strong>{suggestion.performedWeight} kg</strong></span><span>Avg. reps<strong>{suggestion.averageReps}</strong></span><span>Avg. RIR<strong>{suggestion.averageRir}</strong></span><span>Next load<strong>{suggestion.proposedWeight} kg</strong></span></div>
         <p>{suggestion.reason}</p><div className="progression-prescription"><span>Prescription: {suggestion.repRange} reps · RIR {suggestion.targetRir}</span><span>Current programme load: {suggestion.currentProgrammeWeight === null ? "not set" : `${suggestion.currentProgrammeWeight} kg`}</span></div>

@@ -1,6 +1,7 @@
-import { formatProgrammeExercise, programmeExercise, type ProgrammeExercise } from "./programme-builder";
-import { isCompletedWorkoutSet, type WorkoutExercise } from "./workouts";
-import { progressionFeedbackNote, type ClientFeedbackContext } from "./exercise-feedback";
+import { formatProgrammeExercise, programmeExercise, type ProgrammeExercise } from "./programme-builder.ts";
+import { builtInExerciseFor } from "./exercise-catalogue.ts";
+import { isCompletedWorkoutSet, type WorkoutExercise } from "./workouts.ts";
+import { progressionFeedbackNote, type ClientFeedbackContext } from "./exercise-feedback.ts";
 
 export type ProgressionWorkout = {
   id: number;
@@ -16,6 +17,7 @@ export type ProgressionSuggestion = {
   exerciseIndex: number;
   exerciseId: string;
   exerciseName: string;
+  imageUrl: string;
   action: "increase" | "maintain" | "decrease";
   currentProgrammeWeight: number | null;
   performedWeight: number;
@@ -123,6 +125,13 @@ export function buildProgressionSuggestions(contentValue: string | Record<string
     else if (averageReps < bounds.low || averageRir < exercise.rir - 0.5) action = "decrease";
     const increment = loadIncrement(exercise);
     const proposedWeight = round(Math.max(increment, performedWeight + (action === "increase" ? increment : action === "decrease" ? -increment : 0)), 1);
+    // Canonical exercise image: the performed workout exercise already carries
+    // the canonical /exercises/*.webp path for built-ins (rehydrated by
+    // libraryId when the workout was created). For legacy entries that predate
+    // imageUrl, the existing exact built-in lookup rehydrates it; custom
+    // exercises (custom-*) never match the catalogue and keep their own image,
+    // and an empty imageUrl lets ExerciseVisual keep its placeholder.
+    const imageUrl = builtInExerciseFor(latest.exercise.libraryId, latest.exercise.name)?.imageUrl ?? latest.exercise.imageUrl;
     const completedAt = latest.workout.completedAt ? new Date(latest.workout.completedAt).toISOString() : new Date().toISOString();
     // V2.1: client feedback is an additional, advisory signal — it never changes
     // the load by itself (reps/RIR/completion still drive the engine) but it may
@@ -137,6 +146,7 @@ export function buildProgressionSuggestions(contentValue: string | Record<string
       exerciseIndex,
       exerciseId: exercise.id,
       exerciseName: exercise.name,
+      imageUrl,
       action,
       currentProgrammeWeight: exercise.targetWeight,
       performedWeight,
