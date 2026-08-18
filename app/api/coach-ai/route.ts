@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { getDb } from "../../../db";
-import { clients, clientIntakes, programmes, progressEntries, workoutSessions } from "../../../db/schema";
+import { clients, clientExercisePreferences, clientExerciseReplacements, clientIntakes, programmes, progressEntries, workoutSessions } from "../../../db/schema";
 import { buildClientCoachingProfile, coachGenerationBlocked } from "../../lib/coach-profile";
 import {
   adjustmentSatisfiesMaterial,
@@ -22,6 +22,7 @@ import {
 } from "../../lib/ai-programme";
 import { askOllamaJson, coachAiModelFor, coachAiProviderFor, generateCoachDraft, getOllamaStatus, OLLAMA_MODEL } from "../../lib/local-ai";
 import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
+import { compactPreferenceSummary, preferenceContextFrom } from "../../lib/exercise-preference";
 import type { ClientFitContext } from "../../lib/exercise-intelligence";
 import { analyseProgrammeQuality } from "../../lib/programme-quality";
 
@@ -213,7 +214,7 @@ export async function POST(request: Request) {
 
   const [intake] = await db.select().from(clientIntakes)
     .where(and(eq(clientIntakes.clientId, clientId), eq(clientIntakes.ownerId, ownerId))).limit(1);
-  const [programmeRows, workoutRows, progressRows] = await Promise.all([
+  const [programmeRows, workoutRows, progressRows, preferenceRows, replacementRows] = await Promise.all([
     db.select().from(programmes)
       .where(and(eq(programmes.clientId, clientId), eq(programmes.ownerId, ownerId)))
       .orderBy(desc(programmes.createdAt)).limit(12),
@@ -225,6 +226,10 @@ export async function POST(request: Request) {
       .from(progressEntries)
       .where(and(eq(progressEntries.clientId, clientId), eq(progressEntries.ownerId, ownerId)))
       .orderBy(desc(progressEntries.createdAt)).limit(50),
+    db.select().from(clientExercisePreferences)
+      .where(and(eq(clientExercisePreferences.clientId, clientId), eq(clientExercisePreferences.ownerId, ownerId))),
+    db.select().from(clientExerciseReplacements)
+      .where(and(eq(clientExerciseReplacements.clientId, clientId), eq(clientExerciseReplacements.ownerId, ownerId))),
   ]);
 
   const profile = buildClientCoachingProfile(client, intake ?? null, programmeRows, workoutRows, progressRows);
@@ -302,12 +307,44 @@ export async function POST(request: Request) {
     return "This is the client's FIRST programme — build it from their onboarding profile.";
   })();
 
+  // V2: compact preference context (explicit preferred/avoid + learned
+  // replacement patterns). Exercise names and counts only — PII-free, and the
+  // raw event history is never sent. The AI treats this as coach preference
+  // context; it cannot create preference records (none of its output is ever
+  // written to the preference tables) and the deterministic scoring/quality
+  // engine stays authoritative after generation.
+  const preferenceRowsMapped = preferenceRows.map((row) => ({
+    clientId: row.clientId,
+    exerciseId: row.exerciseId,
+    explicitState: row.explicitState as "preferred" | "neutral" | "avoid",
+    positiveScore: row.positiveScore,
+    negativeScore: row.negativeScore,
+    replacementInCount: row.replacementInCount,
+    replacementOutCount: row.replacementOutCount,
+    manualAddCount: row.manualAddCount,
+    manualRemoveCount: row.manualRemoveCount,
+    approvedCount: row.approvedCount,
+    lastPositiveAt: row.lastPositiveAt?.toISOString() ?? null,
+    lastNegativeAt: row.lastNegativeAt?.toISOString() ?? null,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+  const replacementRowsMapped = replacementRows.map((row) => ({
+    clientId: row.clientId,
+    fromExerciseId: row.fromExerciseId,
+    toExerciseId: row.toExerciseId,
+    count: row.count,
+    lastUsedAt: row.lastUsedAt.toISOString(),
+  }));
+  const preferenceSummary = compactPreferenceSummary(preferenceRowsMapped, replacementRowsMapped);
+  const preferenceContext = preferenceContextFrom(preferenceRowsMapped, replacementRowsMapped);
+
   const userPrompt = [
     context,
     "",
     `Requested programme: ${requestedSessions} sessions per week, goal "${goal}", target session duration ${targetDuration ? `~${targetDuration} minutes` : "as designed"}.`,
     equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
     avoid ? `Avoid these exercises/movements: ${avoid}.` : "",
+    preferenceSummary,
     modePrompt,
     "",
     blueprintBlock,
@@ -393,6 +430,7 @@ export async function POST(request: Request) {
     avoidExercises: avoid || null,
     recentMuscles: profile.recentTraining.exposedMuscles,
     recentIds: profile.recentTraining.exposedIds,
+    preferenceContext,
   };
   const finalizeOptions = {
     requestedSessions,

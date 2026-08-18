@@ -24,6 +24,12 @@ import {
   movementPatternFor,
   type MovementPattern,
 } from "./exercise-catalogue.ts";
+import {
+  EXPLICIT_PREFERRED_BONUS,
+  learnedPreferenceFor,
+  preferenceExplanationLines,
+  type ClientPreferenceContext,
+} from "./exercise-preference.ts";
 
 // ---------- Canonical muscle groups (shared vocabulary) ----------
 
@@ -879,6 +885,14 @@ export type ClientFitContext = {
   recentMuscles?: MuscleGroupId[];
   /** Canonical libraryIds trained in the most recent completed session. */
   recentIds?: string[];
+  /**
+   * Exercise Intelligence V2 — coach preference memory for this client
+   * (explicit preferred/avoid plus learned counters from prior coach actions).
+   * PREFERENCES only, never medical restrictions: explicit avoid excludes,
+   * explicit preferred boosts, learned signals nudge modestly and can never
+   * override equipment incompatibility or validation.
+   */
+  preferenceContext?: ClientPreferenceContext | null;
 };
 
 export type ExerciseFitResult = {
@@ -970,11 +984,28 @@ export function scoreExerciseForClient(
   context: ClientFitContext | null | undefined,
 ): ExerciseFitResult {
   if (!exercise) return { score: 0, positives: [], concerns: [], exclusion: false, confidence: "low" };
-  const intel = exerciseIntelligenceFor(exercise);
   const id = exercise.libraryId ?? exercise.id;
+  // V2 — explicit coach preference is the strongest signal, checked BEFORE any
+  // metadata lookup so custom exercises are covered too. Explicit avoid is the
+  // only preference-based exclusion; everything learned stays a modest nudge.
+  const explicitState = id ? context?.preferenceContext?.explicit?.[id] : undefined;
+  if (explicitState === "avoid") {
+    return { score: 0, positives: [], concerns: ["coach marked this exercise as avoided for this client."], exclusion: true, confidence: "high" };
+  }
+  const intel = exerciseIntelligenceFor(exercise);
   // Unknown/custom exercises have no structured metadata — stay neutral, never
-  // penalise a custom exercise the coach explicitly added.
-  if (!intel || !id) return { score: 50, positives: [], concerns: [], exclusion: false, confidence: "low" };
+  // penalise a custom exercise the coach explicitly added (an explicit
+  // preferred preference still gives it the coach's boost).
+  if (!intel || !id) {
+    const bonus = explicitState === "preferred" ? EXPLICIT_PREFERRED_BONUS : 0;
+    return {
+      score: Math.min(100, 50 + bonus),
+      positives: explicitState === "preferred" ? ["Coach marked this exercise as preferred for this client."] : [],
+      concerns: [],
+      exclusion: false,
+      confidence: "low",
+    };
+  }
 
   const tokens = avoidTokens(context?.avoidExercises);
   if (isExplicitlyAvoided(exercise, tokens)) {
@@ -1067,6 +1098,36 @@ export function scoreExerciseForClient(
   // ---- Progression potential ----
   if (intel.progressions.length) { score += 3; positives.push("Clear progression path."); }
   if (intel.regressions.length) score += 2;
+
+  // ---- V2: coach preference memory (explicit preferred + learned signals) ----
+  if (explicitState === "preferred") {
+    score += EXPLICIT_PREFERRED_BONUS;
+    // First positive so the strongest signal's reason always survives the cap.
+    positives.unshift("Coach marked this exercise as preferred for this client.");
+  }
+  const learned = id ? context?.preferenceContext?.learned?.[id] : undefined;
+  if (learned) {
+    let delta = learnedPreferenceFor(learned);
+    // Policy: learned soft preferences may NEVER override equipment
+    // incompatibility. On an exercise the client's equipment penalises,
+    // learned positive is ignored (learned negative still applies — the
+    // coach's repeated actions stay visible). Explicit preferred is NOT
+    // suppressed: the coach's explicit word is the strongest signal and
+    // beats the equipment heuristic.
+    const equipmentPenalized = equip.homeLike
+      ? !(intel.modality === "bodyweight" || intel.modality === "dumbbell")
+      : equip.dumbbellsOnly
+        ? !(intel.modality === "dumbbell" || intel.modality === "bodyweight")
+        : false;
+    if (equipmentPenalized && delta > 0) delta = 0;
+    if (delta > 0) {
+      score += delta;
+      positives.push("Matches learned preferences from prior coaching actions.");
+    } else if (delta < 0) {
+      score += delta;
+      concerns.push("has a negative learned preference from prior coaching actions.");
+    }
+  }
 
   // ---- Confidence ----
   let confidence: "high" | "medium" | "low" = "high";
@@ -1307,7 +1368,11 @@ function watchForFrom(
 ): string[] {
   const watch: string[] = [];
   if (fit.exclusion) {
-    watch.push("On the avoid list for this client.");
+    // V2: an explicit coach preference exclusion reads as a coach decision,
+    // not a client-side avoid-list entry — both are authoritative exclusions.
+    const id = exercise?.libraryId ?? exercise?.id;
+    const explicit = id ? context?.preferenceContext?.explicit?.[id] : undefined;
+    watch.push(explicit === "avoid" ? "Coach marked this exercise as avoided for this client." : "On the avoid list for this client.");
     return watch;
   }
   const limitationText = (context?.limitations ?? "").toLowerCase();
@@ -1329,6 +1394,13 @@ function watchForFrom(
     const label = CAUTION_LABEL[tag];
     if (label && !watch.some((line) => line.includes(label))) {
       watch.push(`${label} — monitor through the chosen range.`);
+    }
+  }
+  // V2: learned preference watch points (factual — never a medical claim).
+  const exerciseId = exercise?.libraryId ?? exercise?.id;
+  if (exerciseId) {
+    for (const line of preferenceExplanationLines(context?.preferenceContext, exerciseId).watchFor) {
+      if (!watch.includes(line)) watch.push(line);
     }
   }
   return watch.slice(0, 3);
@@ -1360,6 +1432,13 @@ export function explainExerciseForClient(
   };
   push(100, "recent", recentExposureReason(intel, context));
   push(97, "complement", sessionComplementReason(exercise, intel, session));
+  // V2: preference memory lines rank with the client-specific reasons.
+  const exerciseId = exercise?.libraryId ?? exercise?.id;
+  if (exerciseId) {
+    for (const line of preferenceExplanationLines(context?.preferenceContext, exerciseId).why) {
+      push(line.priority, "preference", line.text);
+    }
+  }
   push(94, "experience", experienceReason(intel, context));
   push(92, "progression", progressionReason(intel));
   push(90, "short-session", shortSessionReason(intel, context));
@@ -1416,7 +1495,9 @@ export function clientFitWarnings(
       const fit = scoreExerciseForClient(exercise, context);
       const name = exercise.name ?? id;
       if (fit.exclusion) {
-        warnings.push(`"${name}" is on the avoid list for this client.`);
+        // The concern distinguishes an explicit coach preference from the
+        // free-text avoid list — both are authoritative exclusions.
+        warnings.push(`"${name}" ${fit.concerns[0] ?? "is on the avoid list for this client."}`);
         continue;
       }
       if (fit.concerns.length) warnings.push(`"${name}" ${fit.concerns[0]}`);

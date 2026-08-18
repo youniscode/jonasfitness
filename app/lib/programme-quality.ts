@@ -13,6 +13,7 @@ import {
   type MovementPattern,
 } from "./exercise-catalogue.ts";
 import { clientFitWarnings, type ClientFitContext } from "./exercise-intelligence.ts";
+import { preferenceFitWarnings } from "./exercise-preference.ts";
 import {
   durationState,
   estimateProgrammeDurationMinutes,
@@ -285,6 +286,10 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   // recent training. Advisory only — an avoid match or a limitation/recent-
   // training concern surfaces REVIEW RECOMMENDED, never a schema error.
   const fitWarnings = clientFitWarnings(draft, options.clientFitContext);
+  // V2: client preference fit — explicit avoid is already blocked/excluded by
+  // scoring (authoritative); strongly learned negative patterns surface a
+  // substitution suggestion as REVIEW RECOMMENDED, never a schema error.
+  const preferenceWarnings = preferenceFitWarnings(draft, options.clientFitContext?.preferenceContext ?? null);
 
   const checks: ProgrammeQualityCheck[] = [];
   const frequencyOk = draft.sessions.length === draft.sessionsPerWeek;
@@ -300,6 +305,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   checks.push({ key: "equipment", label: "Equipment compatibility", ok: equipmentOk, message: equipmentOk ? undefined : "Equipment not specified — confirm the client's gym access before approval." });
   checks.push({ key: "redundancy", label: "No major redundancy", ok: redundancyWarnings.length === 0, message: redundancyWarnings[0] });
   checks.push({ key: "clientFit", label: "Client exercise fit", ok: fitWarnings.length === 0, message: fitWarnings[0] });
+  checks.push({ key: "clientPreferenceFit", label: "Client preference fit", ok: preferenceWarnings.length === 0, message: preferenceWarnings[0] });
   checks.push({ key: "progression", label: "Progression defined", ok: Boolean(draft.progressionStrategy && draft.progressionStrategy.trim()) });
 
   let splitOk = true;
@@ -317,6 +323,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
     ...balanceAnalysis.warnings,
     ...redundancyWarnings,
     ...fitWarnings,
+    ...preferenceWarnings,
     ...(equipmentOk ? [] : ["Equipment not specified — confirm access before approval."]),
   ];
   const state = checks.every((check) => check.ok) ? "ready" : "review";

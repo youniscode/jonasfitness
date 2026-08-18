@@ -177,6 +177,14 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   const [libraryNotice, setLibraryNotice] = useState("");
   // Which exercise row has its "Why this exercise?" panel open (by exercise id).
   const [whyOpen, setWhyOpen] = useState<string | null>(null);
+  // Exercise Intelligence V2 — client preference memory for the selected client.
+  // Explicit = manually set by the coach; learned = inferred from prior coach
+  // actions (replace/remove/add/approve). PREFERENCES only — never restrictions.
+  type PreferenceRow = { exerciseId: string; explicitState: "preferred" | "neutral" | "avoid"; replacementInCount: number; replacementOutCount: number; manualAddCount: number; manualRemoveCount: number; approvedCount: number };
+  type ReplacementRow = { fromExerciseId: string; toExerciseId: string; count: number };
+  const [preferenceRows, setPreferenceRows] = useState<PreferenceRow[]>([]);
+  const [replacementRows, setReplacementRows] = useState<ReplacementRow[]>([]);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   // Selected-client context for the "Why this exercise?" panel: the goal and
   // frequency available on the selected client. Advisory coaching reasons only.
@@ -184,6 +192,62 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     goal: client.goal,
     sessionsPerWeek: client.sessionsPerWeek,
   };
+
+  const loadPreferences = useCallback(async () => {
+    if (client.id < 1) { setPreferenceRows([]); setReplacementRows([]); return; }
+    const response = await fetch(`/api/client-exercise-preferences?clientId=${client.id}`);
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setPreferenceRows(payload.preferences ?? []);
+      setReplacementRows(payload.replacements ?? []);
+    }
+  }, [client.id]);
+
+  // Records ONE coach action for the selected client (replace/remove/add/
+  // approve) with a fresh operationKey so a retried request can never
+  // double-count. Soft signals: failures are ignored — learning never blocks
+  // normal programme editing.
+  async function recordPreferenceEvent(body: Record<string, unknown>) {
+    if (client.id < 1) return;
+    await fetch("/api/client-exercise-preferences/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: client.id, operationKey: crypto.randomUUID(), ...body }),
+    }).catch(() => null);
+    void loadPreferences();
+  }
+
+  async function setExplicitPreference(exerciseId: string, explicitState: "preferred" | "neutral" | "avoid") {
+    if (client.id < 1) return;
+    const response = await fetch("/api/client-exercise-preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: client.id, action: "set", exerciseId, explicitState }),
+    });
+    if (response.ok) void loadPreferences();
+  }
+
+  async function resetPreference(action: "reset-explicit" | "reset-learned", exerciseId: string) {
+    if (client.id < 1) return;
+    const response = await fetch("/api/client-exercise-preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: client.id, action, exerciseId }),
+    });
+    if (response.ok) void loadPreferences();
+  }
+
+  async function resetReplacementPattern(fromExerciseId: string, toExerciseId: string) {
+    if (client.id < 1) return;
+    const response = await fetch("/api/client-exercise-preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: client.id, action: "reset-replacement", fromExerciseId, toExerciseId }),
+    });
+    if (response.ok) void loadPreferences();
+  }
+
+  const preferenceName = (exerciseId: string) => builtInExerciseFor(exerciseId, null)?.name ?? library.find((exercise) => exercise.id === exerciseId)?.name ?? exerciseId;
 
   const loadProgrammes = useCallback(async () => {
     if (client.id < 1) { setProgrammes([]); setSelectedId(null); setDraft(null); return; }
@@ -220,6 +284,10 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     const timer = window.setTimeout(() => { void loadProgrammes(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadProgrammes]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadPreferences(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadPreferences]);
   useEffect(() => {
     const refresh = (event: Event) => {
       const clientId = (event as CustomEvent<{ clientId?: number }>).detail?.clientId;
@@ -300,11 +368,27 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     const session = draft.sessions[picker.sessionIndex];
     if (!session) return;
     const prescription = exerciseFromDefinition(exercise);
-    const exercises = picker.replaceIndex === null
-      ? [...session.exercises, prescription]
-      : session.exercises.map((item, index) => index === picker.replaceIndex ? { ...prescription, sets: item.sets, reps: item.reps, rir: item.rir, restSeconds: item.restSeconds, notes: item.notes } : item);
+    const replacing = picker.replaceIndex !== null ? session.exercises[picker.replaceIndex] : null;
+    const exercises = replacing
+      ? session.exercises.map((item, index) => index === picker.replaceIndex ? { ...prescription, sets: item.sets, reps: item.reps, rir: item.rir, restSeconds: item.restSeconds, notes: item.notes } : item)
+      : [...session.exercises, prescription];
     updateSession(picker.sessionIndex, { exercises });
+    // V2 learning: a replace is ONE event (never remove + add + replacement).
+    if (replacing) {
+      void recordPreferenceEvent({ type: "replace", fromExerciseId: replacing.libraryId, toExerciseId: exercise.id });
+    } else {
+      void recordPreferenceEvent({ type: "add", exerciseId: exercise.id });
+    }
     setPicker(null);
+  }
+
+  function removeExercise(sessionIndex: number, exerciseIndex: number) {
+    if (!draft) return;
+    const session = draft.sessions[sessionIndex];
+    if (!session) return;
+    const removed = session.exercises[exerciseIndex];
+    updateSession(sessionIndex, { exercises: session.exercises.filter((_, index) => index !== exerciseIndex) });
+    if (removed) void recordPreferenceEvent({ type: "remove", exerciseId: removed.libraryId });
   }
 
   async function createCustomExercise(event: FormEvent<HTMLFormElement>) {
@@ -350,6 +434,15 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     setDraft(programmeDraft(saved));
     setNotice("Programme approved and published to the client portal.");
     window.dispatchEvent(new CustomEvent("jonas-programme-saved", { detail: { clientId: client.id } }));
+    // V2 approval learning: a small positive usage signal for every exercise
+    // kept in the approved programme (weaker than explicit preferred and
+    // repeated manual add — see the deterministic weight policy).
+    // Stable ids only: canonical built-ins (builtin-*) and owner-scoped custom
+    // exercises (custom-<n>). "legacy" / "custom" are unstable fallbacks —
+    // never learned from.
+    const libraryIds = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId))
+      .filter((id) => id && id !== "legacy" && id !== "custom");
+    if (libraryIds.length) void recordPreferenceEvent({ type: "approve", exerciseIds: [...new Set(libraryIds)] });
   }
 
   async function saveChanges() {
@@ -438,6 +531,24 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
 
   return <section className="programme-library" id="programmes">
     <header className="programme-header"><div><p>PROGRAMME BUILDER</p><h2>Plans for {client.name}</h2><span>Build exact prescriptions using your reusable exercise library.</span></div><div className="programme-header-actions"><button type="button" className="ghost-button" onClick={() => openLibrary(null)}>Exercise library</button><button type="button" className="refresh-button" onClick={() => void loadProgrammes()}>{loading ? "Loading…" : "Refresh"}</button></div></header>
+    {(() => {
+      const preferred = preferenceRows.filter((row) => row.explicitState === "preferred");
+      const avoided = preferenceRows.filter((row) => row.explicitState === "avoid");
+      const learned = preferenceRows.filter((row) => row.explicitState === "neutral" && (row.replacementInCount > 0 || row.replacementOutCount > 0 || row.manualAddCount > 0 || row.manualRemoveCount > 0 || row.approvedCount > 0));
+      const hasSignals = preferred.length > 0 || avoided.length > 0 || replacementRows.length > 0 || learned.length > 0;
+      return <div className="preference-summary">
+        <button type="button" className="preference-summary-toggle" onClick={() => setPreferencesOpen((value) => !value)} aria-expanded={preferencesOpen}><span>EXERCISE PREFERENCES</span><em>{hasSignals ? `${preferred.length + avoided.length} explicit · ${replacementRows.length + learned.length} learned` : "No preferences yet"}</em><b>{preferencesOpen ? "−" : "+"}</b></button>
+        {preferencesOpen && <div className="preference-summary-body">
+          <p className="preference-summary-note"><b>Explicit</b> = you set it manually. <b>Learned</b> = inferred from your coaching actions (replace, remove, add, approve). Preferences never restrict the coach — they only inform future drafts.</p>
+          <div className="preference-summary-columns">
+            <div className="preference-summary-list"><h4>Explicit — Preferred</h4>{preferred.length === 0 ? <span className="preference-empty">None set.</span> : preferred.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Explicit — Avoid</h4>{avoided.length === 0 ? <span className="preference-empty">None set.</span> : avoided.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Learned patterns</h4>{replacementRows.length === 0 ? <span className="preference-empty">None yet.</span> : replacementRows.map((row) => <div key={`${row.fromExerciseId}->${row.toExerciseId}`}><span>{preferenceName(row.fromExerciseId)} → {preferenceName(row.toExerciseId)} <b>×{row.count}</b></span><button type="button" onClick={() => void resetReplacementPattern(row.fromExerciseId, row.toExerciseId)}>Reset</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Learned signals</h4>{learned.length === 0 ? <span className="preference-empty">None yet.</span> : learned.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)} <small>{[row.approvedCount ? `approved ×${row.approvedCount}` : "", row.manualAddCount ? `added ×${row.manualAddCount}` : "", row.manualRemoveCount ? `removed ×${row.manualRemoveCount}` : "", row.replacementOutCount ? `replaced ×${row.replacementOutCount}` : "", row.replacementInCount ? `kept as replacement ×${row.replacementInCount}` : ""].filter(Boolean).join(" · ")}</small></span><button type="button" onClick={() => void resetPreference("reset-learned", row.exerciseId)}>Reset</button></div>)}</div>
+          </div>
+        </div>}
+      </div>;
+    })()}
     {!selected || !draft ? <div className="programme-empty"><strong>No saved programmes yet.</strong><span>Generate a programme in Coach Studio, approve it, then refine every exercise here.</span></div> : <div className="programme-layout">
       <aside className="programme-list"><p>SAVED PROGRAMMES · {programmes.length}</p>{programmes.map((programme) => <button type="button" key={programme.id} className={programme.id === selected.id ? "active" : ""} onClick={() => chooseProgramme(programme)}><strong>{programme.title}</strong>{programme.status !== "approved" && <em className="programme-draft-badge">DRAFT</em>}<span>{programme.goal} · {programme.sessionsPerWeek} sessions/wk</span><small>{new Date(programme.createdAt).toLocaleDateString()}</small></button>)}</aside>
       <article className="programme-detail">
@@ -449,7 +560,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
         {Object.keys(draft.translations).length > 0 && <p className="programme-translation-status">Client versions saved: {Object.keys(draft.translations).map((language) => language.toUpperCase()).join(" · ")}</p>}
         {editing ? <textarea className="programme-overview-input" aria-label="Programme overview" value={draft.overview} onChange={(event) => setDraft({ ...draft, overview: event.target.value })} /> : <p className="programme-overview">{draft.overview}</p>}
         <div className="programme-sessions">{draft.sessions.map((session, sessionIndex) => <section className="programme-session programme-builder-session" key={sessionIndex}><div className="programme-session-top"><span>DAY {String(sessionIndex + 1).padStart(2, "0")}</span>{editing && draft.sessions.length > 1 && <button type="button" className="remove-session" onClick={() => setDraft({ ...draft, sessionsPerWeek: draft.sessions.length - 1, sessions: draft.sessions.filter((_, index) => index !== sessionIndex) })}>Remove day</button>}</div>{editing ? <><input aria-label={`Session ${sessionIndex + 1} name`} value={session.name} onChange={(event) => updateSession(sessionIndex, { name: event.target.value })} /><input aria-label={`Session ${sessionIndex + 1} focus`} value={session.focus} onChange={(event) => updateSession(sessionIndex, { focus: event.target.value })} /></> : <><h4>{session.name}</h4><p>{session.focus}</p></>}
-          <div className="programme-exercise-list">{session.exercises.length ? session.exercises.map((exercise, exerciseIndex) => <article className="programme-exercise-row" key={exercise.id}><div className="programme-exercise-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} compact /></div><div className="programme-exercise-body"><div className="programme-exercise-title"><div><strong>{exercise.name}</strong><span>{exercise.muscleGroup} · {exercise.equipment}</span></div>{editing && <div><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, -1)} disabled={exerciseIndex === 0} aria-label="Move exercise up">↑</button><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, 1)} disabled={exerciseIndex === session.exercises.length - 1} aria-label="Move exercise down">↓</button><button type="button" onClick={() => openLibrary(sessionIndex, exerciseIndex)}>Replace</button><button type="button" className="remove-exercise" onClick={() => updateSession(sessionIndex, { exercises: session.exercises.filter((_, index) => index !== exerciseIndex) })}>Remove</button></div>}</div>{editing ? <div className="prescription-grid"><label>Sets<input type="number" min="1" max="12" value={exercise.sets} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { sets: Number(event.target.value) })} /></label><label>Reps<input value={exercise.reps} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { reps: event.target.value })} /></label><label>Target RIR<input type="number" min="0" max="6" value={exercise.rir} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { rir: Number(event.target.value) })} /></label><label>Rest (sec)<input type="number" min="30" max="600" step="15" value={exercise.restSeconds} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { restSeconds: Number(event.target.value) })} /></label><label>Target load (kg)<input type="number" min="0" max="1000" step="0.5" value={exercise.targetWeight ?? ""} placeholder="Not set" onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { targetWeight: event.target.value === "" ? null : Number(event.target.value) })} /></label><label className="prescription-notes">Coach cue / note<input value={exercise.notes} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { notes: event.target.value })} placeholder="Tempo, technique or variation…" /></label></div> : <div className="prescription-summary"><b>{exercise.sets} sets</b><b>{exercise.reps} reps</b><b>RIR {exercise.rir}</b><b>{exercise.restSeconds}s rest</b><b>{exercise.targetWeight === null ? "Load not set" : `${exercise.targetWeight} kg`}</b></div>}{exercise.instructions && <p className="exercise-instructions">{exercise.instructions}</p>}{exercise.videoUrl && <a className="exercise-demo-link" href={exercise.videoUrl} target="_blank" rel="noreferrer">Open demonstration ↗</a>}{(() => { const intelligence = exerciseIntelligenceFor(exercise); if (!intelligence) return null; return <><button type="button" className="why-exercise-toggle" onClick={() => setWhyOpen((current) => current === exercise.id ? null : exercise.id)} aria-expanded={whyOpen === exercise.id}>{whyOpen === exercise.id ? "Hide why this exercise" : "Why this exercise?"}</button>{whyOpen === exercise.id && <WhyThisExercise explanation={explainExerciseForClient(exercise, clientFitContext, { exercises: session.exercises })} />}</>; })()}</div></article>) : <p className="programme-no-exercises">No exercises yet.</p>}</div>
+          <div className="programme-exercise-list">{session.exercises.length ? session.exercises.map((exercise, exerciseIndex) => <article className="programme-exercise-row" key={exercise.id}><div className="programme-exercise-visual"><ExerciseVisual name={exercise.name} imageUrl={exercise.imageUrl} compact /></div><div className="programme-exercise-body"><div className="programme-exercise-title"><div><strong>{exercise.name}</strong><span>{exercise.muscleGroup} · {exercise.equipment}</span></div>{editing && <div><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, -1)} disabled={exerciseIndex === 0} aria-label="Move exercise up">↑</button><button type="button" onClick={() => moveExercise(sessionIndex, exerciseIndex, 1)} disabled={exerciseIndex === session.exercises.length - 1} aria-label="Move exercise down">↓</button><button type="button" onClick={() => openLibrary(sessionIndex, exerciseIndex)}>Replace</button><button type="button" className="remove-exercise" onClick={() => removeExercise(sessionIndex, exerciseIndex)}>Remove</button></div>}</div>{editing && (() => { const preference = preferenceRows.find((row) => row.exerciseId === exercise.libraryId); const explicitState = preference?.explicitState ?? "neutral"; return <div className="exercise-preference-control" role="group" aria-label={`Preference for ${exercise.name}`}><span>Preference for this client</span><button type="button" className={explicitState === "preferred" ? "active" : ""} onClick={() => void setExplicitPreference(exercise.libraryId, "preferred")}>Preferred</button><button type="button" className={explicitState === "neutral" ? "active" : ""} onClick={() => void setExplicitPreference(exercise.libraryId, "neutral")}>Neutral</button><button type="button" className={explicitState === "avoid" ? "active" : ""} onClick={() => void setExplicitPreference(exercise.libraryId, "avoid")}>Avoid</button></div>; })()}{editing ? <div className="prescription-grid"><label>Sets<input type="number" min="1" max="12" value={exercise.sets} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { sets: Number(event.target.value) })} /></label><label>Reps<input value={exercise.reps} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { reps: event.target.value })} /></label><label>Target RIR<input type="number" min="0" max="6" value={exercise.rir} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { rir: Number(event.target.value) })} /></label><label>Rest (sec)<input type="number" min="30" max="600" step="15" value={exercise.restSeconds} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { restSeconds: Number(event.target.value) })} /></label><label>Target load (kg)<input type="number" min="0" max="1000" step="0.5" value={exercise.targetWeight ?? ""} placeholder="Not set" onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { targetWeight: event.target.value === "" ? null : Number(event.target.value) })} /></label><label className="prescription-notes">Coach cue / note<input value={exercise.notes} onChange={(event) => updateExercise(sessionIndex, exerciseIndex, { notes: event.target.value })} placeholder="Tempo, technique or variation…" /></label></div> : <div className="prescription-summary"><b>{exercise.sets} sets</b><b>{exercise.reps} reps</b><b>RIR {exercise.rir}</b><b>{exercise.restSeconds}s rest</b><b>{exercise.targetWeight === null ? "Load not set" : `${exercise.targetWeight} kg`}</b></div>}{exercise.instructions && <p className="exercise-instructions">{exercise.instructions}</p>}{exercise.videoUrl && <a className="exercise-demo-link" href={exercise.videoUrl} target="_blank" rel="noreferrer">Open demonstration ↗</a>}{(() => { const intelligence = exerciseIntelligenceFor(exercise); if (!intelligence) return null; return <><button type="button" className="why-exercise-toggle" onClick={() => setWhyOpen((current) => current === exercise.id ? null : exercise.id)} aria-expanded={whyOpen === exercise.id}>{whyOpen === exercise.id ? "Hide why this exercise" : "Why this exercise?"}</button>{whyOpen === exercise.id && <WhyThisExercise explanation={explainExerciseForClient(exercise, clientFitContext, { exercises: session.exercises })} />}</>; })()}</div></article>) : <p className="programme-no-exercises">No exercises yet.</p>}</div>
           {editing && <button type="button" className="add-exercise-button" onClick={() => openLibrary(sessionIndex)}>+ Add exercise from library</button>}
         </section>)}</div>
         {editing && draft.sessions.length < 7 && <button type="button" className="add-session" onClick={() => resizeSessions(draft.sessions.length + 1)}>+ Add training day</button>}

@@ -287,6 +287,63 @@ export const coachNotifications = pgTable("coach_notifications", {
 
 // This is an operational contact history, not a copy of private conversations.
 // It records what was prepared/opened/sent so follow-ups are not duplicated.
+// Exercise Intelligence V2 — coach decision learning. Aggregate-only preference
+// memory: explicit coach preferences plus deterministic learned counters derived
+// from coach actions (replace/remove/add/approve). Owner-scoped and
+// client-scoped; canonical exercise ids are validated at the API layer (built-in
+// catalogue ids or stable custom-<n> ids). These are PREFERENCES, never medical
+// restrictions — the coach remains the final authority and one action never
+// bans an exercise. `client_exercise_events` is a tiny dedupe ledger so a
+// retried operation (same operationKey) can never inflate a count.
+export const clientExercisePreferences = pgTable("client_exercise_preferences", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  exerciseId: text("exercise_id").notNull(),
+  explicitState: text("explicit_state").notNull().default("neutral"),
+  positiveScore: integer("positive_score").notNull().default(0),
+  negativeScore: integer("negative_score").notNull().default(0),
+  replacementInCount: integer("replacement_in_count").notNull().default(0),
+  replacementOutCount: integer("replacement_out_count").notNull().default(0),
+  manualAddCount: integer("manual_add_count").notNull().default(0),
+  manualRemoveCount: integer("manual_remove_count").notNull().default(0),
+  approvedCount: integer("approved_count").notNull().default(0),
+  lastPositiveAt: timestamp("last_positive_at", { withTimezone: true }),
+  lastNegativeAt: timestamp("last_negative_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("client_exercise_preferences_owner_client_idx").on(table.ownerId, table.clientId),
+  uniqueIndex("client_exercise_preferences_owner_client_exercise_unique").on(table.ownerId, table.clientId, table.exerciseId),
+]);
+
+export const clientExerciseReplacements = pgTable("client_exercise_replacements", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  fromExerciseId: text("from_exercise_id").notNull(),
+  toExerciseId: text("to_exercise_id").notNull(),
+  count: integer("count").notNull().default(1),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("client_exercise_replacements_owner_client_idx").on(table.ownerId, table.clientId),
+  uniqueIndex("client_exercise_replacements_owner_client_pair_unique").on(table.ownerId, table.clientId, table.fromExerciseId, table.toExerciseId),
+]);
+
+// Dedupe ledger: one row per processed operationKey, so a retried request can
+// never double-count a coach action (same pattern as coach_notifications.
+// dedupe_key).
+export const clientExerciseEvents = pgTable("client_exercise_events", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  operationKey: text("operation_key").notNull(),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("client_exercise_events_owner_key_unique").on(table.ownerId, table.operationKey),
+]);
+
 export const communicationLogs = pgTable("communication_logs", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),
