@@ -190,6 +190,7 @@ export default function AdaptiveCoach({ client }: { client: Client }) {
         <strong>{hasAnything ? `${changesCount} adaptation${changesCount === 1 ? "" : "s"} suggested` : "No adaptation needed yet"}</strong>
         {hasAnything && priorityBreakdown ? <span className="adaptive-priority-breakdown">{priorityBreakdown}</span> : <span>{hasAnything ? "Review the suggestions below before applying anything." : "0 changes recommended"}</span>}
         <span className="adaptive-based-on">Based on {plan.summary.completedWorkouts} completed workout{plan.summary.completedWorkouts === 1 ? "" : "s"}</span>
+        {plan.trainingContextSummary && plan.trainingContextSummary.items.length > 0 && <div className="adaptive-training-context-summary"><small>TRAINING CONTEXT</small><ul>{plan.trainingContextSummary.items.map((item) => <li key={item}>{item}</li>)}</ul></div>}
       </div>
 
       {plan.nextSession && <div className="adaptive-next">
@@ -218,6 +219,7 @@ export default function AdaptiveCoach({ client }: { client: Client }) {
               <details className="adaptive-evidence">
                 <summary>Evidence &amp; details</summary>
                 <ul>
+                  {decision.contextReasons && decision.contextReasons.length > 0 && <li className="context-reason"><strong>Training context:</strong> {decision.contextReasons.join(" ")}</li>}
                   {decision.reasons.slice(1).map((reason) => <li key={reason}>{reason}</li>)}
                   {decision.concerns.map((concern) => <li key={concern} className="concern">⚠ {concern}</li>)}
                   {decision.evidence.rirSamples.length > 0 && <li>RIR samples (recent → older): {decision.evidence.rirSamples.join(" · ")}</li>}

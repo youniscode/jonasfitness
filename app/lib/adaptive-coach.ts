@@ -32,6 +32,7 @@ import {
   scoreExerciseForClient,
   type ClientFitContext,
   type ExerciseIntelligence,
+  type MuscleGroupId,
 } from "./exercise-intelligence.ts";
 import {
   candidateExercisesFor,
@@ -45,6 +46,7 @@ import type { ClientFeedbackContext, FeedbackExerciseProfile } from "./exercise-
 import type { ClientPreferenceContext } from "./exercise-preference.ts";
 import type { InitialPreferenceContext } from "./onboarding-profile.ts";
 import { limitationAreasFrom, limitationRelevanceFor, type LimitationArea, type LimitationLevel } from "./programme-repair.ts";
+import type { TrainingLoadReport } from "./training-load.ts";
 
 // ---------- Public types ----------
 
@@ -134,6 +136,8 @@ export type AdaptiveExerciseDecision = {
   exposureCount: number;
   priority: AdaptivePriority;
   evidence: AdaptiveEvidence;
+  /** V3: contextual reasons from training load aggregate data (not exercise evidence). */
+  contextReasons?: string[];
 };
 
 export type AdaptiveSessionDecision = {
@@ -196,6 +200,48 @@ export type AdaptiveCoachPlan = {
   sessionDecisions: AdaptiveSessionDecision[];
   programmeSignals: AdaptiveProgrammeSignal[];
   summary: AdaptiveSummary;
+  /** V3: compact training context items for the summary panel (max 3). */
+  trainingContextSummary?: TrainingContextSummary;
+};
+
+// ---------- V3: Training context (deterministic, derived from Training Load report) ----------
+
+export type AdaptiveTrainingContext = {
+  lowRir?: {
+    severity: "attention" | "review";
+    percent: number;
+    sampleCount: number;
+  };
+  muscleVolume?: Partial<Record<MuscleGroupId, {
+    currentSets: number;
+    previousSets: number;
+    trend: "increasing" | "stable" | "decreasing";
+    severity?: "attention" | "review";
+  }>>;
+  adherence?: {
+    percent?: number;
+    missedSessions: number;
+    declining: boolean;
+  };
+  readiness?: {
+    repeatedLowReadiness: boolean;
+  };
+  discomfort?: {
+    repeatedExerciseIds: string[];
+    affectedPrimaryMuscles: MuscleGroupId[];
+  };
+  neverTrainedMuscles?: MuscleGroupId[];
+  inactivityMuscles?: MuscleGroupId[];
+  pastUnresolvedSessions?: number;
+};
+
+export type TrainingContextResult = {
+  contextReasons: string[];
+  priorityShift: number;
+};
+
+export type TrainingContextSummary = {
+  items: string[];
 };
 
 // ---------- Input context (structured signals only, PII-free) ----------
@@ -226,6 +272,8 @@ export type AdaptiveCoachContext = {
   feedbackContext: ClientFeedbackContext | null;
   initialPreferenceContext: InitialPreferenceContext | null;
   pulse: AdaptivePulseContext | null;
+  /** V3: deterministic training load context derived from Training Load report. */
+  trainingContext?: AdaptiveTrainingContext;
 };
 
 /** Completed workout plus its title (the programme session name it was started from). */
@@ -886,6 +934,158 @@ function recommendNextSession(input: {
   };
 }
 
+// ---------- V3: Training context builder (pure, from TrainingLoadReport) ----------
+
+export function buildTrainingContextFromReport(report: TrainingLoadReport): AdaptiveTrainingContext {
+  const ctx: AdaptiveTrainingContext = {};
+
+  if (report.rir.sampleCount >= 12 && report.rir.lowRirPercent !== null) {
+    if (report.rir.lowRirPercent >= 60) {
+      ctx.lowRir = { severity: "attention", percent: report.rir.lowRirPercent, sampleCount: report.rir.sampleCount };
+    } else if (report.rir.lowRirPercent >= 40) {
+      ctx.lowRir = { severity: "review", percent: report.rir.lowRirPercent, sampleCount: report.rir.sampleCount };
+    }
+  }
+
+  const muscleVolume: Record<string, { currentSets: number; previousSets: number; trend: "increasing" | "stable" | "decreasing"; severity?: "attention" | "review" }> = {};
+  for (const entry of report.muscleGroups) {
+    if (entry.trend === "insufficient_data") continue;
+    const signal = report.signals.find((s) => s.type === "volume_change" && s.muscleGroup === entry.muscle);
+    muscleVolume[entry.muscle] = {
+      currentSets: entry.currentSets,
+      previousSets: entry.previousSets,
+      trend: entry.trend,
+      ...(signal?.severity === "attention" || signal?.severity === "review" ? { severity: signal.severity } : {}),
+    };
+  }
+  if (Object.keys(muscleVolume).length) ctx.muscleVolume = muscleVolume;
+
+  if (report.adherencePercent !== null || report.missedSessions > 0 || report.adherenceTrend === "declining") {
+    ctx.adherence = {
+      percent: report.adherencePercent ?? undefined,
+      missedSessions: report.missedSessions,
+      declining: report.adherenceTrend === "declining",
+    };
+  }
+
+  const readinessSignal = report.signals.find((s) => s.type === "readiness");
+  if (readinessSignal) {
+    ctx.readiness = { repeatedLowReadiness: readinessSignal.severity === "review" || readinessSignal.severity === "attention" };
+  }
+
+  const discomfortSignals = report.signals.filter((s) => s.type === "repeated_discomfort");
+  const repeatedExercises = discomfortSignals.filter((s) => s.severity === "attention").map((s) => s.exerciseId ?? "").filter(Boolean);
+  const affectedMuscles = [...new Set(discomfortSignals.filter((s) => s.muscleGroup).map((s) => s.muscleGroup as MuscleGroupId))];
+  if (repeatedExercises.length || affectedMuscles.length) {
+    ctx.discomfort = { repeatedExerciseIds: repeatedExercises, affectedPrimaryMuscles: affectedMuscles };
+  }
+
+  const neverTrained = report.signals.filter((s) => s.type === "muscle_never_trained" && s.muscleGroup).map((s) => s.muscleGroup as MuscleGroupId);
+  if (neverTrained.length) ctx.neverTrainedMuscles = neverTrained;
+
+  const inactive = report.signals.filter((s) => s.type === "muscle_inactivity" && s.muscleGroup).map((s) => s.muscleGroup as MuscleGroupId);
+  if (inactive.length) ctx.inactivityMuscles = inactive;
+
+  if (report.pastUnresolvedSessions > 0) ctx.pastUnresolvedSessions = report.pastUnresolvedSessions;
+
+  return ctx;
+}
+
+// ---------- V3: Context modifier (pure, max ±1 priority step) ----------
+
+const PRIORITY_RANK: Record<AdaptivePriority, number> = { high: 0, medium: 1, low: 2, info: 3 };
+
+function clampPriority(rank: number): AdaptivePriority {
+  const clamped = Math.max(0, Math.min(3, rank));
+  return (["high", "medium", "low", "info"] as const)[clamped];
+}
+
+function primaryMuscleFor(intel: ExerciseIntelligence | null): MuscleGroupId | null {
+  return intel?.primaryMuscles?.[0] ?? null;
+}
+
+export function applyTrainingContextToDecision(
+  decision: AdaptiveExerciseDecision,
+  intel: ExerciseIntelligence | null,
+  ctx: AdaptiveTrainingContext | undefined,
+): TrainingContextResult {
+  if (!ctx) return { contextReasons: [], priorityShift: 0 };
+
+  const reasons: string[] = [];
+  let shift = 0;
+  const originalRank = PRIORITY_RANK[decision.priority];
+  const muscle = primaryMuscleFor(intel);
+
+  // --- RIR context ---
+  if (ctx.lowRir && decision.action === "reduce_load") {
+    reasons.push(`Recent overall training also contains a high proportion of RIR 0–1 work (${Math.round(ctx.lowRir.percent)}% of recorded sets).`);
+  }
+
+  // --- Same-muscle high volume ---
+  if (muscle && ctx.muscleVolume?.[muscle]) {
+    const vol = ctx.muscleVolume[muscle];
+    if (vol.trend === "increasing" && (vol.severity === "review" || vol.severity === "attention")) {
+      if (decision.action === "increase_load") {
+        reasons.push(`Volume for ${intel?.primaryMuscles?.[0] ?? muscle} is substantially higher than the previous 7 days — progress conservatively.`);
+        if (shift === 0) shift = 1;
+      } else if (decision.action === "add_set") {
+        reasons.push(`Volume for ${intel?.primaryMuscles?.[0] ?? muscle} is substantially higher than the previous 7 days — review before adding volume.`);
+        if (shift === 0) shift = 1;
+      }
+    }
+  }
+
+  // --- Unrelated muscle volume: no effect ---
+
+  // --- Adherence context ---
+  if (ctx.adherence && (decision.action === "increase_load" || decision.action === "add_set")) {
+    if (ctx.adherence.declining || (ctx.adherence.missedSessions >= 2)) {
+      reasons.push("Training consistency has been lower recently.");
+      if (shift === 0) shift = 1;
+    }
+  }
+
+  // --- Past unresolved: admin context only ---
+  if (ctx.pastUnresolvedSessions && ctx.pastUnresolvedSessions >= 1) {
+    reasons.push(`Attendance needs confirmation for ${ctx.pastUnresolvedSessions} past session${ctx.pastUnresolvedSessions === 1 ? "" : "s"}.`);
+  }
+
+  // --- Readiness context ---
+  if (ctx.readiness?.repeatedLowReadiness && (decision.action === "increase_load" || decision.action === "add_set")) {
+    reasons.push("Repeated low readiness has been reported across recent sessions.");
+    if (shift === 0) shift = 1;
+  }
+
+  // --- Discomfort region context ---
+  if (muscle && ctx.discomfort?.affectedPrimaryMuscles?.includes(muscle)) {
+    if (decision.action === "replace" || decision.action === "review") {
+      reasons.push("Discomfort has also been reported across multiple exercises for this muscle group.");
+      if (shift === 0 && originalRank > 0) shift = 1;
+    }
+  }
+
+  // --- Never-trained muscle ---
+  if (muscle && ctx.neverTrainedMuscles?.includes(muscle)) {
+    if (decision.action === "keep" || decision.action === "keep_load") {
+      reasons.push("This programmed muscle has not appeared in completed programme-linked training.");
+    }
+  }
+
+  // --- Muscle inactivity ---
+  if (muscle && ctx.inactivityMuscles?.includes(muscle)) {
+    if (decision.action === "add_set" || decision.action === "keep_load") {
+      reasons.push("Training for this muscle group has been less frequent recently.");
+    }
+  }
+
+  // --- Clamp: max ±1 step, never downgrade HIGH safety priority ---
+  let finalShift = shift;
+  if (originalRank === 0 && finalShift > 0) finalShift = 0;
+  finalShift = Math.max(-1, Math.min(1, finalShift));
+
+  return { contextReasons: reasons, priorityShift: finalShift };
+}
+
 // ---------- Plan builder ----------
 
 export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveCoachPlan {
@@ -968,6 +1168,27 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
     });
   });
 
+  // --- V3: Apply training context to each decision ---
+  const contextSummaryItems: string[] = [];
+  if (context.trainingContext) {
+    const tc = context.trainingContext;
+    if (tc.lowRir) contextSummaryItems.push(`High recent low-RIR workload (${Math.round(tc.lowRir.percent)}%)`);
+    if (tc.readiness?.repeatedLowReadiness) contextSummaryItems.push("Repeated low readiness");
+    if (tc.adherence?.declining) contextSummaryItems.push("Declining training consistency");
+    if (tc.adherence && tc.adherence.missedSessions >= 3) contextSummaryItems.push(`${tc.adherence.missedSessions} missed sessions recently`);
+  }
+  for (const decision of decisions) {
+    const intel = exerciseIntelligenceFor({ libraryId: decision.libraryId });
+    const result = applyTrainingContextToDecision(decision, intel, context.trainingContext);
+    if (result.contextReasons.length) {
+      decision.contextReasons = result.contextReasons;
+    }
+    if (result.priorityShift !== 0) {
+      const originalRank = PRIORITY_RANK[decision.priority];
+      decision.priority = clampPriority(originalRank + result.priorityShift);
+    }
+  }
+
   // Meaningful recommendations first: priority → action → confidence → stable id.
   // KEEP/INFO decisions sink to the bottom so they never crowd out real changes.
   const priorityRank: Record<AdaptivePriority, number> = { high: 0, medium: 1, low: 2, info: 3 };
@@ -1039,6 +1260,7 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
     sessionDecisions,
     programmeSignals: signals,
     summary,
+    ...(contextSummaryItems.length ? { trainingContextSummary: { items: contextSummaryItems.slice(0, 3) } } : {}),
   };
 }
 

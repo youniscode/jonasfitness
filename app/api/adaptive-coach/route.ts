@@ -1,10 +1,11 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
 import { getDb } from "../../../db";
 import { clientExerciseFeedback, clientExercisePreferences, clientExerciseReplacements, clientIntakes, clients, programmes, sessions, workoutSessions } from "../../../db/schema";
 import {
   applyAdaptiveDecisions,
   buildAdaptiveCoachPlan,
+  buildTrainingContextFromReport,
   draftFromContent,
   type AdaptiveCoachContext,
 } from "../../lib/adaptive-coach";
@@ -13,6 +14,7 @@ import { rehydrateDraft, validateDraft } from "../../lib/ai-programme";
 import { buildClientExerciseFeedbackProfile, type ClientFeedbackRow } from "../../lib/exercise-feedback";
 import { preferenceContextFrom } from "../../lib/exercise-preference";
 import { initialPreferenceContextFrom, parseProfile } from "../../lib/onboarding-profile";
+import { buildTrainingLoadReport, DAY_MS, TREND_WINDOW_DAYS, type TrainingLoadContext } from "../../lib/training-load";
 import { parseExercises } from "../../lib/workouts";
 import type { ClientFitContext } from "../../lib/exercise-intelligence";
 
@@ -52,7 +54,9 @@ async function adaptiveContext(ownerId: string, clientId: number): Promise<Adapt
     eq(programmes.clientId, clientId),
     eq(programmes.status, "approved"),
   )).orderBy(desc(programmes.createdAt)).limit(1);
-  const [workoutRows, feedbackRows, preferenceRows, replacementRows, pulseRow] = await Promise.all([
+
+  const since = new Date(Date.now() - TREND_WINDOW_DAYS * DAY_MS);
+  const [workoutRows, feedbackRows, preferenceRows, replacementRows, pulseRow, sessionRows] = await Promise.all([
     db.select().from(workoutSessions).where(and(
       eq(workoutSessions.ownerId, ownerId),
       eq(workoutSessions.clientId, clientId),
@@ -80,6 +84,20 @@ async function adaptiveContext(ownerId: string, clientId: number): Promise<Adapt
       eq(sessions.ownerId, ownerId),
       eq(sessions.clientId, clientId),
     )).orderBy(desc(sessions.respondedAt)).limit(1),
+    db.select({
+      startAt: sessions.startAt,
+      status: sessions.status,
+      readinessLevel: sessions.readinessLevel,
+      readinessScore: sessions.readinessScore,
+      energy: sessions.energy,
+      sleep: sessions.sleep,
+      soreness: sessions.soreness,
+      stress: sessions.stress,
+    }).from(sessions).where(and(
+      eq(sessions.ownerId, ownerId),
+      eq(sessions.clientId, clientId),
+      gte(sessions.startAt, since),
+    )).orderBy(desc(sessions.startAt)).limit(120),
   ]);
   const pulse = pulseRow[0] ?? null;
 
@@ -129,6 +147,43 @@ async function adaptiveContext(ownerId: string, clientId: number): Promise<Adapt
   const durationLabel = onboardingProfile?.schedule.duration ?? null;
   const limitationAreas = onboardingProfile?.limitations.status === "areas" ? onboardingProfile.limitations.areas : [];
 
+  // --- V3: Build training load context from same data ---
+  const tlWorkouts = workoutRows.map((workout) => ({
+    id: workout.id,
+    programmeId: workout.programmeId,
+    completedAt: workout.completedAt?.toISOString() ?? workout.startedAt.toISOString(),
+    exercises: parseExercises(workout.exercises),
+  }));
+  const tlFeedback = feedbackRows.map((row) => ({
+    exerciseId: row.exerciseId,
+    comfort: row.comfort,
+    createdAt: row.createdAt.toISOString(),
+  }));
+  const tlAttendance = sessionRows.map((session) => ({
+    startAt: session.startAt.toISOString(),
+    status: session.status as TrainingLoadContext["attendance"][number]["status"],
+  }));
+  const tlReadiness = sessionRows.map((session) => ({
+    startAt: session.startAt.toISOString(),
+    readinessLevel: session.readinessLevel,
+    readinessScore: session.readinessScore,
+    energy: session.energy,
+    sleep: session.sleep,
+    soreness: session.soreness,
+    stress: session.stress,
+  }));
+  const trainingLoadContext: TrainingLoadContext = {
+    now: new Date().toISOString(),
+    sessionsPerWeek: client.sessionsPerWeek,
+    programme: programme ? { id: programme.id, title: programme.title, content: programme.content } : null,
+    workouts: tlWorkouts,
+    attendance: tlAttendance,
+    feedback: tlFeedback,
+    readiness: tlReadiness,
+  };
+  const trainingReport = buildTrainingLoadReport(trainingLoadContext);
+  const trainingContext = buildTrainingContextFromReport(trainingReport);
+
   return {
     goal: client.goal,
     secondaryGoals: onboardingProfile?.goals.secondary ?? [],
@@ -150,6 +205,7 @@ async function adaptiveContext(ownerId: string, clientId: number): Promise<Adapt
       pain: pulse.pain,
       painArea: pulse.painArea,
     } : null,
+    trainingContext,
   };
 }
 
