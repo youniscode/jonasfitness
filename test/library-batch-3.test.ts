@@ -89,9 +89,9 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
 
 // ---------- Catalogue invariants ----------
 
-test("catalogue count is 98 and all 10 batch-3 ids resolve with full metadata", () => {
-  assert.equal(builtInExercises.length, 98);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 98, "duplicate id");
+test("catalogue count is 106 and all 10 batch-3 ids resolve with full metadata", () => {
+  assert.equal(builtInExercises.length, 106);
+  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
   for (const id of BATCH_3) {
     const exercise = builtInExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);

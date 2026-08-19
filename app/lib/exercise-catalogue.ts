@@ -151,6 +151,15 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("dumbbell-pullover", "Dumbbell pullover", "Pullover avec haltère", "بول أوفر بالدمبل", "Back", "Dumbbells", "Keep the ribs controlled and move the dumbbell through a comfortable arc behind the head.", "/exercises/dumbbell-pullover.webp"),
   builtIn("chin-up", "Chin-up", "Traction supination", "عقلة بقبضة سفلية", "Back", "Bodyweight", "Start from a controlled hang and pull the chest toward the bar with an underhand grip.", "/exercises/chin-up.webp"),
   builtIn("close-grip-bench-press", "Close-grip bench press", "Développé couché prise serrée", "ضغط بنش قبضة ضيقة", "Triceps", "Barbell", "Keep the elbows controlled with stable shoulder blades and use a comfortable narrow grip.", "/exercises/close-grip-bench-press.webp"),
+  // Library expansion #5 (8 net-new, final phase): unilateral isolation, stable machines, guided presses.
+  builtIn("belt-squat", "Belt squat", "Squat à la ceinture", "سكوات بالحزام", "Quadriceps", "Machine", "Keep the torso tall, sit down between the hips and drive through the whole foot.", "/exercises/belt-squat.webp"),
+  builtIn("kneeling-single-arm-pulldown", "Kneeling single-arm pulldown", "Tirage vertical à la poulie à un bras à genoux", "سحب علوي بالكابل بذراع واحدة من وضع الركوع", "Back", "Cable", "Keep the ribs controlled and drive the elbow toward the hip without rotating the torso.", "/exercises/kneeling-single-arm-pulldown.webp"),
+  builtIn("smith-incline-press", "Smith incline press", "Développé incliné à la Smith machine", "ضغط مائل على جهاز سميث", "Chest", "Machine", "Keep the shoulder blades stable and press along the guided path without shrugging.", "/exercises/smith-incline-press.webp"),
+  builtIn("single-leg-leg-curl", "Single-leg leg curl", "Leg curl une jambe", "ثني الأرجل على الجهاز بساق واحدة", "Hamstrings", "Machine", "Keep the hips against the pad and curl smoothly, controlling the return.", "/exercises/single-leg-leg-curl.webp"),
+  builtIn("single-leg-leg-extension", "Single-leg leg extension", "Leg extension une jambe", "تمديد الأرجل على الجهاز بساق واحدة", "Quadriceps", "Machine", "Keep the thigh supported and extend without kicking, controlling the lowering phase.", "/exercises/single-leg-leg-extension.webp"),
+  builtIn("bayesian-cable-curl", "Bayesian cable curl", "Curl Bayesian à la poulie", "بايسبس بايزيان بالكابل", "Biceps", "Cable", "Keep the upper arm behind the torso and curl without letting the shoulder drift forward.", "/exercises/bayesian-cable-curl.webp"),
+  builtIn("single-arm-cable-triceps-extension", "Single-arm cable triceps extension", "Extension triceps à la poulie à un bras", "تمديد ترايسبس بالكابل بذراع واحدة", "Triceps", "Cable", "Keep the elbow stable and extend fully under control without rotating the torso.", "/exercises/single-arm-cable-triceps-extension.webp"),
+  builtIn("high-row-machine", "High row machine", "Rowing haut à la machine", "سحب علوي أفقي على الجهاز", "Back", "Machine", "Keep the chest supported and drive the elbows high and back without excessive shrugging.", "/exercises/high-row-machine.webp"),
 ];
 
 // ——— Stable rehydration of saved programme exercises ———
@@ -330,6 +339,15 @@ const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-dumbbell-pullover": "vertical_pull",
   "builtin-chin-up": "vertical_pull",
   "builtin-close-grip-bench-press": "horizontal_push",
+  // Library expansion #5 (8 net-new, final phase).
+  "builtin-belt-squat": "knee_dominant",
+  "builtin-kneeling-single-arm-pulldown": "vertical_pull",
+  "builtin-smith-incline-press": "horizontal_push",
+  "builtin-single-leg-leg-curl": "isolation",
+  "builtin-single-leg-leg-extension": "isolation",
+  "builtin-bayesian-cable-curl": "isolation",
+  "builtin-single-arm-cable-triceps-extension": "isolation",
+  "builtin-high-row-machine": "horizontal_pull",
 };
 
 // The major compound patterns that should appear across a balanced week.
@@ -474,6 +492,15 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-incline-barbell-press": 3,
   "builtin-chin-up": 3,
   "builtin-close-grip-bench-press": 3,
+  // Library expansion #5 (8 net-new, final phase): stable machines/cables Tier 1; coachable free-path Tier 2.
+  "builtin-belt-squat": 1,
+  "builtin-kneeling-single-arm-pulldown": 1,
+  "builtin-single-leg-leg-curl": 1,
+  "builtin-single-leg-leg-extension": 1,
+  "builtin-high-row-machine": 1,
+  "builtin-smith-incline-press": 2,
+  "builtin-bayesian-cable-curl": 2,
+  "builtin-single-arm-cable-triceps-extension": 2,
 };
 
 // Exact libraryId lookup — never name-based guessing. Unknown/custom exercises
@@ -493,9 +520,9 @@ export function difficultyTierFor(exercise: { id?: string; libraryId?: string })
 // invented.
 export const BEGINNER_ALTERNATIVES: Record<string, string[]> = {
   "builtin-pull-up": ["builtin-assisted-pull-up", "builtin-neutral-grip-lat-pulldown", "builtin-lat-pulldown"],
-  "builtin-back-squat": ["builtin-hack-squat", "builtin-smith-machine-squat", "builtin-goblet-squat", "builtin-leg-press"],
+  "builtin-back-squat": ["builtin-hack-squat", "builtin-smith-machine-squat", "builtin-goblet-squat", "builtin-leg-press", "builtin-belt-squat"],
   // The same unilateral pattern with a stable Smith track as the second option.
-  "builtin-bulgarian-split-squat": ["builtin-hack-squat", "builtin-smith-split-squat", "builtin-goblet-squat", "builtin-leg-press"],
+  "builtin-bulgarian-split-squat": ["builtin-hack-squat", "builtin-smith-split-squat", "builtin-goblet-squat", "builtin-leg-press", "builtin-belt-squat"],
   // The dumbbell RDL is a coachable middle step below the barbell RDL.
   "builtin-romanian-deadlift": ["builtin-cable-pull-through", "builtin-dumbbell-romanian-deadlift", "builtin-seated-leg-curl", "builtin-lying-leg-curl", "builtin-glute-bridge", "builtin-hip-thrust-machine"],
   "builtin-hip-thrust": ["builtin-hip-thrust-machine"],

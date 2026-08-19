@@ -46,8 +46,8 @@ function isGenuineWebP(buffer: Buffer): boolean {
 
 // ---------- Library intelligence coverage ----------
 
-test("catalogue is 98 and every built-in has structured intelligence metadata", () => {
-  assert.equal(builtInExercises.length, 98);
+test("catalogue is 106 and every built-in has structured intelligence metadata", () => {
+  assert.equal(builtInExercises.length, 106);
   assert.equal(intelligenceCoversAllBuiltIns().length, 0, "every built-in must have an intelligence entry");
   for (const exercise of builtInExercises) {
     const intel = exerciseIntelligenceFor(exercise);
@@ -57,7 +57,7 @@ test("catalogue is 98 and every built-in has structured intelligence metadata", 
     assert.ok(intel.coachingCues.length > 0, `${exercise.id} missing coaching cues`);
     assert.ok(intel.movementPattern === movementPatternFor(exercise), `${exercise.id} movement drift`);
     assert.ok(intel.beginnerTier === difficultyTierFor(exercise), `${exercise.id} tier drift`);
-    // Every built-in still has a local genuine-WebP image (98/98).
+    // Every built-in still has a local genuine-WebP image (106/106).
     const slug = exercise.id.slice("builtin-".length);
     const asset = join(projectRoot, "public", "exercises", `${slug}.webp`);
     assert.ok(existsSync(asset), `missing asset for ${slug}`);

@@ -569,6 +569,6 @@ test("scoring all built-ins with a preference context stays in-memory and determ
   const rows = [pref("builtin-lat-pulldown", { explicitState: "preferred" })];
   const context = { ...BASE_CONTEXT, preferenceContext: preferenceContextFrom(rows, []) };
   const scores = builtInExercises.map((exercise) => scoreExerciseForClient(exercise, context).score);
-  assert.equal(scores.length, 98);
+  assert.equal(scores.length, 106);
   assert.ok(scores.every((value) => Number.isFinite(value) && value >= 0 && value <= 100));
 });

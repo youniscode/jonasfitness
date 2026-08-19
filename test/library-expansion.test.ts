@@ -1,11 +1,14 @@
 /**
- * Library-expansion invariants (34 → 53 → 78 → 88 → 98 built-ins).
+ * Library-expansion invariants (34 → 53 → 78 → 88 → 98 → 106 built-ins).
  *
  * The 20 delivered images mapped to 19 net-new entries (seated-leg-curl already
  * existed), taking the library to 53; a further 25 images are all net-new,
  * taking it to 78; batch #3 adds 10 more (shoulder presses/raises, deadlift
  * family, glute kickback), taking it to 88; batch #4 adds 10 more (core
- * diversity, traps, press/pull variants), taking it to 98. Every new exercise
+ * diversity, traps, press/pull variants), taking it to 98; the final batch #5
+ * adds 8 more (belt squat, kneeling single-arm pulldown, smith incline press,
+ * unilateral leg curl/extension, Bayesian cable curl, single-arm cable triceps
+ * extension, high row machine), taking it to 106. Every new exercise
  * must be fully integrated: EN/FR/AR
  * metadata, movement classification, beginner tier, local genuine-WebP image,
  * alternative-map reachability, AI catalogue exposure, fallback selection and
@@ -106,6 +109,15 @@ const NEW_IDS = [
   "builtin-dumbbell-pullover",
   "builtin-chin-up",
   "builtin-close-grip-bench-press",
+  // Final batch #5 (8 net-new).
+  "builtin-belt-squat",
+  "builtin-kneeling-single-arm-pulldown",
+  "builtin-smith-incline-press",
+  "builtin-single-leg-leg-curl",
+  "builtin-single-leg-leg-extension",
+  "builtin-bayesian-cable-curl",
+  "builtin-single-arm-cable-triceps-extension",
+  "builtin-high-row-machine",
 ];
 
 // The 34 pre-expansion canonical ids — a snapshot guard: any drift below means
@@ -155,9 +167,9 @@ function isGenuineWebP(buffer: Buffer): boolean {
 
 // ---------- Catalogue invariants ----------
 
-test("catalogue count is 98 (34 + 19 + 25 + 10 + 10 net-new, seated-leg-curl already existed)", () => {
-  assert.equal(builtInExercises.length, 98);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 98, "duplicate id");
+test("catalogue count is 106 (34 + 19 + 25 + 10 + 10 + 8 net-new, seated-leg-curl already existed)", () => {
+  assert.equal(builtInExercises.length, 106);
+  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
 });
 
 test("all previous 34 canonical ids are present and unchanged", () => {
@@ -169,12 +181,12 @@ test("all previous 34 canonical ids are present and unchanged", () => {
   assert.equal(builtInExercises.filter((exercise) => exercise.id === "builtin-seated-leg-curl").length, 1);
 });
 
-test("all 98 normalized English names are unique", () => {
+test("all 106 normalized English names are unique", () => {
   const normalized = builtInExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate normalized EN name");
 });
 
-test("every built-in has EN/FR/AR, movement classification and a beginner tier (98/98)", () => {
+test("every built-in has EN/FR/AR, movement classification and a beginner tier (106/106)", () => {
   for (const exercise of builtInExercises) {
     assert.ok(exercise.name.trim(), `missing EN name for ${exercise.id}`);
     assert.ok(exercise.nameFr.trim(), `missing FR name for ${exercise.name}`);
@@ -185,7 +197,7 @@ test("every built-in has EN/FR/AR, movement classification and a beginner tier (
   }
 });
 
-test("image coverage invariant — every built-in resolves to an existing local genuine WebP (98/98)", () => {
+test("image coverage invariant — every built-in resolves to an existing local genuine WebP (106/106)", () => {
   for (const exercise of builtInExercises) {
     const slug = exercise.id.slice("builtin-".length);
     assert.ok(exercise.imageUrl.startsWith("/exercises/"), `${exercise.id} image path prefix`);
@@ -196,7 +208,7 @@ test("image coverage invariant — every built-in resolves to an existing local 
   }
 });
 
-test("all 64 new ids resolve with full metadata and rehydrate by libraryId", () => {
+test("all 72 new ids resolve with full metadata and rehydrate by libraryId", () => {
   for (const id of NEW_IDS) {
     const exercise = builtInExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);

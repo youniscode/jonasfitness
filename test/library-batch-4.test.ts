@@ -1,5 +1,5 @@
 /**
- * Library expansion batch #4 (88 → 98 built-ins): core movement diversity
+ * Library expansion batch #4 (88 → 98 built-ins, now 106 with batch #5): core movement diversity
  * (side plank, bird dog, woodchopper, Russian twist, ab-wheel rollout), traps
  * (dumbbell shrug) and press/pull variants (incline barbell press, dumbbell
  * pullover, chin-up, close-grip bench press).
@@ -91,9 +91,9 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
 
 // ---------- Catalogue invariants ----------
 
-test("catalogue count is 98 and all 10 batch-4 ids resolve with full metadata", () => {
-  assert.equal(builtInExercises.length, 98);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 98, "duplicate id");
+test("catalogue count is 106 and all 10 batch-4 ids resolve with full metadata", () => {
+  assert.equal(builtInExercises.length, 106);
+  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
   for (const id of BATCH_4) {
     const exercise = builtInExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);
@@ -129,7 +129,7 @@ test("batch-4 images exist, are genuine WebP and exactly 1448×1086", () => {
   }
 });
 
-test("no duplicate image binary hashes across the whole 98-image library", () => {
+test("no duplicate image binary hashes across the whole 106-image library", () => {
   const hashes = new Map<string, string>();
   for (const exercise of builtInExercises) {
     const slug = exercise.id.slice("builtin-".length);
