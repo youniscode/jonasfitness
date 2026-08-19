@@ -1,9 +1,11 @@
 /**
- * Library-expansion invariants (34 → 53 → 78 built-ins).
+ * Library-expansion invariants (34 → 53 → 78 → 88 built-ins).
  *
  * The 20 delivered images mapped to 19 net-new entries (seated-leg-curl already
  * existed), taking the library to 53; a further 25 images are all net-new,
- * taking it to 78. Every new exercise must be fully integrated: EN/FR/AR
+ * taking it to 78; batch #3 adds 10 more (shoulder presses/raises, deadlift
+ * family, glute kickback), taking it to 88. Every new exercise must be fully
+ * integrated: EN/FR/AR
  * metadata, movement classification, beginner tier, local genuine-WebP image,
  * alternative-map reachability, AI catalogue exposure, fallback selection and
  * rehydration by stable libraryId.
@@ -81,6 +83,17 @@ const NEW_IDS = [
   "builtin-hanging-knee-raise",
   "builtin-dead-bug",
   "builtin-reverse-crunch",
+  // Expansion #3 (10 net-new).
+  "builtin-landmine-press",
+  "builtin-single-arm-landmine-press",
+  "builtin-neutral-grip-machine-shoulder-press",
+  "builtin-single-arm-cable-lateral-raise",
+  "builtin-cable-scaption-raise",
+  "builtin-conventional-deadlift",
+  "builtin-sumo-deadlift",
+  "builtin-dumbbell-romanian-deadlift",
+  "builtin-single-leg-romanian-deadlift",
+  "builtin-cable-glute-kickback",
 ];
 
 // The 34 pre-expansion canonical ids — a snapshot guard: any drift below means
@@ -130,9 +143,9 @@ function isGenuineWebP(buffer: Buffer): boolean {
 
 // ---------- Catalogue invariants ----------
 
-test("catalogue count is 78 (34 + 19 net-new + 25 net-new, seated-leg-curl already existed)", () => {
-  assert.equal(builtInExercises.length, 78);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 78, "duplicate id");
+test("catalogue count is 88 (34 + 19 net-new + 25 net-new + 10 net-new, seated-leg-curl already existed)", () => {
+  assert.equal(builtInExercises.length, 88);
+  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 88, "duplicate id");
 });
 
 test("all previous 34 canonical ids are present and unchanged", () => {
@@ -144,12 +157,12 @@ test("all previous 34 canonical ids are present and unchanged", () => {
   assert.equal(builtInExercises.filter((exercise) => exercise.id === "builtin-seated-leg-curl").length, 1);
 });
 
-test("all 78 normalized English names are unique", () => {
+test("all 88 normalized English names are unique", () => {
   const normalized = builtInExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate normalized EN name");
 });
 
-test("every built-in has EN/FR/AR, movement classification and a beginner tier (78/78)", () => {
+test("every built-in has EN/FR/AR, movement classification and a beginner tier (88/88)", () => {
   for (const exercise of builtInExercises) {
     assert.ok(exercise.name.trim(), `missing EN name for ${exercise.id}`);
     assert.ok(exercise.nameFr.trim(), `missing FR name for ${exercise.name}`);
@@ -160,7 +173,7 @@ test("every built-in has EN/FR/AR, movement classification and a beginner tier (
   }
 });
 
-test("image coverage invariant — every built-in resolves to an existing local genuine WebP (78/78)", () => {
+test("image coverage invariant — every built-in resolves to an existing local genuine WebP (88/88)", () => {
   for (const exercise of builtInExercises) {
     const slug = exercise.id.slice("builtin-".length);
     assert.ok(exercise.imageUrl.startsWith("/exercises/"), `${exercise.id} image path prefix`);
@@ -171,7 +184,7 @@ test("image coverage invariant — every built-in resolves to an existing local 
   }
 });
 
-test("all 44 new ids resolve with full metadata and rehydrate by libraryId", () => {
+test("all 54 new ids resolve with full metadata and rehydrate by libraryId", () => {
   for (const id of NEW_IDS) {
     const exercise = builtInExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);

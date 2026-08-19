@@ -129,6 +129,17 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("hanging-knee-raise", "Hanging knee raise", "Relevé de genoux suspendu", "رفع الركبتين معلقًا", "Core", "Bodyweight", "Brace the trunk and raise the knees to hip height without swinging.", "/exercises/hanging-knee-raise.webp"),
   builtIn("dead-bug", "Dead bug", "Dead bug", "ديد باج", "Core", "Bodyweight", "Keep the lower back pressed down and lower opposite arm and leg under control.", "/exercises/dead-bug.webp"),
   builtIn("reverse-crunch", "Reverse crunch", "Crunch inversé", "الكرانش العكسي", "Core", "Bodyweight", "Curl the pelvis toward the ribs and control the return without momentum.", "/exercises/reverse-crunch.webp"),
+  // Library expansion #3 (10 net-new): shoulder presses/raises, deadlift family, glute kickback.
+  builtIn("landmine-press", "Landmine press", "Développé landmine", "ضغط لاندماين", "Shoulders", "Barbell", "Anchor the bar, brace the trunk and press diagonally without shrugging.", "/exercises/landmine-press.webp"),
+  builtIn("single-arm-landmine-press", "Single-arm landmine press", "Développé landmine à un bras", "ضغط لاندماين بذراع واحدة", "Shoulders", "Barbell", "Brace the trunk, press through the working arm and avoid rotating the torso.", "/exercises/single-arm-landmine-press.webp"),
+  builtIn("neutral-grip-machine-shoulder-press", "Neutral-grip machine shoulder press", "Développé épaules machine prise neutre", "ضغط كتف على الجهاز بقبضة محايدة", "Shoulders", "Machine", "Set the seat, keep the back supported and press with a comfortable neutral grip.", "/exercises/neutral-grip-machine-shoulder-press.webp"),
+  builtIn("single-arm-cable-lateral-raise", "Single-arm cable lateral raise", "Élévation latérale à la poulie à un bras", "رفرفة جانبية بالكابل بذراع واحدة", "Shoulders", "Cable", "Lead with the elbow and raise under control without shrugging.", "/exercises/single-arm-cable-lateral-raise.webp"),
+  builtIn("cable-scaption-raise", "Cable scaption raise", "Élévation en scapulaire à la poulie", "رفع سكابشن بالكابل", "Shoulders", "Cable", "Raise the arms slightly forward of the body under control without shrugging.", "/exercises/cable-scaption-raise.webp"),
+  builtIn("conventional-deadlift", "Conventional deadlift", "Soulevé de terre classique", "الرفعة الميتة التقليدية", "Hamstrings", "Barbell", "Brace, set the back and stand with the bar kept close to the body.", "/exercises/conventional-deadlift.webp"),
+  builtIn("sumo-deadlift", "Sumo deadlift", "Soulevé de terre sumo", "الرفعة الميتة سومو", "Hamstrings", "Barbell", "Set a wide stance, brace and drive through the whole foot with the bar close.", "/exercises/sumo-deadlift.webp"),
+  builtIn("dumbbell-romanian-deadlift", "Dumbbell Romanian deadlift", "Soulevé de terre roumain avec haltères", "الرفعة الميتة الرومانية بالدمبل", "Hamstrings", "Dumbbells", "Push the hips back with a braced trunk and keep the dumbbells close to the legs.", "/exercises/dumbbell-romanian-deadlift.webp"),
+  builtIn("single-leg-romanian-deadlift", "Single-leg Romanian deadlift", "Soulevé de terre roumain sur une jambe", "الرفعة الميتة الرومانية على ساق واحدة", "Hamstrings", "Dumbbells", "Hinge on one leg with a braced trunk and lower under control.", "/exercises/single-leg-romanian-deadlift.webp"),
+  builtIn("cable-glute-kickback", "Cable glute kickback", "Extension de hanche à la poulie", "ركل خلفي للألوية بالكابل", "Glutes", "Cable", "Brace on the frame and extend the hip under control, squeezing the glute at the top.", "/exercises/cable-glute-kickback.webp"),
 ];
 
 // ——— Stable rehydration of saved programme exercises ———
@@ -285,6 +296,17 @@ const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-hanging-knee-raise": "core",
   "builtin-dead-bug": "core",
   "builtin-reverse-crunch": "core",
+  // Library expansion #3 (10 net-new).
+  "builtin-landmine-press": "vertical_push",
+  "builtin-single-arm-landmine-press": "vertical_push",
+  "builtin-neutral-grip-machine-shoulder-press": "vertical_push",
+  "builtin-single-arm-cable-lateral-raise": "isolation",
+  "builtin-cable-scaption-raise": "isolation",
+  "builtin-conventional-deadlift": "hinge",
+  "builtin-sumo-deadlift": "hinge",
+  "builtin-dumbbell-romanian-deadlift": "hinge",
+  "builtin-single-leg-romanian-deadlift": "hinge",
+  "builtin-cable-glute-kickback": "isolation",
 };
 
 // The major compound patterns that should appear across a balanced week.
@@ -407,6 +429,17 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-skull-crusher": 2,
   "builtin-assisted-dip": 2,
   "builtin-hanging-knee-raise": 2,
+  // Library expansion #3 (10 net-new): stable machines/cables Tier 1; coachable Tier 2; demanding free-weight hinges Tier 3.
+  "builtin-neutral-grip-machine-shoulder-press": 1,
+  "builtin-cable-glute-kickback": 1,
+  "builtin-landmine-press": 2,
+  "builtin-single-arm-landmine-press": 2,
+  "builtin-single-arm-cable-lateral-raise": 2,
+  "builtin-cable-scaption-raise": 2,
+  "builtin-dumbbell-romanian-deadlift": 2,
+  "builtin-conventional-deadlift": 3,
+  "builtin-sumo-deadlift": 3,
+  "builtin-single-leg-romanian-deadlift": 3,
 };
 
 // Exact libraryId lookup — never name-based guessing. Unknown/custom exercises
@@ -429,12 +462,18 @@ export const BEGINNER_ALTERNATIVES: Record<string, string[]> = {
   "builtin-back-squat": ["builtin-hack-squat", "builtin-smith-machine-squat", "builtin-goblet-squat", "builtin-leg-press"],
   // The same unilateral pattern with a stable Smith track as the second option.
   "builtin-bulgarian-split-squat": ["builtin-hack-squat", "builtin-smith-split-squat", "builtin-goblet-squat", "builtin-leg-press"],
-  "builtin-romanian-deadlift": ["builtin-cable-pull-through", "builtin-seated-leg-curl", "builtin-lying-leg-curl", "builtin-glute-bridge", "builtin-hip-thrust-machine"],
+  // The dumbbell RDL is a coachable middle step below the barbell RDL.
+  "builtin-romanian-deadlift": ["builtin-cable-pull-through", "builtin-dumbbell-romanian-deadlift", "builtin-seated-leg-curl", "builtin-lying-leg-curl", "builtin-glute-bridge", "builtin-hip-thrust-machine"],
   "builtin-hip-thrust": ["builtin-hip-thrust-machine"],
   // The supported T-bar row as a middle step toward the free-weight barbell row.
   "builtin-barbell-row": ["builtin-machine-row", "builtin-t-bar-row", "builtin-one-arm-cable-row", "builtin-chest-supported-row", "builtin-seated-cable-row"],
   "builtin-barbell-bench-press": ["builtin-incline-machine-chest-press", "builtin-machine-chest-press", "builtin-dumbbell-bench-press"],
-  "builtin-overhead-press": ["builtin-machine-shoulder-press", "builtin-seated-dumbbell-shoulder-press"],
+  // The neutral-grip machine press is the most stable/beginner-friendly vertical press option.
+  "builtin-overhead-press": ["builtin-neutral-grip-machine-shoulder-press", "builtin-machine-shoulder-press", "builtin-seated-dumbbell-shoulder-press"],
+  // Deadlift family: stable hinge alternatives first for untested beginners.
+  "builtin-conventional-deadlift": ["builtin-cable-pull-through", "builtin-romanian-deadlift", "builtin-dumbbell-romanian-deadlift"],
+  "builtin-sumo-deadlift": ["builtin-cable-pull-through", "builtin-romanian-deadlift", "builtin-dumbbell-romanian-deadlift"],
+  "builtin-single-leg-romanian-deadlift": ["builtin-dumbbell-romanian-deadlift", "builtin-cable-pull-through", "builtin-romanian-deadlift", "builtin-glute-bridge"],
 };
 
 export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: string }): ExerciseDefinition | null {

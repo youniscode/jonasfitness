@@ -140,6 +140,17 @@ const EXPECTED_TIERS: Array<[string, 1 | 2 | 3]> = [
   ["builtin-hanging-knee-raise", 2],
   ["builtin-dead-bug", 1],
   ["builtin-reverse-crunch", 1],
+  // Library expansion #3 (10 net-new).
+  ["builtin-neutral-grip-machine-shoulder-press", 1],
+  ["builtin-cable-glute-kickback", 1],
+  ["builtin-landmine-press", 2],
+  ["builtin-single-arm-landmine-press", 2],
+  ["builtin-single-arm-cable-lateral-raise", 2],
+  ["builtin-cable-scaption-raise", 2],
+  ["builtin-dumbbell-romanian-deadlift", 2],
+  ["builtin-conventional-deadlift", 3],
+  ["builtin-sumo-deadlift", 3],
+  ["builtin-single-leg-romanian-deadlift", 3],
 ];
 
 test("every built-in exercise is tier-classified (no gaps)", () => {
@@ -204,10 +215,10 @@ test("tier classification matches the intended coaching tiers", () => {
   for (const [id, tier] of EXPECTED_TIERS) {
     assert.equal(difficultyTierFor({ libraryId: id }), tier, id);
   }
-  // The catalogue must have exactly 78 built-ins — the audit table above is the
+  // The catalogue must have exactly 88 built-ins — the audit table above is the
   // complete classification, so a drift here means a new exercise was added
   // without a tier.
-  assert.equal(builtInExercises.length, 78);
+  assert.equal(builtInExercises.length, 88);
 });
 
 test("difficultyTierFor is exact — unknown ids and missing ids return null", () => {
@@ -229,7 +240,7 @@ test("beginner alternatives resolve to real canonical exercises", () => {
     ["builtin-hip-thrust", "builtin-hip-thrust-machine"],
     ["builtin-barbell-row", "builtin-machine-row"],
     ["builtin-barbell-bench-press", "builtin-incline-machine-chest-press"],
-    ["builtin-overhead-press", "builtin-machine-shoulder-press"],
+    ["builtin-overhead-press", "builtin-neutral-grip-machine-shoulder-press"],
   ];
   for (const [source, alternative] of cases) {
     assert.equal(beginnerAlternativeFor({ libraryId: source })?.id, alternative, source);
@@ -262,7 +273,8 @@ test("alternatives are exact-libraryId only — no fuzzy matching", () => {
 
 test("every Tier 3 lift now has a simpler canonical alternative", () => {
   assert.equal(beginnerAlternativeFor({ libraryId: "builtin-hip-thrust" })?.id, "builtin-hip-thrust-machine");
-  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-overhead-press" })?.id, "builtin-machine-shoulder-press");
+  // The neutral-grip machine press is the most stable/beginner-friendly vertical press.
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-overhead-press" })?.id, "builtin-neutral-grip-machine-shoulder-press");
 });
 
 // ---------- Beginner policy behaviour ----------
