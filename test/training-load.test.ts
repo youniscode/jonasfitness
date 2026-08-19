@@ -210,7 +210,7 @@ test("volume decrease → review signal", () => {
 
 // ---------- 7. Adherence ----------
 
-test("adherence = completed / planned (completed + missed + scheduled)", () => {
+test("adherence = confirmed attendance (completed / completed + no_show)", () => {
   const report = buildTrainingLoadReport(ctx({
     attendance: [
       { startAt: CURRENT, status: "completed" },
@@ -219,17 +219,19 @@ test("adherence = completed / planned (completed + missed + scheduled)", () => {
       { startAt: CURRENT, status: "no_show" },
     ],
   }));
-  assert.equal(report.plannedSessions, 4);
   assert.equal(report.completedSessions, 3);
   assert.equal(report.missedSessions, 1);
   assert.equal(report.adherencePercent, 75);
+  assert.equal(report.futurePendingSessions, 0);
+  assert.equal(report.pastUnresolvedSessions, 0);
 });
 
-test("missing planned-session data → null adherence, no fabrication", () => {
+test("missing attendance data → null adherence, no fabrication", () => {
   const report = buildTrainingLoadReport(ctx({ attendance: [] }));
-  assert.equal(report.plannedSessions, null);
   assert.equal(report.adherencePercent, null);
   assert.equal(report.adherenceTrend, "insufficient_data");
+  assert.equal(report.futurePendingSessions, 0);
+  assert.equal(report.pastUnresolvedSessions, 0);
 });
 
 test("several missed sessions → attention", () => {

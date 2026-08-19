@@ -17,6 +17,17 @@
  * (primaryMuscles / secondaryMuscles) only — no second hardcoded mapping lives
  * here. Custom/legacy exercises without intelligence are counted as "unmapped"
  * rather than guessed.
+ *
+ * V1.1 changes (adherence semantics + signal dedup):
+ * - A scheduled session is split into "future pending" (startAt > now) vs
+ *   "past unresolved" (startAt <= now). Neither silently distorts adherence.
+ * - Adherence is now confirmed attendance: completed / (completed + no_show).
+ * - A never-trained *programmed* muscle is flagged (REVIEW only) once the
+ *   client has completed enough programme workouts that the muscle's
+ *   opportunity has reasonably passed.
+ * - Secondary-muscle volume echoes of a primary-muscle change are suppressed
+ *   (grid trends stay visible); region discomfort aggregates supersede the
+ *   single-occurrence INFO duplicates they cover.
  */
 
 import { exerciseIntelligenceFor, muscleLabel, type MuscleGroupId } from "./exercise-intelligence.ts";
@@ -34,9 +45,9 @@ export type TrainingLoadSignalType =
   | "low_rir"
   | "adherence"
   | "muscle_inactivity"
+  | "muscle_never_trained"
   | "repeated_discomfort"
-  | "readiness"
-  | "insufficient_data";
+  | "readiness";
 
 export type TrainingLoadSignal = {
   /** Stable id, deterministic per (type + subject). */
@@ -82,10 +93,13 @@ export type TrainingLoadReport = {
   totalWorkingSets: number;
   previousWorkingSets: number;
   volumeTrend: VolumeTrend;
-  plannedSessions: number | null;
   completedSessions: number;
   missedSessions: number;
-  pendingSessions: number;
+  /** Scheduled sessions whose start time is still in the future (upcoming). */
+  futurePendingSessions: number;
+  /** Scheduled sessions whose start time has passed and whose attendance is unconfirmed. */
+  pastUnresolvedSessions: number;
+  /** Confirmed attendance: completed / (completed + no_show) in the current window. */
   adherencePercent: number | null;
   adherenceTrend: "improving" | "stable" | "declining" | "insufficient_data";
   rir: RirDistribution;
@@ -100,6 +114,8 @@ export type TrainingLoadReport = {
 export type TrainingLoadWorkout = {
   id: number;
   completedAt: string;
+  /** Programme this workout was logged under (null for legacy/unlinked). */
+  programmeId?: number | null;
   exercises: WorkoutExercise[];
 };
 
@@ -128,7 +144,7 @@ export type TrainingLoadContext = {
   /** ISO timestamp defining "now". Passed in so the module stays pure. */
   now: string;
   sessionsPerWeek: number | null;
-  /** The client's approved programme (used only for inactivity context). */
+  /** The client's approved programme (used only for inactivity/never-trained context). */
   programme: { id: number; title: string; content: string } | null;
   workouts: TrainingLoadWorkout[];
   attendance: AttendanceSession[];
@@ -163,12 +179,18 @@ export const READINESS_LOW_ENERGY = 3;
 export const READINESS_HIGH_STRESS = 8;
 export const READINESS_REVIEW_MIN_RESPONSES = 3;
 export const READINESS_REVIEW_LOW_OF_LAST = 4;
+/** Completed workouts under the active programme required before a never-trained programmed muscle is flagged. */
+export const NEVER_TRAINED_MIN_WORKOUTS = 3;
+/** Two or more past-unresolved sessions escalate the attendance-confirmation signal to review. */
+export const PAST_UNRESOLVED_REVIEW_MIN = 2;
 
 const MUSCLE_ORDER: MuscleGroupId[] = [
   "chest", "lats", "upper_back", "rear_delts", "shoulders",
   "biceps", "triceps", "quads", "hamstrings", "glutes",
   "calves", "adductors", "abductors", "core",
 ];
+
+const severityRank: Record<TrainingLoadSeverity, number> = { attention: 0, review: 1, info: 2 };
 
 // ---------- Helpers ----------
 
@@ -211,6 +233,10 @@ function trendFor(current: number, previous: number): VolumeTrend {
 type WindowStats = {
   totalSets: number;
   credits: Map<MuscleGroupId, number>;
+  /** Primary-muscle credits only (used to distinguish genuine changes from echoes). */
+  primary: Map<MuscleGroupId, number>;
+  /** Secondary-muscle credits only. */
+  secondary: Map<MuscleGroupId, number>;
   unmapped: number;
   rirValues: number[];
 };
@@ -219,6 +245,8 @@ function windowStats(workouts: TrainingLoadWorkout[], start: number, end: number
   let totalSets = 0;
   let unmapped = 0;
   const credits = new Map<MuscleGroupId, number>();
+  const primary = new Map<MuscleGroupId, number>();
+  const secondary = new Map<MuscleGroupId, number>();
   const rirValues: number[] = [];
   for (const workout of workouts) {
     const workoutMs = toMs(workout.completedAt);
@@ -231,8 +259,14 @@ function windowStats(workouts: TrainingLoadWorkout[], start: number, end: number
       if (!intel) {
         unmapped += completed.length;
       } else {
-        for (const muscle of intel.primaryMuscles) credits.set(muscle, (credits.get(muscle) ?? 0) + completed.length * PRIMARY_MUSCLE_WEIGHT);
-        for (const muscle of intel.secondaryMuscles) credits.set(muscle, (credits.get(muscle) ?? 0) + completed.length * SECONDARY_MUSCLE_WEIGHT);
+        for (const muscle of intel.primaryMuscles) {
+          credits.set(muscle, (credits.get(muscle) ?? 0) + completed.length * PRIMARY_MUSCLE_WEIGHT);
+          primary.set(muscle, (primary.get(muscle) ?? 0) + completed.length * PRIMARY_MUSCLE_WEIGHT);
+        }
+        for (const muscle of intel.secondaryMuscles) {
+          credits.set(muscle, (credits.get(muscle) ?? 0) + completed.length * SECONDARY_MUSCLE_WEIGHT);
+          secondary.set(muscle, (secondary.get(muscle) ?? 0) + completed.length * SECONDARY_MUSCLE_WEIGHT);
+        }
       }
       for (const set of completed) {
         const rir = rirValue(set.rir);
@@ -240,19 +274,37 @@ function windowStats(workouts: TrainingLoadWorkout[], start: number, end: number
       }
     }
   }
-  return { totalSets, credits, unmapped, rirValues };
+  return { totalSets, credits, primary, secondary, unmapped, rirValues };
 }
 
-// ---------- Adherence (planned/completed/missed appointments) ----------
+// ---------- Adherence (confirmed attendance) ----------
 
-type AdherenceWindow = { planned: number; completed: number; missed: number; pending: number; percent: number | null };
+type AdherenceWindow = { completed: number; missed: number; percent: number | null };
 
+// Confirmed attendance = completed + no_show. Scheduled sessions never distort
+// this: future pending and past-unresolved appointments are surfaced separately
+// so a stale appointment cannot silently lower adherence.
 function adherenceFor(attendance: AttendanceSession[], start: number, end: number): AdherenceWindow {
-  const planned = attendance.filter((session) => between(toMs(session.startAt), start, end) && session.status !== "cancelled").length;
   const completed = attendance.filter((session) => between(toMs(session.startAt), start, end) && session.status === "completed").length;
   const missed = attendance.filter((session) => between(toMs(session.startAt), start, end) && session.status === "no_show").length;
-  const pending = attendance.filter((session) => between(toMs(session.startAt), start, end) && session.status === "scheduled").length;
-  return { planned, completed, missed, pending, percent: planned > 0 ? (completed / planned) * 100 : null };
+  const denominator = completed + missed;
+  return { completed, missed, percent: denominator > 0 ? (completed / denominator) * 100 : null };
+}
+
+// A scheduled session is "future pending" only while its start time is still
+// ahead of now; once the start time has passed it becomes "past unresolved"
+// (attendance not yet confirmed — never silently counted as missed).
+function scheduledBreakdown(attendance: AttendanceSession[], nowMs: number, trendStart: number) {
+  let futurePending = 0;
+  let pastUnresolved = 0;
+  for (const session of attendance) {
+    if (session.status !== "scheduled") continue;
+    const ms = toMs(session.startAt);
+    if (ms === null) continue;
+    if (ms > nowMs) futurePending += 1;
+    else if (ms >= trendStart) pastUnresolved += 1;
+  }
+  return { futurePending, pastUnresolved };
 }
 
 // ---------- Muscle inactivity (programme-aware) ----------
@@ -273,6 +325,50 @@ function programmedMuscles(programme: TrainingLoadContext["programme"]): Set<Mus
     return muscles;
   }
   return muscles;
+}
+
+// Earliest 1-based programme-day index for each programmed muscle, derived from
+// the same canonical intelligence as everything else. Used only to avoid
+// flagging a never-trained muscle whose programme opportunity has not
+// reasonably occurred yet (e.g. a Day C muscle while only Days A and B are done).
+function programmedMuscleDayIndex(programme: TrainingLoadContext["programme"]): Map<MuscleGroupId, number> {
+  const map = new Map<MuscleGroupId, number>();
+  if (!programme) return map;
+  try {
+    programmeDays(programme.content).forEach((day, index) => {
+      for (const exercise of day.work) {
+        const intel = exerciseIntelligenceFor({ libraryId: exercise.libraryId });
+        if (!intel) continue;
+        const dayNumber = index + 1;
+        for (const muscle of [...intel.primaryMuscles, ...intel.secondaryMuscles]) {
+          if (!map.has(muscle)) map.set(muscle, dayNumber);
+        }
+      }
+    });
+  } catch {
+    return map;
+  }
+  return map;
+}
+
+// For each muscle, the set of primary muscles it appears under as a secondary
+// muscle across the logged exercises. Used to recognise a volume signal that is
+// merely a secondary echo of a primary-muscle change.
+function secondarySourceMuscles(workouts: TrainingLoadWorkout[]): Map<MuscleGroupId, Set<MuscleGroupId>> {
+  const map = new Map<MuscleGroupId, Set<MuscleGroupId>>();
+  for (const workout of workouts) {
+    for (const exercise of workout.exercises) {
+      if (!exercise.sets.some(isCompletedWorkoutSet)) continue;
+      const intel = exerciseIntelligenceFor({ libraryId: exercise.libraryId });
+      if (!intel) continue;
+      for (const secondaryMuscle of intel.secondaryMuscles) {
+        const sources = map.get(secondaryMuscle) ?? new Set<MuscleGroupId>();
+        for (const primaryMuscle of intel.primaryMuscles) sources.add(primaryMuscle);
+        map.set(secondaryMuscle, sources);
+      }
+    }
+  }
+  return map;
 }
 
 function lastTrainedDaysAgoFor(muscle: MuscleGroupId, workouts: TrainingLoadWorkout[], nowMs: number): number | null {
@@ -311,10 +407,10 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
     totalWorkingSets: 0,
     previousWorkingSets: 0,
     volumeTrend: "insufficient_data",
-    plannedSessions: null,
     completedSessions: 0,
     missedSessions: 0,
-    pendingSessions: 0,
+    futurePendingSessions: 0,
+    pastUnresolvedSessions: 0,
     adherencePercent: null,
     adherenceTrend: "insufficient_data",
     rir: { sampleCount: 0, averageRir: null, medianRir: null, rir0: 0, rir1: 0, rir2: 0, rir3Plus: 0, lowRirPercent: null },
@@ -347,7 +443,7 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
     lowRirPercent: current.rirValues.length ? round1(((rir0 + rir1) / current.rirValues.length) * 100) : null,
   };
 
-  // --- Adherence (3 rolling 7-day windows) ---
+  // --- Adherence (confirmed attendance, 3 rolling 7-day windows) ---
   const adherenceCurrent = adherenceFor(context.attendance, currentStart, nowMs);
   const adherencePrev1 = adherenceFor(context.attendance, previousStart, currentStart);
   const adherencePrev2 = adherenceFor(context.attendance, previousStart - CURRENT_WINDOW_DAYS * DAY_MS, previousStart);
@@ -356,6 +452,7 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
       : adherenceCurrent.percent < adherencePrev1.percent ? "declining"
         : adherenceCurrent.percent > adherencePrev1.percent ? "improving"
           : "stable";
+  const { futurePending, pastUnresolved } = scheduledBreakdown(context.attendance, nowMs, trendStart);
 
   // --- Muscle entries ---
   const programmed = programmedMuscles(context.programme);
@@ -388,25 +485,47 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
   }
 
   // Large per-muscle week-over-week volume changes (absolute + relative).
+  const volumeSignals: TrainingLoadSignal[] = [];
   for (const entry of muscleGroups) {
     if (entry.trend !== "increasing" && entry.trend !== "decreasing") continue;
     const absolute = Math.abs(entry.currentSets - entry.previousSets);
     if (absolute >= VOLUME_CHANGE_ATTENTION_SETS) {
-      signals.push({
+      volumeSignals.push({
         id: `volume_change:${entry.muscle}`, type: "volume_change", severity: "attention", muscleGroup: entry.muscle,
         title: `${entry.label} volume ${entry.trend === "increasing" ? "spike" : "drop"}`,
         explanation: `${entry.label} volume ${entry.trend === "increasing" ? "increased" : "decreased"} from ${entry.previousSets} to ${entry.currentSets} effective sets.`,
       });
     } else if (absolute >= VOLUME_CHANGE_REVIEW_SETS) {
-      signals.push({
+      volumeSignals.push({
         id: `volume_change:${entry.muscle}`, type: "volume_change", severity: "review", muscleGroup: entry.muscle,
         title: `${entry.label} volume changed`,
         explanation: `${entry.label} volume ${entry.trend === "increasing" ? "increased" : "decreased"} from ${entry.previousSets} to ${entry.currentSets} effective sets.`,
       });
     }
   }
+  // Suppress a volume signal that is merely a secondary echo of a primary-muscle
+  // change: keep the grid trend, drop the redundant alert only when the muscle's
+  // own primary work barely changed and a same-or-higher severity signal already
+  // exists on the source primary muscle. Genuine independent increases survive.
+  const secondarySources = secondarySourceMuscles(context.workouts);
+  const keptVolumeSignals = volumeSignals.filter((signal) => {
+    const muscle = signal.muscleGroup;
+    if (!muscle) return true;
+    const primaryDelta = (current.primary.get(muscle) ?? 0) - (previous.primary.get(muscle) ?? 0);
+    if (Math.abs(primaryDelta) >= VOLUME_CHANGE_REVIEW_SETS) return true;
+    const secondaryDelta = (current.secondary.get(muscle) ?? 0) - (previous.secondary.get(muscle) ?? 0);
+    if (Math.abs(secondaryDelta) < VOLUME_CHANGE_REVIEW_SETS) return true;
+    const sources = secondarySources.get(muscle);
+    if (!sources || sources.size === 0) return true;
+    const superseded = volumeSignals.some((other) =>
+      other.muscleGroup !== undefined && other.muscleGroup !== muscle && sources.has(other.muscleGroup)
+      && severityRank[other.severity] <= severityRank[signal.severity]
+    );
+    return !superseded;
+  });
+  signals.push(...keptVolumeSignals);
 
-  // Adherence.
+  // Adherence: missed appointments (14-day no-show count) and declining trend.
   const missed14 = context.attendance.filter((session) => between(toMs(session.startAt), nowMs - 14 * DAY_MS, nowMs) && session.status === "no_show").length;
   if (missed14 >= 3) {
     signals.push({ id: "adherence:missed", type: "adherence", severity: "attention", title: "Several missed sessions", explanation: `${missed14} sessions were missed (no-show) in the last 14 days.` });
@@ -417,6 +536,14 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
     && adherenceCurrent.percent < adherencePrev1.percent && adherencePrev1.percent < adherencePrev2.percent
   ) {
     signals.push({ id: "adherence:declining", type: "adherence", severity: "review", title: "Adherence declining", explanation: "Session completion has declined for 2 consecutive weeks." });
+  }
+
+  // Past-unresolved appointments: a coach-admin/workflow prompt, never "missed"
+  // and never used to distort adherence.
+  if (pastUnresolved >= PAST_UNRESOLVED_REVIEW_MIN) {
+    signals.push({ id: "adherence:unresolved", type: "adherence", severity: "review", title: "Several sessions need attendance confirmation", explanation: `${pastUnresolved} past sessions still need attendance confirmation.` });
+  } else if (pastUnresolved === 1) {
+    signals.push({ id: "adherence:unresolved", type: "adherence", severity: "info", title: "Session needs attendance confirmation", explanation: "1 past session still needs attendance confirmation." });
   }
 
   // Muscle inactivity (programme-aware, only when the client is otherwise training).
@@ -431,20 +558,42 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
     }
   }
 
+  // Never-trained programmed muscle: REVIEW only, and only after enough
+  // completed programme workouts that the muscle's opportunity has passed.
+  if (context.programme) {
+    const dayIndex = programmedMuscleDayIndex(context.programme);
+    const completedProgrammeWorkouts = context.workouts.filter((workout) => workout.programmeId === context.programme?.id).length;
+    for (const entry of muscleGroups) {
+      if (entry.lastTrainedDaysAgo !== null) continue;
+      const opportunityDay = dayIndex.get(entry.muscle);
+      if (opportunityDay === undefined) continue;
+      if (completedProgrammeWorkouts < NEVER_TRAINED_MIN_WORKOUTS) continue;
+      if (completedProgrammeWorkouts < opportunityDay) continue;
+      signals.push({
+        id: `muscle_never_trained:${entry.muscle}`, type: "muscle_never_trained", severity: "review", muscleGroup: entry.muscle,
+        title: `${entry.label} not yet trained`,
+        explanation: `${entry.label} is in the active programme but has no completed training recorded.`,
+      });
+    }
+  }
+
   // Repeated discomfort (28-day window, same exercise = strongest).
   const discomfortRows = context.feedback
     .filter((row) => row.comfort === "uncomfortable" && between(toMs(row.createdAt), trendStart, nowMs + DAY_MS))
     .map((row) => ({ ...row, ms: toMs(row.createdAt) }));
   const byExercise = new Map<string, number>();
   for (const row of discomfortRows) byExercise.set(row.exerciseId, (byExercise.get(row.exerciseId) ?? 0) + 1);
+
+  const exerciseDiscomfort: TrainingLoadSignal[] = [];
   for (const [exerciseId, count] of byExercise) {
     const name = builtInExerciseFor(exerciseId, null)?.name ?? exerciseId;
     if (count >= REPEATED_DISCOMFORT_COUNT) {
-      signals.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "attention", exerciseId, title: `${name} discomfort reported repeatedly`, explanation: `${name} received discomfort feedback ${count} times across the last ${TREND_WINDOW_DAYS} days.` });
+      exerciseDiscomfort.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "attention", exerciseId, title: `${name} discomfort reported repeatedly`, explanation: `${name} received discomfort feedback ${count} times across the last ${TREND_WINDOW_DAYS} days.` });
     } else {
-      signals.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "info", exerciseId, title: `${name} discomfort reported once`, explanation: `${name} received a single discomfort report — monitor at the next session.` });
+      exerciseDiscomfort.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "info", exerciseId, title: `${name} discomfort reported once`, explanation: `${name} received a single discomfort report — monitor at the next session.` });
     }
   }
+
   // Same-region: ≥2 distinct exercises sharing a primary muscle with discomfort.
   const recentDiscomfort = discomfortRows.filter((row) => row.ms !== null && row.ms >= nowMs - 14 * DAY_MS);
   const regionExercises = new Map<MuscleGroupId, Set<string>>();
@@ -457,11 +606,18 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
       regionExercises.set(muscle, set);
     }
   }
+  const regionSignals: TrainingLoadSignal[] = [];
+  const coveredExercises = new Set<string>();
   for (const [muscle, exercises] of regionExercises) {
     if (exercises.size >= 2) {
-      signals.push({ id: `repeated_discomfort:region:${muscle}`, type: "repeated_discomfort", severity: "review", muscleGroup: muscle, title: `Repeated discomfort across ${muscleLabel(muscle).toLowerCase()} exercises`, explanation: `${exercises.size} different ${muscleLabel(muscle).toLowerCase()} exercises received discomfort feedback in the last 14 days.` });
+      regionSignals.push({ id: `repeated_discomfort:region:${muscle}`, type: "repeated_discomfort", severity: "review", muscleGroup: muscle, title: `Repeated discomfort across ${muscleLabel(muscle).toLowerCase()} exercises`, explanation: `${exercises.size} different ${muscleLabel(muscle).toLowerCase()} exercises received discomfort feedback in the last 14 days.` });
+      for (const exerciseId of exercises) coveredExercises.add(exerciseId);
     }
   }
+  // A region REVIEW supersedes the single-occurrence INFO signals it covers;
+  // repeated same-exercise ATTENTION always wins and is never suppressed.
+  signals.push(...regionSignals);
+  signals.push(...exerciseDiscomfort.filter((signal) => signal.severity !== "info" || !coveredExercises.has(signal.exerciseId ?? "")));
 
   // Readiness (repeated low readiness, never a single isolated response).
   const responded = context.readiness
@@ -476,7 +632,6 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
   }
 
   // Sort: attention → review → info, then stable id.
-  const severityRank: Record<TrainingLoadSeverity, number> = { attention: 0, review: 1, info: 2 };
   signals.sort((a, b) => severityRank[a.severity] - severityRank[b.severity] || a.id.localeCompare(b.id));
 
   return {
@@ -485,10 +640,10 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
     totalWorkingSets: current.totalSets,
     previousWorkingSets: previous.totalSets,
     volumeTrend: trendFor(current.totalSets, previous.totalSets),
-    plannedSessions: adherenceCurrent.planned > 0 ? adherenceCurrent.planned : null,
     completedSessions: adherenceCurrent.completed,
     missedSessions: adherenceCurrent.missed,
-    pendingSessions: adherenceCurrent.pending,
+    futurePendingSessions: futurePending,
+    pastUnresolvedSessions: pastUnresolved,
     adherencePercent: adherenceCurrent.percent !== null ? round1(adherenceCurrent.percent) : null,
     adherenceTrend,
     rir,

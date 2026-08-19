@@ -11,10 +11,10 @@ const emptyReport: TrainingLoadReport = {
   totalWorkingSets: 0,
   previousWorkingSets: 0,
   volumeTrend: "insufficient_data",
-  plannedSessions: null,
   completedSessions: 0,
   missedSessions: 0,
-  pendingSessions: 0,
+  futurePendingSessions: 0,
+  pastUnresolvedSessions: 0,
   adherencePercent: null,
   adherenceTrend: "insufficient_data",
   rir: { sampleCount: 0, averageRir: null, medianRir: null, rir0: 0, rir1: 0, rir2: 0, rir3Plus: 0, lowRirPercent: null },
@@ -136,8 +136,9 @@ export default function TrainingLoadRecovery({ client }: { client: Client }) {
             </div>
             <div>
               <h4>SCHEDULE</h4>
-              <p>{report.plannedSessions !== null ? `${report.completedSessions} of ${report.plannedSessions} planned sessions completed` : "No scheduled-session data in this window"}</p>
-              <p>{report.missedSessions} missed · {report.pendingSessions} pending attendance</p>
+              <p>{report.completedSessions} completed · {report.missedSessions} missed (confirmed attendance)</p>
+              {report.futurePendingSessions > 0 && <p>{report.futurePendingSessions} upcoming scheduled</p>}
+              {report.pastUnresolvedSessions > 0 && <p>{report.pastUnresolvedSessions} past awaiting attendance confirmation</p>}
             </div>
             {report.unmappedSets > 0 && <div>
               <h4>UNMAPPED</h4>

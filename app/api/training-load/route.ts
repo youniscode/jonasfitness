@@ -36,7 +36,13 @@ export async function GET(request: Request) {
   )).orderBy(desc(programmes.createdAt)).limit(1);
 
   const [workoutRows, feedbackRows, sessionRows] = await Promise.all([
-    db.select().from(workoutSessions).where(and(
+    db.select({
+      id: workoutSessions.id,
+      programmeId: workoutSessions.programmeId,
+      completedAt: workoutSessions.completedAt,
+      startedAt: workoutSessions.startedAt,
+      exercises: workoutSessions.exercises,
+    }).from(workoutSessions).where(and(
       eq(workoutSessions.ownerId, ownerId),
       eq(workoutSessions.clientId, clientId),
       eq(workoutSessions.status, "completed"),
@@ -69,6 +75,7 @@ export async function GET(request: Request) {
     programme: programme ? { id: programme.id, title: programme.title, content: programme.content } : null,
     workouts: workoutRows.map((workout) => ({
       id: workout.id,
+      programmeId: workout.programmeId,
       completedAt: workout.completedAt?.toISOString() ?? workout.startedAt.toISOString(),
       exercises: parseExercises(workout.exercises),
     })),
