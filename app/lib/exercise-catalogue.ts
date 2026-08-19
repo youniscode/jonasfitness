@@ -140,6 +140,17 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("dumbbell-romanian-deadlift", "Dumbbell Romanian deadlift", "Soulevé de terre roumain avec haltères", "الرفعة الميتة الرومانية بالدمبل", "Hamstrings", "Dumbbells", "Push the hips back with a braced trunk and keep the dumbbells close to the legs.", "/exercises/dumbbell-romanian-deadlift.webp"),
   builtIn("single-leg-romanian-deadlift", "Single-leg Romanian deadlift", "Soulevé de terre roumain sur une jambe", "الرفعة الميتة الرومانية على ساق واحدة", "Hamstrings", "Dumbbells", "Hinge on one leg with a braced trunk and lower under control.", "/exercises/single-leg-romanian-deadlift.webp"),
   builtIn("cable-glute-kickback", "Cable glute kickback", "Extension de hanche à la poulie", "ركل خلفي للألوية بالكابل", "Glutes", "Cable", "Brace on the frame and extend the hip under control, squeezing the glute at the top.", "/exercises/cable-glute-kickback.webp"),
+  // Library expansion #4 (10 net-new): core movement diversity, traps, press/pull variants.
+  builtIn("side-plank", "Side plank", "Planche latérale", "بلانك جانبي", "Core", "Bodyweight", "Keep the hips stacked and brace the trunk in a straight line from head to feet.", "/exercises/side-plank.webp"),
+  builtIn("bird-dog", "Bird dog", "Bird dog", "بيرد دوغ", "Core", "Bodyweight", "Keep the hips square and reach long through the opposite arm and leg without rotating the torso.", "/exercises/bird-dog.webp"),
+  builtIn("cable-woodchopper", "Cable woodchopper", "Rotation diagonale à la poulie", "دوران قطري بالكابل", "Core", "Cable", "Rotate through the trunk under control with the arms connected to the torso.", "/exercises/cable-woodchopper.webp"),
+  builtIn("russian-twist", "Russian twist", "Russian twist", "دوران روسي", "Core", "Bodyweight", "Keep the trunk controlled and rotate from side to side without collapsing posture.", "/exercises/russian-twist.webp"),
+  builtIn("ab-wheel-rollout", "Ab-wheel rollout", "Rollout à la roue abdominale", "تمديد بعجلة البطن", "Core", "Bodyweight", "Brace before rolling forward, keep the ribs and pelvis controlled and return without overextending the lower back.", "/exercises/ab-wheel-rollout.webp"),
+  builtIn("dumbbell-shrug", "Dumbbell shrug", "Shrug avec haltères", "هز الكتفين بالدمبل", "Back", "Dumbbells", "Elevate the shoulders straight up, pause briefly at the top and avoid rolling them.", "/exercises/dumbbell-shrug.webp"),
+  builtIn("incline-barbell-press", "Incline barbell press", "Développé incliné à la barre", "ضغط مائل بالبار", "Chest", "Barbell", "Keep the shoulder blades stable and lower the bar under control to the upper chest.", "/exercises/incline-barbell-press.webp"),
+  builtIn("dumbbell-pullover", "Dumbbell pullover", "Pullover avec haltère", "بول أوفر بالدمبل", "Back", "Dumbbells", "Keep the ribs controlled and move the dumbbell through a comfortable arc behind the head.", "/exercises/dumbbell-pullover.webp"),
+  builtIn("chin-up", "Chin-up", "Traction supination", "عقلة بقبضة سفلية", "Back", "Bodyweight", "Start from a controlled hang and pull the chest toward the bar with an underhand grip.", "/exercises/chin-up.webp"),
+  builtIn("close-grip-bench-press", "Close-grip bench press", "Développé couché prise serrée", "ضغط بنش قبضة ضيقة", "Triceps", "Barbell", "Keep the elbows controlled with stable shoulder blades and use a comfortable narrow grip.", "/exercises/close-grip-bench-press.webp"),
 ];
 
 // ——— Stable rehydration of saved programme exercises ———
@@ -307,6 +318,18 @@ const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-dumbbell-romanian-deadlift": "hinge",
   "builtin-single-leg-romanian-deadlift": "hinge",
   "builtin-cable-glute-kickback": "isolation",
+  // Library expansion #4 (10 net-new).
+  "builtin-side-plank": "core",
+  "builtin-bird-dog": "core",
+  "builtin-cable-woodchopper": "core",
+  "builtin-russian-twist": "core",
+  "builtin-ab-wheel-rollout": "core",
+  "builtin-dumbbell-shrug": "isolation",
+  "builtin-incline-barbell-press": "horizontal_push",
+  // Consistent with machine-pullover / straight-arm pulldown classification.
+  "builtin-dumbbell-pullover": "vertical_pull",
+  "builtin-chin-up": "vertical_pull",
+  "builtin-close-grip-bench-press": "horizontal_push",
 };
 
 // The major compound patterns that should appear across a balanced week.
@@ -440,6 +463,17 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-conventional-deadlift": 3,
   "builtin-sumo-deadlift": 3,
   "builtin-single-leg-romanian-deadlift": 3,
+  // Library expansion #4 (10 net-new): stable core/bodyweight Tier 1; coachable Tier 2; demanding Tier 3.
+  "builtin-side-plank": 1,
+  "builtin-bird-dog": 1,
+  "builtin-dumbbell-shrug": 1,
+  "builtin-cable-woodchopper": 2,
+  "builtin-russian-twist": 2,
+  "builtin-dumbbell-pullover": 2,
+  "builtin-ab-wheel-rollout": 3,
+  "builtin-incline-barbell-press": 3,
+  "builtin-chin-up": 3,
+  "builtin-close-grip-bench-press": 3,
 };
 
 // Exact libraryId lookup — never name-based guessing. Unknown/custom exercises
@@ -474,6 +508,11 @@ export const BEGINNER_ALTERNATIVES: Record<string, string[]> = {
   "builtin-conventional-deadlift": ["builtin-cable-pull-through", "builtin-romanian-deadlift", "builtin-dumbbell-romanian-deadlift"],
   "builtin-sumo-deadlift": ["builtin-cable-pull-through", "builtin-romanian-deadlift", "builtin-dumbbell-romanian-deadlift"],
   "builtin-single-leg-romanian-deadlift": ["builtin-dumbbell-romanian-deadlift", "builtin-cable-pull-through", "builtin-romanian-deadlift", "builtin-glute-bridge"],
+  // Library expansion #4 (10 net-new): stable alternatives for the new demanding lifts.
+  "builtin-chin-up": ["builtin-assisted-pull-up", "builtin-neutral-grip-lat-pulldown", "builtin-lat-pulldown"],
+  "builtin-incline-barbell-press": ["builtin-incline-machine-chest-press", "builtin-machine-chest-press", "builtin-incline-dumbbell-press"],
+  "builtin-ab-wheel-rollout": ["builtin-dead-bug", "builtin-plank", "builtin-reverse-crunch"],
+  "builtin-close-grip-bench-press": ["builtin-triceps-pressdown", "builtin-machine-chest-press", "builtin-dumbbell-bench-press"],
 };
 
 export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: string }): ExerciseDefinition | null {

@@ -60,8 +60,8 @@ test("exerciseSearchText matches English, French and Arabic names", () => {
   assert.ok(text.includes("chest"));
 });
 
-test("all 88 built-ins have English, French and Arabic names", () => {
-  assert.equal(builtInExercises.length, 88);
+test("all 98 built-ins have English, French and Arabic names", () => {
+  assert.equal(builtInExercises.length, 98);
   for (const item of builtInExercises) {
     assert.ok(item.name.trim(), `missing English name for ${item.id}`);
     assert.ok(item.nameFr.trim(), `missing French name for ${item.name}`);
@@ -272,8 +272,8 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
   return null;
 }
 
-test("all 88 built-ins have non-empty imageUrl under /exercises/", () => {
-  assert.equal(builtInExercises.length, 88);
+test("all 98 built-ins have non-empty imageUrl under /exercises/", () => {
+  assert.equal(builtInExercises.length, 98);
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(item.imageUrl.startsWith("/exercises/"), `${item.name} should use the /exercises/ prefix`);
@@ -281,14 +281,14 @@ test("all 88 built-ins have non-empty imageUrl under /exercises/", () => {
   }
 });
 
-test("all 88 referenced local assets exist", () => {
+test("all 98 referenced local assets exist", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(existsSync(imageAssetPath(slug)), `missing asset for ${slug}`);
   }
 });
 
-test("all 88 referenced files are genuine WebP (RIFF…WEBP)", () => {
+test("all 98 referenced files are genuine WebP (RIFF…WEBP)", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     const buffer = readFileSync(imageAssetPath(slug));
@@ -296,7 +296,7 @@ test("all 88 referenced files are genuine WebP (RIFF…WEBP)", () => {
   }
 });
 
-test("all 88 referenced images are canonical 1448×1086 (4:3)", () => {
+test("all 98 referenced images are canonical 1448×1086 (4:3)", () => {
   for (const item of builtInExercises) {
     const slug = item.id.slice("builtin-".length);
     const dimensions = webpDimensions(readFileSync(imageAssetPath(slug)));

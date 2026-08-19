@@ -1,12 +1,14 @@
 /**
- * Library expansion batch #3 (78 → 88 built-ins): shoulder presses/raises,
- * the deadlift family and cable glute kickback.
+ * Library expansion batch #4 (88 → 98 built-ins): core movement diversity
+ * (side plank, bird dog, woodchopper, Russian twist, ab-wheel rollout), traps
+ * (dumbbell shrug) and press/pull variants (incline barbell press, dumbbell
+ * pullover, chin-up, close-grip bench press).
  *
  * Every new exercise must be fully integrated: EN/FR/AR metadata, movement
  * classification, beginner tier, local genuine-WebP 1448×1086 image with a
- * unique binary hash, Exercise Intelligence with resolving alternatives, Jonas
- * Coach / Smart Draft Repair / Adaptive Coach exposure, and conservative
- * beginner-fallback behaviour (the new Tier 3 deadlifts never become defaults).
+ * unique binary hash, Exercise Intelligence with resolving alternatives,
+ * Jonas Coach / Smart Draft Repair / Adaptive Coach exposure, and conservative
+ * beginner-fallback behaviour (the new Tier 3 lifts never become defaults).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -47,17 +49,17 @@ import type { WorkoutExercise } from "../app/lib/workouts.ts";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const BATCH_3 = [
-  "builtin-landmine-press",
-  "builtin-single-arm-landmine-press",
-  "builtin-neutral-grip-machine-shoulder-press",
-  "builtin-single-arm-cable-lateral-raise",
-  "builtin-cable-scaption-raise",
-  "builtin-conventional-deadlift",
-  "builtin-sumo-deadlift",
-  "builtin-dumbbell-romanian-deadlift",
-  "builtin-single-leg-romanian-deadlift",
-  "builtin-cable-glute-kickback",
+const BATCH_4 = [
+  "builtin-side-plank",
+  "builtin-bird-dog",
+  "builtin-cable-woodchopper",
+  "builtin-russian-twist",
+  "builtin-ab-wheel-rollout",
+  "builtin-dumbbell-shrug",
+  "builtin-incline-barbell-press",
+  "builtin-dumbbell-pullover",
+  "builtin-chin-up",
+  "builtin-close-grip-bench-press",
 ];
 
 function isGenuineWebP(buffer: Buffer): boolean {
@@ -89,10 +91,10 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
 
 // ---------- Catalogue invariants ----------
 
-test("catalogue count is 98 and all 10 batch-3 ids resolve with full metadata", () => {
+test("catalogue count is 98 and all 10 batch-4 ids resolve with full metadata", () => {
   assert.equal(builtInExercises.length, 98);
   assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 98, "duplicate id");
-  for (const id of BATCH_3) {
+  for (const id of BATCH_4) {
     const exercise = builtInExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);
     assert.ok(exercise.name && exercise.nameFr && exercise.nameAr, `${id} EN/FR/AR names`);
@@ -103,7 +105,7 @@ test("catalogue count is 98 and all 10 batch-3 ids resolve with full metadata", 
   }
 });
 
-test("batch-3 names are unique and no .webp.png / non-canonical image paths exist anywhere", () => {
+test("batch-4 names are unique and no .webp.png / non-canonical image paths exist anywhere", () => {
   const normalized = builtInExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate normalized EN name");
   for (const exercise of builtInExercises) {
@@ -114,8 +116,8 @@ test("batch-3 names are unique and no .webp.png / non-canonical image paths exis
   assert.ok(!allPaths.includes(".webp.png"), "no .webp.png reference in the catalogue");
 });
 
-test("batch-3 images exist, are genuine WebP and exactly 1448×1086", () => {
-  for (const id of BATCH_3) {
+test("batch-4 images exist, are genuine WebP and exactly 1448×1086", () => {
+  for (const id of BATCH_4) {
     const slug = id.slice("builtin-".length);
     const asset = join(projectRoot, "public", "exercises", `${slug}.webp`);
     assert.ok(existsSync(asset), `missing asset for ${slug}`);
@@ -127,7 +129,7 @@ test("batch-3 images exist, are genuine WebP and exactly 1448×1086", () => {
   }
 });
 
-test("no duplicate image binary hashes across the whole 88-image library", () => {
+test("no duplicate image binary hashes across the whole 98-image library", () => {
   const hashes = new Map<string, string>();
   for (const exercise of builtInExercises) {
     const slug = exercise.id.slice("builtin-".length);
@@ -139,10 +141,10 @@ test("no duplicate image binary hashes across the whole 88-image library", () =>
 
 // ---------- Exercise Intelligence ----------
 
-test("batch-3 has full intelligence coverage and all alternatives/regressions/progressions resolve", () => {
+test("batch-4 has full intelligence coverage and all alternatives/regressions/progressions resolve", () => {
   assert.equal(intelligenceCoversAllBuiltIns().length, 0, "every built-in needs an intelligence entry");
   const ids = new Set(builtInExercises.map((exercise) => exercise.id));
-  for (const id of BATCH_3) {
+  for (const id of BATCH_4) {
     const intel = exerciseIntelligenceFor({ libraryId: id, name: id });
     assert.ok(intel, `${id} missing intelligence`);
     assert.ok(intel.primaryMuscles.length > 0 && intel.goalTags.length > 0, `${id} muscles/goals`);
@@ -155,70 +157,123 @@ test("batch-3 has full intelligence coverage and all alternatives/regressions/pr
   }
 });
 
-test("no self-references in batch-3 intelligence", () => {
-  for (const id of BATCH_3) {
+test("no self-references in batch-4 intelligence", () => {
+  for (const id of BATCH_4) {
     const intel = EXERCISE_INTELLIGENCE[id];
     assert.ok(intel, `${id} intel`);
     for (const list of [intel.regressions, intel.progressions, intel.alternatives]) {
-      assert.ok(!list.includes(id), `${id} self-reference in ${list === intel.regressions ? "regressions" : list === intel.progressions ? "progressions" : "alternatives"}`);
+      assert.ok(!list.includes(id), `${id} self-reference`);
     }
   }
 });
 
+// ---------- Core movement diversity (this batch's purpose) ----------
+
+test("core catalogue now covers all five trunk-control planes analytically", () => {
+  const core = builtInExercises.filter((exercise) => movementPatternFor(exercise) === "core");
+  const ids = new Set(core.map((exercise) => exercise.id));
+  // anti-lateral-flexion
+  assert.ok(ids.has("builtin-side-plank"), "side plank adds anti-lateral-flexion");
+  // general trunk stabilization / contralateral control
+  assert.ok(ids.has("builtin-bird-dog"), "bird dog adds contralateral stabilization");
+  // rotational trunk work (previously only anti-rotation existed via pallof)
+  assert.ok(ids.has("builtin-cable-woodchopper") && ids.has("builtin-russian-twist"), "woodchopper + Russian twist add loaded rotation");
+  // anti-extension with a demanding progression
+  assert.ok(ids.has("builtin-ab-wheel-rollout"), "ab-wheel rollout adds anti-extension demand");
+  // Both Tier 1 core options are equipment-light and beginner-appropriate.
+  assert.equal(difficultyTierFor({ libraryId: "builtin-side-plank" }), 1);
+  assert.equal(difficultyTierFor({ libraryId: "builtin-bird-dog" }), 1);
+});
+
 // ---------- AI / coach exposure ----------
 
-test("Jonas Coach compact catalogue exposes all 10 batch-3 ids", () => {
+test("Jonas Coach compact catalogue exposes all 10 batch-4 ids", () => {
   const catalogue = compactCatalogue("Full commercial gym").join("\n");
-  for (const id of BATCH_3) {
+  for (const id of BATCH_4) {
     const exercise = builtInExercises.find((item) => item.id === id)!;
     assert.ok(catalogue.includes(`${id} · ${exercise.name}`), `${id} must be exposed to Jonas Coach`);
   }
 });
 
-test("Smart Draft Repair candidate pool can return all 10 batch-3 ids for a commercial gym", () => {
+test("Smart Draft Repair candidate pool can return all 10 batch-4 ids for a commercial gym", () => {
   const pool = new Set(candidateExercisesFor("Full commercial gym").map((definition) => definition.id));
-  for (const id of BATCH_3) assert.ok(pool.has(id), `${id} must be a repair-candidate for a commercial gym`);
+  for (const id of BATCH_4) assert.ok(pool.has(id), `${id} must be a repair-candidate for a commercial gym`);
+  // Bodyweight core options also reach home-gym pools.
+  const home = new Set(candidateExercisesFor("Home / no equipment").map((definition) => definition.id));
+  assert.ok(home.has("builtin-side-plank") && home.has("builtin-bird-dog") && home.has("builtin-russian-twist"), "bodyweight core reaches home pools");
 });
 
-test("Adaptive Coach replacement candidates can surface the new neutral-grip machine press", () => {
-  const shoulderPress = exercise("e4", "builtin-machine-shoulder-press", "Machine shoulder press", [
-    { weight: 15, reps: 12, rir: "2" }, { weight: 15, reps: 12, rir: "2" }, { weight: 15, reps: 12, rir: "2" },
+function contentWith(exercises: ContentExercise[]): string {
+  return JSON.stringify({
+    title: "Single session",
+    goal: "Build muscle",
+    sessionsPerWeek: 1,
+    sessions: [{ name: "Day 1", focus: "Full body", exercises }],
+  });
+}
+
+test("Adaptive Coach can surface the new dumbbell pullover and chin-up as canonical candidates", () => {
+  // machine-pullover repeated discomfort → dumbbell-pullover candidate.
+  const pullover = exercise("e5", "builtin-machine-pullover", "Machine pullover", [
+    { weight: 30, reps: 10, rir: "2" }, { weight: 30, reps: 10, rir: "2" }, { weight: 30, reps: 10, rir: "2" },
   ]);
-  const plan = buildAdaptiveCoachPlan(baseContext({
-    workouts: [workout(1, "Full Body A", "2026-08-12T10:00:00.000Z", [shoulderPress])],
+  const planPullover = buildAdaptiveCoachPlan(baseContext({
+    goal: "Build strength",
+    programme: { id: 12, title: "Single session", content: contentWith([contentExercise("builtin-machine-pullover", "Machine pullover")]) },
+    workouts: [workout(1, "Day 1", "2026-08-12T10:00:00.000Z", [pullover])],
     feedbackContext: buildClientExerciseFeedbackProfile([
-      feedbackRow("builtin-machine-shoulder-press", { comfort: "uncomfortable", createdAt: "2026-08-01T10:00:00.000Z" }),
-      feedbackRow("builtin-machine-shoulder-press", { comfort: "uncomfortable", createdAt: "2026-08-09T10:00:00.000Z" }),
+      feedbackRow("builtin-machine-pullover", { comfort: "uncomfortable", createdAt: "2026-08-01T10:00:00.000Z" }),
+      feedbackRow("builtin-machine-pullover", { comfort: "uncomfortable", createdAt: "2026-08-09T10:00:00.000Z" }),
     ]),
   }));
-  const decision = decisionFor(plan, "builtin-machine-shoulder-press");
-  assert.ok(decision, "decision exists");
-  assert.equal(decision.action, "replace");
-  const candidateIds = (decision.replacementCandidates ?? []).map((candidate) => candidate.libraryId);
-  assert.ok(candidateIds.includes("builtin-neutral-grip-machine-shoulder-press"), `new stable press must be a replacement candidate (got ${candidateIds.join(", ")})`);
+  const decisionPullover = decisionFor(planPullover, "builtin-machine-pullover");
+  assert.ok(decisionPullover, "pullover decision exists");
+  assert.equal(decisionPullover.action, "replace");
+  const pulloverCandidates = (decisionPullover.replacementCandidates ?? []).map((candidate) => candidate.libraryId);
+  assert.ok(pulloverCandidates.includes("builtin-dumbbell-pullover"), `dumbbell pullover must be a candidate (got ${pulloverCandidates.join(", ")})`);
+
+  // pull-up repeated discomfort → chin-up candidate.
+  const pullUp = exercise("e6", "builtin-pull-up", "Pull-up", [
+    { weight: null, reps: 8, rir: "2" }, { weight: null, reps: 8, rir: "2" }, { weight: null, reps: 8, rir: "2" },
+  ]);
+  const planPullUp = buildAdaptiveCoachPlan(baseContext({
+    goal: "Build strength",
+    programme: { id: 13, title: "Single session", content: contentWith([contentExercise("builtin-pull-up", "Pull-up")]) },
+    workouts: [workout(1, "Day 1", "2026-08-12T10:00:00.000Z", [pullUp])],
+    feedbackContext: buildClientExerciseFeedbackProfile([
+      feedbackRow("builtin-pull-up", { comfort: "uncomfortable", createdAt: "2026-08-01T10:00:00.000Z" }),
+      feedbackRow("builtin-pull-up", { comfort: "uncomfortable", createdAt: "2026-08-09T10:00:00.000Z" }),
+    ]),
+  }));
+  const decisionPullUp = decisionFor(planPullUp, "builtin-pull-up");
+  assert.ok(decisionPullUp, "pull-up decision exists");
+  assert.equal(decisionPullUp.action, "replace");
+  const pullUpCandidates = (decisionPullUp.replacementCandidates ?? []).map((candidate) => candidate.libraryId);
+  assert.ok(pullUpCandidates.includes("builtin-chin-up"), `chin-up must be a candidate (got ${pullUpCandidates.join(", ")})`);
 });
 
 // ---------- Beginner fallback safety ----------
 
-test("beginner fallback stays conservative — the new Tier 3 deadlift family never becomes a default", () => {
+test("beginner fallback stays conservative — the new Tier 3 lifts never become defaults", () => {
   const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
   const ids = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId));
-  assert.ok(!ids.includes("builtin-conventional-deadlift"), "no Tier 3 conventional deadlift for a beginner");
-  assert.ok(!ids.includes("builtin-sumo-deadlift"), "no Tier 3 sumo deadlift for a beginner");
-  assert.ok(!ids.includes("builtin-single-leg-romanian-deadlift"), "no Tier 3 single-leg RDL for a beginner");
-  // Stable hinge slots are filled by Tier 1/2 options.
-  const hinges = ids.filter((id) => id === "builtin-cable-pull-through" || id === "builtin-glute-bridge" || id === "builtin-hip-thrust-machine" || id === "builtin-dumbbell-romanian-deadlift" || id === "builtin-seated-leg-curl" || id === "builtin-lying-leg-curl");
-  assert.ok(hinges.length > 0, "beginner week still includes stable posterior-chain work");
+  assert.ok(!ids.includes("builtin-ab-wheel-rollout"), "no Tier 3 ab-wheel rollout for a beginner");
+  assert.ok(!ids.includes("builtin-incline-barbell-press"), "no Tier 3 incline barbell press for a beginner");
+  assert.ok(!ids.includes("builtin-chin-up"), "no Tier 3 chin-up for a beginner");
+  // Core slots still get stable Tier 1/2 work.
+  const coreIds = draft.sessions.flatMap((session) => session.exercises.filter((exercise) => movementPatternFor(exercise) === "core").map((exercise) => exercise.libraryId));
+  assert.ok(coreIds.length > 0, "beginner week keeps core work");
+  for (const id of coreIds) {
+    const tier = difficultyTierFor({ libraryId: id });
+    assert.ok(tier !== null && tier <= 2, `core pick ${id} must be Tier 1/2 for a beginner`);
+  }
 });
 
-test("beginnerAlternativeFor routes the new Tier 3 lifts to stable hinges", () => {
-  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-conventional-deadlift" })?.id, "builtin-cable-pull-through");
-  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-sumo-deadlift" })?.id, "builtin-cable-pull-through");
-  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-single-leg-romanian-deadlift" })?.id, "builtin-dumbbell-romanian-deadlift");
-  // The new neutral-grip machine press is the preferred overhead-press alternative.
-  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-overhead-press" })?.id, "builtin-neutral-grip-machine-shoulder-press");
-  // Romanian deadlift keeps its stable first choice.
-  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-romanian-deadlift" })?.id, "builtin-cable-pull-through");
+test("beginnerAlternativeFor routes the new demanding lifts to stable options", () => {
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-chin-up" })?.id, "builtin-assisted-pull-up");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-incline-barbell-press" })?.id, "builtin-incline-machine-chest-press");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-ab-wheel-rollout" })?.id, "builtin-dead-bug");
+  assert.equal(beginnerAlternativeFor({ libraryId: "builtin-close-grip-bench-press" })?.id, "builtin-triceps-pressdown");
 });
 
 test("every BEGINNER_ALTERNATIVES entry only references real canonical ids", () => {
@@ -230,26 +285,26 @@ test("every BEGINNER_ALTERNATIVES entry only references real canonical ids", () 
 
 // ---------- Rehydration ----------
 
-test("batch-3 exercises rehydrate by stable libraryId and stay schema-valid", () => {
+test("batch-4 exercises rehydrate by stable libraryId and stay schema-valid", () => {
   const draft: ProgrammeDraft = {
-    title: "Batch 3 draft",
+    title: "Batch 4 draft",
     overview: "",
     goal: "Build muscle",
     sessionsPerWeek: 1,
     sessions: [{
       name: "Day 1",
       focus: "Full body",
-      exercises: BATCH_3.map((id) => ({ libraryId: id, name: "placeholder", sets: 3, reps: "8-12", rir: 2, restSeconds: 120 })),
+      exercises: BATCH_4.map((id) => ({ libraryId: id, name: "placeholder", sets: 3, reps: "8-12", rir: 2, restSeconds: 120 })),
     }],
   };
   const rehydrated = rehydrateDraft(draft);
-  for (const id of BATCH_3) {
+  for (const id of BATCH_4) {
     const resolved = rehydrated.sessions[0].exercises.find((exercise) => exercise.libraryId === id);
     assert.ok(resolved, `${id} must survive rehydration`);
     assert.equal(resolved.source, "library");
     assert.ok(resolved.imageUrl && resolved.nameFr && resolved.nameAr, `${id} rehydrated metadata`);
   }
-  assert.equal(validateDraft(rehydrated, 1).ok, true, "batch-3 exercises must be schema-valid");
+  assert.equal(validateDraft(rehydrated, 1).ok, true, "batch-4 exercises must be schema-valid");
 });
 
 // ---------- Adaptive Coach fixtures (mirror adaptive-coach.test.ts) ----------

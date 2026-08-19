@@ -151,6 +151,17 @@ const EXPECTED_TIERS: Array<[string, 1 | 2 | 3]> = [
   ["builtin-conventional-deadlift", 3],
   ["builtin-sumo-deadlift", 3],
   ["builtin-single-leg-romanian-deadlift", 3],
+  // Library expansion #4 (10 net-new).
+  ["builtin-side-plank", 1],
+  ["builtin-bird-dog", 1],
+  ["builtin-dumbbell-shrug", 1],
+  ["builtin-cable-woodchopper", 2],
+  ["builtin-russian-twist", 2],
+  ["builtin-dumbbell-pullover", 2],
+  ["builtin-ab-wheel-rollout", 3],
+  ["builtin-incline-barbell-press", 3],
+  ["builtin-chin-up", 3],
+  ["builtin-close-grip-bench-press", 3],
 ];
 
 test("every built-in exercise is tier-classified (no gaps)", () => {
@@ -215,10 +226,10 @@ test("tier classification matches the intended coaching tiers", () => {
   for (const [id, tier] of EXPECTED_TIERS) {
     assert.equal(difficultyTierFor({ libraryId: id }), tier, id);
   }
-  // The catalogue must have exactly 88 built-ins — the audit table above is the
+  // The catalogue must have exactly 98 built-ins — the audit table above is the
   // complete classification, so a drift here means a new exercise was added
   // without a tier.
-  assert.equal(builtInExercises.length, 88);
+  assert.equal(builtInExercises.length, 98);
 });
 
 test("difficultyTierFor is exact — unknown ids and missing ids return null", () => {
