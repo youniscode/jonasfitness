@@ -422,7 +422,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             {payload.repair.limitationReview && payload.repair.limitationReview.length > 0 && <div className="jonas-repair-block">
               <div className="jonas-repair-limitation-head">
                 <div><strong>LIMITATION REVIEW</strong><p>{payload.repair.limitationReview.map((group) => group.label).join(" · ")} — {payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0)} exercise{payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0) === 1 ? "" : "s"} involve the reported area{payload.repair.limitationReview.every((group) => group.reviewed) ? " (coach reviewed)" : ""}.</p></div>
-                <button type="button" className="ghost-button" aria-expanded={limitationReviewOpen} onClick={() => setLimitationReviewOpen((open) => !open)}>{limitationReviewOpen ? "Close review" : "Review exercises"}</button>
+                <button type="button" className="ghost-button jonas-repair-review-toggle" aria-expanded={limitationReviewOpen} onClick={() => setLimitationReviewOpen((open) => !open)}>{limitationReviewOpen ? "Close review" : "Review exercises"}</button>
               </div>
               {limitationReviewOpen && <ul className="jonas-repair-limitation-list">{payload.repair.limitationReview.map((group) => group.items.map((item) => <li key={`${group.area}-${item.exerciseId}-${item.sessionIndex}`}>
                 <span className="jonas-repair-item-head"><b>{item.exerciseName}</b><em className={`repair-level repair-level-${item.level.toLowerCase()}`}>{item.level}</em><small>DAY {String(item.sessionIndex + 1).padStart(2, "0")}</small></span>
