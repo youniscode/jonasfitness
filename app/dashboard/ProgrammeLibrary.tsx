@@ -139,20 +139,36 @@ function WhyThisExercise({ explanation }: { explanation: ExerciseExplanation }) 
   </div>;
 }
 
-// Compact essentials block for a library exercise card — structured metadata,
-// not free text.
+// Compact essentials block for a library exercise card — structured metadata
+// in a scannable two-column grid. Verbose coaching content (cues, mistakes,
+// alternatives) sits behind a "More details" toggle so the default card stays
+// compact; nothing is truncated or removed.
 function LibraryExerciseEssentials({ exercise }: { exercise: ExerciseDefinition }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const intelligence = exerciseIntelligenceFor(exercise);
   if (!intelligence) return null;
   const primary = intelligence.primaryMuscles.map(muscleLabel).join(" + ");
-  const secondary = intelligence.secondaryMuscles.length ? intelligence.secondaryMuscles.map(muscleLabel).join(" + ") : "—";
+  const secondary = intelligence.secondaryMuscles.length ? ` (+${intelligence.secondaryMuscles.map(muscleLabel).join(" + ")})` : "";
+  const laterality = intelligence.laterality.charAt(0).toUpperCase() + intelligence.laterality.slice(1);
+  const hasDetails = intelligence.coachingCues.length > 0 || intelligence.commonMistakes.length > 0 || intelligence.alternatives.length > 0;
   return <div className="exercise-intel-essentials">
-    <p><b>Muscles</b> {primary} <small>(secondary: {secondary})</small></p>
-    <p><b>Pattern</b> {MOVEMENT_LABEL[intelligence.movementPattern] ?? intelligence.movementPattern} · <b>Type</b> {intelligence.exerciseType} · <b>{intelligence.laterality}</b> · <b>Tier</b> {intelligence.beginnerTier}</p>
-    <p><b>Best for</b> {USE_LABEL[intelligence.sessionUse] ?? intelligence.sessionUse} · <b>Equipment</b> {intelligence.equipment.join(" / ")}</p>
-    {intelligence.coachingCues.length > 0 && <p><b>Cues</b> {intelligence.coachingCues.slice(0, 2).join(" · ")}</p>}
-    {intelligence.commonMistakes.length > 0 && <p><b>Common mistakes</b> {intelligence.commonMistakes.slice(0, 2).join(" · ")}</p>}
-    {intelligence.alternatives.length > 0 && <p><b>Alternatives</b> {intelligence.alternatives.map((id) => builtInExerciseFor(id, null)?.name ?? id).join(", ")}</p>}
+    <dl className="exercise-essentials-grid">
+      <div><dt>Muscles</dt><dd>{primary}{secondary}</dd></div>
+      <div><dt>Pattern</dt><dd>{MOVEMENT_LABEL[intelligence.movementPattern] ?? intelligence.movementPattern}</dd></div>
+      <div><dt>Best for</dt><dd>{USE_LABEL[intelligence.sessionUse] ?? intelligence.sessionUse}</dd></div>
+      <div><dt>Equipment</dt><dd>{intelligence.equipment.join(" / ")}</dd></div>
+      <div><dt>Type</dt><dd>{intelligence.exerciseType}</dd></div>
+      <div><dt>Tier</dt><dd>{intelligence.beginnerTier}</dd></div>
+      <div><dt>Laterality</dt><dd>{laterality}</dd></div>
+    </dl>
+    {hasDetails && <>
+      <button type="button" className="exercise-details-toggle" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>{detailsOpen ? "Less details" : "More details"}</button>
+      {detailsOpen && <div className="exercise-details">
+        {intelligence.coachingCues.length > 0 && <div className="exercise-details-block"><strong>COACHING CUES</strong>{intelligence.coachingCues.map((cue) => <p key={cue}>· {cue}</p>)}</div>}
+        {intelligence.commonMistakes.length > 0 && <div className="exercise-details-block"><strong>COMMON MISTAKES</strong>{intelligence.commonMistakes.map((mistake) => <p key={mistake}>· {mistake}</p>)}</div>}
+        {intelligence.alternatives.length > 0 && <div className="exercise-details-block"><strong>ALTERNATIVES</strong>{intelligence.alternatives.map((id) => <p key={id}>· {builtInExerciseFor(id, null)?.name ?? id}</p>)}</div>}
+      </div>}
+    </>}
   </div>;
 }
 
