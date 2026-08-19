@@ -9,6 +9,7 @@
 .exercise-visual-svg.compact>span{display:none}
 .exercise-library-visual{display:block;font-size:inherit;font-weight:inherit}
 .exercise-library-visual>.exercise-visual-svg,.exercise-library-visual>.exercise-visual-image{position:absolute;inset:0}
+.exercise-library-visual>.exercise-visual-image{background-size:contain;background-repeat:no-repeat}
 .programme-exercise-row{grid-template-columns:108px minmax(0,1fr)!important;padding:0!important;overflow:hidden}
 .programme-exercise-visual{min-width:0;background:#171a15}
 .programme-exercise-body{padding:12px}
