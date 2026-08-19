@@ -64,6 +64,41 @@ export type AdaptiveAction =
 
 export type AdaptiveConfidence = "high" | "medium" | "low";
 
+/**
+ * Priority is a separate axis from confidence:
+ *   CONFIDENCE answers "how strong is the evidence?"
+ *   PRIORITY   answers "how important is this for the coach to review?"
+ * `info` is used for KEEP decisions, first exposures and "no change" cases so
+ * low-value decisions never crowd out the meaningful ones.
+ */
+export type AdaptivePriority = "high" | "medium" | "low" | "info";
+
+export type PerformanceTrend = "insufficient" | "declining" | "stable" | "improving";
+
+/**
+ * Structured, PII-free evidence behind one exercise decision. Only fields with
+ * real data available are populated — nothing here is fabricated or guessed.
+ */
+export type AdaptiveEvidence = {
+  completedExposures: number;
+  /** Average RIR per recent exposure (newest first), bounded to the last 3. */
+  rirSamples: number[];
+  averageRir: number | null;
+  targetRir: number;
+  repPerformance: { averageReps: number | null; minReps: number | null; repRange: string };
+  performanceTrend: PerformanceTrend;
+  discomfortCount: number;
+  recentDiscomfort: boolean;
+  notConfidentCount: number;
+  coachPreference: "preferred" | "avoid" | null;
+  clientPreference: "liked" | "disliked" | null;
+  onboardingPreference: "liked" | "disliked" | "unsure" | null;
+  /** The progression engine's authoritative load signal (never a new formula). */
+  progressionRecommendation: { action: "increase" | "maintain" | "decrease"; proposedWeight: number | null } | null;
+  equipmentCompatibility: boolean;
+  replacementReason: string | null;
+};
+
 export type PrescriptionView = {
   sets: number;
   reps: string;
@@ -97,6 +132,8 @@ export type AdaptiveExerciseDecision = {
   replacementCandidates?: ReplacementCandidate[];
   performed?: PerformedView | null;
   exposureCount: number;
+  priority: AdaptivePriority;
+  evidence: AdaptiveEvidence;
 };
 
 export type AdaptiveSessionDecision = {
@@ -145,6 +182,10 @@ export type AdaptiveSummary = {
   replaceCount: number;
   reviewCount: number;
   completedWorkouts: number;
+  highPriority: number;
+  mediumPriority: number;
+  lowPriority: number;
+  infoPriority: number;
 };
 
 export type AdaptiveCoachPlan = {
@@ -369,6 +410,47 @@ function replacementCandidatesFor(input: {
   return scored.slice(0, 3).map(({ id, name }) => ({ libraryId: id, name }));
 }
 
+// ---------- Priority (importance for coach review, separate from confidence) ----------
+
+function priorityFor(input: {
+  action: AdaptiveAction;
+  exposureCount: number;
+  discomfortCount: number;
+  notConfidentCount: number;
+  conflict: boolean;
+  equipmentMismatch: boolean;
+  coachAvoid: boolean;
+  belowTargetCount: number;
+}): AdaptivePriority {
+  const { action, exposureCount, discomfortCount, notConfidentCount, conflict, equipmentMismatch, coachAvoid, belowTargetCount } = input;
+  // KEEP / keep_load is informational: normal performance or "no evidence yet".
+  if (action === "keep" || action === "keep_load") return "info";
+  // Explicit coach avoid is always the most important thing to review.
+  if (coachAvoid) return "high";
+  if (action === "replace") {
+    if (discomfortCount >= REPEATED_DISCOMFORT_THRESHOLD) return "high";
+    return "medium";
+  }
+  // Coach preference vs client feedback conflict requires the coach's call.
+  if (conflict) return "high";
+  if (action === "reduce_load") {
+    // Repeated RIR substantially below target is a high-priority regression.
+    if (belowTargetCount >= 2) return "high";
+    return exposureCount >= 2 ? "medium" : "low";
+  }
+  if (action === "increase_load") {
+    return exposureCount >= 2 ? "medium" : "low";
+  }
+  if (action === "remove_set") return "medium";
+  if (action === "add_set") return "low";
+  if (action === "review") {
+    if (discomfortCount >= REPEATED_DISCOMFORT_THRESHOLD) return "high";
+    if (discomfortCount >= 1 || notConfidentCount >= 2 || equipmentMismatch || exposureCount >= PLATEAU_EXPOSURE_THRESHOLD) return "medium";
+    return "low";
+  }
+  return "low"; // adjust_rep_target / adjust_rir_target and future review-style actions
+}
+
 // ---------- Per-exercise decision ----------
 
 type ExerciseInput = {
@@ -407,14 +489,59 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
   const initial = context.initialPreferenceContext;
   const areas = limitationAreasFrom(context.limitationAreas, context.limitationsText);
   const limLevel = intel ? highestLimitationLevel(intel, areas) : null;
+  const equipmentMismatch = Boolean(intel) && !equipmentFits(libraryId, context.equipment);
+  const coachAvoid = explicit === "avoid";
+  const conflict = explicit === "preferred" && (discomfortCount >= 1 || notConfidentCount >= 2);
+  const clientPreference: AdaptiveEvidence["clientPreference"] =
+    profile?.recentSentiment === "liked" ? "liked" : profile?.recentSentiment === "disliked" ? "disliked" : null;
+  const onboardingPreference: AdaptiveEvidence["onboardingPreference"] = initial
+    ? initial.liked.includes(libraryId) ? "liked" : initial.disliked.includes(libraryId) ? "disliked" : initial.unsure.includes(libraryId) ? "unsure" : null
+    : null;
+  const validAvgRir = exposures.map((exposure) => completedSetStats(exposure)).filter((s) => s.valid > 0 && s.averageRir !== null).map((s) => s.averageRir as number);
+  const belowTargetCount = validAvgRir.slice(0, 3).filter((rir) => rir < prescription.rir - 0.5).length;
+  const aboveTargetCount = validAvgRir.slice(0, 3).filter((rir) => rir >= prescription.rir).length;
 
   const base = (action: AdaptiveAction, confidence: AdaptiveConfidence, suggested?: PrescriptionView): AdaptiveExerciseDecision => {
     const performed: PerformedView | null = exposureCount > 0
       ? { completedSets, performedWeight: stats.performedWeight, averageReps: stats.averageReps, averageRir: stats.averageRir }
       : null;
+    const replacementReason = action === "replace"
+      ? coachAvoid
+        ? "Coach marked this exercise as avoided for this client."
+        : discomfortCount >= REPEATED_DISCOMFORT_THRESHOLD
+          ? "Repeated discomfort reported with this exercise."
+          : "A replacement is suggested for coach review."
+      : null;
+    const evidence: AdaptiveEvidence = {
+      completedExposures: exposureCount,
+      rirSamples: validAvgRir.slice(0, 3).map((value) => round(value)),
+      averageRir: stats.averageRir,
+      targetRir: prescription.rir,
+      repPerformance: { averageReps: stats.averageReps, minReps: stats.minReps, repRange: prescription.reps },
+      performanceTrend: validAvgRir.length < 2 ? "insufficient" : belowTargetCount >= 2 ? "declining" : aboveTargetCount >= 2 ? "improving" : "stable",
+      discomfortCount,
+      recentDiscomfort: profile?.recentComfort === "uncomfortable" || discomfortCount >= 1,
+      notConfidentCount,
+      coachPreference: coachAvoid ? "avoid" : explicit === "preferred" ? "preferred" : null,
+      clientPreference,
+      onboardingPreference,
+      progressionRecommendation: suggestion ? { action: suggestion.action, proposedWeight: suggestion.proposedWeight } : null,
+      equipmentCompatibility: intel ? equipmentFits(libraryId, context.equipment) : true,
+      replacementReason,
+    };
+    const priority = priorityFor({
+      action,
+      exposureCount,
+      discomfortCount,
+      notConfidentCount,
+      conflict,
+      equipmentMismatch,
+      coachAvoid,
+      belowTargetCount,
+    });
     return {
       decisionId, libraryId, exerciseName, sessionIndex, sessionName,
-      action, confidence, reasons, concerns,
+      action, confidence, priority, reasons, concerns, evidence,
       currentPrescription: prescription,
       ...(suggested ? { suggestedPrescription: suggested } : {}),
       ...(performed ? { performed } : {}),
@@ -477,6 +604,14 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
   } else {
     action = "keep_load";
     reasons.push("No eligible completed-set data for the progression engine — keep the current prescription.");
+  }
+
+  // --- 5b. Repeated-pattern reasons (trend, never a single-outlier rewrite). ---
+  const recentWindow = Math.min(3, validAvgRir.length);
+  if (engineAction === "increase" && aboveTargetCount >= 2) {
+    reasons.push(`Completed prescribed reps comfortably in ${aboveTargetCount} of the last ${recentWindow} sessions — a consistent pattern supports the progression.`);
+  } else if (engineAction === "decrease" && belowTargetCount >= 2) {
+    reasons.push(`RIR was below target in ${belowTargetCount} of the last ${recentWindow} sessions — a repeated pattern supports the regression.`);
   }
 
   // --- Adherence: an incomplete workout is insufficient performance evidence. ---
@@ -761,7 +896,7 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
     exerciseDecisions: [],
     sessionDecisions: [],
     programmeSignals: [],
-    summary: { keepCount: 0, progressCount: 0, regressCount: 0, replaceCount: 0, reviewCount: 0, completedWorkouts: context.workouts.length },
+    summary: { keepCount: 0, progressCount: 0, regressCount: 0, replaceCount: 0, reviewCount: 0, completedWorkouts: context.workouts.length, highPriority: 0, mediumPriority: 0, lowPriority: 0, infoPriority: 0 },
   };
   if (!context.programme) return empty;
 
@@ -833,6 +968,21 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
     });
   });
 
+  // Meaningful recommendations first: priority → action → confidence → stable id.
+  // KEEP/INFO decisions sink to the bottom so they never crowd out real changes.
+  const priorityRank: Record<AdaptivePriority, number> = { high: 0, medium: 1, low: 2, info: 3 };
+  const confidenceRank: Record<AdaptiveConfidence, number> = { high: 0, medium: 1, low: 2 };
+  const actionRank: Record<AdaptiveAction, number> = {
+    replace: 0, reduce_load: 1, increase_load: 2, remove_set: 3, add_set: 4,
+    review: 5, adjust_rep_target: 6, adjust_rir_target: 7, keep_load: 8, keep: 9,
+  };
+  decisions.sort((a, b) =>
+    priorityRank[a.priority] - priorityRank[b.priority]
+    || actionRank[a.action] - actionRank[b.action]
+    || confidenceRank[a.confidence] - confidenceRank[b.confidence]
+    || a.decisionId.localeCompare(b.decisionId),
+  );
+
   // Session decisions (one per programme day).
   const mappedBySession = new Map<number, ProgressionWorkout[]>();
   for (const workout of orderedWorkouts) {
@@ -864,6 +1014,10 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
     replaceCount: decisions.filter((decision) => decision.action === "replace").length,
     reviewCount: decisions.filter((decision) => decision.action === "review" || decision.action === "adjust_rep_target" || decision.action === "adjust_rir_target").length,
     completedWorkouts: context.workouts.length,
+    highPriority: decisions.filter((decision) => decision.priority === "high").length,
+    mediumPriority: decisions.filter((decision) => decision.priority === "medium").length,
+    lowPriority: decisions.filter((decision) => decision.priority === "low").length,
+    infoPriority: decisions.filter((decision) => decision.priority === "info").length,
   };
 
   const lowConfidenceMajor = decisions.some((decision) => (decision.action === "replace" || decision.action === "review") && decision.confidence === "low");

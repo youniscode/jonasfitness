@@ -105,5 +105,29 @@
 .adaptive-hint{color:#8a8e84;font-size:8px}
 .adaptive-link-button{border:0;background:none;color:#40580c;font-size:9px;font-weight:800;text-decoration:underline;cursor:pointer;padding:0}
 .adaptive-foot{border-top:1px solid #e1e2da;padding-top:12px;color:#8a8e84;font-size:8px;line-height:1.5;margin:0}
+
+/* Adaptive Coach V2 — summary, priority, evidence, collapsed KEEP */
+.adaptive-overview{border:1px solid #d9dbd2;background:#f8f8f3;padding:14px 16px;display:grid;gap:4px}
+.adaptive-overview strong{font-size:16px;letter-spacing:-.02em}
+.adaptive-overview span{font-size:9px;color:#62675d}
+.adaptive-overview .adaptive-based-on{font-size:8px;color:#8a8e84}
+.adaptive-priority-breakdown{font-weight:700;color:#40580c}
+.adaptive-badges{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.adaptive-priority{font-style:normal;font-size:6px;letter-spacing:.12em;padding:4px 6px;white-space:nowrap;font-weight:800;border:1px solid}
+.adaptive-priority.high{background:#ffe3de;color:#8f2b1e;border-color:#e7b6ad}
+.adaptive-priority.medium{background:#fff0c9;color:#7c5f12;border-color:#e6c370}
+.adaptive-priority.low{background:#eef3ff;color:#34517f;border-color:#c6d4ee}
+.adaptive-priority.info{background:#f2f2ec;color:#6d7266;border-color:#d8d9d1}
+.adaptive-decision.prio-high{border-left:3px solid #d75a45}
+.adaptive-decision.prio-medium{border-left:3px solid #e6c370}
+.adaptive-prescription span{font-weight:800}
+.adaptive-evidence{margin-top:2px}
+.adaptive-evidence summary{font-size:8px;color:#687642;cursor:pointer;font-weight:700}
+.adaptive-evidence ul{list-style:none;margin:6px 0 0;padding:8px 10px;background:#f3f4ee;border:1px solid #e1e2da;display:grid;gap:3px}
+.adaptive-evidence li{font-size:8px;color:#62675d;line-height:1.5}
+.adaptive-evidence li.concern{color:#a26a13}
+.adaptive-keeps{display:grid;gap:8px}
+.adaptive-keeps-toggle{border:1px solid #c9cbc1;background:#fff;padding:10px 13px;font-size:9px;cursor:pointer;justify-self:start;color:#3d4236}
+.adaptive-keeps .compact .keep-card{border-left:3px solid #d8d9d1}
 @media(max-width:1050px){.adaptive-decision-list{grid-template-columns:1fr}}
-@media(max-width:620px){.adaptive-coach{padding:20px}.adaptive-coach-head{display:block}.adaptive-coach-actions{margin-top:14px}.adaptive-actions{align-items:stretch;flex-direction:column}.adaptive-actions .dark-button,.adaptive-actions .ghost-button{width:100%}.adaptive-decision{grid-template-columns:26px minmax(0,1fr)}.adaptive-check input{width:20px;height:20px}}
+@media(max-width:620px){.adaptive-coach{padding:20px}.adaptive-coach-head{display:block}.adaptive-coach-actions{margin-top:14px}.adaptive-actions{align-items:stretch;flex-direction:column}.adaptive-actions .dark-button,.adaptive-actions .ghost-button{width:100%}.adaptive-decision{grid-template-columns:26px minmax(0,1fr)}.adaptive-check input{width:20px;height:20px}.adaptive-badges{justify-content:flex-start}}
