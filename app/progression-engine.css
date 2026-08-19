@@ -131,3 +131,52 @@
 .adaptive-keeps .compact .keep-card{border-left:3px solid #d8d9d1}
 @media(max-width:1050px){.adaptive-decision-list{grid-template-columns:1fr}}
 @media(max-width:620px){.adaptive-coach{padding:20px}.adaptive-coach-head{display:block}.adaptive-coach-actions{margin-top:14px}.adaptive-actions{align-items:stretch;flex-direction:column}.adaptive-actions .dark-button,.adaptive-actions .ghost-button{width:100%}.adaptive-decision{grid-template-columns:26px minmax(0,1fr)}.adaptive-check input{width:20px;height:20px}.adaptive-badges{justify-content:flex-start}}
+
+/* Training Load & Recovery V1 — deterministic coach analytics */
+.training-load{margin-top:12px;background:#fff;border:1px solid #e2e1d9;padding:30px;display:grid;gap:14px}
+.training-load-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.training-load-head p{margin:0;color:#6c7848;font-size:8px;letter-spacing:.18em;font-weight:800}
+.training-load-head h2{font-size:29px;letter-spacing:-.05em;margin:8px 0 6px}
+.training-load-head span{display:block;color:#73776e;font-size:10px;line-height:1.6}
+.training-load-empty{border:1px dashed #c8cac0;padding:33px;text-align:center;display:grid;gap:8px}
+.training-load-empty strong{font-size:18px}.training-load-empty span{color:#74786e;font-size:9px}
+.training-load-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.training-load-summary article{border:1px solid #d9dbd2;background:#fbfbf7;padding:12px 13px;display:grid;gap:3px;min-width:0}
+.training-load-summary small{font-size:7px;letter-spacing:.14em;color:#687642;font-weight:800}
+.training-load-summary strong{font-size:21px;letter-spacing:-.03em}
+.training-load-summary span{font-size:8px;color:#62675d}
+.training-load-note{background:#f3f4ee;border:1px solid #e1e2da;padding:10px 12px;font-size:9px;color:#5d6257;margin:0}
+.training-load-signals h3,.training-load-muscles h3{margin:0 0 8px;color:#687543;font-size:8px;letter-spacing:.16em;font-weight:800}
+.training-load-signals ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.training-load-signals li{display:flex;gap:10px;align-items:flex-start;border:1px solid #e1e2da;background:#fbfbf7;padding:10px 12px;min-width:0}
+.training-load-signals li.signal-attention{border-left:3px solid #d75a45}
+.training-load-signals li.signal-review{border-left:3px solid #e6c370}
+.signal-severity{font-size:6px;letter-spacing:.12em;padding:4px 6px;white-space:nowrap;font-weight:800;border:1px solid;flex-shrink:0;margin-top:1px}
+.signal-severity.attention{background:#ffe3de;color:#8f2b1e;border-color:#e7b6ad}
+.signal-severity.review{background:#fff0c9;color:#7c5f12;border-color:#e6c370}
+.signal-severity.info{background:#f2f2ec;color:#6d7266;border-color:#d8d9d1}
+.training-load-signals li div{display:grid;gap:2px;min-width:0}
+.training-load-signals li b{font-size:11px}
+.training-load-signals li span{font-size:9px;color:#62675d;line-height:1.5;overflow-wrap:break-word}
+.training-load-muscles-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.training-load-muscles-head h3{margin:0}
+.training-load-toggle{border:1px solid #c9cbc1;background:#fff;padding:8px 11px;font-size:9px;cursor:pointer;color:#3d4236}
+.training-load-muscle-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.training-load-muscle{border:1px solid #d9dbd2;background:#fbfbf7;padding:11px 12px;display:grid;gap:3px;min-width:0}
+.training-load-muscle div{display:flex;justify-content:space-between;gap:8px}
+.training-load-muscle b{font-size:11px;overflow-wrap:break-word}
+.training-load-muscle span{font-size:8px;color:#687642;white-space:nowrap}
+.training-load-muscle strong{font-size:18px;letter-spacing:-.02em}
+.training-load-muscle small{font-size:7px;color:#8a8e84}
+.training-load-detail{display:grid;gap:8px}
+.training-load-detail-body{border:1px solid #e1e2da;background:#f8f8f3;padding:14px;display:grid;gap:12px}
+.training-load-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.training-load-detail-grid h4{font-size:7px;letter-spacing:.14em;color:#687543;margin:0 0 4px}
+.training-load-detail-grid p{font-size:8px;color:#3d4236;line-height:1.5;margin:0}
+.training-load-info{display:grid;gap:6px}
+.training-load-info ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.training-load-info li{display:grid;gap:2px;font-size:8px;color:#62675d;border-top:1px solid #e1e2da;padding-top:5px}
+.training-load-info li b{font-size:9px;color:#3d4236}
+.training-load-foot{border-top:1px solid #e1e2da;padding-top:12px;color:#8a8e84;font-size:8px;line-height:1.5;margin:0}
+@media(max-width:1050px){.training-load-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.training-load-muscle-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.training-load-detail-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.training-load{padding:20px}.training-load-head{display:block}.training-load-head .refresh-button{margin-top:14px}.training-load-summary{grid-template-columns:1fr 1fr}.training-load-muscle-grid{grid-template-columns:1fr}.training-load-signals li{flex-direction:column;gap:6px}}
