@@ -2,6 +2,11 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { isPositiveInt } from "../lib/query-params";
+import {
+  TRAINING_SUPERVISIONS,
+  supervisionLabelFor,
+  type OnboardingProfile,
+} from "../lib/onboarding-profile";
 
 type Client = { id: number; name: string };
 type Check = { id: string; label: string; required: boolean; complete: boolean; detail: string };
@@ -9,7 +14,7 @@ type Intake = { preferredLanguage: string; trainingExperience: string; availabil
 type ProfileBlock = { section: string; lines: string[] };
 type Programme = { id: number; title: string; status: string } | null;
 type State = { stage: string; label: string; nextAction: string; missingRequired: string[]; readiness: "noted" | "needs_review" | "ok" };
-type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[] };
+type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[]; profile?: OnboardingProfile | null };
 
 const experienceOptions = ["Beginner", "Intermediate", "Advanced", "Experienced"];
 
@@ -91,6 +96,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       clientId: client.id,
       preferredLanguage: form.get("preferredLanguage"),
       trainingExperience: form.get("trainingExperience"),
+      trainingSupervision: form.get("trainingSupervision"),
       availability: form.get("availability"),
       equipment: form.get("equipment"),
       goalsDetail: form.get("goalsDetail"),
@@ -106,7 +112,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not save the onboarding details.");
-      setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks } : current);
+      setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks, profile: data.profile ?? current.profile } : current);
       setShowEdit(false);
       setNotice("Onboarding details saved.");
     } catch (issue) {
@@ -165,6 +171,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
     {showEdit && <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowEdit(false)}><form className="modal onboarding-form coach-onboarding-form" onSubmit={saveOnboarding} onMouseDown={(event) => event.stopPropagation()}><div className="portal-form-head"><div><p>ONBOARDING · {client.name}</p><h2>Complete the coaching foundations.</h2></div><button type="button" aria-label="Close" onClick={() => setShowEdit(false)}>×</button></div>
       <label>Preferred language<select name="preferredLanguage" defaultValue={intake?.preferredLanguage ?? "fr"}><option value="fr">French</option><option value="en">English</option><option value="ar">Arabic</option></select></label>
       <label>Training experience<select name="trainingExperience" defaultValue={intake?.trainingExperience ?? ""}><option value="" disabled>—</option>{experienceOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
+      <label>Training supervision<select name="trainingSupervision" defaultValue={payload.profile?.trainingSupervision ?? ""}><option value="">—</option>{TRAINING_SUPERVISIONS.map((value) => <option key={value} value={value}>{supervisionLabelFor("en", value)}</option>)}</select></label>
       <label>Availability<textarea name="availability" defaultValue={intake?.availability ?? ""} placeholder="Days, times, time zone…" /></label>
       <label>Equipment / gym access<input name="equipment" defaultValue={intake?.equipment ?? ""} placeholder="Full gym, home dumbbells…" /></label>
       <label>Goal and priorities<textarea name="goalsDetail" defaultValue={intake?.goalsDetail ?? ""} placeholder="What the client wants to build, improve or change." /></label>

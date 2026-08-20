@@ -5,12 +5,16 @@ import { evaluateCoachAuth, getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
 import { publicIntake } from "../../lib/client-dto";
 import {
+  applyTrainingSupervision,
   deriveIntakeFields,
   parseProfile,
   profileFromIntake,
   profileMinimum,
   profileSummary,
   sanitizeProfile,
+  TRAINING_SUPERVISIONS,
+  type OnboardingProfile,
+  type TrainingSupervision,
 } from "../../lib/onboarding-profile";
 import { positiveIntParam } from "../../lib/query-params";
 import {
@@ -119,6 +123,30 @@ export async function PATCH(request: Request) {
   const incomingProfile = body.profile && typeof body.profile === "object" ? sanitizeProfile(body.profile) : null;
   const derived = incomingProfile ? deriveIntakeFields(incomingProfile) : null;
 
+  // Coach-modal merge: a single canonical trainingSupervision token is applied to
+  // the client's EXISTING structured profile (or a legacy synthesis) — never a
+  // wholesale profile replacement, so structured fields the modal does not display
+  // are preserved. An absent value leaves the profile untouched; an empty value
+  // only clears the field for clients who already have a structured profile (and
+  // is never inferred from confidence.alone).
+  const structuredProfile = parseProfile(existing?.profile);
+  const supervisionRaw = body.trainingSupervision === undefined
+    ? undefined
+    : String(body.trainingSupervision ?? "").trim();
+  let mergedProfile: OnboardingProfile | null = null;
+  if (supervisionRaw !== undefined) {
+    const canonical = (TRAINING_SUPERVISIONS as readonly string[]).includes(supervisionRaw)
+      ? (supervisionRaw as TrainingSupervision)
+      : "";
+    if (canonical || structuredProfile) {
+      mergedProfile = applyTrainingSupervision(
+        structuredProfile ?? profileFromIntake(existing ?? null, client),
+        canonical,
+      );
+    }
+  }
+  const mergedDerived = mergedProfile ? deriveIntakeFields(mergedProfile) : null;
+
   // Partial update: only fields present in the body are written, so a quick
   // action (e.g. marking readiness reviewed) never wipes the client's answers.
   if (body.preferredLanguage !== undefined) {
@@ -132,19 +160,19 @@ export async function PATCH(request: Request) {
     : existing?.preferredLanguage ?? "fr";
   const trainingExperience = body.trainingExperience !== undefined
     ? text(body.trainingExperience, 80)
-    : derived?.trainingExperience ?? existing?.trainingExperience ?? "";
+    : derived?.trainingExperience ?? mergedDerived?.trainingExperience ?? existing?.trainingExperience ?? "";
   const availability = body.availability !== undefined
     ? text(body.availability, 300)
-    : derived?.availability ?? existing?.availability ?? "";
+    : derived?.availability ?? mergedDerived?.availability ?? existing?.availability ?? "";
   const equipment = body.equipment !== undefined
     ? text(body.equipment, 180)
-    : derived?.equipment ?? existing?.equipment ?? "";
+    : derived?.equipment ?? mergedDerived?.equipment ?? existing?.equipment ?? "";
   const goalsDetail = body.goalsDetail !== undefined
     ? text(body.goalsDetail, 500)
-    : derived?.goalsDetail ?? existing?.goalsDetail ?? "";
+    : derived?.goalsDetail ?? mergedDerived?.goalsDetail ?? existing?.goalsDetail ?? "";
   const trainingConsiderations = body.trainingConsiderations !== undefined
     ? text(body.trainingConsiderations, 500)
-    : derived?.trainingConsiderations ?? existing?.trainingConsiderations ?? "";
+    : derived?.trainingConsiderations ?? mergedDerived?.trainingConsiderations ?? existing?.trainingConsiderations ?? "";
   const coachNotes = body.coachNotes !== undefined
     ? text(body.coachNotes, 1000)
     : existing?.coachNotes ?? "";
@@ -158,7 +186,9 @@ export async function PATCH(request: Request) {
     equipment,
     goalsDetail,
     trainingConsiderations,
-    profile: incomingProfile ? JSON.stringify(incomingProfile) : (existing?.profile ?? "{}"),
+    profile: mergedProfile
+      ? JSON.stringify(mergedProfile)
+      : incomingProfile ? JSON.stringify(incomingProfile) : (existing?.profile ?? "{}"),
     coachNotes,
     readinessReviewedAt: reviewNow ? new Date() : (existing?.readinessReviewedAt ?? null),
     updatedAt: new Date(),

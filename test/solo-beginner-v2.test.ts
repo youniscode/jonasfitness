@@ -6,7 +6,7 @@ import {
   difficultyTierFor,
 } from "../app/lib/exercise-catalogue.ts";
 import { exerciseIntelligenceFor } from "../app/lib/exercise-intelligence.ts";
-import { isSoloBeginner, deriveIntakeFields, parseProfile, profileSummary, sanitizeProfile, supervisionCoachLabel, supervisionLabelFor, type OnboardingProfile } from "../app/lib/onboarding-profile.ts";
+import { isSoloBeginner, applyTrainingSupervision, deriveIntakeFields, parseProfile, profileSummary, sanitizeProfile, supervisionCoachLabel, supervisionLabelFor, emptyProfile, type OnboardingProfile } from "../app/lib/onboarding-profile.ts";
 import { buildFallbackDraft } from "../app/lib/ai-programme.ts";
 import {
   soloBeginnerChecks,
@@ -518,5 +518,125 @@ describe("trainingSupervision — stored values stay canonical; labels are displ
     const derived = deriveIntakeFields(soloBeginnerProfile({ trainingSupervision: "alone" }));
     assert.ok(derived.goalsDetail.includes("supervision: Trains alone"));
     assert.ok(!derived.goalsDetail.includes("supervision: alone"));
+  });
+});
+
+// ---------- Coach onboarding modal: trainingSupervision edit + merge safety ----------
+
+describe("Coach onboarding modal — trainingSupervision edit", () => {
+  // A structured profile as the client survey would produce it, with a rich set
+  // of fields the "Complete the coaching foundations" modal does NOT display.
+  function fullProfile(): OnboardingProfile {
+    const p = emptyProfile();
+    p.goals.primary = "Build muscle";
+    p.goals.secondary = ["Confidence"];
+    p.timeline.targetDate = "In 3–6 months";
+    p.experience.level = "Beginner";
+    p.experience.years = "Less than 6 months";
+    p.experience.used = ["Machines"];
+    p.confidence.alone = "A little confident";
+    p.confidence.help = ["Exercise technique"];
+    p.schedule.daysPerWeek = 3;
+    p.schedule.days = ["Mon", "Wed", "Fri"];
+    p.schedule.time = "Evening";
+    p.schedule.duration = "45–60 min";
+    p.location.venue = "Full commercial gym";
+    p.location.equipment = ["Cable station", "Bench"];
+    p.location.unsure = false;
+    p.preferences.style = ["Machines"];
+    p.preferences.liked = ["builtin-lat-pulldown"];
+    p.preferences.disliked = ["builtin-back-squat"];
+    p.limitations.status = "none";
+    p.lifestyle.activity = "Some walking";
+    p.recovery.sleepHours = "6–7h";
+    p.recovery.sleepQuality = 4;
+    p.motivation.drivers = ["Health"];
+    p.coaching.accountability = "High — keep me accountable";
+    p.coaching.feedback = "Direct and concise";
+    p.coaching.coachingFormat = "Online";
+    p.nutrition.tracking = "Roughly";
+    p.measurements.heightCm = 175;
+    p.measurements.weightKg = 80;
+    p.measurements.waistCm = 82;
+    p.openNote = "Prefers quiet gyms.";
+    return p;
+  }
+
+  it("1: existing 'alone' profile is preserved and maps to 'By myself'", () => {
+    const profile = applyTrainingSupervision(fullProfile(), "alone");
+    assert.equal(profile?.trainingSupervision, "alone", "stored token is the canonical 'alone'");
+    assert.equal(supervisionLabelFor("en", profile?.trainingSupervision ?? ""), "By myself");
+  });
+
+  it("2: existing 'coach' profile maps to 'With my coach'", () => {
+    const profile = applyTrainingSupervision(fullProfile(), "coach");
+    assert.equal(profile?.trainingSupervision, "coach");
+    assert.equal(supervisionLabelFor("en", profile?.trainingSupervision ?? ""), "With my coach");
+  });
+
+  it("3: existing 'mixed' profile maps to 'A mix of both'", () => {
+    const profile = applyTrainingSupervision(fullProfile(), "mixed");
+    assert.equal(profile?.trainingSupervision, "mixed");
+    assert.equal(supervisionLabelFor("en", profile?.trainingSupervision ?? ""), "A mix of both");
+  });
+
+  it("4: a missing value stays empty (never fabricated from confidence.alone)", () => {
+    // The profile has confidence.alone set, but no supervision — it must stay empty.
+    const merged = applyTrainingSupervision(fullProfile(), "");
+    assert.ok(merged, "merge of an existing structured profile is not dropped");
+    assert.equal(merged.trainingSupervision, "", "empty supervision stays empty");
+    assert.equal(merged.confidence.alone, "A little confident", "confidence.alone is preserved untouched");
+  });
+
+  it("5: saving writes the canonical token, never a localized label", () => {
+    // A coach-selected friendly label must not be persisted as the stored value.
+    const labeled = applyTrainingSupervision(fullProfile(), "By myself");
+    assert.equal(labeled?.trainingSupervision, "", "a localized label is rejected, not stored");
+    const canonical = applyTrainingSupervision(fullProfile(), "alone");
+    assert.equal(canonical?.trainingSupervision, "alone", "canonical token is stored");
+  });
+
+  it("6: saving unrelated modal fields preserves trainingSupervision", () => {
+    const withSupervision = applyTrainingSupervision(fullProfile(), "mixed");
+    assert.equal(withSupervision?.trainingSupervision, "mixed", "mixed survives the first merge");
+    // A later modal save (e.g. trainingExperience changes) must not erase it.
+    const reMerged = applyTrainingSupervision(withSupervision ?? null, "coach");
+    assert.equal(reMerged?.trainingSupervision, "coach");
+    assert.equal(reMerged?.experience.level, "Beginner", "unrelated flat-mapped field preserved");
+  });
+
+  it("7: saving supervision preserves structured fields not exposed by the modal", () => {
+    const before = fullProfile();
+    const merged = applyTrainingSupervision(before, "alone");
+    assert.ok(merged);
+    assert.equal(merged.trainingSupervision, "alone");
+    // Fields the coach modal does not display must survive byte-identical.
+    assert.deepEqual(merged.preferences.liked, before.preferences.liked);
+    assert.deepEqual(merged.preferences.disliked, before.preferences.disliked);
+    assert.deepEqual(merged.preferences.style, before.preferences.style);
+    assert.deepEqual(merged.recovery, before.recovery);
+    assert.deepEqual(merged.motivation, before.motivation);
+    assert.deepEqual(merged.nutrition, before.nutrition);
+    assert.deepEqual(merged.measurements, before.measurements);
+    assert.deepEqual(merged.lifestyle, before.lifestyle);
+    assert.equal(merged.openNote, before.openNote);
+    assert.deepEqual(merged.confidence, before.confidence);
+  });
+
+  it("8: isSoloBeginner reads the saved value correctly", () => {
+    const beginner = applyTrainingSupervision(fullProfile(), "alone");
+    assert.ok(beginner && isSoloBeginner(beginner), "Beginner + alone → solo-beginner rules active");
+    const mixed = applyTrainingSupervision(fullProfile(), "mixed");
+    assert.ok(mixed && isSoloBeginner(mixed), "Beginner + mixed → active");
+    const coached = applyTrainingSupervision(fullProfile(), "coach");
+    assert.ok(coached && !isSoloBeginner(coached), "Beginner + coach → inactive");
+  });
+
+  it("a legacy client with no structured profile gets one only when a real value is chosen", () => {
+    // No structured profile yet + empty value → nothing is synthesized.
+    assert.equal(applyTrainingSupervision(null, ""), null, "empty value on legacy client → no profile created");
+    // No structured profile + a real canonical token → a minimal profile is synthesized.
+    const created = applyTrainingSupervision(null, "mixed");
+    assert.equal(created?.trainingSupervision, "mixed", "real value synthesizes a structured profile");
   });
 });

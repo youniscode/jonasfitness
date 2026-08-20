@@ -273,6 +273,31 @@ export function parseProfile(value: string | null | undefined): OnboardingProfil
   }
 }
 
+// ---------- coach modal merge: training-supervision into the stored profile ----------
+//
+// The coach-facing "Complete the coaching foundations" modal edits flat intake
+// fields and, since Exercise Library V2, the client's training supervision. This
+// merge is deliberately field-scoped: it starts from the client's EXISTING
+// structured profile (or a legacy synthesis) and only rewrites the supervision
+// value, so no unrelated structured field can ever be erased by a modal save.
+// Only canonical tokens are stored; anything else clears the field. The value is
+// never inferred from confidence.alone (they are separate concepts).
+export function applyTrainingSupervision(
+  current: OnboardingProfile | null,
+  value: string,
+): OnboardingProfile | null {
+  const canonical = (TRAINING_SUPERVISIONS as readonly string[]).includes(value.trim())
+    ? (value.trim() as TrainingSupervision)
+    : "";
+  const base = current ?? emptyProfile();
+  // Field-scoped clone: only trainingSupervision is rewritten. The rest of the
+  // profile (preferences, limitations, schedule, recovery, notes, …) is carried
+  // over verbatim — a re-sanitization here would silently re-filter fields that
+  // the coach modal does not even display, which is exactly what we must avoid.
+  const merged: OnboardingProfile = { ...base, trainingSupervision: canonical };
+  return isProfileEmpty(merged) ? null : merged;
+}
+
 // ---------- derivation: structured profile → critical flat fields ----------
 
 export type DerivedIntakeFields = {
