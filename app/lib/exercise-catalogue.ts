@@ -384,6 +384,23 @@ export function movementPatternFor(exercise: { id?: string; libraryId?: string; 
 // established. The coach always makes the final decision.
 export type ExerciseDifficultyTier = 1 | 2 | 3;
 
+// ---------- Solo-beginner execution complexity ----------
+//
+// Execution-complexity classification for a TRUE BEGINNER TRAINING ALONE.
+// This is NOT medical safety, injury prediction, or contraindication logic.
+// It measures how simple an exercise is to execute correctly without a coach
+// beside the client.
+//
+// 1 = IDEAL ALONE — stable machine or simple movement, low coordination,
+//     simple setup, obvious movement path, easy to self-correct.
+// 2 = OK AFTER BASIC INSTRUCTION — generally beginner-appropriate but
+//     requires setup instruction, positioning, depth control, or some
+//     coordination that a coach or experienced partner should teach first.
+// 3 = COACHED FIRST / TECHNICAL — meaningful movement skill, balance,
+//     hinge/bracing, free-weight control, or higher self-correction demand.
+//     Best introduced with coaching before independent execution.
+export type SoloBeginnerLevel = 1 | 2 | 3;
+
 const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   // Tier 1 — beginner default / high stability (machines, cables, supported).
   "builtin-cable-fly": 1,
@@ -552,6 +569,141 @@ export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: stri
     if (definition) return definition;
   }
   return null;
+}
+
+// Solo-beginner execution-complexity mapping for all 106 canonical exercises.
+// This is NOT medical safety / injury prediction. It measures how simple an
+// exercise is to execute correctly without a coach present.
+//
+// 1 = IDEAL ALONE — stable machine or simple movement, low coordination,
+// 2 = OK AFTER BASIC INSTRUCTION — generally beginner-appropriate but needs setup instruction first
+// 3 = COACHED FIRST / TECHNICAL — meaningful skill, balance, or free-weight control required
+const SOLO_BEGINNER_LEVEL_BY_ID: Record<string, SoloBeginnerLevel> = {
+  // --- Level 1: IDEAL ALONE — stable machines, cables, simple bodyweight ---
+  // Machines — stable, guided path, low coordination
+  "builtin-seated-leg-curl": 1,
+  "builtin-lat-pulldown": 1,
+  "builtin-seated-cable-row": 1,
+  "builtin-cable-fly": 1,
+  "builtin-triceps-pressdown": 1,
+  "builtin-machine-chest-press": 1,
+  "builtin-machine-shoulder-press": 1,
+  "builtin-glute-bridge": 1,
+  "builtin-hip-thrust-machine": 1,
+  "builtin-chest-supported-row": 1,
+  "builtin-leg-extension": 1,
+  "builtin-lying-leg-curl": 1,
+  "builtin-assisted-pull-up": 1,
+  "builtin-neutral-grip-lat-pulldown": 1,
+  "builtin-one-arm-cable-row": 1,
+  "builtin-machine-row": 1,
+  "builtin-incline-machine-chest-press": 1,
+  "builtin-pec-deck-fly": 1,
+  "builtin-cable-chest-fly": 1,
+  "builtin-machine-lateral-raise": 1,
+  "builtin-reverse-pec-deck": 1,
+  "builtin-preacher-curl": 1,
+  "builtin-cable-biceps-curl": 1,
+  "builtin-rope-overhead-triceps-extension": 1,
+  "builtin-pallof-press": 1,
+  "builtin-adductor-machine": 1,
+  "builtin-abductor-machine": 1,
+  "builtin-seated-calf-raise": 1,
+  "builtin-leg-press-calf-raise": 1,
+  "builtin-straight-arm-pulldown": 1,
+  "builtin-face-pull": 1,
+  "builtin-machine-pullover": 1,
+  "builtin-decline-machine-chest-press": 1,
+  "builtin-rope-hammer-curl": 1,
+  "builtin-ab-crunch-machine": 1,
+  "builtin-neutral-grip-machine-shoulder-press": 1,
+  "builtin-cable-glute-kickback": 1,
+  "builtin-belt-squat": 1,
+  "builtin-kneeling-single-arm-pulldown": 1,
+  "builtin-single-leg-leg-curl": 1,
+  "builtin-single-leg-leg-extension": 1,
+  "builtin-high-row-machine": 1,
+  // Simple bodyweight — stable, low coordination, self-correctable
+  "builtin-elevated-push-up": 1,
+  "builtin-dead-bug": 1,
+  "builtin-reverse-crunch": 1,
+  "builtin-side-plank": 1,
+  "builtin-bird-dog": 1,
+  // Simple free-weight — stable movement, low coordination
+  "builtin-dumbbell-shrug": 1,
+  "builtin-farmer-carry": 1,
+
+  // --- Level 2: OK AFTER BASIC INSTRUCTION — dumbbells, simple free-weight, bodyweight that needs instruction ---
+  // Dumbbells — generally beginner-appropriate, needs setup instruction
+  "builtin-incline-dumbbell-press": 2,
+  "builtin-lateral-raise": 2,
+  "builtin-barbell-curl": 2,
+  "builtin-incline-curl": 2,
+  "builtin-goblet-squat": 2,
+  "builtin-seated-dumbbell-shoulder-press": 2,
+  "builtin-dumbbell-bench-press": 2,
+  "builtin-back-extension": 2,
+  "builtin-cable-lateral-raise": 2,
+  "builtin-walking-lunge": 2,
+  "builtin-reverse-lunge": 2,
+  "builtin-step-up": 2,
+  "builtin-single-leg-press": 2,
+  "builtin-smith-split-squat": 2,
+  "builtin-t-bar-row": 2,
+  "builtin-one-arm-dumbbell-row": 2,
+  "builtin-standard-push-up": 2,
+  "builtin-arnold-press": 2,
+  "builtin-hammer-curl": 2,
+  "builtin-skull-crusher": 2,
+  "builtin-assisted-dip": 2,
+  "builtin-hanging-knee-raise": 2,
+  "builtin-landmine-press": 2,
+  "builtin-single-arm-landmine-press": 2,
+  "builtin-single-arm-cable-lateral-raise": 2,
+  "builtin-cable-scaption-raise": 2,
+  "builtin-dumbbell-romanian-deadlift": 2,
+  "builtin-cable-woodchopper": 2,
+  "builtin-russian-twist": 2,
+  "builtin-dumbbell-pullover": 2,
+  "builtin-smith-incline-press": 2,
+  "builtin-bayesian-cable-curl": 2,
+  "builtin-single-arm-cable-triceps-extension": 2,
+  // Smith machine — guided track but needs setup instruction
+  "builtin-smith-machine-squat": 2,
+  // Moved from Level 1: machine but needs setup/depth instruction for beginners
+  "builtin-leg-press": 2,
+  "builtin-hack-squat": 2,
+  "builtin-cable-pull-through": 2,
+  // Missing exercises — cable/machine isolation, needs setup instruction
+  "builtin-standing-calf-raise": 2,
+  "builtin-rear-delt-fly": 2,
+  "builtin-overhead-triceps-extension": 2,
+  "builtin-plank": 2,
+  "builtin-cable-crunch": 2,
+
+  // --- Level 3: COACHED FIRST / TECHNICAL (15) — free-weight compounds, complex bodyweight ---
+  "builtin-barbell-bench-press": 3,
+  "builtin-pull-up": 3,
+  "builtin-barbell-row": 3,
+  "builtin-back-squat": 3,
+  "builtin-bulgarian-split-squat": 3,
+  "builtin-romanian-deadlift": 3,
+  "builtin-hip-thrust": 3,
+  "builtin-overhead-press": 3,
+  "builtin-conventional-deadlift": 3,
+  "builtin-sumo-deadlift": 3,
+  "builtin-single-leg-romanian-deadlift": 3,
+  "builtin-ab-wheel-rollout": 3,
+  "builtin-incline-barbell-press": 3,
+  "builtin-chin-up": 3,
+  "builtin-close-grip-bench-press": 3,
+};
+
+export function soloBeginnerLevelFor(exercise: { id?: string; libraryId?: string } | null | undefined): SoloBeginnerLevel | null {
+  if (!exercise) return null;
+  const id = exercise.libraryId ?? exercise.id;
+  if (!id) return null;
+  return SOLO_BEGINNER_LEVEL_BY_ID[id] ?? null;
 }
 
 export const exerciseMuscleGroups = ["All", "Chest", "Back", "Quadriceps", "Hamstrings", "Glutes", "Calves", "Adductors", "Abductors", "Shoulders", "Biceps", "Triceps", "Core", "Full body", "Other"];

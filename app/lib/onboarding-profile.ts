@@ -78,6 +78,41 @@ export const EATING_PATTERNS = ["No particular pattern", "Vegetarian", "Vegan", 
 // Canonical coaching formats used by the public application and carried into
 // the client's onboarding as coaching context (never conflated with venue).
 export const COACHING_FORMATS = ["Online", "In person", "Hybrid", "To discuss"] as const;
+/** Explicit training-supervision question: do you train alone, with a coach, or both? */
+export const TRAINING_SUPERVISIONS = ["alone", "coach", "mixed"] as const;
+export type TrainingSupervision = typeof TRAINING_SUPERVISIONS[number];
+
+// ---------- training-supervision display labels ----------
+// Display-only localization for the explicit supervision question. The stored
+// canonical values ("alone" | "coach" | "mixed") NEVER change — these maps only
+// render human labels for the onboarding UI and coach-facing summaries, so
+// persistence, sanitization and the solo-beginner logic stay byte-identical.
+export const SUPERVISION_LANGS = ["en", "fr", "ar"] as const;
+export type SupervisionLang = (typeof SUPERVISION_LANGS)[number];
+
+/** Client-facing localized label per canonical supervision value. */
+export const TRAINING_SUPERVISION_LABELS: Record<SupervisionLang, Record<TrainingSupervision, string>> = {
+  en: { alone: "By myself", coach: "With my coach", mixed: "A mix of both" },
+  fr: { alone: "Seul(e)", coach: "Avec mon coach", mixed: "Un mélange des deux" },
+  ar: { alone: "بمفردي", coach: "مع مدربي", mixed: "مزيج من الاثنين" },
+};
+
+/** Coach-facing English descriptors used in intake/profile summary text. */
+export const TRAINING_SUPERVISION_COACH_LABELS: Record<TrainingSupervision, string> = {
+  alone: "Trains alone",
+  coach: "With coach",
+  mixed: "Mixed",
+};
+
+/** Client-facing label for the onboarding UI. Empty when unanswered. */
+export function supervisionLabelFor(lang: SupervisionLang, value: TrainingSupervision | ""): string {
+  return value ? TRAINING_SUPERVISION_LABELS[lang][value] : "";
+}
+
+/** Coach-facing English descriptor (never the raw stored token). Empty when unanswered. */
+export function supervisionCoachLabel(value: TrainingSupervision | ""): string {
+  return value ? TRAINING_SUPERVISION_COACH_LABELS[value] : "";
+}
 // Exercise reaction choices for the onboarding preference picker. Neutral and
 // "Not sure" are both non-committal: they never create a preference or a
 // penalty. Only "Like"/"Dislike" persist as explicit preference context.
@@ -89,6 +124,7 @@ export type OnboardingProfile = {
   timeline: { targetDate: string; targetDateValue: string; importance: number | null };
   experience: { level: string; years: string; used: string[] };
   confidence: { alone: string; help: string[] };
+  trainingSupervision: TrainingSupervision | "";
   schedule: { daysPerWeek: number | null; days: string[]; time: string; duration: string };
   location: { venue: string; equipment: string[]; unsure: boolean };
   preferences: { style: string[]; liked: string[]; disliked: string[]; unsure: string[]; note: string };
@@ -112,6 +148,7 @@ export function emptyProfile(): OnboardingProfile {
     timeline: { targetDate: "", targetDateValue: "", importance: null },
     experience: { level: "", years: "", used: [] },
     confidence: { alone: "", help: [] },
+    trainingSupervision: "",
     schedule: { daysPerWeek: null, days: [], time: "", duration: "" },
     location: { venue: "", equipment: [], unsure: false },
     preferences: { style: [], liked: [], disliked: [], unsure: [], note: "" },
@@ -170,6 +207,7 @@ export function sanitizeProfile(input: unknown): OnboardingProfile {
   const confidence = record(source.confidence);
   profile.confidence.alone = oneOf(confidence.alone, CONFIDENCE_LEVELS);
   profile.confidence.help = manyOf(confidence.help, HELP_AREAS);
+  profile.trainingSupervision = oneOf(source.trainingSupervision, TRAINING_SUPERVISIONS) as TrainingSupervision | "";
   const schedule = record(source.schedule);
   const daysPerWeek = numberIn(schedule.daysPerWeek, 0, 6);
   profile.schedule.daysPerWeek = daysPerWeek === 0 ? null : daysPerWeek;
@@ -257,7 +295,8 @@ export function deriveIntakeFields(profile: OnboardingProfile): DerivedIntakeFie
   const secondary = profile.goals.secondary.length ? ` · secondary: ${profile.goals.secondary.join(", ")}` : "";
   const goalNote = profile.goals.note ? ` ${profile.goals.note}` : "";
   const format = profile.coaching.coachingFormat ? ` · coaching: ${profile.coaching.coachingFormat}` : "";
-  const goalsDetail = (profile.goals.primary + secondary + goalNote + format).trim();
+  const supervision = profile.trainingSupervision ? ` · supervision: ${supervisionCoachLabel(profile.trainingSupervision)}` : "";
+  const goalsDetail = (profile.goals.primary + secondary + goalNote + format + supervision).trim();
   const areaLines = profile.limitations.status === "areas"
     ? profile.limitations.areas.map((area) => `${area} — ${profile.limitations.areaKinds[area] || "Not sure"}`).join("; ")
     : "";
@@ -325,6 +364,41 @@ export function profileMinimum(profile: OnboardingProfile): { complete: boolean;
   return { complete: missing.length === 0, missing };
 }
 
+// ---------- solo-beginner detection ----------
+//
+// A client is a solo beginner when ALL conditions are true:
+//   1. experience.level is "Never trained" or "Beginner"
+//   2. trainingSupervision is "alone" OR "mixed" (explicit question), OR if
+//      the legacy trainingSupervision field is empty, fall back to
+//      confidence.alone being "Not confident" or "A little confident"
+//
+// trainingSupervision is the PRIMARY signal: it answers "Do you train alone,
+// with a coach, or both?" — a direct supervision question.
+//   - "alone"  → solo beginner (trains entirely independently)
+//   - "mixed"  → solo beginner (some sessions happen independently)
+//   - "coach"  → NOT a solo beginner (consistent external supervision)
+// confidence.alone is a SECONDARY/legacy fallback: it answers "How confident
+// are you training alone?" — it measures confidence, not supervision status.
+// A confident solo trainee is still a solo beginner; an unconfident trainee
+// with a coach is NOT a solo beginner.
+//
+// This is execution-complexity context only — NOT medical safety, NOT injury
+// prediction, NOT contraindication. Used to filter technically demanding
+// exercises for a TRUE beginner with limited coaching access.
+export function isSoloBeginner(profile: OnboardingProfile): boolean {
+  const level = profile.experience.level;
+  const isBeginner = level === "Never trained" || level === "Beginner";
+  if (!isBeginner) return false;
+
+  // Primary: explicit supervision question
+  if (profile.trainingSupervision === "alone" || profile.trainingSupervision === "mixed") return true;
+  if (profile.trainingSupervision === "coach") return false;
+
+  // Legacy fallback: trainingSupervision not yet answered — use confidence.alone
+  const alone = profile.confidence.alone;
+  return alone === "Not confident" || alone === "A little confident";
+}
+
 // ---------- compact coach-facing summary (not a raw answer dump) ----------
 
 export type ProfileSummaryBlock = { section: string; lines: string[] };
@@ -349,6 +423,7 @@ export function profileSummary(profile: OnboardingProfile): ProfileSummaryBlock[
   if (snapshot.disliked.length) preferences.push(`Disliked: ${snapshot.disliked.map(exerciseNameFor).join(", ")}`);
   if (snapshot.unsure.length) preferences.push(`Not sure: ${snapshot.unsure.map(exerciseNameFor).join(", ")}`);
   if (profile.confidence.alone) preferences.push(`Confidence alone: ${profile.confidence.alone}`);
+  if (profile.trainingSupervision) preferences.push(`Training supervision: ${supervisionCoachLabel(profile.trainingSupervision)}`);
   if (profile.confidence.help.length) preferences.push(`Wants help with: ${profile.confidence.help.join(", ")}`);
   if (preferences.length) blocks.push({ section: "Initial client preferences", lines: preferences });
   const limitations = profile.limitations.status === "none"

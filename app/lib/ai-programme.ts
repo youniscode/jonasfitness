@@ -13,6 +13,7 @@ import {
   difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
+  soloBeginnerLevelFor,
   type ExerciseDefinition,
   type MovementPattern,
 } from "./exercise-catalogue.ts";
@@ -459,11 +460,22 @@ function exercisesForPatterns(
   usage: Map<string, number>,
   preferBeginner = false,
   maxWeeklyUses = 2,
+  soloBeginner = false,
 ): DraftExercise[] {
   const result: DraftExercise[] = [];
   const sessionUsed = new Set<string>();
+  let sessionLevel2Count = 0;
+  let weeklyLevel2Count = 0;
   for (const pattern of patterns) {
-    const candidates = pool.filter((exercise) => movementPatternFor(exercise) === pattern);
+    let candidates = pool.filter((exercise) => movementPatternFor(exercise) === pattern);
+    // Solo-beginner hard exclusion: Level 3 exercises are never selected for
+    // a solo beginner. This is execution-complexity only, NOT medical safety.
+    if (soloBeginner) {
+      candidates = candidates.filter((exercise) => {
+        const level = soloBeginnerLevelFor(exercise);
+        return level === null || level <= 2;
+      });
+    }
     // For beginners, prefer stable Tier 1 then Tier 2 exercises, only reaching
     // Tier 3 when the catalogue has no stable option for the required pattern.
     // Within the same tier, prefer a less-used exercise this week so one Tier-1
@@ -475,6 +487,12 @@ function exercisesForPatterns(
           const tierA = difficultyTierFor(a) ?? 3;
           const tierB = difficultyTierFor(b) ?? 3;
           if (tierA !== tierB) return tierA - tierB;
+          // Solo-beginner secondary sort: prefer Level 1 over Level 2
+          if (soloBeginner) {
+            const soloA = soloBeginnerLevelFor(a) ?? 3;
+            const soloB = soloBeginnerLevelFor(b) ?? 3;
+            if (soloA !== soloB) return soloA - soloB;
+          }
           return (usage.get(a.id) ?? 0) - (usage.get(b.id) ?? 0);
         })
       : candidates;
@@ -484,12 +502,40 @@ function exercisesForPatterns(
     // is at the cap (genuinely no alternative), the best option is reused —
     // never silently dropped.
     const pick = preferBeginner
-      ? (ordered.find((exercise) => !sessionUsed.has(exercise.id) && (usage.get(exercise.id) ?? 0) < maxWeeklyUses)
-        ?? ordered.find((exercise) => !sessionUsed.has(exercise.id)))
+      ? (ordered.find((exercise) => {
+          if (sessionUsed.has(exercise.id)) return false;
+          if ((usage.get(exercise.id) ?? 0) >= maxWeeklyUses) return false;
+          // Solo-beginner budget: max 1 Level 2 per session, max 4 per week
+          if (soloBeginner) {
+            const level = soloBeginnerLevelFor(exercise);
+            if (level === 2) {
+              if (sessionLevel2Count >= 1) return false;
+              if (weeklyLevel2Count >= 4) return false;
+            }
+          }
+          return true;
+        })
+        ?? ordered.find((exercise) => {
+          if (sessionUsed.has(exercise.id)) return false;
+          // Fallback: allow Level 2 even if budget exceeded (bounded fallback)
+          if (soloBeginner) {
+            const level = soloBeginnerLevelFor(exercise);
+            if (level === 2 && sessionLevel2Count >= 2) return false;
+          }
+          return true;
+        }))
       : ordered.find((exercise) => !sessionUsed.has(exercise.id));
     if (!pick) continue;
     usage.set(pick.id, (usage.get(pick.id) ?? 0) + 1);
     sessionUsed.add(pick.id);
+    // Track Level 2 budget for solo beginners
+    if (soloBeginner) {
+      const level = soloBeginnerLevelFor(pick);
+      if (level === 2) {
+        sessionLevel2Count++;
+        weeklyLevel2Count++;
+      }
+    }
     const compound = MAJOR_PATTERNS.has(pattern);
     result.push({
       libraryId: pick.id,
@@ -512,6 +558,7 @@ export function buildFallbackDraft(
   experience: string | null | undefined,
   preserveSessionNames?: string[],
   targetDuration?: number | null,
+  soloBeginner?: boolean,
 ): ProgrammeDraft {
   const days = Math.min(5, Math.max(1, sessionsPerWeek || 3));
   const blueprint = sessionBlueprintFor(days);
@@ -529,7 +576,7 @@ export function buildFallbackDraft(
     // the fallback reads as an evolution of that programme, not a new one.
     name: preserveSessionNames?.[index] ?? day.name,
     focus: day.focus,
-    exercises: exercisesForPatterns(day.patterns, pool, usage, beginner, maxWeeklyUses),
+    exercises: exercisesForPatterns(day.patterns, pool, usage, beginner, maxWeeklyUses, soloBeginner),
   }));
   const duration = estimateProgrammeDurationMinutes({ title: "", overview: "", goal, sessionsPerWeek: days, sessions });
   const base = rehydrateDraft({

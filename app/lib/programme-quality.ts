@@ -10,6 +10,7 @@ import {
   difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
+  soloBeginnerLevelFor,
   type MovementPattern,
 } from "./exercise-catalogue.ts";
 import { clientFitWarnings, type ClientFitContext } from "./exercise-intelligence.ts";
@@ -56,6 +57,8 @@ export type QualityOptions = {
   expectedSessionNames?: string[];
   /** Client context for the exercise-fit check (goal, limitations, avoid, recent training). */
   clientFitContext?: ClientFitContext | null;
+  /** Solo-beginner mode: enforce execution-complexity constraints. */
+  soloBeginner?: boolean;
 };
 
 // ---------- Weekly movement balance ----------
@@ -260,6 +263,66 @@ export function beginnerSuitability(
   return warnings.slice(0, BEGINNER_SUITABILITY_WARNING_CAP);
 }
 
+// ---------- Solo-beginner execution-complexity checks ----------
+//
+// Hard filtering (Level 3 exclusion) is applied upstream in the candidate
+// generator. These quality checks are a safety net: they catch any Level 3
+// that leaked through a different code path (AI draft, repair, manual edit)
+// and flag excess Level 2 density. Level 3 = error (must be reviewed/replaced),
+// excess Level 2 = warning (budget exceeded).
+
+export const SOLO_BEGINNER_MAX_LEVEL2_PER_SESSION = 1;
+export const SOLO_BEGINNER_MAX_LEVEL2_PER_WEEK = 4;
+const SOLO_BEGINNER_WARNING_CAP = 6;
+
+export function soloBeginnerChecks(
+  draft: ProgrammeDraft,
+  soloBeginner: boolean,
+): { errors: string[]; warnings: string[] } {
+  if (!soloBeginner) return { errors: [], warnings: [] };
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  let weeklyLevel2 = 0;
+
+  draft.sessions.forEach((session, index) => {
+    const label = session.name || `Day ${index + 1}`;
+    let sessionLevel2 = 0;
+    for (const exercise of session.exercises ?? []) {
+      const level = soloBeginnerLevelFor(exercise);
+      if (level === 3) {
+        errors.push(`"${label}" includes ${exercise.name} (Level 3) — technically demanding for a solo beginner. Replace with a Level 1–2 alternative or review with the coach.`);
+      }
+      if (level === 2) {
+        sessionLevel2++;
+        weeklyLevel2++;
+      }
+    }
+    if (sessionLevel2 > SOLO_BEGINNER_MAX_LEVEL2_PER_SESSION) {
+      warnings.push(`"${label}" has ${sessionLevel2} Level 2 exercises — solo beginners do best with mostly Level 1 (stable machines/simple movements). Consider swapping one Level 2 for a Level 1.`);
+    }
+  });
+
+  if (weeklyLevel2 > SOLO_BEGINNER_MAX_LEVEL2_PER_WEEK) {
+    warnings.push(`Programme uses ${weeklyLevel2} Level 2 exercises across the week — solo beginners benefit from a higher proportion of Level 1 (stable machines/simple movements).`);
+  }
+
+  // 70% Level 1 minimum check
+  const totalExercises = draft.sessions.reduce((sum, session) => sum + (session.exercises ?? []).length, 0);
+  if (totalExercises > 0) {
+    const level1Count = draft.sessions.reduce((sum, session) =>
+      sum + (session.exercises ?? []).filter((exercise) => soloBeginnerLevelFor(exercise) === 1).length, 0);
+    const ratio = level1Count / totalExercises;
+    if (ratio < 0.7) {
+      warnings.push(`Only ${Math.round(ratio * 100)}% Level 1 exercises (target ≥70%) — solo beginners should have a strong foundation of stable machines and simple movements.`);
+    }
+  }
+
+  return {
+    errors: errors.slice(0, SOLO_BEGINNER_WARNING_CAP),
+    warnings: warnings.slice(0, SOLO_BEGINNER_WARNING_CAP),
+  };
+}
+
 // ---------- Goal alignment (advisory) ----------
 
 // Primary-goal alignment: a resistance-training primary objective with NO
@@ -293,7 +356,7 @@ function durationMessage(state: DurationState, estimated: number, targetMinutes:
 }
 
 export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityOptions): ProgrammeQualityReport {
-  const { targetMinutes, equipment, experience, expectedSessionNames } = options;
+  const { targetMinutes, equipment, experience, expectedSessionNames, soloBeginner } = options;
   const estimated = estimateProgrammeDurationMinutes(draft);
   const duration = durationState(estimated, targetMinutes);
 
@@ -302,6 +365,9 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   // redundancy and cross-session exact-exercise repetition (3/3+ compounds).
   const redundancyWarnings = [...sessionRedundancy(draft), ...crossSessionRedundancy(draft, experience)];
   const suitabilityWarnings = beginnerSuitability(draft, experience, targetMinutes);
+  const soloBeginnerResult = soloBeginnerChecks(draft, soloBeginner ?? false);
+  const soloBeginnerWarnings = soloBeginnerResult.warnings;
+  const soloBeginnerErrors = soloBeginnerResult.errors;
 
   const equipmentOk = Boolean(equipment && equipment.trim());
   // Client exercise fit: deterministic scoring of every draft exercise against
@@ -336,6 +402,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   checks.push({ key: "libraryGrounding", label: "Exercise library grounding", ok: groundingOk, message: groundingOk ? undefined : "Too many custom exercises — prefer library exercises." });
 
   checks.push({ key: "beginnerSuitability", label: "Beginner suitability", ok: suitabilityWarnings.length === 0, message: suitabilityWarnings[0] });
+  checks.push({ key: "soloBeginner", label: "Solo beginner complexity", ok: soloBeginnerErrors.length === 0, message: soloBeginnerErrors[0] });
   checks.push({ key: "weeklyBalance", label: "Weekly movement balance", ok: balanceAnalysis.warnings.length === 0, message: balanceAnalysis.warnings[0] });
   checks.push({ key: "equipment", label: "Equipment compatibility", ok: equipmentOk, message: equipmentOk ? undefined : "Equipment not specified — confirm the client's gym access before approval." });
   checks.push({ key: "redundancy", label: "No major redundancy", ok: redundancyWarnings.length === 0, message: redundancyWarnings[0] });
@@ -356,7 +423,9 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   checks.push({ key: "splitConsistency", label: "Recommendation matches structure", ok: splitOk, message: splitMessage });
 
   const warnings = [
+    ...soloBeginnerErrors,
     ...suitabilityWarnings,
+    ...soloBeginnerWarnings,
     ...balanceAnalysis.warnings,
     ...redundancyWarnings,
     ...fitWarnings,

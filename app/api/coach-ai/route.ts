@@ -21,12 +21,13 @@ import {
   type ProgrammeDraft,
 } from "../../lib/ai-programme";
 import { askOllamaJson, coachAiModelFor, coachAiProviderFor, generateCoachDraft, getOllamaStatus, OLLAMA_MODEL } from "../../lib/local-ai";
-import { canonicalBuiltInFor } from "../../lib/exercise-catalogue";
+import { canonicalBuiltInFor, soloBeginnerLevelFor } from "../../lib/exercise-catalogue";
 import { compactPreferenceSummary, preferenceContextFrom } from "../../lib/exercise-preference";
 import { buildClientExerciseFeedbackProfile, compactFeedbackSummary, type ClientFeedbackRow } from "../../lib/exercise-feedback";
 import {
   compactInitialPreferenceSummary,
   initialPreferenceContextFrom,
+  isSoloBeginner,
   onboardingPreferenceConflictNotes,
   parseProfile,
 } from "../../lib/onboarding-profile";
@@ -210,6 +211,7 @@ function finalizeDraft(base: ProgrammeDraft, opts: {
   experience: string | null | undefined;
   expectedSessionNames: string[] | undefined;
   clientFitContext: ClientFitContext | null;
+  soloBeginner?: boolean;
 }) {
   const validation = validateDraft(base, opts.requestedSessions);
   const rehydrated = rehydrateDraft(base);
@@ -221,6 +223,7 @@ function finalizeDraft(base: ProgrammeDraft, opts: {
     experience: opts.experience ?? null,
     expectedSessionNames: opts.expectedSessionNames,
     clientFitContext: opts.clientFitContext,
+    soloBeginner: opts.soloBeginner,
   });
   return { validation, rehydrated, estimated, duration, quality };
 }
@@ -411,6 +414,7 @@ export async function POST(request: Request) {
   // post-workout feedback. PII-free names only. Never sent as coach preference
   // and never a restriction.
   const onboardingProfile = parseProfile(intake?.profile ?? null) ?? null;
+  const soloBeginner = onboardingProfile ? isSoloBeginner(onboardingProfile) : false;
   const initialPreferenceSummary = onboardingProfile ? compactInitialPreferenceSummary(onboardingProfile) : "";
   const initialPreferenceContext = onboardingProfile ? initialPreferenceContextFrom(onboardingProfile) : null;
   const initialConflictNotes = onboardingProfile
@@ -430,6 +434,7 @@ export async function POST(request: Request) {
     preferenceSummary,
     feedbackSummary,
     initialPreferenceSummary,
+    soloBeginner ? "SOLO-BEGINNER CONSTRAINT: This client trains alone/mixed and is a true beginner — do not select Level 3 technically demanding exercises (e.g. barbell squats, deadlifts, Bulgarian split squats, barbell rows/bench presses). Prefer stable Level 1 machines and simple movements, and keep at most one Level 2 exercise per session. This is execution-complexity guidance, not a medical constraint." : "",
     initialConflictNotes.length ? `PREFERENCE CONFLICTS TO REVIEW:\n${initialConflictNotes.join("\n")}` : "",
     modePrompt,
     "",
@@ -498,7 +503,33 @@ export async function POST(request: Request) {
           profile.training.experience,
           mode === "adapt" && previousDraft ? previousDraft.sessions.map((session) => session.name) : undefined,
           targetDuration,
+          soloBeginner,
         );
+
+  // ---- Solo-beginner hallucination defense (deterministic, NO AI call) ----
+  // The AI can return Level 3 exercises even when solo-beginner filtering was
+  // applied upstream. This post-generation scan catches any leaked Level 3 and
+  // replaces the AI draft with the deterministic fallback (which already
+  // excludes Level 3). Quality warnings alone are insufficient for hard
+  // exclusion — a solo beginner must never see a Level 3 exercise in their
+  // programme.
+  let aiDraftReplacedForSoloBeginner = false;
+  if (soloBeginner && rawOk) {
+    const hasLevel3 = base.sessions.some((session) =>
+      (session.exercises ?? []).some((exercise) => soloBeginnerLevelFor(exercise) === 3),
+    );
+    if (hasLevel3) {
+      const fallbackDraft = buildFallbackDraft(
+        goal, requestedSessions, equipment, profile.training.experience,
+        mode === "adapt" && previousDraft ? previousDraft.sessions.map((s) => s.name) : undefined,
+        targetDuration, soloBeginner,
+      );
+      Object.assign(base, fallbackDraft);
+      aiDraftReplacedForSoloBeginner = true;
+      generation = { source: "fallback", provider: generation.provider, model: generation.model, fallbackReason: "solo_beginner_level3_leak" };
+      console.error(`[coach-ai] AI draft contained Level 3 exercises for solo beginner — deterministic fallback used`);
+    }
+  }
 
   // Validate, rehydrate and score against the library (deterministic pipeline).
   // Deterministic client-fit context for the quality engine: goal, experience,
@@ -530,6 +561,7 @@ export async function POST(request: Request) {
     experience: profile.training.experience,
     expectedSessionNames: expectedSessionNames.length ? expectedSessionNames : undefined,
     clientFitContext,
+    soloBeginner,
   };
   // Smart Draft Repair V1 — deterministic repair context. Structured limitation
   // areas come from the onboarding profile when available; legacy clients fall
@@ -548,6 +580,7 @@ export async function POST(request: Request) {
     preferenceContext,
     feedbackContext,
     initialPreferenceContext,
+    soloBeginner,
   };
 
   // ---- Smart Draft Repair application (deterministic, NO AI call) ----
@@ -679,7 +712,9 @@ export async function POST(request: Request) {
   const invalid = validation.errors.filter((issue) => issue.severity === "error");
   const notice = invalid.length
     ? "Jonas Coach couldn't create a valid draft. Try again."
-    : generation.source === "ai"
+    : aiDraftReplacedForSoloBeginner
+      ? "AI draft contained technically demanding exercises for a solo beginner, so Jonas Coach applied a safe rules-based draft. Review it before approval."
+      : generation.source === "ai"
       ? "AI draft — review exercise selection, loading and health context before approving. Nothing has been published."
       : materialMiss
         ? (adjustmentFallback?.applied

@@ -25,6 +25,7 @@ import {
   builtInExerciseFor,
   MAJOR_PATTERNS,
   movementPatternFor,
+  soloBeginnerLevelFor,
   type ExerciseDefinition,
 } from "./exercise-catalogue.ts";
 import {
@@ -145,6 +146,8 @@ export type ProgrammeRepairOptions = {
   preferenceContext?: ClientPreferenceContext | null;
   feedbackContext?: ClientFeedbackContext | null;
   initialPreferenceContext?: InitialPreferenceContext | null;
+  /** Solo-beginner mode: prefer Level 1, deprioritise Level 2, exclude Level 3. */
+  soloBeginner?: boolean;
 };
 
 // ---------- Bounds (conservative, aligned with programme conventions) ----------
@@ -557,6 +560,18 @@ function pickAddExerciseAction(
       const limLevel = highestLimitationLevel(definition, areas);
       if (limLevel === "MODERATE" || limLevel === "HIGH") continue;
       if (limLevel === "LOW" && !options.limitationsReviewed) continue;
+      // Solo-beginner hard exclusion: Level 3 exercises are never added by repair
+      if (options.soloBeginner) {
+        const soloLevel = soloBeginnerLevelFor(definition);
+        if (soloLevel === 3) continue;
+        // Level-2 budget: max 1 per session, max 4 per week
+        if (soloLevel === 2) {
+          const sessionLevel2 = (session.exercises ?? []).filter((ex) => soloBeginnerLevelFor(ex) === 2).length;
+          if (sessionLevel2 >= 1) continue;
+          const weeklyLevel2 = work.sessions.reduce((sum, s) => sum + (s.exercises ?? []).filter((ex) => soloBeginnerLevelFor(ex) === 2).length, 0);
+          if (weeklyLevel2 >= 4) continue;
+        }
+      }
       const estimatedAfter = estimateWithAction(work, sessionIndex, (sessionToEdit) => {
         sessionToEdit.exercises.push({ libraryId: definition.id, name: definition.name, ...prescriptionFor(definition), tempo: "", note: "", source: "library" });
       });
@@ -571,6 +586,12 @@ function pickAddExerciseAction(
       if (intel.stabilityDemand >= 2) score += 3;
       if (intel.technicalDemand === 3) score -= 10;
       if (intel.fatigueCost === 3) score -= 8;
+      // Solo-beginner scoring: strongly prefer Level 1, deprioritise Level 2
+      if (options.soloBeginner) {
+        const soloLevel = soloBeginnerLevelFor(definition);
+        if (soloLevel === 1) score += 6;
+        if (soloLevel === 2) score -= 4;
+      }
       if (patternCountInSession(session, intel.movementPattern) >= 2) score -= 6;
       // Fills an underrepresented accessory/role in this session.
       if (patternCountInSession(session, intel.movementPattern) === 0) score += 10;
@@ -647,6 +668,12 @@ function removeSetPriority(exercise: DraftExercise, intel: ExerciseIntelligence,
   if (intel.technicalDemand === 3) score += 6;
   if (intel.fatigueCost === 2) score += 3;
   if (limLevel === "MODERATE" || limLevel === "HIGH") score += 6;
+  // Solo-beginner: strongly protect Level 1 exercises (most valuable), deprioritise Level 2 for removal
+  if (options.soloBeginner) {
+    const soloLevel = soloBeginnerLevelFor(exercise);
+    if (soloLevel === 1) score -= 8;
+    if (soloLevel === 2) score += 4;
+  }
   const goal = primaryGoalTag(options.goal);
   if (goal && intel.goalTags.includes(goal)) score -= 8;
   if (exercise.sets >= 4) score += 4;
@@ -733,6 +760,12 @@ function pickRemoveExerciseAction(work: ProgrammeDraft, options: ProgrammeRepair
       if (intel && goal && intel.goalTags.includes(goal)) score -= 8;
       if (fit.score >= 70) score -= 4;
       if (exercise.sets <= 2) score += 2;
+      // Solo-beginner: strongly prefer removing Level 3 exercises first
+      if (options.soloBeginner) {
+        const soloLevel = soloBeginnerLevelFor(exercise);
+        if (soloLevel === 3) score += 10;
+        if (soloLevel === 1) score -= 4;
+      }
       candidates.push({ sessionIndex, exercise, score });
     }
   });
@@ -885,24 +918,31 @@ function resolveAlternatives(
   const context = fitContextFor(options);
   const poolIds = new Set(candidateExercisesFor(options.equipment).map((definition) => definition.id));
   const sourceLevel = limitationRelevanceFor(area, intel).level;
-  const candidates: Array<{ id: string; name: string; level: LimitationLevel | null }> = [];
+  const candidates: Array<{ id: string; name: string; level: LimitationLevel | null; soloLevel: number }> = [];
   for (const id of canonicalAlternativeIds(intel)) {
     const definition = builtInExerciseFor(id, null);
     if (!definition) continue;
     if (!poolIds.has(id)) continue; // equipment-incompatible
     const fit = scoreExerciseForClient(definition, context);
     if (fit.exclusion || fit.score <= 0) continue; // coach avoid / avoid list
+    // Solo-beginner hard exclusion: Level 3 alternatives are never suggested
+    if (options.soloBeginner) {
+      const soloLevel = soloBeginnerLevelFor(definition);
+      if (soloLevel === 3) continue;
+    }
     const alternativeIntel = exerciseIntelligenceFor(definition);
     if (!alternativeIntel) continue;
     const level = limitationRelevanceFor(area, alternativeIntel).level;
     if (sourceLevel && level && levelRank(level) > levelRank(sourceLevel)) continue; // never a worse option
-    candidates.push({ id, name: definition.name, level });
+    const soloLevel = soloBeginnerLevelFor(definition) ?? 2;
+    candidates.push({ id, name: definition.name, level, soloLevel });
   }
-  // Prefer strictly lower relevance, then canonical catalogue order.
+  // Prefer strictly lower relevance, then solo-beginner Level 1, then canonical catalogue order.
   const ranked = candidates.sort((a, b) => {
     const rankA = a.level ? levelRank(a.level) : 0;
     const rankB = b.level ? levelRank(b.level) : 0;
     if (rankA !== rankB) return rankA - rankB;
+    if (options.soloBeginner && a.soloLevel !== b.soloLevel) return a.soloLevel - b.soloLevel;
     return 0;
   });
   return ranked.slice(0, 3).map(({ id, name }) => ({ id, name }));

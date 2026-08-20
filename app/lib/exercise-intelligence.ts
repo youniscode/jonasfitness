@@ -22,7 +22,9 @@ import {
   difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
+  soloBeginnerLevelFor,
   type MovementPattern,
+  type SoloBeginnerLevel,
 } from "./exercise-catalogue.ts";
 import {
   EXPLICIT_PREFERRED_BONUS,
@@ -104,6 +106,8 @@ export type ExerciseIntelligence = {
   /** 1 = light (accessory) … 3 = heavy systemic fatigue. */
   fatigueCost: Demand;
   beginnerTier: 1 | 2 | 3;
+  /** Execution-complexity for a beginner training alone (NOT medical safety). */
+  soloBeginnerLevel: SoloBeginnerLevel | null;
   goalTags: GoalTag[];
   sessionUse: SessionUse;
   coachingBenefits: string[];
@@ -122,7 +126,7 @@ export type ExerciseIntelligence = {
 // Stored entries omit fields that are derived deterministically from the
 // canonical catalogue (movementPattern, beginnerTier, equipment labels) so the
 // two sources can never drift apart.
-type ExerciseIntelligenceEntry = Omit<ExerciseIntelligence, "movementPattern" | "beginnerTier" | "equipment">;
+type ExerciseIntelligenceEntry = Omit<ExerciseIntelligence, "movementPattern" | "beginnerTier" | "soloBeginnerLevel" | "equipment">;
 
 const intel = (entry: ExerciseIntelligenceEntry): ExerciseIntelligenceEntry => entry;
 
@@ -1104,6 +1108,7 @@ export function exerciseIntelligenceFor(exercise: { id?: string; libraryId?: str
     movementPattern: movementPatternFor({ libraryId: id }),
     equipment: MODALITY_EQUIPMENT[entry.modality],
     beginnerTier: tier ?? 3,
+    soloBeginnerLevel: soloBeginnerLevelFor({ libraryId: id }),
   };
 }
 
