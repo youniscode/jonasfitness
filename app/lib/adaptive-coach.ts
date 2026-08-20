@@ -1045,10 +1045,7 @@ export function applyTrainingContextToDecision(
     }
   }
 
-  // --- Past unresolved: admin context only ---
-  if (ctx.pastUnresolvedSessions && ctx.pastUnresolvedSessions >= 1) {
-    reasons.push(`Attendance needs confirmation for ${ctx.pastUnresolvedSessions} past session${ctx.pastUnresolvedSessions === 1 ? "" : "s"}.`);
-  }
+  // --- Past unresolved: visible at plan/summary level only, not per-exercise ---
 
   // --- Readiness context ---
   if (ctx.readiness?.repeatedLowReadiness && (decision.action === "increase_load" || decision.action === "add_set")) {
@@ -1176,6 +1173,7 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
     if (tc.readiness?.repeatedLowReadiness) contextSummaryItems.push("Repeated low readiness");
     if (tc.adherence?.declining) contextSummaryItems.push("Declining training consistency");
     if (tc.adherence && tc.adherence.missedSessions >= 3) contextSummaryItems.push(`${tc.adherence.missedSessions} missed sessions recently`);
+    if (tc.pastUnresolvedSessions && tc.pastUnresolvedSessions >= 1) contextSummaryItems.push(`Attendance needs confirmation for ${tc.pastUnresolvedSessions} past session${tc.pastUnresolvedSessions === 1 ? "" : "s"}.`);
   }
   for (const decision of decisions) {
     const intel = exerciseIntelligenceFor({ libraryId: decision.libraryId });

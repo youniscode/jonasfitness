@@ -658,7 +658,7 @@ test("V3: muscle inactivity → context reason for add_set and keep_load", () =>
 // SECTION 10: Past unresolved sessions (context reason only, no priority shift)
 // ======================================================================
 
-test("V3: past unresolved sessions add admin context reason, never change priority", () => {
+test("V3: past unresolved sessions do NOT add per-exercise context reason (summary-level only), never change priority", () => {
   const ctx: AdaptiveTrainingContext = { pastUnresolvedSessions: 2 };
   const decision: AdaptiveExerciseDecision = {
     decisionId: "test", libraryId: "builtin-machine-chest-press", exerciseName: "Machine chest press",
@@ -674,7 +674,7 @@ test("V3: past unresolved sessions add admin context reason, never change priori
   };
   const result = applyTrainingContextToDecision(decision, exerciseIntelligenceFor({ libraryId: "builtin-machine-chest-press" }), ctx);
   assert.equal(result.priorityShift, 0, "past unresolved never changes priority");
-  assert.ok(result.contextReasons.some((r) => r.includes("2 past session")), "admin reason present");
+  assert.equal(result.contextReasons.length, 0, "past unresolved does NOT add per-exercise context reason");
 });
 
 // ======================================================================
@@ -1080,21 +1080,17 @@ test("V3: buildTrainingContextFromReport handles multiple muscle groups and sign
 // SECTION 28: Past unresolved sessions with context
 // ======================================================================
 
-test("V3: pastUnresolvedSessions=1 shows singular form in context reason", () => {
-  const ctx: AdaptiveTrainingContext = { pastUnresolvedSessions: 1 };
-  const decision: AdaptiveExerciseDecision = {
-    decisionId: "test", libraryId: "builtin-machine-chest-press", exerciseName: "Machine chest press",
-    sessionIndex: 0, sessionName: "Full Body A", action: "keep", confidence: "high", priority: "info",
-    reasons: [], concerns: [], currentPrescription: { sets: 3, reps: "10-12", rir: 2, restSeconds: 90, targetWeight: 20 },
-    exposureCount: 0, evidence: {
-      completedExposures: 0, rirSamples: [], averageRir: null, targetRir: 2,
-      repPerformance: { averageReps: null, minReps: null, repRange: "10-12" },
-      performanceTrend: "insufficient", discomfortCount: 0, recentDiscomfort: false,
-      notConfidentCount: 0, coachPreference: null, clientPreference: null, onboardingPreference: null,
-      progressionRecommendation: null, equipmentCompatibility: true, replacementReason: null,
-    },
-  };
-  const result = applyTrainingContextToDecision(decision, exerciseIntelligenceFor({ libraryId: "builtin-machine-chest-press" }), ctx);
-  assert.ok(result.contextReasons.some((r) => r.includes("1 past session")), "singular 'session' form");
-  assert.ok(!result.contextReasons.some((r) => r.includes("1 past sessionss")));
+test("V3: pastUnresolvedSessions=1 shows singular form in plan summary, not per-exercise", () => {
+  const ctx = baseContext({ trainingContext: { pastUnresolvedSessions: 1 } });
+  const plan = buildAdaptiveCoachPlan(ctx);
+  // Should NOT appear in any exercise decision's contextReasons
+  for (const d of plan.exerciseDecisions) {
+    if (d.contextReasons) {
+      assert.ok(!d.contextReasons.some((r) => r.includes("past session")), `${d.libraryId} has no per-exercise attendance reason`);
+    }
+  }
+  // Should appear in trainingContextSummary
+  assert.ok(plan.trainingContextSummary, "summary present");
+  assert.ok(plan.trainingContextSummary!.items.some((r) => r.includes("1 past session")), "singular 'session' form in summary");
+  assert.ok(!plan.trainingContextSummary!.items.some((r) => r.includes("1 past sessionss")));
 });
