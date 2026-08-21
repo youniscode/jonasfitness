@@ -158,6 +158,9 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks, profile: data.profile ?? current.profile, nutritionStatus: data.nutritionStatus ?? current.nutritionStatus } : current);
       setShowEdit(false);
       setNotice("Onboarding details saved.");
+      // Notify dependent panels (e.g. Nutrition Guidance) that foundations
+      // changed so they refetch without a full page reload.
+      window.dispatchEvent(new CustomEvent("jonas-onboarding-saved", { detail: { clientId: client.id } }));
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : "Could not save the onboarding details.");
     } finally { setSaving(false); }

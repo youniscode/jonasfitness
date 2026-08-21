@@ -130,6 +130,9 @@ export default function ProgressTracker({ client, onWeightChange }: { client: Cl
       setPreviewWeight("");
       setPreviewBodyFat("");
       await loadBody();
+      // Notify dependent panels (e.g. Nutrition Guidance) that a measurement
+      // was saved so they refetch the canonical current weight.
+      window.dispatchEvent(new CustomEvent("jonas-measurement-saved", { detail: { clientId: client.id } }));
       // Surface the synced roster weight (unchanged for weightless/backdated entries).
       if (typeof result.currentWeight === "number" || result.currentWeight === null) {
         if (result.currentWeight !== client.currentWeight) onWeightChange?.(result.currentWeight);

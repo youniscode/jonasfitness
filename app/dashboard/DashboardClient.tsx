@@ -18,6 +18,7 @@ import CoachNotifications from "./CoachNotifications";
 import JonasCoach from "./JonasCoach";
 import AdaptiveCoach from "./AdaptiveCoach";
 import TrainingLoadRecovery from "./TrainingLoadRecovery";
+import NutritionFoundations from "./NutritionFoundations";
 
 type Client={id:number;name:string;email:string;phone:string;goal:string;sessionsPerWeek:number;currentWeight:number|null;adherence:number;nextCheckIn:string|null;status:string;acquisitionSource:string;onboarding?:{stage:string;label:string};creditBalance?:number};
 type CoachingSession={id:number;clientId:number;clientName:string;startAt:string;durationMinutes:number;status:string;pulsePath:string;readinessLevel:"pending"|"green"|"amber"|"red";readinessScore:number|null;aiSummary:string;coachAction:string;respondedAt:string|null;notes?:string;attendancePending?:boolean};
@@ -60,7 +61,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
   return <main className="dash-shell">{showLiveSession&&selected.id>0&&<LiveSessionMode client={selected} onClose={()=>setShowLiveSession(false)} />}
     <aside className="sidebar">
       <Link className="brand dash-brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link>
-      <nav className="side-nav"><a className="active" href="#overview"><i>⌂</i>Overview</a><a href="#coach-notifications"><i>♢</i>Notifications</a><a href="#leads"><i>◇</i>Leads</a><a href="#clients"><i>◎</i>Clients</a><a href="#acquisition"><i>⌁</i>Sources</a><a href="#programmes"><i>▤</i>Programmes</a><a href="#exercise-history"><i>◫</i>Records</a><a href="#progression"><i>↗</i>Progression</a><a href="#progress"><i>◒</i>Progress</a><a href="#studio"><i>✦</i>AI Studio</a><a href="#calendar"><i>□</i>Calendar</a></nav>
+      <nav className="side-nav"><a className="active" href="#overview"><i>⌂</i>Overview</a><a href="#coach-notifications"><i>♢</i>Notifications</a><a href="#leads"><i>◇</i>Leads</a><a href="#clients"><i>◎</i>Clients</a><a href="#acquisition"><i>⌁</i>Sources</a><a href="#programmes"><i>▤</i>Programmes</a><a href="#exercise-history"><i>◫</i>Records</a><a href="#progression"><i>↗</i>Progression</a><a href="#progress"><i>◒</i>Progress</a><a href="#nutrition"><i>◉</i>Nutrition</a><a href="#studio"><i>✦</i>AI Studio</a><a href="#calendar"><i>□</i>Calendar</a></nav>
       <div className="side-bottom"><span className="coach-avatar">{coachName.slice(0,2).toUpperCase()}</span><div><strong>{coachName}</strong><small>Coach workspace</small></div><UserButton /></div>
     </aside>
     <section className="dash-main" id="overview">
@@ -80,6 +81,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
       <JonasCoach client={selected} />
       <ProgrammeLibrary client={selected} />
       <ProgressTracker client={selected} onWeightChange={weightKg => { setClients(old => old.map(c => c.id === selected.id ? { ...c, currentWeight: weightKg } : c)); setSelected(c => c.id === selected.id ? { ...c, currentWeight: weightKg } : c); }} />
+      <NutritionFoundations client={selected} />
       <OnboardingSummary key={selected.id} client={selected} />
       <ClientWorkoutActivity client={selected} />
       <ExerciseHistory client={selected} />
