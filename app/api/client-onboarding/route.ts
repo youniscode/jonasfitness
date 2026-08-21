@@ -1,18 +1,21 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { clientIntakes, clients, programmes } from "../../../db/schema";
+import { clientBodyMeasurements, clientIntakes, clients, programmes } from "../../../db/schema";
 import { evaluateCoachAuth, getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
 import { publicIntake } from "../../lib/client-dto";
 import {
+  applyNutritionInputs,
   applyTrainingSupervision,
   deriveIntakeFields,
+  nutritionFoundationStatus,
   parseProfile,
   profileFromIntake,
   profileMinimum,
   profileSummary,
   sanitizeProfile,
   TRAINING_SUPERVISIONS,
+  type NutritionInputPatch,
   type OnboardingProfile,
   type TrainingSupervision,
 } from "../../lib/onboarding-profile";
@@ -87,6 +90,22 @@ export async function GET(request: Request) {
     .orderBy(desc(programmes.createdAt)).limit(1);
   const profile = parseProfile(intake?.profile) ?? profileFromIntake(intake ?? null, client);
 
+  // Nutrition Foundations status — deterministic, coach-facing only. Current
+  // weight resolution follows the canonical source policy: latest weight-bearing
+  // client_body_measurements row, then clients.currentWeight, then the
+  // onboarding snapshot. No calories are calculated.
+  const [latestBodyWeight] = await db.select({ weightKg: clientBodyMeasurements.weightKg })
+    .from(clientBodyMeasurements)
+    .where(and(
+      eq(clientBodyMeasurements.clientId, safeClientId),
+      eq(clientBodyMeasurements.ownerId, ownerId),
+      isNotNull(clientBodyMeasurements.weightKg),
+    ))
+    .orderBy(desc(clientBodyMeasurements.measuredAt), desc(clientBodyMeasurements.id)).limit(1);
+  const resolvedWeight = typeof latestBodyWeight?.weightKg === "number"
+    ? latestBodyWeight.weightKg
+    : typeof client.currentWeight === "number" ? client.currentWeight : profile.measurements.weightKg;
+
   return Response.json({
     intake: intake ?? null,
     profile,
@@ -96,6 +115,7 @@ export async function GET(request: Request) {
     checks: onboardingChecks(client, intake ?? null, Boolean(programme), profile),
     // Coach-facing structured summary (compact blocks, not a raw answer dump).
     summary: profileSummary(profile),
+    nutritionStatus: nutritionFoundationStatus(profile, { currentWeightKg: resolvedWeight }),
   });
 }
 
@@ -144,6 +164,15 @@ export async function PATCH(request: Request) {
         canonical,
       );
     }
+  }
+  // Nutrition-foundation fields (demographics, target weight, nutrition
+  // preferences, safety flags) merge field-scoped onto the existing profile,
+  // chained after any supervision merge so both quick actions coexist.
+  if (body.nutritionInputs && typeof body.nutritionInputs === "object") {
+    mergedProfile = applyNutritionInputs(
+      mergedProfile ?? structuredProfile ?? profileFromIntake(existing ?? null, client),
+      body.nutritionInputs as NutritionInputPatch,
+    );
   }
   const mergedDerived = mergedProfile ? deriveIntakeFields(mergedProfile) : null;
 
@@ -203,11 +232,26 @@ export async function PATCH(request: Request) {
     .orderBy(desc(programmes.createdAt)).limit(1);
   const savedProfile = parseProfile(intake.profile) ?? profileFromIntake(intake, client);
 
+  // Same deterministic nutrition-status resolution as the coach GET, so the
+  // dashboard reflects the just-saved profile without a reload.
+  const [latestBodyWeight] = await db.select({ weightKg: clientBodyMeasurements.weightKg })
+    .from(clientBodyMeasurements)
+    .where(and(
+      eq(clientBodyMeasurements.clientId, clientId),
+      eq(clientBodyMeasurements.ownerId, ownerId),
+      isNotNull(clientBodyMeasurements.weightKg),
+    ))
+    .orderBy(desc(clientBodyMeasurements.measuredAt), desc(clientBodyMeasurements.id)).limit(1);
+  const resolvedWeight = typeof latestBodyWeight?.weightKg === "number"
+    ? latestBodyWeight.weightKg
+    : typeof client.currentWeight === "number" ? client.currentWeight : savedProfile.measurements.weightKg;
+
   return Response.json({
     intake,
     profile: savedProfile,
     state: onboardingState(client, intake, Boolean(programme), savedProfile),
     checks: onboardingChecks(client, intake, Boolean(programme), savedProfile),
+    nutritionStatus: nutritionFoundationStatus(savedProfile, { currentWeightKg: resolvedWeight }),
   });
 }
 

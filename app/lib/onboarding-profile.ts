@@ -75,6 +75,54 @@ export const FEEDBACK_STYLES = ["Direct and concise", "Detailed explanations", "
 export const COACH_FOCUS = ["Technique", "Progression", "Consistency", "Motivation", "Nutrition", "Habits", "Accountability"] as const;
 export const NUTRITION_TRACKING = ["No", "Roughly", "Calories", "Calories + macros", "I used to", "I don't want to track"] as const;
 export const EATING_PATTERNS = ["No particular pattern", "Vegetarian", "Vegan", "Halal", "Other"] as const;
+// Nutrition Foundations V1 / Phase 2A — canonical input vocabulary. Stored tokens
+// are language-independent (only DISPLAYED labels are localized in the UI); the
+// future Nutrition Engine may require male/female for Mifflin-St Jeor, so
+// "prefer_not_to_say" must resolve to insufficient_data, never a guess.
+export const SEX_VALUES = ["male", "female", "prefer_not_to_say"] as const;
+export type SexValue = (typeof SEX_VALUES)[number];
+// Explicit nutrition safety gates. These flags NEVER trigger medical
+// calculations — they only gate future automatic Nutrition Guidance pending
+// coach/professional review (see `nutritionGuidanceBlocked`).
+export const NUTRITION_SAFETY_FLAGS = [
+  "minor",
+  "pregnant",
+  "eating_disorder_history",
+  "diabetes",
+  "kidney_disease",
+  "severe_allergy",
+  "therapeutic_diet",
+] as const;
+export type NutritionSafetyFlag = (typeof NUTRITION_SAFETY_FLAGS)[number];
+// English display labels for the Nutrition Foundations canonical tokens. FR/AR
+// labels live inline in the client onboarding UI's translation table; these are
+// the English fallbacks so raw snake_case tokens (e.g. "eating_disorder_history"
+// or "prefer_not_to_say") never surface to an English-speaking client. The
+// canonical stored tokens NEVER change — this map only renders human labels.
+export const NUTRITION_EN_LABELS: Record<string, string> = {
+  // demographics (sex)
+  male: "Male",
+  female: "Female",
+  prefer_not_to_say: "Prefer not to say",
+  // nutrition safety flags
+  minor: "Under 18",
+  pregnant: "Pregnant",
+  eating_disorder_history: "Eating disorder history",
+  diabetes: "Diabetes",
+  kidney_disease: "Kidney disease",
+  severe_allergy: "Severe allergy",
+  therapeutic_diet: "Prescribed / therapeutic diet",
+};
+// Conservative bounds for the nutrition-input fields. The age bound is a
+// plausible human range (13+): an explicitly stated minor age is preserved so
+// the safety gate (never the sanitizer) blocks < 18 guidance.
+export const AGE_MIN = 13;
+export const AGE_MAX = 100;
+export const MEALS_PER_DAY_MIN = 1;
+export const MEALS_PER_DAY_MAX = 10;
+export const FOOD_LIST_ITEM_MAX = 40;
+export const FOOD_LIST_MAX = 20;
+export const NUTRITION_SAFETY_NOTE_MAX = 1000;
 // Canonical coaching formats used by the public application and carried into
 // the client's onboarding as coaching context (never conflated with venue).
 export const COACHING_FORMATS = ["Online", "In person", "Hybrid", "To discuss"] as const;
@@ -120,7 +168,7 @@ export const EXERCISE_REACTIONS = ["Like", "Neutral", "Dislike", "Not sure"] as 
 
 export type OnboardingProfile = {
   version: 2;
-  goals: { primary: string; secondary: string[]; note: string };
+  goals: { primary: string; secondary: string[]; note: string; targetWeightKg: number | null };
   timeline: { targetDate: string; targetDateValue: string; importance: number | null };
   experience: { level: string; years: string; used: string[] };
   confidence: { alone: string; help: string[] };
@@ -136,15 +184,32 @@ export type OnboardingProfile = {
   // "From your application" marker: which fields were seeded from the public
   // application so the client sees they were carried forward (and can correct).
   prefillSource: string[];
-  nutrition: { tracking: string; pattern: string; note: string };
+  nutrition: {
+    tracking: string;
+    pattern: string;
+    note: string;
+    // Nutrition Foundations V1 / Phase 2A — explicit inputs only, never
+    // inferred from free text. Bounded string lists (allergies / intolerances /
+    // disliked foods) and a meals-per-day count for normal coaching use.
+    allergies: string[];
+    intolerances: string[];
+    dislikedFoods: string[];
+    mealsPerDay: number | null;
+  };
   measurements: { heightCm: number | null; weightKg: number | null; waistCm: number | null };
   openNote: string;
+  // Demographics (explicit, optional): the future engine's Mifflin-St Jeor
+  // inputs. Never inferred from anything else.
+  demographics: { ageYears: number | null; sex: string };
+  // Explicit safety gates (see NUTRITION_SAFETY_FLAGS). They only gate future
+  // automatic nutrition guidance — they are NOT medical calculations.
+  nutritionSafety: { flags: string[]; note: string };
 };
 
 export function emptyProfile(): OnboardingProfile {
   return {
     version: 2,
-    goals: { primary: "", secondary: [], note: "" },
+    goals: { primary: "", secondary: [], note: "", targetWeightKg: null },
     timeline: { targetDate: "", targetDateValue: "", importance: null },
     experience: { level: "", years: "", used: [] },
     confidence: { alone: "", help: [] },
@@ -157,10 +222,12 @@ export function emptyProfile(): OnboardingProfile {
     recovery: { sleepHours: "", sleepQuality: null, stress: null, recovery: "" },
     motivation: { drivers: [], barriers: [] },
     coaching: { accountability: "", feedback: "", focus: [], coachingFormat: "" },
-    nutrition: { tracking: "", pattern: "", note: "" },
+    nutrition: { tracking: "", pattern: "", note: "", allergies: [], intolerances: [], dislikedFoods: [], mealsPerDay: null },
     measurements: { heightCm: null, weightKg: null, waistCm: null },
     prefillSource: [],
     openNote: "",
+    demographics: { ageYears: null, sex: "" },
+    nutritionSafety: { flags: [], note: "" },
   };
 }
 
@@ -175,7 +242,33 @@ const numberIn = (value: unknown, min: number, max: number): number | null => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : null;
 };
+// Whole-number variant for fields that are semantically counts/years (age,
+// meals per day): fractional or non-numeric input is rejected, never rounded.
+const intIn = (value: unknown, min: number, max: number): number | null => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+};
 const clampId = (value: unknown, limit = 120) => /^[a-z0-9-]+$/i.test(text(value, limit)) ? text(value, limit) : "";
+// Bounded explicit food/ingredient list: accepts an array of strings or a
+// comma/newline/semicolon-separated string (coach textarea), trims each item,
+// dedupes case-insensitively, caps item length and total count. Array entries
+// are split on the same separators so a payload can never smuggle a multi-item
+// blob into one slot. Never inferred.
+const foodList = (value: unknown): string[] => {
+  const raw = Array.isArray(value)
+    ? value.flatMap((entry) => String(entry).split(/[,\n;]/))
+    : typeof value === "string" ? value.split(/[,\n;]/) : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const entry of raw) {
+    const item = String(entry).trim().slice(0, FOOD_LIST_ITEM_MAX);
+    const key = item.toLowerCase();
+    if (!item || seen.has(key) || result.length >= FOOD_LIST_MAX) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+};
 
 export function isProfileEmpty(profile: OnboardingProfile): boolean {
   const json = JSON.stringify(profile);
@@ -196,6 +289,7 @@ export function sanitizeProfile(input: unknown): OnboardingProfile {
   // re-save instead of being dropped by sanitization.
   profile.goals.secondary = manyOf(record(source.goals).secondary, SECONDARY_GOAL_VALUES);
   profile.goals.note = text(record(source.goals).note, 500);
+  profile.goals.targetWeightKg = numberIn(record(source.goals).targetWeightKg, 25, 400);
   const timeline = record(source.timeline);
   profile.timeline.targetDate = oneOf(timeline.targetDate, TARGET_DATES);
   profile.timeline.targetDateValue = text(timeline.targetDateValue, 10);
@@ -254,10 +348,24 @@ export function sanitizeProfile(input: unknown): OnboardingProfile {
   profile.nutrition.tracking = oneOf(nutrition.tracking, NUTRITION_TRACKING);
   profile.nutrition.pattern = oneOf(nutrition.pattern, EATING_PATTERNS);
   profile.nutrition.note = text(nutrition.note, 500);
+  // Nutrition Foundations V1 / Phase 2A — strict, explicit, bounded. Unknown
+  // safety flags are dropped (same convention as every other canonical set).
+  profile.nutrition.allergies = foodList(nutrition.allergies);
+  profile.nutrition.intolerances = foodList(nutrition.intolerances);
+  profile.nutrition.dislikedFoods = foodList(nutrition.dislikedFoods);
+  profile.nutrition.mealsPerDay = intIn(nutrition.mealsPerDay, MEALS_PER_DAY_MIN, MEALS_PER_DAY_MAX);
   const measurements = record(source.measurements);
   profile.measurements.heightCm = numberIn(measurements.heightCm, 100, 250);
   profile.measurements.weightKg = numberIn(measurements.weightKg, 25, 400);
   profile.measurements.waistCm = numberIn(measurements.waistCm, 40, 250);
+  const demographics = record(source.demographics);
+  profile.demographics.ageYears = intIn(demographics.ageYears, AGE_MIN, AGE_MAX);
+  profile.demographics.sex = oneOf(demographics.sex, SEX_VALUES);
+  const nutritionSafety = record(source.nutritionSafety);
+  // Deduped set: duplicate flag claims are meaningless and must not inflate the
+  // gate reasons list.
+  profile.nutritionSafety.flags = [...new Set(manyOf(nutritionSafety.flags, NUTRITION_SAFETY_FLAGS))];
+  profile.nutritionSafety.note = text(nutritionSafety.note, NUTRITION_SAFETY_NOTE_MAX);
   profile.openNote = text(source.openNote, 1000);
   return profile;
 }
@@ -295,6 +403,48 @@ export function applyTrainingSupervision(
   // over verbatim — a re-sanitization here would silently re-filter fields that
   // the coach modal does not even display, which is exactly what we must avoid.
   const merged: OnboardingProfile = { ...base, trainingSupervision: canonical };
+  return isProfileEmpty(merged) ? null : merged;
+}
+
+// ---------- coach modal merge: nutrition inputs into the stored profile ----------
+//
+// Same field-scoped merge contract as `applyTrainingSupervision`: starts from
+// the client's EXISTING structured profile (or a legacy synthesis) and only
+// rewrites the nutrition-foundation fields the coach modal displays, so no
+// unrelated structured data can ever be erased by a modal save. Absent keys are
+// left untouched; present keys are sanitized against the canonical vocabularies.
+// Legacy profiles with missing sections simply render their defaults.
+export type NutritionInputPatch = {
+  demographics?: { ageYears?: unknown; sex?: unknown };
+  targetWeightKg?: unknown;
+  nutrition?: { allergies?: unknown; intolerances?: unknown; dislikedFoods?: unknown; mealsPerDay?: unknown };
+  nutritionSafety?: { flags?: unknown; note?: unknown };
+};
+
+export function applyNutritionInputs(
+  current: OnboardingProfile | null,
+  patch: NutritionInputPatch | null | undefined,
+): OnboardingProfile | null {
+  const base = current ?? emptyProfile();
+  const merged: OnboardingProfile = {
+    ...base,
+    demographics: { ...base.demographics },
+    nutrition: { ...base.nutrition },
+    nutritionSafety: { ...base.nutritionSafety },
+    goals: { ...base.goals },
+  };
+  const demographics = record(patch?.demographics);
+  if (demographics.ageYears !== undefined) merged.demographics.ageYears = intIn(demographics.ageYears, AGE_MIN, AGE_MAX);
+  if (demographics.sex !== undefined) merged.demographics.sex = oneOf(demographics.sex, SEX_VALUES);
+  if (patch?.targetWeightKg !== undefined) merged.goals.targetWeightKg = numberIn(patch.targetWeightKg, 25, 400);
+  const nutrition = record(patch?.nutrition);
+  if (nutrition.allergies !== undefined) merged.nutrition.allergies = foodList(nutrition.allergies);
+  if (nutrition.intolerances !== undefined) merged.nutrition.intolerances = foodList(nutrition.intolerances);
+  if (nutrition.dislikedFoods !== undefined) merged.nutrition.dislikedFoods = foodList(nutrition.dislikedFoods);
+  if (nutrition.mealsPerDay !== undefined) merged.nutrition.mealsPerDay = intIn(nutrition.mealsPerDay, MEALS_PER_DAY_MIN, MEALS_PER_DAY_MAX);
+  const nutritionSafety = record(patch?.nutritionSafety);
+  if (nutritionSafety.flags !== undefined) merged.nutritionSafety.flags = [...new Set(manyOf(nutritionSafety.flags, NUTRITION_SAFETY_FLAGS))];
+  if (nutritionSafety.note !== undefined) merged.nutritionSafety.note = text(nutritionSafety.note, NUTRITION_SAFETY_NOTE_MAX);
   return isProfileEmpty(merged) ? null : merged;
 }
 
@@ -424,6 +574,72 @@ export function isSoloBeginner(profile: OnboardingProfile): boolean {
   return alone === "Not confident" || alone === "A little confident";
 }
 
+// ---------- Nutrition Foundations V1 / Phase 2A — pure gates ----------
+//
+// These helpers only GATE future automatic Nutrition Guidance. They never
+// calculate, diagnose or recommend treatment — a flagged client simply requires
+// coach/professional review before any automated nutrition-target generation
+// (which does not exist yet; Phase 2B will consume these).
+
+export type NutritionGuidanceBlock = { blocked: boolean; reasons: string[] };
+
+/**
+ * Deterministic safety gate: ANY explicit safety flag blocks automated
+ * nutrition-target generation, and an explicitly stated ageYears < 18 blocks it
+ * even when the "minor" flag was omitted (pediatric guidance is never
+ * auto-generated). Reasons are the canonical flag tokens (deduped).
+ */
+export function nutritionGuidanceBlocked(profile: OnboardingProfile): NutritionGuidanceBlock {
+  const reasons: string[] = [];
+  for (const flag of NUTRITION_SAFETY_FLAGS) {
+    if (profile.nutritionSafety.flags.includes(flag) && !reasons.includes(flag)) reasons.push(flag);
+  }
+  if (profile.demographics.ageYears !== null && profile.demographics.ageYears < 18 && !reasons.includes("minor")) {
+    reasons.push("minor");
+  }
+  return { blocked: reasons.length > 0, reasons };
+}
+
+export type NutritionFoundationStatus = {
+  status: "ready" | "missing_inputs" | "review_required";
+  /** Deterministic missing-input codes (empty when ready or review_required). */
+  missing: string[];
+  /** Deterministic block reason codes (empty unless review_required). */
+  blockedReasons: string[];
+};
+
+/**
+ * Deterministic foundation readiness for the future engine. NO calories are
+ * calculated. `options.currentWeightKg` is the caller-resolved canonical current
+ * weight (latest client_body_measurements weight, falling back to
+ * clients.currentWeight, then the onboarding snapshot); when omitted the
+ * onboarding snapshot is used so the helper stays pure and testable. A safety
+ * block takes priority over missing inputs.
+ */
+export function nutritionFoundationStatus(
+  profile: OnboardingProfile,
+  options?: { currentWeightKg?: number | null },
+): NutritionFoundationStatus {
+  const block = nutritionGuidanceBlocked(profile);
+  if (block.blocked) return { status: "review_required", missing: [], blockedReasons: block.reasons };
+  const missing: string[] = [];
+  if (profile.demographics.ageYears === null) missing.push("missing_age");
+  if (profile.demographics.sex === "") missing.push("missing_sex");
+  else if (profile.demographics.sex === "prefer_not_to_say") missing.push("insufficient_sex");
+  if (profile.measurements.heightCm === null) missing.push("missing_height");
+  const currentWeightKg = options && options.currentWeightKg !== undefined
+    ? options.currentWeightKg
+    : profile.measurements.weightKg;
+  if (currentWeightKg === null || currentWeightKg === undefined) missing.push("missing_weight");
+  if (profile.lifestyle.activity === "") missing.push("missing_activity");
+  if (profile.goals.primary === "") missing.push("missing_goal");
+  return {
+    status: missing.length ? "missing_inputs" : "ready",
+    missing,
+    blockedReasons: [],
+  };
+}
+
 // ---------- compact coach-facing summary (not a raw answer dump) ----------
 
 export type ProfileSummaryBlock = { section: string; lines: string[] };
@@ -461,9 +677,34 @@ export function profileSummary(profile: OnboardingProfile): ProfileSummaryBlock[
   if (recovery.length) blocks.push({ section: "Recovery", lines: recovery });
   const coaching = [profile.coaching.accountability, profile.coaching.feedback, profile.coaching.focus.length ? `Focus: ${profile.coaching.focus.join(", ")}` : "", profile.coaching.coachingFormat ? `Format: ${profile.coaching.coachingFormat}` : ""].filter(Boolean);
   if (coaching.length) blocks.push({ section: "Coaching", lines: coaching });
-  const nutrition = [profile.nutrition.tracking, profile.nutrition.pattern].filter(Boolean);
+  const nutrition = [
+    profile.nutrition.tracking,
+    profile.nutrition.pattern,
+    profile.goals.targetWeightKg !== null ? `Target weight: ${profile.goals.targetWeightKg} kg` : "",
+    profile.nutrition.mealsPerDay !== null ? `Meals per day: ${profile.nutrition.mealsPerDay}` : "",
+    profile.nutrition.allergies.length ? `Allergies: ${profile.nutrition.allergies.join(", ")}` : "",
+    profile.nutrition.intolerances.length ? `Intolerances: ${profile.nutrition.intolerances.join(", ")}` : "",
+  ].filter(Boolean);
   if (nutrition.length) blocks.push({ section: "Nutrition", lines: nutrition });
+  const demographics = [
+    profile.demographics.ageYears !== null ? `Age: ${profile.demographics.ageYears}` : "",
+    profile.demographics.sex ? `Sex: ${sexCoachLabel(profile.demographics.sex)}` : "",
+  ].filter(Boolean);
+  if (demographics.length) blocks.push({ section: "Demographics", lines: demographics });
+  // Coach-facing safety status only — no medical inference. Absent when clear.
+  const safetyBlock = nutritionGuidanceBlocked(profile);
+  if (safetyBlock.blocked) {
+    blocks.push({ section: "Nutrition safety", lines: [`Review required (${safetyBlock.reasons.join(", ")})`] });
+  }
   return blocks;
+}
+
+/** Coach-facing English descriptor for a stored sex token (never the raw token). */
+export function sexCoachLabel(value: string): string {
+  if (value === "male") return "Male";
+  if (value === "female") return "Female";
+  if (value === "prefer_not_to_say") return "Prefer not to say";
+  return "";
 }
 
 // ---------- application → client structured prefill ----------

@@ -19,7 +19,7 @@ import {
 function soloBeginnerProfile(overrides?: Partial<{ experience: string; confidenceAlone: string; trainingSupervision: "" | "alone" | "coach" | "mixed" }>): OnboardingProfile {
   return {
     version: 2,
-    goals: { primary: "Build muscle", secondary: [], note: "" },
+    goals: { primary: "Build muscle", secondary: [], note: "", targetWeightKg: null },
     timeline: { targetDate: "", targetDateValue: "", importance: null },
     experience: { level: overrides?.experience ?? "Beginner", years: "", used: [] },
     confidence: { alone: overrides?.confidenceAlone ?? "Not confident", help: [] },
@@ -32,10 +32,12 @@ function soloBeginnerProfile(overrides?: Partial<{ experience: string; confidenc
     recovery: { sleepHours: "", sleepQuality: null, stress: null, recovery: "" },
     motivation: { drivers: [], barriers: [] },
     coaching: { accountability: "", feedback: "", focus: [], coachingFormat: "" },
-    nutrition: { tracking: "", pattern: "", note: "" },
+    nutrition: { tracking: "", pattern: "", note: "", allergies: [], intolerances: [], dislikedFoods: [], mealsPerDay: null },
     measurements: { heightCm: null, weightKg: null, waistCm: null },
     prefillSource: [],
     openNote: "",
+    demographics: { ageYears: null, sex: "" },
+    nutritionSafety: { flags: [], note: "" },
   };
 }
 

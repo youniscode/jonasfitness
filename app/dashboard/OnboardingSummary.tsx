@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { isPositiveInt } from "../lib/query-params";
 import {
+  NUTRITION_SAFETY_FLAGS,
+  SEX_VALUES,
   TRAINING_SUPERVISIONS,
   supervisionLabelFor,
   type OnboardingProfile,
@@ -14,7 +16,24 @@ type Intake = { preferredLanguage: string; trainingExperience: string; availabil
 type ProfileBlock = { section: string; lines: string[] };
 type Programme = { id: number; title: string; status: string } | null;
 type State = { stage: string; label: string; nextAction: string; missingRequired: string[]; readiness: "noted" | "needs_review" | "ok" };
-type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[]; profile?: OnboardingProfile | null };
+type NutritionStatus = { status: "ready" | "missing_inputs" | "review_required"; missing: string[]; blockedReasons: string[] };
+type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[]; profile?: OnboardingProfile | null; nutritionStatus?: NutritionStatus };
+
+// Deterministic coach-facing labels for the missing-input codes returned by
+// `nutritionFoundationStatus`. No calories are ever shown here.
+const MISSING_LABELS: Record<string, string> = {
+  missing_age: "Age",
+  missing_sex: "Sex",
+  insufficient_sex: "Sex (prefer not to say)",
+  missing_height: "Height",
+  missing_weight: "Current weight",
+  missing_activity: "Activity level",
+  missing_goal: "Goal",
+};
+
+function safetyFlagLabel(flag: string): string {
+  return flag.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const experienceOptions = ["Beginner", "Intermediate", "Advanced", "Experienced"];
 
@@ -92,6 +111,29 @@ export default function OnboardingSummary({ client }: { client: Client }) {
     setNotice("");
     setError("");
     const form = new FormData(event.currentTarget);
+    const numberOrNull = (value: FormDataEntryValue | null): number | null => {
+      const raw = String(value ?? "").trim();
+      if (raw === "") return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const nutritionInputs = {
+      demographics: {
+        ageYears: numberOrNull(form.get("ageYears")),
+        sex: String(form.get("sex") ?? ""),
+      },
+      targetWeightKg: numberOrNull(form.get("targetWeightKg")),
+      nutrition: {
+        allergies: String(form.get("allergies") ?? ""),
+        intolerances: String(form.get("intolerances") ?? ""),
+        dislikedFoods: String(form.get("dislikedFoods") ?? ""),
+        mealsPerDay: numberOrNull(form.get("mealsPerDay")),
+      },
+      nutritionSafety: {
+        flags: form.getAll("nutritionSafetyFlag").map(String),
+        note: String(form.get("nutritionSafetyNote") ?? ""),
+      },
+    };
     const payload = {
       clientId: client.id,
       preferredLanguage: form.get("preferredLanguage"),
@@ -103,6 +145,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       trainingConsiderations: form.get("trainingConsiderations"),
       coachNotes: form.get("coachNotes"),
       readinessReviewed: form.get("readinessReviewed") === "on",
+      nutritionInputs,
     };
     try {
       const response = await fetch("/api/client-onboarding", {
@@ -112,7 +155,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not save the onboarding details.");
-      setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks, profile: data.profile ?? current.profile } : current);
+      setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks, profile: data.profile ?? current.profile, nutritionStatus: data.nutritionStatus ?? current.nutritionStatus } : current);
       setShowEdit(false);
       setNotice("Onboarding details saved.");
     } catch (issue) {
@@ -151,6 +194,16 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       {state.readiness === "needs_review" && <button type="button" className="onboarding-review-button" disabled={saving} onClick={() => void markReadinessReviewed()}>{saving ? "Saving…" : "Mark readiness reviewed ✓"}</button>}
     </div>
 
+    <div className={`onboarding-nutrition-status ${payload.nutritionStatus?.status ?? "missing_inputs"}`}>
+      <div><p>NUTRITION FOUNDATIONS</p>
+        {payload.nutritionStatus?.status === "ready"
+          ? <><strong>Ready for calculation</strong><span>All inputs required for nutrition targets are present. No targets are generated yet.</span></>
+          : payload.nutritionStatus?.status === "review_required"
+            ? <><strong>Professional review required</strong><span>Automatic nutrition-target generation is blocked pending coach review: {payload.nutritionStatus.blockedReasons.map(safetyFlagLabel).join(", ")}. These flags only gate future automated guidance — they are not a diagnosis.</span></>
+            : <><strong>Missing inputs</strong><span>{(payload.nutritionStatus?.missing ?? []).map((code) => MISSING_LABELS[code] ?? code).join(" · ") || "Fill the nutrition foundations below to enable calculation."}</span></>}
+      </div>
+    </div>
+
     <div className="onboarding-programme">
       <div><p>PROGRAMME</p>
         {programme ? <><strong>{programme.title}</strong><span>Assigned · live in the client&apos;s portal — the client can start training.</span></>
@@ -176,6 +229,19 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       <label>Equipment / gym access<input name="equipment" defaultValue={intake?.equipment ?? ""} placeholder="Full gym, home dumbbells…" /></label>
       <label>Goal and priorities<textarea name="goalsDetail" defaultValue={intake?.goalsDetail ?? ""} placeholder="What the client wants to build, improve or change." /></label>
       <label>Injuries / limitations<textarea name="trainingConsiderations" defaultValue={intake?.trainingConsiderations ?? ""} placeholder="Current discomfort, limitations, movements to avoid…" /><small>Coach-facing record. The client portal never shows these notes.</small></label>
+      <p className="nutrition-modal-heading">NUTRITION FOUNDATIONS</p>
+      <div className="nutrition-modal-grid">
+        <label>Age (years)<input name="ageYears" type="number" min={13} max={100} defaultValue={payload.profile?.demographics.ageYears ?? ""} placeholder="—" /></label>
+        <label>Sex<select name="sex" defaultValue={payload.profile?.demographics.sex ?? ""}><option value="">—</option>{SEX_VALUES.map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}</select></label>
+        <label>Target weight (kg)<input name="targetWeightKg" type="number" min={25} max={400} step="0.1" defaultValue={payload.profile?.goals.targetWeightKg ?? ""} placeholder="—" /></label>
+        <label>Meals per day<input name="mealsPerDay" type="number" min={1} max={10} defaultValue={payload.profile?.nutrition.mealsPerDay ?? ""} placeholder="—" /></label>
+      </div>
+      <label>Allergies<textarea name="allergies" defaultValue={payload.profile?.nutrition.allergies.join(", ") ?? ""} placeholder="Peanuts, shellfish… — comma separated" /></label>
+      <label>Intolerances<textarea name="intolerances" defaultValue={payload.profile?.nutrition.intolerances.join(", ") ?? ""} placeholder="Lactose, gluten… — comma separated" /></label>
+      <label>Foods the client dislikes<textarea name="dislikedFoods" defaultValue={payload.profile?.nutrition.dislikedFoods.join(", ") ?? ""} placeholder="Comma separated" /></label>
+      <label className="nutrition-safety-label">Nutrition safety flags<small>Check any that apply. These only gate future automated nutrition guidance — they never generate targets without coach review.</small></label>
+      <div className="nutrition-flag-grid">{NUTRITION_SAFETY_FLAGS.map((flag) => <label className="nutrition-flag" key={flag}><input name="nutritionSafetyFlag" type="checkbox" value={flag} defaultChecked={Boolean(payload.profile?.nutritionSafety.flags.includes(flag))} /> <span>{safetyFlagLabel(flag)}</span></label>)}</div>
+      <label>Nutrition safety note<textarea name="nutritionSafetyNote" defaultValue={payload.profile?.nutritionSafety.note ?? ""} placeholder="Context the coach should keep in mind…" /><small>Coach-facing record. Not a diagnosis.</small></label>
       <label>Private coach notes<textarea name="coachNotes" defaultValue={intake?.coachNotes ?? ""} placeholder="Fit, objections, context for future programming…" /><small>Never shown to the client.</small></label>
       <label className="onboarding-consent"><input name="readinessReviewed" type="checkbox" defaultChecked={Boolean(intake?.readinessReviewedAt)} /> <span>Readiness reviewed — limitations assessed before programme assignment</span></label>
       {error && <p className="form-error" role="alert">{error}</p>}
