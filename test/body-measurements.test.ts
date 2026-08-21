@@ -422,3 +422,36 @@ test("latestWeightForSync returns correct weight after hypothetical edit", () =>
   ];
   assert.equal(latestWeightForSync(edited), 85, "after edit, latest weight is 85");
 });
+
+// ---------- Regression: no literal \u escapes in ProgressTracker UI ----------
+// JSX text nodes do NOT process \u escapes — they render as literal text.
+// All Unicode characters in ProgressTracker.tsx must use the actual character
+// (imported as constants) or be inside JS string expressions {"..."}.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+test("ProgressTracker.tsx must not contain literal backslash-u escape sequences in JSX text", () => {
+  const src = readFileSync(join(import.meta.dirname ?? __dirname, "..", "app", "dashboard", "ProgressTracker.tsx"), "utf8");
+  // Filter out legitimate JS string literals (inside quotes or template expressions).
+  // Only flag escapes that appear in raw JSX text (not inside quotes).
+  const lines = src.split("\n");
+  const violations: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Simple heuristic: if a line has \u but is NOT inside a JS string (no surrounding quotes on that token), flag it.
+    // More precisely: find backslash-u not preceded by a quote character on the same line context.
+    const lineMatches = [...line.matchAll(/\\u([0-9a-fA-F]{4})/g)];
+    for (const m of lineMatches) {
+      const before = line.slice(0, m.index);
+      // Count unescaped double-quotes before this position.
+      let inString = false;
+      for (let j = 0; j < before.length; j++) {
+        if (before[j] === '"' && (j === 0 || before[j - 1] !== '\\' )) inString = !inString;
+      }
+      if (!inString) {
+        violations.push(`Line ${i + 1}: literal \\u${m[1]} found in JSX text`);
+      }
+    }
+  }
+  assert.deepEqual(violations, [], "Found literal backslash-u escapes in JSX text — use the actual Unicode character or a JS string expression instead.");
+});

@@ -73,6 +73,15 @@ const METRIC_FIELDS: MetricField[] = [
   { key: "thighCm", label: "Thigh", unit: "cm", fieldKey: "thighCm" },
 ];
 
+// Unicode characters used in JSX text (JSX text nodes do NOT process \u escapes).
+const EM_DASH = "\u2014";
+const MIDDLE_DOT = "\u00b7";
+const ELLIPSIS = "\u2026";
+const RIGHT_ARROW = "\u2192";
+const TIMES = "\u00d7";
+const LDQUOTE = "\u201c";
+const RDQUOTE = "\u201d";
+
 export default function ProgressTracker({ client, onWeightChange }: { client: Client; onWeightChange?: (weightKg: number | null) => void }) {
   const [entries, setEntries] = useState<Entry[]>([]); const [loading, setLoading] = useState(false); const [error, setError] = useState("");
   async function load() { if (client.id < 1) { setEntries([]); return; } setLoading(true); const response = await fetch(`/api/progress?clientId=${client.id}`); const result = await response.json().catch(() => ({})); if (!response.ok) setError(result.error ?? "Progress could not be loaded."); else { setEntries(result.entries ?? []); setError(""); } setLoading(false); }
@@ -212,18 +221,18 @@ export default function ProgressTracker({ client, onWeightChange }: { client: Cl
     return (
       <div className="composition-metric" key={mf.label}>
         <span>{mf.label}</span>
-        <b>{val !== null ? `${val} ${mf.unit}` : "\u2014"}</b>
-        <em>{delta.change !== null ? `${delta.change > 0 ? "+" : ""}${delta.change} ${mf.unit} vs previous` : (dateLabel ? `as of ${dateLabel}` : "\u2014")}</em>
+        <b>{val !== null ? `${val} ${mf.unit}` : EM_DASH}</b>
+        <em>{delta.change !== null ? `${delta.change > 0 ? "+" : ""}${delta.change} ${mf.unit} vs previous` : (dateLabel ? `as of ${dateLabel}` : EM_DASH)}</em>
       </div>
     );
   };
 
-  return <section className="progress-tracker" id="progress"><div className="progress-heading"><div><p>CLIENT PROGRESS</p><h2>Measure what matters.</h2><span>Weekly updates, measurements and photos from {client.name}.</span></div><div><Link className="refresh-button" href={client.id > 0 ? `/client?preview=${client.id}` : "/client"}>Preview portal</Link><button className="refresh-button" onClick={load}>{loading ? "Loading\u2026" : "Refresh"}</button></div></div>
-    {client.id < 1 ? <div className="progress-empty"><strong>Choose a saved client to review real progress.</strong><span>Demo clients do not have a private portal or progress history.</span></div> : error ? <div className="progress-empty"><strong>Progress is not available yet.</strong><span>{error}</span></div> : entries.length === 0 ? <div className="progress-empty"><strong>{client.name} has not shared a weekly update yet.</strong><span>Use \u201cPreview portal\u201d to see the client experience, then share your client portal link.</span></div> : <div className="coach-progress-layout"><article className="coach-chart-card"><p>LATEST CHECK-IN</p><div className="coach-chart-metrics"><strong>{latest.weight ? `${latest.weight} kg` : "Check-in"}</strong><span>{change ? `${Number(change) > 0 ? "+" : ""}${change} kg since first update` : `Submitted ${new Date(latest.createdAt).toLocaleDateString()}`}</span></div><CoachChart entries={weightedEntries} /><div className="coach-score-row"><span>Energy <b>{latest.energy}/10</b></span><span>Sleep <b>{latest.sleep}/10</b></span><span>Adherence <b>{latest.adherence}%</b></span></div></article><article className="coach-measure-card"><p>MEASUREMENTS \u00b7 LATEST</p><div>{metric("Waist", latest.waist)}{metric("Chest", latest.chest)}{metric("Hips", latest.hips)}{metric("Arm", latest.arm)}{metric("Thigh", latest.thigh)}</div><small>{latest.notes || "No note was included with this update."}</small></article><article className="coach-photo-card"><p>RECENT PROGRESS PHOTO</p>{latest.photoData ? <img src={latest.photoData} alt={`${client.name} progress update`} /> : <div className="no-photo">No photo shared</div>}<span>{new Date(latest.createdAt).toLocaleDateString()}</span></article></div>}
+  return <section className="progress-tracker" id="progress"><div className="progress-heading"><div><p>CLIENT PROGRESS</p><h2>Measure what matters.</h2><span>Weekly updates, measurements and photos from {client.name}.</span></div><div><Link className="refresh-button" href={client.id > 0 ? `/client?preview=${client.id}` : "/client"}>Preview portal</Link><button className="refresh-button" onClick={load}>{loading ? `Loading${ELLIPSIS}` : "Refresh"}</button></div></div>
+    {client.id < 1 ? <div className="progress-empty"><strong>Choose a saved client to review real progress.</strong><span>Demo clients do not have a private portal or progress history.</span></div> : error ? <div className="progress-empty"><strong>Progress is not available yet.</strong><span>{error}</span></div> : entries.length === 0 ? <div className="progress-empty"><strong>{client.name} has not shared a weekly update yet.</strong><span>Use {LDQUOTE}Preview portal{RDQUOTE} to see the client experience, then share your client portal link.</span></div> : <div className="coach-progress-layout"><article className="coach-chart-card"><p>LATEST CHECK-IN</p><div className="coach-chart-metrics"><strong>{latest.weight ? `${latest.weight} kg` : "Check-in"}</strong><span>{change ? `${Number(change) > 0 ? "+" : ""}${change} kg since first update` : `Submitted ${new Date(latest.createdAt).toLocaleDateString()}`}</span></div><CoachChart entries={weightedEntries} /><div className="coach-score-row"><span>Energy <b>{latest.energy}/10</b></span><span>Sleep <b>{latest.sleep}/10</b></span><span>Adherence <b>{latest.adherence}%</b></span></div></article><article className="coach-measure-card"><p>{`MEASUREMENTS ${MIDDLE_DOT} LATEST`}</p><div>{metric("Waist", latest.waist)}{metric("Chest", latest.chest)}{metric("Hips", latest.hips)}{metric("Arm", latest.arm)}{metric("Thigh", latest.thigh)}</div><small>{latest.notes || "No note was included with this update."}</small></article><article className="coach-photo-card"><p>RECENT PROGRESS PHOTO</p>{latest.photoData ? <img src={latest.photoData} alt={`${client.name} progress update`} /> : <div className="no-photo">No photo shared</div>}<span>{new Date(latest.createdAt).toLocaleDateString()}</span></article></div>}
 
     <div className="body-composition">
-      <div className="body-composition-heading"><div><p>BODY COMPOSITION</p><h3>Dedicated measurement history.</h3><span>Coach-recorded body measurements, separate from weekly progress updates. Missing values stay missing \u2014 nothing is shown as zero.</span></div><div><button className="refresh-button" disabled={client.id < 1 || saving} onClick={() => { setFormError(""); setPreviewWeight(""); setPreviewBodyFat(""); setEditMeasurement(null); setShowBodyForm(true); }}>Add measurement</button></div></div>
-      {bodyLoading && measurements.length === 0 ? <div className="progress-empty"><strong>Loading body composition\u2026</strong></div>
+      <div className="body-composition-heading"><div><p>BODY COMPOSITION</p><h3>Dedicated measurement history.</h3><span>{`Coach-recorded body measurements, separate from weekly progress updates. Missing values stay missing ${EM_DASH} nothing is shown as zero.`}</span></div><div><button className="refresh-button" disabled={client.id < 1 || saving} onClick={() => { setFormError(""); setPreviewWeight(""); setPreviewBodyFat(""); setEditMeasurement(null); setShowBodyForm(true); }}>Add measurement</button></div></div>
+      {bodyLoading && measurements.length === 0 ? <div className="progress-empty"><strong>{`Loading body composition${ELLIPSIS}`}</strong></div>
         : client.id < 1 ? <div className="composition-empty"><strong>Choose a saved client.</strong><span>Demo clients do not have a body-composition ledger.</span></div>
           : bodyError ? <div className="composition-empty"><strong>Body composition is not available yet.</strong><span>{bodyError}</span></div>
             : measurements.length === 0 ? <div className="composition-empty"><strong>No body measurements recorded yet.</strong><span>Record the first measurement for {client.name} to start the history.</span></div>
@@ -235,38 +244,48 @@ export default function ProgressTracker({ client, onWeightChange }: { client: Cl
                     <div className="composition-grid">
                       <div className="composition-metric">
                         <span>{summaryLeanMass.estimated ? "Est. lean mass" : "Lean mass"}</span>
-                        <b>{summaryLeanMass.value !== null ? `${summaryLeanMass.value} kg` : "\u2014"}</b>
-                        <em>{summaryLeanMass.estimated ? "Estimated from weight + body fat \u2014 not measured" : (summaryLeanMass.measuredAt ? `as of ${shortDate(summaryLeanMass.measuredAt)}` : "\u2014")}</em>
+                        <b>{summaryLeanMass.value !== null ? `${summaryLeanMass.value} kg` : EM_DASH}</b>
+                        <em>{summaryLeanMass.estimated ? `Estimated from weight + body fat ${EM_DASH} not measured` : (summaryLeanMass.measuredAt ? `as of ${shortDate(summaryLeanMass.measuredAt)}` : EM_DASH)}</em>
                       </div>
                     </div>
                     <p className="composition-date">Latest known value per field, resolved independently across history.</p>
                   </article>
                   <article className="composition-card"><p>HISTORY</p>
-                    <div className="history-scroll"><div className="history-grid"><div className="history-head"><span>Date</span><span>Weight</span><span>Body fat</span><span>Waist</span><span>Lean mass</span><span></span></div>
-                      {measurements.slice(0, 10).map(entry => <div className="history-row" key={entry.id}><span className="history-date">{formatDate(entry.measuredAt)}</span><span>{entry.weightKg !== null ? `${entry.weightKg} kg` : "\u2014"}</span><span>{entry.bodyFatPercent !== null ? `${entry.bodyFatPercent}%` : "\u2014"}</span><span>{entry.waistCm !== null ? `${entry.waistCm} cm` : "\u2014"}</span><span>{entry.leanMassKg !== null ? `${entry.leanMassKg} kg` : "\u2014"}</span><span className="history-edit-cell"><button className="history-edit-button" type="button" onClick={() => openEditForm(entry)}>Edit</button></span></div>)}
-                    </div></div>
-                    {measurements.length > 10 && <p className="composition-more">{measurements.length} total \u2014 latest {10} shown.</p>}
+                    <div className="body-history-scroll">
+                      <div className="body-history-head">
+                        <span>Date</span><span>Weight</span><span>Body fat</span><span>Waist</span><span>Lean mass</span><span></span>
+                      </div>
+                      {measurements.slice(0, 10).map(entry => <div className="body-history-row" key={entry.id}>
+                        <span className="body-history-date">{formatDate(entry.measuredAt)}</span>
+                        <span>{entry.weightKg !== null ? `${entry.weightKg} kg` : EM_DASH}</span>
+                        <span>{entry.bodyFatPercent !== null ? `${entry.bodyFatPercent}%` : EM_DASH}</span>
+                        <span>{entry.waistCm !== null ? `${entry.waistCm} cm` : EM_DASH}</span>
+                        <span>{entry.leanMassKg !== null ? `${entry.leanMassKg} kg` : EM_DASH}</span>
+                        <span className="body-history-edit"><button className="body-history-edit-btn" type="button" onClick={() => openEditForm(entry)}>Edit</button></span>
+                      </div>)}
+                    </div>
+                    {measurements.length > 10 && <p className="composition-more">{`${measurements.length} total ${EM_DASH} latest 10 shown.`}</p>}
                   </article>
                 </div>}
     </div>
 
     {showBodyForm && <div className="modal-backdrop" role="presentation" onMouseDown={() => { setShowBodyForm(false); setEditMeasurement(null); }}><form className="modal onboarding-form coach-onboarding-form body-form" onSubmit={submitBodyMeasurement} onMouseDown={event => event.stopPropagation()}>
-      <div className="portal-form-head"><div><p>BODY COMPOSITION \u00b7 {client.name}</p><h2>{editMeasurement ? "Edit measurement." : "Add a measurement."}</h2></div><button type="button" aria-label="Close" onClick={() => { setShowBodyForm(false); setEditMeasurement(null); }}>\u00d7</button></div>
+      <div className="portal-form-head"><div><p>{`BODY COMPOSITION ${MIDDLE_DOT} ${client.name}`}</p><h2>{editMeasurement ? "Edit measurement." : "Add a measurement."}</h2></div><button type="button" aria-label="Close" onClick={() => { setShowBodyForm(false); setEditMeasurement(null); }}>{TIMES}</button></div>
       <label>Measurement date<input name="measuredAt" type="date" defaultValue={editMeasurement ? editMeasurement.measuredAt.slice(0, 10) : todayInput()} max={todayInput()} required /></label>
-      <div className="form-pair"><label>Weight (kg)<input name="weightKg" type="number" step="0.1" min={FIELD_BOUNDS.weightKg.min} max={FIELD_BOUNDS.weightKg.max} placeholder="\u2014" defaultValue={editMeasurement?.weightKg ?? ""} onChange={event => setPreviewWeight(event.target.value)} /></label><label>Body fat (%)<input name="bodyFatPercent" type="number" step="0.1" min={FIELD_BOUNDS.bodyFatPercent.min} max={FIELD_BOUNDS.bodyFatPercent.max} placeholder="\u2014" defaultValue={editMeasurement?.bodyFatPercent ?? ""} onChange={event => setPreviewBodyFat(event.target.value)} /></label></div>
-      {estimate && <p className="estimate-hint">Estimated lean mass: {estimate.leanMassKg.toFixed(1)} kg \u2014 preview only, never saved as a measured value.</p>}
-      <div className="form-pair"><label>Lean mass (kg)<input name="leanMassKg" type="number" step="0.1" min={FIELD_BOUNDS.leanMassKg.min} max={FIELD_BOUNDS.leanMassKg.max} placeholder="\u2014" defaultValue={editMeasurement?.leanMassKg ?? ""} /></label><label>Waist (cm)<input name="waistCm" type="number" step="0.1" min={FIELD_BOUNDS.waistCm.min} max={FIELD_BOUNDS.waistCm.max} placeholder="\u2014" defaultValue={editMeasurement?.waistCm ?? ""} /></label></div>
-      <div className="form-pair"><label>Chest (cm)<input name="chestCm" type="number" step="0.1" min={FIELD_BOUNDS.chestCm.min} max={FIELD_BOUNDS.chestCm.max} placeholder="\u2014" defaultValue={editMeasurement?.chestCm ?? ""} /></label><label>Hips (cm)<input name="hipsCm" type="number" step="0.1" min={FIELD_BOUNDS.hipsCm.min} max={FIELD_BOUNDS.hipsCm.max} placeholder="\u2014" defaultValue={editMeasurement?.hipsCm ?? ""} /></label></div>
-      <div className="form-pair"><label>Arm (cm)<input name="armCm" type="number" step="0.1" min={FIELD_BOUNDS.armCm.min} max={FIELD_BOUNDS.armCm.max} placeholder="\u2014" defaultValue={editMeasurement?.armCm ?? ""} /></label><label>Thigh (cm)<input name="thighCm" type="number" step="0.1" min={FIELD_BOUNDS.thighCm.min} max={FIELD_BOUNDS.thighCm.max} placeholder="\u2014" defaultValue={editMeasurement?.thighCm ?? ""} /></label></div>
-      <label>Notes<textarea name="notes" placeholder="Context for this measurement\u2026" defaultValue={editMeasurement?.notes ?? ""} /></label>
+      <div className="form-pair"><label>Weight (kg)<input name="weightKg" type="number" step="0.1" min={FIELD_BOUNDS.weightKg.min} max={FIELD_BOUNDS.weightKg.max} placeholder={EM_DASH} defaultValue={editMeasurement?.weightKg ?? ""} onChange={event => setPreviewWeight(event.target.value)} /></label><label>Body fat (%)<input name="bodyFatPercent" type="number" step="0.1" min={FIELD_BOUNDS.bodyFatPercent.min} max={FIELD_BOUNDS.bodyFatPercent.max} placeholder={EM_DASH} defaultValue={editMeasurement?.bodyFatPercent ?? ""} onChange={event => setPreviewBodyFat(event.target.value)} /></label></div>
+      {estimate && <p className="estimate-hint">{`Estimated lean mass: ${estimate.leanMassKg.toFixed(1)} kg ${EM_DASH} preview only, never saved as a measured value.`}</p>}
+      <div className="form-pair"><label>Lean mass (kg)<input name="leanMassKg" type="number" step="0.1" min={FIELD_BOUNDS.leanMassKg.min} max={FIELD_BOUNDS.leanMassKg.max} placeholder={EM_DASH} defaultValue={editMeasurement?.leanMassKg ?? ""} /></label><label>Waist (cm)<input name="waistCm" type="number" step="0.1" min={FIELD_BOUNDS.waistCm.min} max={FIELD_BOUNDS.waistCm.max} placeholder={EM_DASH} defaultValue={editMeasurement?.waistCm ?? ""} /></label></div>
+      <div className="form-pair"><label>Chest (cm)<input name="chestCm" type="number" step="0.1" min={FIELD_BOUNDS.chestCm.min} max={FIELD_BOUNDS.chestCm.max} placeholder={EM_DASH} defaultValue={editMeasurement?.chestCm ?? ""} /></label><label>Hips (cm)<input name="hipsCm" type="number" step="0.1" min={FIELD_BOUNDS.hipsCm.min} max={FIELD_BOUNDS.hipsCm.max} placeholder={EM_DASH} defaultValue={editMeasurement?.hipsCm ?? ""} /></label></div>
+      <div className="form-pair"><label>Arm (cm)<input name="armCm" type="number" step="0.1" min={FIELD_BOUNDS.armCm.min} max={FIELD_BOUNDS.armCm.max} placeholder={EM_DASH} defaultValue={editMeasurement?.armCm ?? ""} /></label><label>Thigh (cm)<input name="thighCm" type="number" step="0.1" min={FIELD_BOUNDS.thighCm.min} max={FIELD_BOUNDS.thighCm.max} placeholder={EM_DASH} defaultValue={editMeasurement?.thighCm ?? ""} /></label></div>
+      <label>Notes<textarea name="notes" placeholder={`Context for this measurement${ELLIPSIS}`} defaultValue={editMeasurement?.notes ?? ""} /></label>
       <small>Every field is optional, but at least one measurement is required. Only what you actually measured is saved.</small>
       {formError && <p className="form-error" role="alert">{formError}</p>}
-      <button className="generate" disabled={saving}>{saving ? "Saving\u2026" : (editMeasurement ? "Update measurement" : "Save measurement")} <span>\u2192</span></button>
+      <button className="generate" disabled={saving}>{saving ? `Saving${ELLIPSIS}` : (editMeasurement ? "Update measurement" : "Save measurement")} <span>{RIGHT_ARROW}</span></button>
     </form></div>}
   </section>;
 }
 
-function metric(label: string, value: number | null) { return <span key={label}>{label}<b>{value ? `${value} cm` : "\u2014"}</b></span>; }
+function metric(label: string, value: number | null) { return <span key={label}>{label}<b>{value ? `${value} cm` : EM_DASH}</b></span>; }
 
 function CoachChart({ entries }: { entries: Entry[] }) {
   if (entries.length < 2) return <div className="coach-chart-empty">A second weight update will draw the trend.</div>;
