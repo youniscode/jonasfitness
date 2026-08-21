@@ -228,6 +228,37 @@ export const progressEntries = pgTable("progress_entries", {
   createdAt: createdAt(),
 }, (table) => [index("progress_entries_client_owner_idx").on(table.clientId, table.ownerId, table.createdAt)]);
 
+// Canonical append-only ledger for measured body-composition data. One row per
+// measurement event — history is never collapsed or overwritten. The table holds
+// measured body data ONLY: demographic/profile fields (age, sex, onboarding
+// snapshot) deliberately stay in `client_intakes.profile`, and
+// `clients.currentWeight` remains the denormalized latest-weight cache used by
+// existing roster UI. Values are nullable because a measurement rarely captures
+// every metric; conservative range validation lives in the domain layer
+// (app/lib/body-measurements.ts), never here — raw measurements are stored as
+// entered, not clamped. No uniqueness constraint on (client, measuredAt):
+// multiple legitimate measurements may exist historically.
+export const clientBodyMeasurements = pgTable("client_body_measurements", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  measuredAt: timestamp("measured_at", { withTimezone: true }).notNull().defaultNow(),
+  weightKg: doublePrecision("weight_kg"),
+  bodyFatPercent: doublePrecision("body_fat_percent"),
+  leanMassKg: doublePrecision("lean_mass_kg"),
+  waistCm: doublePrecision("waist_cm"),
+  chestCm: doublePrecision("chest_cm"),
+  hipsCm: doublePrecision("hips_cm"),
+  armCm: doublePrecision("arm_cm"),
+  thighCm: doublePrecision("thigh_cm"),
+  source: text("source").notNull().default("coach"),
+  notes: text("notes").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [
+  index("client_body_measurements_owner_client_idx").on(table.ownerId, table.clientId),
+  index("client_body_measurements_owner_client_measured_idx").on(table.ownerId, table.clientId, table.measuredAt),
+]);
+
 // Kept deliberately small: this is coaching context, not a medical record.
 // Clients may share only what they choose; explicit consent is required before saving.
 // `readinessReviewedAt` is set by the coach once limitations have been reviewed

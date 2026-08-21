@@ -37,20 +37,22 @@ test("the onboarding profile migration (0007) is additive-only and adds only the
   assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
 });
 
-test("the latest migration (0009) is additive-only and adds only the leads reapplied_at column", () => {
+test("the latest migration (0010) is additive-only and creates only the client_body_measurements table", () => {
   const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
   const latest = journal.entries[journal.entries.length - 1];
-  assert.equal(latest.tag, "0009_outgoing_sister_grimm");
+  assert.equal(latest.tag, "0010_client-body-measurements");
   const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
-  // The reapplication lifecycle migration must ONLY add the leads.reapplied_at column.
-  assert.match(sql, /ALTER TABLE "leads" ADD COLUMN "reapplied_at" timestamp with time zone/);
+  // The body-composition foundation migration must create ONLY the
+  // client_body_measurements table — exactly one CREATE TABLE, nothing else.
+  assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, "exactly one table creation");
+  assert.match(sql, /CREATE TABLE "client_body_measurements"/);
   // No destructive or unrelated operations anywhere in the latest migration.
-  assert.doesNotMatch(sql, /\bDROP\b/i, "DROP is not allowed");
-  assert.doesNotMatch(sql, /\bDELETE\b/i, "DELETE is not allowed");
-  assert.doesNotMatch(sql, /\bTRUNCATE\b/i, "TRUNCATE is not allowed");
+  assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, "no destructive top-level operations");
   assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
-  assert.doesNotMatch(sql, /CREATE TABLE/i, "no unrelated table creation");
-  assert.doesNotMatch(sql, /CREATE (UNIQUE )?INDEX/i, "no unrelated index creation");
+  // The FK constraint is attached with ALTER TABLE on the NEW table (standard
+  // drizzle output); any ALTER targeting a pre-existing table is forbidden.
+  assert.doesNotMatch(sql, /ALTER TABLE (?!"client_body_measurements")/i, "no ALTER of existing tables");
+  assert.doesNotMatch(sql, /CREATE UNIQUE INDEX/i, "no unique constraints on a historical ledger");
 });
 
 test("every applied migration is additive-only (no destructive operations anywhere)", () => {

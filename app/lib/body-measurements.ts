@@ -1,0 +1,331 @@
+/**
+ * Body Composition Data Foundation (Nutrition Foundations V1 / Phase 1A).
+ *
+ * Deterministic, owner-scoped domain module for the historical
+ * `client_body_measurements` ledger. This module is PURE: no DB access, no
+ * network, no Date.now(), no randomness — it consumes already-fetched rows (or
+ * plain inputs) and returns typed results, so every bound and derivation is
+ * unit-testable with Node's built-in runner and identical inputs always produce
+ * identical outputs.
+ *
+ * Boundaries:
+ *  - MEASURED BODY DATA ONLY. Age, date of birth, sex, gender and the
+ *    onboarding snapshot stay in `client_intakes.profile`; `clients.currentWeight`
+ *    stays the denormalized latest-weight cache used by existing roster UI.
+ *    This module never duplicates either. See `latestWeightKg` for the
+ *    canonical ledger→cache sync source.
+ *  - Not a medical record and not a dietitian. Values are validated against
+ *    conservative physical bounds; lean mass derived from weight + body-fat %
+ *    is explicitly ESTIMATED and never overwrites a measured value. No
+ *    calorie/macro/BMR/TDEE logic lives here (that is a later phase).
+ *  - DB access is deliberately absent. Any future API layer MUST scope every
+ *    read/write by ownerId + clientId (see `isMeasurementOwnedBy`) — never by
+ *    id alone.
+ */
+
+// ---------- Canonical source vocabulary ----------
+// Small fixed set — arbitrary strings are never accepted. Wearable sources
+// (Strava / Garmin / Apple Health) are explicitly future work.
+export const MEASUREMENT_SOURCES = ["coach", "client", "progress_import"] as const;
+export type MeasurementSource = (typeof MEASUREMENT_SOURCES)[number];
+
+export const DEFAULT_MEASUREMENT_SOURCE: MeasurementSource = "coach";
+
+/** Numeric fields that can hold an actual measured value. Notes/source are not measurements. */
+export const MEASURED_FIELDS = [
+  "weightKg",
+  "bodyFatPercent",
+  "leanMassKg",
+  "waistCm",
+  "chestCm",
+  "hipsCm",
+  "armCm",
+  "thighCm",
+] as const;
+export type MeasuredField = (typeof MEASURED_FIELDS)[number];
+
+/** Deterministic rounding convention: 1 decimal place for all derived quantities. */
+export const MEASUREMENT_ROUNDING_DECIMALS = 1;
+
+// ---------- Public types ----------
+
+export type BodyMeasurementValues = {
+  weightKg: number | null;
+  bodyFatPercent: number | null;
+  leanMassKg: number | null;
+  waistCm: number | null;
+  chestCm: number | null;
+  hipsCm: number | null;
+  armCm: number | null;
+  thighCm: number | null;
+};
+
+/** A stored row of the ledger (already-fetched from the DB). */
+export type BodyMeasurement = BodyMeasurementValues & {
+  id: number;
+  clientId: number;
+  ownerId: string;
+  /** ISO timestamp of when the measurement was taken (may differ from createdAt). */
+  measuredAt: string;
+  source: MeasurementSource;
+  notes: string;
+  createdAt: string;
+};
+
+/** Everything needed to create a measurement row. `measuredAt`/`source`/`notes` are optional on input. */
+export type BodyMeasurementInput = BodyMeasurementValues & {
+  clientId: number;
+  ownerId: string;
+  measuredAt?: string;
+  source?: MeasurementSource;
+  notes?: string;
+};
+
+export type MeasurementError = { field: string; message: string };
+
+export type MeasurementValidationResult =
+  | { ok: true; value: BodyMeasurementInput }
+  | { ok: false; errors: MeasurementError[] };
+
+export type LeanMassEstimate = { leanMassKg: number; estimated: true };
+
+export type LeanMassResolution =
+  | { leanMassKg: number; estimated: false; source: "measured" }
+  | { leanMassKg: number; estimated: true; source: "derived" }
+  | { leanMassKg: null; estimated: false; source: "missing" };
+
+export type MeasurementDelta = {
+  /** Latest recorded value (raw, as stored). */
+  value: number | null;
+  /** latest − previous, rounded to 1 decimal. Null when either side is missing. */
+  change: number | null;
+};
+
+export type MeasurementDeltas = Record<MeasuredField, MeasurementDelta>;
+
+export type BodyMeasurementTrend = {
+  count: number;
+  latest: BodyMeasurement | null;
+  /** The measurement immediately before `latest` chronologically. */
+  previous: BodyMeasurement | null;
+  deltas: MeasurementDeltas;
+  /** Estimated lean mass from latest weight + body-fat %, or the measured value when present. */
+  leanMass: LeanMassResolution;
+};
+
+// ---------- Conservative validation bounds ----------
+// Deliberately wide but physically impossible values are rejected (negative,
+// near-zero, absurdly large, non-finite). Overlapping fields reuse the existing
+// onboarding bounds (client_intakes.profile: weightKg 25–400, waistCm 40–250).
+export const MEASUREMENT_BOUNDS: Record<MeasuredField, { min: number; max: number; label: string }> = {
+  weightKg: { min: 25, max: 400, label: "Weight" },
+  bodyFatPercent: { min: 3, max: 70, label: "Body fat" },
+  leanMassKg: { min: 15, max: 250, label: "Lean mass" },
+  waistCm: { min: 40, max: 250, label: "Waist" },
+  chestCm: { min: 50, max: 250, label: "Chest" },
+  hipsCm: { min: 50, max: 250, label: "Hips" },
+  armCm: { min: 15, max: 80, label: "Arm" },
+  thighCm: { min: 25, max: 120, label: "Thigh" },
+};
+
+// ---------- Helpers ----------
+
+const round1 = (value: number) => Math.round(value * 10) / 10;
+
+function isMissing(value: number | null | undefined): boolean {
+  return value === null || value === undefined;
+}
+
+// ---------- A. Validation ----------
+
+/**
+ * Validates a measurement input against conservative physical bounds. Numbers
+ * are never clamped: an invalid value is rejected with a structured error. A
+ * row is only valid when at least one real measured value is present — notes
+ * alone never count as a measurement. On success the returned value is a
+ * normalized copy (notes trimmed, source defaulted to "coach").
+ */
+export function validateBodyMeasurement(input: BodyMeasurementInput): MeasurementValidationResult {
+  const errors: MeasurementError[] = [];
+
+  if (!Number.isInteger(input.clientId) || input.clientId <= 0) {
+    errors.push({ field: "clientId", message: "clientId must be a positive integer." });
+  }
+  if (typeof input.ownerId !== "string" || input.ownerId.trim() === "") {
+    errors.push({ field: "ownerId", message: "ownerId must be a non-empty string." });
+  }
+
+  let presentCount = 0;
+  for (const field of MEASURED_FIELDS) {
+    const value = input[field];
+    if (isMissing(value)) continue;
+    const bound = MEASUREMENT_BOUNDS[field];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      errors.push({ field, message: `${bound.label} must be a finite number.` });
+      continue;
+    }
+    if (value < bound.min || value > bound.max) {
+      errors.push({ field, message: `${bound.label} must be between ${bound.min} and ${bound.max}.` });
+      continue;
+    }
+    presentCount += 1;
+  }
+
+  if (presentCount === 0) {
+    errors.push({ field: "measurements", message: "At least one body measurement is required — notes alone do not count." });
+  }
+
+  let source: MeasurementSource = DEFAULT_MEASUREMENT_SOURCE;
+  if (input.source !== undefined) {
+    if ((MEASUREMENT_SOURCES as readonly string[]).includes(input.source)) {
+      source = input.source;
+    } else {
+      errors.push({ field: "source", message: `source must be one of: ${MEASUREMENT_SOURCES.join(", ")}.` });
+    }
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      ...input,
+      ownerId: input.ownerId.trim(),
+      notes: (input.notes ?? "").trim(),
+      source,
+    },
+  };
+}
+
+// ---------- F. Derived lean mass (ESTIMATED, deterministic) ----------
+
+/**
+ * leanMassKg = weightKg × (1 − bodyFatPercent / 100), rounded to 1 decimal.
+ * Returns null when either input is missing, non-finite or out of bounds.
+ * Always flagged `estimated: true` — this is a deterministic estimate, never a
+ * measurement. Body-fat % is NEVER derived from BMI or visual assumptions.
+ */
+export function estimateLeanMassKg(
+  weightKg: number | null | undefined,
+  bodyFatPercent: number | null | undefined,
+): LeanMassEstimate | null {
+  if (isMissing(weightKg) || isMissing(bodyFatPercent)) return null;
+  if (typeof weightKg !== "number" || !Number.isFinite(weightKg)) return null;
+  if (typeof bodyFatPercent !== "number" || !Number.isFinite(bodyFatPercent)) return null;
+  if (weightKg < MEASUREMENT_BOUNDS.weightKg.min || weightKg > MEASUREMENT_BOUNDS.weightKg.max) return null;
+  if (bodyFatPercent < MEASUREMENT_BOUNDS.bodyFatPercent.min || bodyFatPercent > MEASUREMENT_BOUNDS.bodyFatPercent.max) return null;
+  return { leanMassKg: round1(weightKg * (1 - bodyFatPercent / 100)), estimated: true };
+}
+
+/**
+ * Resolves the lean mass for a measurement: an explicitly measured leanMassKg
+ * always wins; otherwise a deterministic estimate is derived from weight +
+ * body-fat % when both are available; otherwise the result is missing.
+ */
+export function resolveLeanMass(
+  values: Pick<BodyMeasurementValues, "leanMassKg" | "weightKg" | "bodyFatPercent"> | null | undefined,
+): LeanMassResolution {
+  if (!values) return { leanMassKg: null, estimated: false, source: "missing" };
+  if (typeof values.leanMassKg === "number" && Number.isFinite(values.leanMassKg)) {
+    return { leanMassKg: values.leanMassKg, estimated: false, source: "measured" };
+  }
+  const derived = estimateLeanMassKg(values.weightKg, values.bodyFatPercent);
+  if (derived) return { ...derived, source: "derived" };
+  return { leanMassKg: null, estimated: false, source: "missing" };
+}
+
+// ---------- B/C/E. Chronological resolution + trend ----------
+
+/**
+ * Deterministic chronological order: ascending measuredAt, ties broken by
+ * ascending id (ids are monotonically assigned at creation). Input order never
+ * matters; the same rows always produce the same ordering.
+ */
+export function sortMeasurementsByDate(measurements: readonly BodyMeasurement[]): BodyMeasurement[] {
+  return [...measurements].sort((a, b) => {
+    const byDate = new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime();
+    return byDate !== 0 ? byDate : a.id - b.id;
+  });
+}
+
+/** The most recent measurement (null when there are none). */
+export function latestMeasurement(measurements: readonly BodyMeasurement[]): BodyMeasurement | null {
+  const sorted = sortMeasurementsByDate(measurements);
+  return sorted.length > 0 ? sorted[sorted.length - 1] : null;
+}
+
+/** The measurement immediately before the latest (null unless ≥ 2 rows). */
+export function previousMeasurement(measurements: readonly BodyMeasurement[]): BodyMeasurement | null {
+  const sorted = sortMeasurementsByDate(measurements);
+  return sorted.length > 1 ? sorted[sorted.length - 2] : null;
+}
+
+/**
+ * Per-field latest value + latest − previous delta. Missing values stay
+ * missing: `change` is null when either side is absent and is never coerced
+ * to zero. Only `value` is a raw stored number; `change` is the derived,
+ * rounded quantity.
+ */
+export function measurementDeltas(
+  latest: BodyMeasurement | null,
+  previous: BodyMeasurement | null,
+): MeasurementDeltas {
+  const deltas = {} as MeasurementDeltas;
+  for (const field of MEASURED_FIELDS) {
+    const current = latest ? latest[field] : null;
+    const prior = previous ? previous[field] : null;
+    deltas[field] = {
+      value: typeof current === "number" ? current : null,
+      change: typeof current === "number" && typeof prior === "number" ? round1(current - prior) : null,
+    };
+  }
+  return deltas;
+}
+
+/**
+ * Full deterministic trend from an unsorted row set: latest, previous,
+ * per-field deltas and the lean-mass resolution for the latest measurement.
+ */
+export function buildBodyMeasurementTrend(measurements: readonly BodyMeasurement[]): BodyMeasurementTrend {
+  const latest = latestMeasurement(measurements);
+  const previous = previousMeasurement(measurements);
+  return {
+    count: measurements.length,
+    latest,
+    previous,
+    deltas: measurementDeltas(latest, previous),
+    leanMass: resolveLeanMass(latest),
+  };
+}
+
+// ---------- G. Owner isolation ----------
+
+export type MeasurementOwner = Pick<BodyMeasurement, "id" | "clientId" | "ownerId">;
+
+/**
+ * Pure owner-scope predicate (mirrors `isClientOwnedBy`). Every DB read/write
+ * of a measurement row MUST be scoped by ownerId + clientId — never by id
+ * alone. This predicate is the reusable guard for the future API layer.
+ */
+export function isMeasurementOwnedBy(
+  measurement: MeasurementOwner | null | undefined,
+  clientId: number,
+  ownerId: string,
+): boolean {
+  return Boolean(measurement && measurement.clientId === clientId && measurement.ownerId === ownerId);
+}
+
+// ---------- H. Current-weight cache sync source ----------
+
+/**
+ * The ledger is the canonical historical source; `clients.currentWeight` is
+ * only a denormalized latest-weight cache used by existing roster UI. This is
+ * the reusable sync source: when the future API inserts a measurement
+ * containing weightKg, it should read `latestWeightKg` from the client's rows
+ * and update `clients.currentWeight` in the same transaction. This module
+ * never writes — it only reports the value to sync. No second independent
+ * "latest weight" authority exists.
+ */
+export function latestWeightKg(measurements: readonly BodyMeasurement[]): number | null {
+  const latest = latestMeasurement(measurements);
+  return latest && typeof latest.weightKg === "number" ? latest.weightKg : null;
+}
