@@ -6,14 +6,19 @@ import {
   estimateLeanMassKg,
   isMeasurementOwnedBy,
   latestMeasurement,
+  latestWeightForSync,
   latestWeightKg,
   measurementDeltas,
   MEASUREMENT_BOUNDS,
   MEASUREMENT_SOURCES,
+  patchMeasurementInputFrom,
+  perFieldDeltasForHistory,
   previousMeasurement,
+  resolveLatestBodyComposition,
   resolveLeanMass,
   sortMeasurementsByDate,
   validateBodyMeasurement,
+  validatePatchBodyMeasurement,
   type BodyMeasurement,
   type BodyMeasurementInput,
 } from "../app/lib/body-measurements.ts";
@@ -286,4 +291,134 @@ test("latestWeightKg reports the ledger's latest weight for the currentWeight ca
   ];
   assert.equal(latestWeightKg(rows), 82.4);
   assert.equal(latestWeightKg([]), null);
+});
+
+// ---------- 8. Per-field latest composition ----------
+
+test("resolveLatestBodyComposition resolves each field independently across partial rows", () => {
+  const rows = [
+    measurement({ id: 1, measuredAt: "2026-08-21T10:00:00.000Z", weightKg: 86, bodyFatPercent: 16 }),
+    measurement({ id: 2, measuredAt: "2026-08-21T12:00:00.000Z", waistCm: 90 }),
+    measurement({ id: 3, measuredAt: "2026-08-21T14:00:00.000Z", bodyFatPercent: 14 }),
+  ];
+  const lc = resolveLatestBodyComposition(rows);
+  assert.equal(lc.weightKg?.value, 86, "weight from earliest row preserved");
+  assert.equal(lc.bodyFatPercent?.value, 14, "body fat from latest row wins");
+  assert.equal(lc.waistCm?.value, 90, "waist from middle row preserved");
+  assert.equal(lc.leanMassKg, null, "no lean mass measured");
+});
+
+test("resolveLatestBodyComposition includes provenance (measurementId + measuredAt)", () => {
+  const rows = [
+    measurement({ id: 5, measuredAt: "2026-08-01T00:00:00.000Z", weightKg: 84 }),
+    measurement({ id: 8, measuredAt: "2026-08-15T00:00:00.000Z", weightKg: 82 }),
+  ];
+  const lc = resolveLatestBodyComposition(rows);
+  assert.equal(lc.weightKg?.measurementId, 8, "latest weight-bearing row");
+  assert.equal(lc.weightKg?.measuredAt, "2026-08-15T00:00:00.000Z");
+});
+
+test("resolveLatestBodyComposition returns nulls for empty history", () => {
+  const lc = resolveLatestBodyComposition([]);
+  assert.equal(lc.weightKg, null);
+  assert.equal(lc.bodyFatPercent, null);
+  assert.equal(lc.waistCm, null);
+});
+
+// ---------- 9. Per-field deltas ----------
+
+test("perFieldDeltasForHistory computes delta per field independently", () => {
+  const rows = [
+    measurement({ id: 1, measuredAt: "2026-08-01T00:00:00.000Z", weightKg: 86, bodyFatPercent: 16, waistCm: 92 }),
+    measurement({ id: 2, measuredAt: "2026-08-15T00:00:00.000Z", waistCm: 90 }),
+    measurement({ id: 3, measuredAt: "2026-09-01T00:00:00.000Z", weightKg: 84, bodyFatPercent: 14 }),
+  ];
+  const pfd = perFieldDeltasForHistory(rows);
+  assert.equal(pfd.weightKg.value, 84);
+  assert.equal(pfd.weightKg.change, -2, "weight delta compares 84 vs 86 across different rows");
+  assert.equal(pfd.bodyFatPercent.value, 14);
+  assert.equal(pfd.bodyFatPercent.change, -2, "body fat delta compares 14 vs 16 across different rows");
+  assert.equal(pfd.waistCm.value, 90);
+  assert.equal(pfd.waistCm.change, -2, "waist delta compares 90 vs 92");
+});
+
+test("perFieldDeltasForHistory: waist-only row between weight rows does not break weight delta", () => {
+  const rows = [
+    measurement({ id: 1, measuredAt: "2026-08-01T00:00:00.000Z", weightKg: 86 }),
+    measurement({ id: 2, measuredAt: "2026-08-08T00:00:00.000Z", waistCm: 90 }),
+    measurement({ id: 3, measuredAt: "2026-08-15T00:00:00.000Z", weightKg: 84 }),
+  ];
+  const pfd = perFieldDeltasForHistory(rows);
+  assert.equal(pfd.weightKg.change, -2, "weight delta ignores the waist-only row");
+  assert.equal(pfd.waistCm.value, 90);
+  assert.equal(pfd.waistCm.change, null, "only one waist entry, no delta");
+});
+
+test("perFieldDeltasForHistory returns null deltas when no data", () => {
+  const pfd = perFieldDeltasForHistory([]);
+  assert.equal(pfd.weightKg.value, null);
+  assert.equal(pfd.weightKg.change, null);
+});
+
+test("latestComposition is included in buildBodyMeasurementTrend", () => {
+  const rows = [
+    measurement({ id: 1, measuredAt: "2026-08-01T00:00:00.000Z", weightKg: 86 }),
+    measurement({ id: 2, measuredAt: "2026-08-15T00:00:00.000Z", waistCm: 90 }),
+  ];
+  const trend = buildBodyMeasurementTrend(rows);
+  assert.equal(trend.latestComposition.weightKg?.value, 86);
+  assert.equal(trend.latestComposition.waistCm?.value, 90);
+  assert.equal(trend.latestComposition.bodyFatPercent, null);
+  assert.equal(trend.perFieldDeltas.weightKg.change, null, "only one weight row");
+});
+
+// ---------- 10. PATCH input parsing ----------
+
+test("patchMeasurementInputFrom parses valid PATCH body", () => {
+  const result = patchMeasurementInputFrom(
+    { clientId: 7, measurementId: 5, measuredAt: "2026-08-21", weightKg: 85, waistCm: 91 },
+    "coach-a",
+    "2026-08-21T12:00:00.000Z",
+  );
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.input.clientId, 7);
+    assert.equal(result.input.measurementId, 5);
+    assert.equal(result.input.weightKg, 85);
+    assert.equal(result.input.waistCm, 91);
+    assert.equal(result.input.bodyFatPercent, null);
+  }
+});
+
+test("patchMeasurementInputFrom rejects missing clientId or measurementId", () => {
+  assert.equal(patchMeasurementInputFrom({ weightKg: 80 }, "coach-a", "2026-08-21T12:00:00.000Z").ok, false);
+  assert.equal(patchMeasurementInputFrom({ clientId: 7, weightKg: 80 }, "coach-a", "2026-08-21T12:00:00.000Z").ok, false);
+});
+
+test("validatePatchBodyMeasurement validates ranges and at-least-one field", () => {
+  const base = { clientId: 7, measurementId: 5, ownerId: "coach-a", measuredAt: "2026-08-21T12:00:00.000Z" };
+  // Empty measurement rejected
+  assert.equal(validatePatchBodyMeasurement({ ...base, weightKg: null, bodyFatPercent: null, leanMassKg: null, waistCm: null, chestCm: null, hipsCm: null, armCm: null, thighCm: null, notes: "" }).ok, false);
+  // Out-of-bounds rejected
+  assert.equal(validatePatchBodyMeasurement({ ...base, weightKg: -5, bodyFatPercent: null, leanMassKg: null, waistCm: null, chestCm: null, hipsCm: null, armCm: null, thighCm: null, notes: "" }).ok, false);
+  // Valid patch accepted
+  assert.equal(validatePatchBodyMeasurement({ ...base, weightKg: 85, bodyFatPercent: null, leanMassKg: null, waistCm: 91, chestCm: null, hipsCm: null, armCm: null, thighCm: null, notes: "" }).ok, true);
+});
+
+// ---------- 11. Edit currentWeight recomputation ----------
+
+test("latestWeightForSync returns correct weight after hypothetical edit", () => {
+  // Scenario: row 86kg is the latest weight. After editing row 1 to remove
+  // weight, the latest weight should still be 86.
+  const rows = [
+    measurement({ id: 1, measuredAt: "2026-08-01T00:00:00.000Z", weightKg: null }),
+    measurement({ id: 2, measuredAt: "2026-08-15T00:00:00.000Z", weightKg: 86 }),
+  ];
+  assert.equal(latestWeightForSync(rows), 86, "latest weight is 86 from row 2");
+  // Scenario: editing the latest weight row to 85
+  const edited = [
+    measurement({ id: 1, measuredAt: "2026-08-01T00:00:00.000Z", weightKg: 84 }),
+    measurement({ id: 2, measuredAt: "2026-08-15T00:00:00.000Z", weightKg: 85 }),
+  ];
+  assert.equal(latestWeightForSync(edited), 85, "after edit, latest weight is 85");
 });

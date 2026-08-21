@@ -7,8 +7,10 @@ import {
   measurementNumberFrom,
   MEASUREMENT_NOTE_MAX,
   parseMeasurementDate,
+  patchMeasurementInputFrom,
   publicBodyMeasurement,
   validateBodyMeasurement,
+  validatePatchBodyMeasurement,
   type BodyMeasurement,
   type BodyMeasurementTrend,
   type PublicBodyMeasurement,
@@ -308,4 +310,136 @@ test("the GET payload — including the trend — never leaks ownerId or clientI
   assert.equal(get.trend.previous?.weightKg, 79);
   assert.equal(get.trend.deltas.weightKg.change, 1);
   assert.equal(get.trend.leanMass.source, "derived", "lean mass flagged as estimated when only weight + body fat exist");
+});
+
+// ---------- 8. PATCH simulation ----------
+
+type PatchResult =
+  | { status: 200; measurement: PublicBodyMeasurement; currentWeight: number | null }
+  | { status: 400 | 404; error: string };
+
+/** Mirrors PATCH in app/api/body-measurements/route.ts. */
+function simulatePatch(store: Store, body: Record<string, unknown>, ownerId: string, now: string): PatchResult {
+  const parsed = patchMeasurementInputFrom(body, ownerId, now);
+  if (!parsed.ok) return { status: 400, error: parsed.error };
+  const { input } = parsed;
+
+  const validation = validatePatchBodyMeasurement({ ...input, ownerId });
+  if (!validation.ok) return { status: 400, error: validation.errors.map((e) => e.message).join(" ") };
+
+  const client = store.clients.find((c) => c.id === input.clientId && c.ownerId === ownerId);
+  if (!client) return { status: 404, error: "Client not found." };
+
+  const idx = store.measurements.findIndex((m) => m.id === input.measurementId && m.clientId === input.clientId && m.ownerId === ownerId);
+  if (idx < 0) return { status: 404, error: "Measurement not found." };
+
+  store.measurements[idx] = {
+    ...store.measurements[idx],
+    measuredAt: parsed.measuredAt,
+    weightKg: input.weightKg,
+    bodyFatPercent: input.bodyFatPercent,
+    leanMassKg: input.leanMassKg,
+    waistCm: input.waistCm,
+    chestCm: input.chestCm,
+    hipsCm: input.hipsCm,
+    armCm: input.armCm,
+    thighCm: input.thighCm,
+    notes: input.notes ?? "",
+  };
+
+  // Recompute currentWeight from all weight-bearing rows.
+  const ownerMeasurements = store.measurements.filter((m) => m.clientId === input.clientId && m.ownerId === ownerId);
+  client.currentWeight = latestWeightForSync(ownerMeasurements);
+
+  return { status: 200, measurement: publicBodyMeasurement(store.measurements[idx]), currentWeight: client.currentWeight };
+}
+
+test("PATCH updates a single measurement row", () => {
+  const store = makeStore();
+  const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80, waistCm: 92 }, "coach-a", NOW));
+  const patched = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: 80, waistCm: 90 }, "coach-a", NOW);
+  assert.equal(patched.status, 200);
+  if (patched.status === 200) {
+    assert.equal(patched.measurement.waistCm, 90, "waist updated");
+    assert.equal(patched.measurement.weightKg, 80, "weight unchanged");
+  }
+});
+
+test("PATCH denies editing another coach's measurement", () => {
+  const store = makeStore();
+  const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
+  const denied = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: 79 }, "coach-b", NOW);
+  assert.equal(denied.status, 404);
+});
+
+test("PATCH with invalid measurement id is rejected", () => {
+  const store = makeStore();
+  const result = simulatePatch(store, { clientId: 7, measurementId: 999, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW);
+  assert.equal(result.status, 404);
+});
+
+test("PATCH with invalid values is rejected", () => {
+  const store = makeStore();
+  const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
+  const result = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: -5 }, "coach-a", NOW);
+  assert.equal(result.status, 400);
+});
+
+test("PATCH recomputes currentWeight after editing the latest weight row", () => {
+  const store = makeStore();
+  const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
+  assert.equal(store.clients[0].currentWeight, 80);
+  const patched = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: 85 }, "coach-a", NOW);
+  assert.equal(patched.status, 200);
+  if (patched.status === 200) assert.equal(patched.currentWeight, 85);
+  assert.equal(store.clients[0].currentWeight, 85);
+});
+
+test("PATCH reverts currentWeight when latest weight is removed (falls back to prior)", () => {
+  const store = makeStore();
+  expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-07-01", weightKg: 84 }, "coach-a", NOW));
+  const later = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80, bodyFatPercent: 18 }, "coach-a", NOW));
+  assert.equal(store.clients[0].currentWeight, 80);
+  // Remove weight from the latest row while keeping bodyFatPercent
+  const patched = simulatePatch(store, { clientId: 7, measurementId: later.measurement.id, measuredAt: "2026-08-20", weightKg: "", bodyFatPercent: 18 }, "coach-a", NOW);
+  assert.equal(patched.status, 200);
+  if (patched.status === 200) assert.equal(patched.currentWeight, 84, "falls back to the July weight");
+});
+
+test("PATCH preserves all other historical rows untouched", () => {
+  const store = makeStore();
+  const first = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-07-01", weightKg: 84, waistCm: 92 }, "coach-a", NOW));
+  const second = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80, waistCm: 90 }, "coach-a", NOW));
+  // Edit only the second row
+  simulatePatch(store, { clientId: 7, measurementId: second.measurement.id, measuredAt: "2026-08-20", weightKg: 80, waistCm: 88 }, "coach-a", NOW);
+  const get = expectOk(simulateGet(store, 7, "coach-a"));
+  // First row unchanged
+  const firstRow = get.measurements.find((m) => m.id === first.measurement.id);
+  assert.equal(firstRow?.waistCm, 92, "first row waist preserved");
+  assert.equal(firstRow?.weightKg, 84, "first row weight preserved");
+});
+
+test("PATCH with ownerId in body is ignored — authenticated coach wins", () => {
+  const store = makeStore();
+  const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
+  const patched = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: 79, ownerId: "coach-b" }, "coach-a", NOW);
+  assert.equal(patched.status, 200);
+});
+
+test("PATCH with empty measurement (notes only) is rejected", () => {
+  const store = makeStore();
+  const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
+  const result = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: "", bodyFatPercent: "", waistCm: "", notes: "updated note" }, "coach-a", NOW);
+  assert.equal(result.status, 400);
+});
+
+test("the GET trend includes latestComposition and perFieldDeltas", () => {
+  const store = makeStore();
+  simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 86, bodyFatPercent: 16 }, "coach-a", NOW);
+  simulatePost(store, { clientId: 7, measuredAt: "2026-08-21", waistCm: 90 }, "coach-a", NOW);
+  const get = expectOk(simulateGet(store, 7, "coach-a"));
+  const lc = get.trend.latestComposition;
+  assert.equal(lc.weightKg?.value, 86, "weight from first row");
+  assert.equal(lc.waistCm?.value, 90, "waist from second row");
+  assert.equal(lc.bodyFatPercent?.value, 16, "body fat from first row");
 });

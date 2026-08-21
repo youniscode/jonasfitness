@@ -111,6 +111,29 @@ export type MeasurementDelta = {
 
 export type MeasurementDeltas = Record<MeasuredField, MeasurementDelta>;
 
+/**
+ * A resolved per-field value with its provenance — which measurement row and
+ * date it came from. The UI can show the value plus the source date when fields
+ * originate from different rows.
+ */
+export type ResolvedFieldValue = {
+  value: number;
+  measuredAt: string;
+  measurementId: number;
+} | null;
+
+export type LatestBodyComposition = Record<MeasuredField, ResolvedFieldValue>;
+
+/**
+ * Delta computed per-field by comparing the latest known value with the
+ * previous known value for THAT SPECIFIC FIELD across the full history.
+ * A waist-only row between two weight rows does not break the weight delta.
+ */
+export type PerFieldDelta = {
+  value: number | null;
+  change: number | null;
+};
+
 export type BodyMeasurementTrend = {
   count: number;
   latest: MeasurementRow | null;
@@ -119,6 +142,10 @@ export type BodyMeasurementTrend = {
   deltas: MeasurementDeltas;
   /** Estimated lean mass from latest weight + body-fat %, or the measured value when present. */
   leanMass: LeanMassResolution;
+  /** Per-field latest-known values resolved independently across all rows. */
+  latestComposition: LatestBodyComposition;
+  /** Per-field deltas: latest known − previous known for each specific field. */
+  perFieldDeltas: Record<MeasuredField, PerFieldDelta>;
 };
 
 // ---------- Conservative validation bounds ----------
@@ -302,6 +329,8 @@ export function buildBodyMeasurementTrend(measurements: readonly MeasurementRow[
     previous,
     deltas: measurementDeltas(latest, previous),
     leanMass: resolveLeanMass(latest),
+    latestComposition: resolveLatestBodyComposition(measurements),
+    perFieldDeltas: perFieldDeltasForHistory(measurements),
   };
 }
 
@@ -320,6 +349,73 @@ export function isMeasurementOwnedBy(
   ownerId: string,
 ): boolean {
   return Boolean(measurement && measurement.clientId === clientId && measurement.ownerId === ownerId);
+}
+
+// ---------- I. Per-field latest composition ----------
+
+/**
+ * Resolves the latest known non-null value for EACH measured field
+ * independently across all history rows. This prevents a partial measurement
+ * from visually erasing previously known values.
+ *
+ * Chronological ordering: measuredAt ascending, id ascending for ties.
+ * Walks rows oldest-to-newest; last non-null wins per field.
+ * Returns per-field provenance (measurementId + measuredAt) for UI display.
+ */
+export function resolveLatestBodyComposition(
+  measurements: readonly MeasurementRow[],
+): LatestBodyComposition {
+  const sorted = sortMeasurementsByDate(measurements);
+  const result: LatestBodyComposition = {
+    weightKg: null, bodyFatPercent: null, leanMassKg: null,
+    waistCm: null, chestCm: null, hipsCm: null, armCm: null, thighCm: null,
+  };
+  for (const row of sorted) {
+    for (const field of MEASURED_FIELDS) {
+      if (typeof row[field] === "number") {
+        result[field] = { value: row[field] as number, measuredAt: row.measuredAt, measurementId: row.id };
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Per-field delta: compares the latest known value for each field against the
+ * previous known value for THAT SAME field. A waist-only entry between two
+ * weight entries does not break the weight delta — it simply contributes to
+ * the waist delta independently.
+ *
+ * Uses the same sorted-chronological walk as resolveLatestBodyComposition,
+ * but tracks the two most recent non-null values per field.
+ */
+export function perFieldDeltasForHistory(
+  measurements: readonly MeasurementRow[],
+): Record<MeasuredField, PerFieldDelta> {
+  const sorted = sortMeasurementsByDate(measurements);
+  const previousValues: Partial<Record<MeasuredField, number>> = {};
+  const latestValues: Partial<Record<MeasuredField, number>> = {};
+  for (const row of sorted) {
+    for (const field of MEASURED_FIELDS) {
+      if (typeof row[field] === "number") {
+        if (latestValues[field] !== undefined) {
+          // Already have a "latest" for this field; shift it to "previous".
+          previousValues[field] = latestValues[field];
+        }
+        latestValues[field] = row[field] as number;
+      }
+    }
+  }
+  const deltas = {} as Record<MeasuredField, PerFieldDelta>;
+  for (const field of MEASURED_FIELDS) {
+    const current = latestValues[field];
+    const prior = previousValues[field];
+    deltas[field] = {
+      value: typeof current === "number" ? current : null,
+      change: typeof current === "number" && typeof prior === "number" ? round1(current - prior) : null,
+    };
+  }
+  return deltas;
 }
 
 // ---------- H. Current-weight cache sync source ----------
@@ -474,4 +570,122 @@ export function latestWeightForSync(measurements: readonly MeasurementRow[]): nu
   const weighted = sortMeasurementsByDate(measurements).filter((row) => typeof row.weightKg === "number");
   const latest = weighted.length > 0 ? weighted[weighted.length - 1] : null;
   return latest ? latest.weightKg : null;
+}
+
+// ---------- PATCH input (editing an existing measurement) ----------
+
+export type PatchMeasurementInput = {
+  clientId: number;
+  measurementId: number;
+  measuredAt: string;
+  weightKg: number | null;
+  bodyFatPercent: number | null;
+  leanMassKg: number | null;
+  waistCm: number | null;
+  chestCm: number | null;
+  hipsCm: number | null;
+  armCm: number | null;
+  thighCm: number | null;
+  notes: string;
+};
+
+export type PatchMeasurementInputResult =
+  | { ok: true; input: PatchMeasurementInput; measuredAt: string }
+  | { ok: false; error: string };
+
+/**
+ * Assembles a validated-shape PATCH input from an untrusted request body.
+ * The browser may send measurementId + clientId + editable fields.
+ * ownerId and source are NEVER read from the body.
+ */
+export function patchMeasurementInputFrom(
+  body: Record<string, unknown>,
+  ownerId: string,
+  now: string,
+): PatchMeasurementInputResult {
+  const clientId = Number(body.clientId);
+  if (!Number.isInteger(clientId) || clientId < 1) return { ok: false, error: "Choose a valid client." };
+  const measurementId = Number(body.measurementId);
+  if (!Number.isInteger(measurementId) || measurementId < 1) return { ok: false, error: "Invalid measurement id." };
+  const date = parseMeasurementDate(body.measuredAt, now);
+  if (!date.ok) return { ok: false, error: date.error };
+  return {
+    ok: true,
+    input: {
+      clientId,
+      measurementId,
+      measuredAt: date.measuredAt,
+      weightKg: measurementNumberFrom(body.weightKg),
+      bodyFatPercent: measurementNumberFrom(body.bodyFatPercent),
+      leanMassKg: measurementNumberFrom(body.leanMassKg),
+      waistCm: measurementNumberFrom(body.waistCm),
+      chestCm: measurementNumberFrom(body.chestCm),
+      hipsCm: measurementNumberFrom(body.hipsCm),
+      armCm: measurementNumberFrom(body.armCm),
+      thighCm: measurementNumberFrom(body.thighCm),
+      notes: typeof body.notes === "string" ? body.notes.trim().slice(0, MEASUREMENT_NOTE_MAX) : "",
+    },
+    measuredAt: date.measuredAt,
+  };
+}
+
+/**
+ * Validates a PATCH measurement body. Uses the same validation as POST for the
+ * measured fields (bounds, finiteness, at-least-one), but clientId comes from
+ * the parsed body and ownerId from the authenticated coach.
+ */
+export function validatePatchBodyMeasurement(
+  input: PatchMeasurementInput & { ownerId: string },
+): MeasurementValidationResult {
+  const errors: MeasurementError[] = [];
+
+  if (!Number.isInteger(input.clientId) || input.clientId <= 0) {
+    errors.push({ field: "clientId", message: "clientId must be a positive integer." });
+  }
+  if (!Number.isInteger(input.measurementId) || input.measurementId <= 0) {
+    errors.push({ field: "measurementId", message: "measurementId must be a positive integer." });
+  }
+  if (typeof input.ownerId !== "string" || input.ownerId.trim() === "") {
+    errors.push({ field: "ownerId", message: "ownerId must be a non-empty string." });
+  }
+
+  let presentCount = 0;
+  for (const field of MEASURED_FIELDS) {
+    const value = input[field];
+    if (isMissing(value)) continue;
+    const bound = MEASUREMENT_BOUNDS[field];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      errors.push({ field, message: `${bound.label} must be a finite number.` });
+      continue;
+    }
+    if (value < bound.min || value > bound.max) {
+      errors.push({ field, message: `${bound.label} must be between ${bound.min} and ${bound.max}.` });
+      continue;
+    }
+    presentCount += 1;
+  }
+
+  if (presentCount === 0) {
+    errors.push({ field: "measurements", message: "At least one body measurement is required — notes alone do not count." });
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      clientId: input.clientId,
+      ownerId: input.ownerId.trim(),
+      weightKg: input.weightKg,
+      bodyFatPercent: input.bodyFatPercent,
+      leanMassKg: input.leanMassKg,
+      waistCm: input.waistCm,
+      chestCm: input.chestCm,
+      hipsCm: input.hipsCm,
+      armCm: input.armCm,
+      thighCm: input.thighCm,
+      notes: (input.notes ?? "").trim(),
+      source: "coach",
+      measuredAt: input.measuredAt,
+    },
+  };
 }

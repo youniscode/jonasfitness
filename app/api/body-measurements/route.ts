@@ -7,8 +7,10 @@ import {
   latestWeightForSync,
   MEASUREMENT_HISTORY_LIMIT,
   measurementInputFrom,
+  patchMeasurementInputFrom,
   publicBodyMeasurement,
   validateBodyMeasurement,
+  validatePatchBodyMeasurement,
   type BodyMeasurement,
   type MeasurementSource,
 } from "../../lib/body-measurements";
@@ -125,4 +127,74 @@ export async function POST(request: Request) {
   });
 
   return Response.json({ measurement: publicBodyMeasurement(rowToBodyMeasurement(outcome.row)), currentWeight: outcome.syncedWeight }, { status: 201 });
+}
+
+// PATCH edits a single existing measurement row, scoped by ownerId + clientId.
+// After the edit, clients.currentWeight is recomputed from the full
+// chronological ledger (transactional) so that a historical weight correction
+// or removal never corrupts the roster's denormalized latest-weight cache.
+export async function PATCH(request: Request) {
+  const ownerId = await getCoachId();
+  if (!ownerId) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const parsed = patchMeasurementInputFrom(body, ownerId, new Date().toISOString());
+  if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+  const { input, measuredAt } = parsed;
+
+  // Validate the editable measurement fields.
+  const validation = validatePatchBodyMeasurement({ ...input, ownerId });
+  if (!validation.ok) {
+    return Response.json({ error: validation.errors.map((error) => error.message).join(" ") }, { status: 400 });
+  }
+
+  const db = getDb();
+
+  // Ownership gate: client must belong to this coach.
+  const [client] = await db.select({ id: clients.id, currentWeight: clients.currentWeight }).from(clients)
+    .where(and(eq(clients.id, input.clientId), eq(clients.ownerId, ownerId))).limit(1);
+  if (!client) return Response.json({ error: "Client not found." }, { status: 404 });
+
+  // Verify the measurement belongs to BOTH this owner and client.
+  const [existing] = await db.select({ id: clientBodyMeasurements.id }).from(clientBodyMeasurements)
+    .where(and(
+      eq(clientBodyMeasurements.id, input.measurementId),
+      eq(clientBodyMeasurements.clientId, input.clientId),
+      eq(clientBodyMeasurements.ownerId, ownerId),
+    )).limit(1);
+  if (!existing) return Response.json({ error: "Measurement not found." }, { status: 404 });
+
+  // Transactional update + currentWeight recompute. Only the targeted row is
+  // updated; the weight sync re-reads the full ledger to find the correct
+  // chronologically latest weight-bearing row.
+  const outcome = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(clientBodyMeasurements).set({
+      measuredAt: new Date(measuredAt),
+      weightKg: input.weightKg,
+      bodyFatPercent: input.bodyFatPercent,
+      leanMassKg: input.leanMassKg,
+      waistCm: input.waistCm,
+      chestCm: input.chestCm,
+      hipsCm: input.hipsCm,
+      armCm: input.armCm,
+      thighCm: input.thighCm,
+      notes: input.notes ?? "",
+    }).where(eq(clientBodyMeasurements.id, input.measurementId)).returning();
+
+    // Always recompute currentWeight after an edit (the edited row may have
+    // added, changed, or removed weight).
+    const allWeightedRows = (await tx.select().from(clientBodyMeasurements)
+      .where(and(
+        eq(clientBodyMeasurements.clientId, input.clientId),
+        eq(clientBodyMeasurements.ownerId, ownerId),
+        isNotNull(clientBodyMeasurements.weightKg),
+      ))).map(rowToBodyMeasurement);
+    const syncedWeight = latestWeightForSync(allWeightedRows);
+    await tx.update(clients).set({ currentWeight: syncedWeight })
+      .where(and(eq(clients.id, input.clientId), eq(clients.ownerId, ownerId)));
+
+    return { updated, syncedWeight };
+  });
+
+  if (!outcome.updated) return Response.json({ error: "Measurement not found." }, { status: 404 });
+  return Response.json({ measurement: publicBodyMeasurement(rowToBodyMeasurement(outcome.updated)), currentWeight: outcome.syncedWeight });
 }
