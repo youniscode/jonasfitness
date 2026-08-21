@@ -79,7 +79,7 @@ export default function DashboardClient({coachName}:{coachName:string}){
       {selected.id>0&&<section className="live-session-launch"><div><p>COACH LIVE MODE</p><h2>Run the workout, not the paperwork.</h2><span>Log sets, notes and previous performance from an iPad, phone or laptop.</span></div><button className="dark-button" onClick={()=>setShowLiveSession(true)}>Start live session →</button></section>}
       <JonasCoach client={selected} />
       <ProgrammeLibrary client={selected} />
-      <ProgressTracker client={selected} />
+      <ProgressTracker client={selected} onWeightChange={weightKg => { setClients(old => old.map(c => c.id === selected.id ? { ...c, currentWeight: weightKg } : c)); setSelected(c => c.id === selected.id ? { ...c, currentWeight: weightKg } : c); }} />
       <OnboardingSummary key={selected.id} client={selected} />
       <ClientWorkoutActivity client={selected} />
       <ExerciseHistory client={selected} />

@@ -81,6 +81,14 @@ export type BodyMeasurementInput = BodyMeasurementValues & {
   notes?: string;
 };
 
+/**
+ * Minimal structural row shape the chronological/trend helpers need. Both full
+ * DB rows (`BodyMeasurement`) and the coach-facing public DTO satisfy it, so
+ * trend logic runs identically on server rows and on browser-safe payloads
+ * (which deliberately carry no ownerId/clientId — see `publicBodyMeasurement`).
+ */
+export type MeasurementRow = { id: number; measuredAt: string } & BodyMeasurementValues;
+
 export type MeasurementError = { field: string; message: string };
 
 export type MeasurementValidationResult =
@@ -105,9 +113,9 @@ export type MeasurementDeltas = Record<MeasuredField, MeasurementDelta>;
 
 export type BodyMeasurementTrend = {
   count: number;
-  latest: BodyMeasurement | null;
+  latest: MeasurementRow | null;
   /** The measurement immediately before `latest` chronologically. */
-  previous: BodyMeasurement | null;
+  previous: MeasurementRow | null;
   deltas: MeasurementDeltas;
   /** Estimated lean mass from latest weight + body-fat %, or the measured value when present. */
   leanMass: LeanMassResolution;
@@ -240,7 +248,7 @@ export function resolveLeanMass(
  * ascending id (ids are monotonically assigned at creation). Input order never
  * matters; the same rows always produce the same ordering.
  */
-export function sortMeasurementsByDate(measurements: readonly BodyMeasurement[]): BodyMeasurement[] {
+export function sortMeasurementsByDate(measurements: readonly MeasurementRow[]): MeasurementRow[] {
   return [...measurements].sort((a, b) => {
     const byDate = new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime();
     return byDate !== 0 ? byDate : a.id - b.id;
@@ -248,13 +256,13 @@ export function sortMeasurementsByDate(measurements: readonly BodyMeasurement[])
 }
 
 /** The most recent measurement (null when there are none). */
-export function latestMeasurement(measurements: readonly BodyMeasurement[]): BodyMeasurement | null {
+export function latestMeasurement(measurements: readonly MeasurementRow[]): MeasurementRow | null {
   const sorted = sortMeasurementsByDate(measurements);
   return sorted.length > 0 ? sorted[sorted.length - 1] : null;
 }
 
 /** The measurement immediately before the latest (null unless ≥ 2 rows). */
-export function previousMeasurement(measurements: readonly BodyMeasurement[]): BodyMeasurement | null {
+export function previousMeasurement(measurements: readonly MeasurementRow[]): MeasurementRow | null {
   const sorted = sortMeasurementsByDate(measurements);
   return sorted.length > 1 ? sorted[sorted.length - 2] : null;
 }
@@ -266,8 +274,8 @@ export function previousMeasurement(measurements: readonly BodyMeasurement[]): B
  * rounded quantity.
  */
 export function measurementDeltas(
-  latest: BodyMeasurement | null,
-  previous: BodyMeasurement | null,
+  latest: MeasurementRow | null,
+  previous: MeasurementRow | null,
 ): MeasurementDeltas {
   const deltas = {} as MeasurementDeltas;
   for (const field of MEASURED_FIELDS) {
@@ -285,7 +293,7 @@ export function measurementDeltas(
  * Full deterministic trend from an unsorted row set: latest, previous,
  * per-field deltas and the lean-mass resolution for the latest measurement.
  */
-export function buildBodyMeasurementTrend(measurements: readonly BodyMeasurement[]): BodyMeasurementTrend {
+export function buildBodyMeasurementTrend(measurements: readonly MeasurementRow[]): BodyMeasurementTrend {
   const latest = latestMeasurement(measurements);
   const previous = previousMeasurement(measurements);
   return {
@@ -325,7 +333,145 @@ export function isMeasurementOwnedBy(
  * never writes — it only reports the value to sync. No second independent
  * "latest weight" authority exists.
  */
-export function latestWeightKg(measurements: readonly BodyMeasurement[]): number | null {
+export function latestWeightKg(measurements: readonly MeasurementRow[]): number | null {
   const latest = latestMeasurement(measurements);
   return latest && typeof latest.weightKg === "number" ? latest.weightKg : null;
+}
+
+// ---------- Route support (pure + testable, used by the API layer) ----------
+
+/** Bounded history returned to the dashboard (newest-first). */
+export const MEASUREMENT_HISTORY_LIMIT = 24;
+/** Notes are trimmed and length-capped like every other free-text field in the repo. */
+export const MEASUREMENT_NOTE_MAX = 1000;
+/**
+ * A measurement is rejected when dated more than 24h in the future. The small
+ * tolerance absorbs timezone day-boundary artifacts (a coach west of UTC
+ * picking "today" at their local midnight can be up to ~12h ahead of the
+ * server clock) while still catching clearly-future typo dates.
+ */
+export const FUTURE_DATE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+
+export type MeasurementDateResult = { ok: true; measuredAt: string } | { ok: false; error: string };
+
+export type PublicBodyMeasurement = {
+  id: number;
+  measuredAt: string;
+} & BodyMeasurementValues & {
+  source: MeasurementSource;
+  notes: string;
+};
+
+/**
+ * Coach-facing DTO. Deliberately excludes ownerId, clientId and createdAt:
+ * the browser never needs them, and ownerId must never leak to responses.
+ */
+export function publicBodyMeasurement(row: BodyMeasurement): PublicBodyMeasurement {
+  return {
+    id: row.id,
+    measuredAt: row.measuredAt,
+    weightKg: row.weightKg,
+    bodyFatPercent: row.bodyFatPercent,
+    leanMassKg: row.leanMassKg,
+    waistCm: row.waistCm,
+    chestCm: row.chestCm,
+    hipsCm: row.hipsCm,
+    armCm: row.armCm,
+    thighCm: row.thighCm,
+    source: row.source,
+    notes: row.notes,
+  };
+}
+
+/**
+ * Safe measurement-date parsing. Accepts a date-only "YYYY-MM-DD" (normalized
+ * to UTC noon so a calendar-date choice can never shift a day across timezones)
+ * or a full ISO timestamp. Absent values default to "now". Malformed dates and
+ * clearly-future dates are rejected — never silently clamped.
+ */
+export function parseMeasurementDate(value: unknown, now: string): MeasurementDateResult {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return { ok: true, measuredAt: now };
+  let measuredAt: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    measuredAt = new Date(`${raw}T12:00:00.000Z`);
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:?\d{2})?$/.test(raw)) {
+    measuredAt = new Date(raw);
+  } else {
+    return { ok: false, error: "Measurement date is not valid." };
+  }
+  if (Number.isNaN(measuredAt.getTime())) return { ok: false, error: "Measurement date is not valid." };
+  const nowMs = new Date(now).getTime();
+  if (Number.isNaN(nowMs)) return { ok: false, error: "Measurement date is not valid." };
+  if (measuredAt.getTime() > nowMs + FUTURE_DATE_TOLERANCE_MS) {
+    return { ok: false, error: "Measurement date cannot be in the future." };
+  }
+  return { ok: true, measuredAt: measuredAt.toISOString() };
+}
+
+/**
+ * Coerces a raw form/JSON value into a measurement number. Empty strings, null
+ * and undefined become null (missing — an optional field left blank). Anything
+ * else becomes Number(value); unparseable non-empty input yields NaN which
+ * `validateBodyMeasurement` rejects explicitly — invalid numbers are never
+ * silently dropped or clamped.
+ */
+export function measurementNumberFrom(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  return typeof value === "number" ? value : Number(value);
+}
+
+export type MeasurementInputResult =
+  | { ok: true; input: BodyMeasurementInput; measuredAt: string }
+  | { ok: false; error: string };
+
+/**
+ * Assembles a validated-shape measurement input from an untrusted request body.
+ * `ownerId` and `source` are NEVER read from the body: ownerId comes from the
+ * authenticated coach, and source is always forced server-side to "coach" for
+ * this UI. Date parsing is safe (see `parseMeasurementDate`); numbers are
+ * coerced (see `measurementNumberFrom`) and then authority-checked by
+ * `validateBodyMeasurement` in the route.
+ */
+export function measurementInputFrom(
+  body: Record<string, unknown>,
+  ownerId: string,
+  now: string,
+): MeasurementInputResult {
+  const clientId = Number(body.clientId);
+  if (!Number.isInteger(clientId) || clientId < 1) return { ok: false, error: "Choose a valid client." };
+  const date = parseMeasurementDate(body.measuredAt, now);
+  if (!date.ok) return { ok: false, error: date.error };
+  return {
+    ok: true,
+    input: {
+      clientId,
+      ownerId,
+      weightKg: measurementNumberFrom(body.weightKg),
+      bodyFatPercent: measurementNumberFrom(body.bodyFatPercent),
+      leanMassKg: measurementNumberFrom(body.leanMassKg),
+      waistCm: measurementNumberFrom(body.waistCm),
+      chestCm: measurementNumberFrom(body.chestCm),
+      hipsCm: measurementNumberFrom(body.hipsCm),
+      armCm: measurementNumberFrom(body.armCm),
+      thighCm: measurementNumberFrom(body.thighCm),
+      notes: typeof body.notes === "string" ? body.notes.trim().slice(0, MEASUREMENT_NOTE_MAX) : "",
+      source: "coach",
+    },
+    measuredAt: date.measuredAt,
+  };
+}
+
+/**
+ * The value to synchronize `clients.currentWeight` to after a measurement
+ * insert: the chronologically latest measurement that CONTAINS a weight,
+ * among all of the owner/client's rows. A backdated entry can therefore never
+ * overwrite a newer weight — ordering is the same deterministic
+ * measuredAt-then-id rule as everywhere else in this module.
+ */
+export function latestWeightForSync(measurements: readonly MeasurementRow[]): number | null {
+  const weighted = sortMeasurementsByDate(measurements).filter((row) => typeof row.weightKg === "number");
+  const latest = weighted.length > 0 ? weighted[weighted.length - 1] : null;
+  return latest ? latest.weightKg : null;
 }
