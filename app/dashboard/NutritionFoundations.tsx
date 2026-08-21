@@ -10,6 +10,11 @@ import {
   type PublicNutritionTarget,
   type NutritionTargetValues,
 } from "../lib/nutrition-targets";
+import {
+  type MealAlternatives,
+  type MealExampleDay,
+  type MealGenerationResponse,
+} from "../lib/nutrition-meals";
 
 type Client = { id: number; name: string };
 
@@ -127,6 +132,9 @@ export default function NutritionFoundations({ client }: { client: Client }) {
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [modalMode, setModalMode] = useState<"estimate" | "replace" | null>(null);
+  const [meal, setMeal] = useState<{ result: MealGenerationResponse; targetId: number } | null>(null);
+  const [mealLoading, setMealLoading] = useState(false);
+  const [mealError, setMealError] = useState("");
 
   const load = useCallback(async () => {
     if (!isPositiveInt(client.id)) { setPayload(null); setLoading(false); return; }
@@ -183,6 +191,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
       const detail = (event as CustomEvent<{ clientId?: number }>).detail;
       if (!isPositiveInt(client.id) || (detail?.clientId !== undefined && detail.clientId !== client.id)) return;
       void load();
+      if (event.type === "jonas-onboarding-saved") setMeal(null);
     };
     window.addEventListener("jonas-measurement-saved", refresh);
     window.addEventListener("jonas-onboarding-saved", refresh);
@@ -191,6 +200,27 @@ export default function NutritionFoundations({ client }: { client: Client }) {
       window.removeEventListener("jonas-onboarding-saved", refresh);
     };
   }, [client.id, load]);
+
+  async function generateMeals(mode: "example_day" | "alternatives") {
+    if (!isPositiveInt(client.id) || !targets.current) return;
+    setMealLoading(true);
+    setMealError("");
+    setMeal(null);
+    try {
+      const response = await fetch("/api/nutrition-meals/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId: client.id, mode }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Meal generation failed.");
+      setMeal({ result: data as MealGenerationResponse, targetId: targets.current.id });
+    } catch (issue) {
+      setMealError(issue instanceof Error ? issue.message : "Meal generation failed.");
+    } finally {
+      setMealLoading(false);
+    }
+  }
 
   const postTargets = useCallback(async (body: Record<string, unknown>) => {
     setSaving(true);
@@ -305,7 +335,21 @@ export default function NutritionFoundations({ client }: { client: Client }) {
       <div className="nutrition-history-list">{targets.history.map((target) => <HistoryCard key={target.id} target={target} />)}</div>
     </div>}
 
-    <p className="nutrition-guidance-notice">These values are estimates for coaching guidance and should be reviewed before being shared with the client. Approved targets stay as you set them — they do not change when the estimate moves.</p>
+    <div className="nutrition-meals">
+      <p className="nutrition-section-label">MEAL EXAMPLES · AI-GENERATED · COACH REVIEW REQUIRED</p>
+      {!targets.current ? <div className="nutrition-approved-empty"><strong>Approve nutrition targets first.</strong><span>Meal examples are generated only from your approved targets.</span></div>
+        : payload.status === "blocked" ? <div className="nutrition-approved-empty"><strong>Meal generation unavailable.</strong><span>Automatic guidance is blocked pending professional review.</span></div>
+        : <>
+          <div className="nutrition-meal-actions">
+            <button type="button" className="nutrition-approve-button" disabled={mealLoading} onClick={() => void generateMeals("example_day")}>{mealLoading ? "Generating…" : "Generate example day"}</button>
+            <button type="button" className="nutrition-adjust-button" disabled={mealLoading} onClick={() => void generateMeals("alternatives")}>Generate meal alternatives</button>
+          </div>
+          {mealError && <p className="nutrition-approval-error" role="alert">{mealError}</p>}
+          {meal && meal.targetId === (targets.current?.id ?? null) && <MealResultView result={meal.result} />}
+        </>}
+    </div>
+
+    <p className="nutrition-guidance-notice">These values are estimates for coaching guidance and should be reviewed before being shared with the client. Approved targets stay as you set them — they do not change when the estimate moves. Generated meals are AI examples — never a medical diet plan.</p>
 
     {modalMode && modalBase && <div className="modal-backdrop" role="presentation" onMouseDown={() => setModalMode(null)}>
       <form className="modal nutrition-approve-form" onSubmit={submitApproval} onMouseDown={(event) => event.stopPropagation()}>
@@ -433,5 +477,71 @@ function HistoryCard({ target }: { target: PublicNutritionTarget }) {
     <p>Calories {fmtRange(target.calorieMinKcal, target.calorieMaxKcal, "kcal")} · Protein {fmtRange(target.proteinMinGrams, target.proteinMaxGrams, "g")}</p>
     <p>Fat {fmtRange(target.fatMinGrams, target.fatMaxGrams, "g")} · Carbs {fmtRange(target.carbohydrateMinGrams, target.carbohydrateMaxGrams, "g")}</p>
     <small>{target.sourceGoal}{target.sourceWeightKg != null ? ` · ${target.sourceWeightKg} kg` : ""}{target.sourceWeightSource ? ` (${target.sourceWeightSource.replace(/_/g, " ")})` : ""}</small>
+  </div>;
+}
+
+function MealResultView({ result }: { result: MealGenerationResponse }) {
+  if (result.status === "generation_failed") {
+    return <div className="nutrition-approved-empty"><strong>Meal generation failed.</strong><span>{mealFailureLabel(result.reason)}</span></div>;
+  }
+  if (result.status === "blocked") {
+    return <div className="nutrition-approved-empty"><strong>Meal generation unavailable.</strong><span>Professional review is required before meals can be generated.</span></div>;
+  }
+  if (result.status === "no_approved_target") {
+    return <div className="nutrition-approved-empty"><strong>Approve nutrition targets first.</strong></div>;
+  }
+  if (result.status === "ready" && result.mode === "alternatives") {
+    return <AlternativesView alternatives={result.alternatives} warnings={result.validation.warnings} />;
+  }
+  return <ExampleDayView example={result.example} summary={result.approvedTargetSummary} warnings={result.validation.warnings} />;
+}
+
+function mealFailureLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    auth: "AI provider authentication failed.",
+    rate_limit: "AI provider is rate-limited — try again shortly.",
+    timeout: "AI provider timed out — try again.",
+    provider_error: "AI provider returned an error — try again.",
+    model_not_found: "AI model unavailable.",
+    empty_response: "AI returned an empty response.",
+    malformed_json: "AI output could not be parsed.",
+    truncated: "AI output was cut off.",
+    validation: "Generated output failed safety validation.",
+  };
+  return labels[reason] ?? "The example could not be generated.";
+}
+
+type MealTargetSummary = { calories: { min: number; max: number }; protein: { min: number; max: number }; fat: { min: number; max: number }; carbohydrates: { min: number; max: number } };
+
+function ExampleDayView({ example, summary, warnings }: { example: MealExampleDay; summary: MealTargetSummary; warnings: { message: string }[] }) {
+  return <div className="nutrition-meal-result">
+    <div className="nutrition-meal-head"><strong>{example.title || "Example meal day"}</strong><em>ESTIMATED MEAL NUTRITION — NOT EXACT</em></div>
+    {warnings.length > 0 && <div className="nutrition-warnings" role="note">⚠ {warnings.map((w) => w.message).join(" · ")}</div>}
+    <div className="nutrition-meal-list">{example.meals.map((meal, index) => <article className="nutrition-meal-card" key={index}>
+      <h4>{meal.name}</h4>
+      <ul>{meal.foods.map((item, foodIndex) => <li key={foodIndex}><span>{item.food}</span><em>{item.quantity}</em></li>)}</ul>
+      <div className="nutrition-meal-macros"><span>{meal.estimatedCalories} kcal</span><span>P {meal.estimatedProteinGrams} g</span><span>F {meal.estimatedFatGrams} g</span><span>C {meal.estimatedCarbohydrateGrams} g</span></div>
+    </article>)}</div>
+    <div className="nutrition-meal-totals">
+      <div><small>ESTIMATED DAILY TOTAL</small><strong>{example.estimatedTotals.calories} kcal</strong><span>P {example.estimatedTotals.proteinGrams} · F {example.estimatedTotals.fatGrams} · C {example.estimatedTotals.carbohydrateGrams} g</span></div>
+      <div><small>APPROVED TARGET</small><strong>{fmtRange(summary.calories.min, summary.calories.max, "kcal")}</strong><span>P {fmtRange(summary.protein.min, summary.protein.max, "g")} · F {fmtRange(summary.fat.min, summary.fat.max, "g")} · C {fmtRange(summary.carbohydrates.min, summary.carbohydrates.max, "g")}</span></div>
+    </div>
+    {example.notes.length > 0 && <p className="nutrition-meal-notes">{example.notes.join(" · ")}</p>}
+  </div>;
+}
+
+function AlternativesView({ alternatives, warnings }: { alternatives: MealAlternatives; warnings: { message: string }[] }) {
+  return <div className="nutrition-meal-result">
+    <div className="nutrition-meal-head"><strong>{alternatives.title || "Meal alternatives"}</strong><em>PRACTICAL SWAPS — COACH REVIEW REQUIRED</em></div>
+    {warnings.length > 0 && <div className="nutrition-warnings" role="note">⚠ {warnings.map((w) => w.message).join(" · ")}</div>}
+    <div className="nutrition-alternatives-list">{alternatives.alternatives.map((group, index) => <article className="nutrition-alt-group" key={index}>
+      <h4>{group.meal}</h4>
+      {group.options.map((option, optionIndex) => <div className="nutrition-alt-option" key={optionIndex}>
+        <strong>{option.title}</strong>
+        <span>{option.foods.map((item) => `${item.food} (${item.quantity})`).join(", ")}</span>
+        <small>{option.estimatedCalories} kcal · P {option.estimatedProteinGrams} · F {option.estimatedFatGrams} · C {option.estimatedCarbohydrateGrams} g</small>
+      </div>)}
+    </article>)}</div>
+    {alternatives.notes.length > 0 && <p className="nutrition-meal-notes">{alternatives.notes.join(" · ")}</p>}
   </div>;
 }
