@@ -113,8 +113,10 @@ function targetNumbers(target: PublicNutritionTarget): NutritionTargetValues {
   };
 }
 
-function scrollToOnboarding() {
-  document.querySelector("#onboarding")?.scrollIntoView({ behavior: "smooth", block: "start" });
+function openOnboardingEditor(clientId: number) {
+  // Ask the OnboardingSummary panel to scroll to itself and open its existing
+  // edit modal — one explicit dashboard interaction, no page reload.
+  window.dispatchEvent(new CustomEvent("jonas-open-onboarding-edit", { detail: { clientId } }));
 }
 
 function responseOk(data: unknown): data is Payload {
@@ -312,7 +314,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
 
     <p className="nutrition-section-label">ESTIMATED GUIDANCE · RECALCULATED FROM CURRENT INPUTS</p>
     {payload.status === "blocked" && <BlockedView reasons={payload.reasons} />}
-    {payload.status === "insufficient_data" && <InsufficientView missing={payload.missing} />}
+    {payload.status === "insufficient_data" && <InsufficientView missing={payload.missing} onCompleteFoundations={() => openOnboardingEditor(client.id)} />}
     {payload.status === "ready" && <ReadyView guidance={payload.guidance} input={payload.inputSummary} />}
 
     {payload.status === "ready" && <div className="nutrition-actions">
@@ -391,13 +393,13 @@ function BlockedView({ reasons }: { reasons: string[] }) {
   </div>;
 }
 
-function InsufficientView({ missing }: { missing: string[] }) {
+function InsufficientView({ missing, onCompleteFoundations }: { missing: string[]; onCompleteFoundations: () => void }) {
   const codes = missing.length ? missing : ["invalid_age", "invalid_sex", "invalid_height", "invalid_weight", "invalid_activity", "unsupported_goal"];
   return <div className="nutrition-state-block">
     <i>○</i>
     <div><p>NUTRITION FOUNDATIONS INCOMPLETE</p><h3>Missing the inputs needed to estimate guidance.</h3><span>Complete the client&apos;s coaching foundations and these will clear. New approvals are unavailable until then.</span></div>
     <ul className="nutrition-missing-list">{codes.map((code) => <li key={code}>{missingLabel(code)}</li>)}</ul>
-    <button type="button" className="nutrition-foundations-action" onClick={scrollToOnboarding}>Complete coaching foundations <span>→</span></button>
+    <button type="button" className="nutrition-foundations-action" onClick={onCompleteFoundations}>Complete coaching foundations <span>→</span></button>
   </div>;
 }
 

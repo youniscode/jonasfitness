@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { isPositiveInt } from "../lib/query-params";
 import {
+  ACTIVITY_LEVELS,
   NUTRITION_SAFETY_FLAGS,
+  PRIMARY_GOALS,
   SEX_VALUES,
   TRAINING_SUPERVISIONS,
   supervisionLabelFor,
@@ -85,6 +87,22 @@ export default function OnboardingSummary({ client }: { client: Client }) {
     return () => window.removeEventListener("jonas-programme-saved", refresh);
   }, [client.id]);
 
+  // Nutrition Guidance dispatches this when the coach clicks "Complete
+  // coaching foundations": scroll to this section and open the edit modal in a
+  // single action (no second click, no full reload).
+  useEffect(() => {
+    const open = (event: Event) => {
+      const clientId = (event as CustomEvent<{ clientId?: number }>).detail?.clientId;
+      if (clientId !== client.id || !isPositiveInt(client.id)) return;
+      document.querySelector("#onboarding")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setError("");
+      setNotice("");
+      setShowEdit(true);
+    };
+    window.addEventListener("jonas-open-onboarding-edit", open);
+    return () => window.removeEventListener("jonas-open-onboarding-edit", open);
+  }, [client.id]);
+
   async function markReadinessReviewed() {
     if (!isPositiveInt(client.id)) return;
     setSaving(true);
@@ -123,6 +141,15 @@ export default function OnboardingSummary({ client }: { client: Client }) {
         sex: String(form.get("sex") ?? ""),
       },
       targetWeightKg: numberOrNull(form.get("targetWeightKg")),
+      measurements: {
+        heightCm: numberOrNull(form.get("heightCm")),
+      },
+      lifestyle: {
+        activity: String(form.get("activity") ?? ""),
+      },
+      goals: {
+        primary: String(form.get("primaryGoal") ?? ""),
+      },
       nutrition: {
         allergies: String(form.get("allergies") ?? ""),
         intolerances: String(form.get("intolerances") ?? ""),
@@ -231,11 +258,14 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       <label>Availability<textarea name="availability" defaultValue={intake?.availability ?? ""} placeholder="Days, times, time zone…" /></label>
       <label>Equipment / gym access<input name="equipment" defaultValue={intake?.equipment ?? ""} placeholder="Full gym, home dumbbells…" /></label>
       <label>Goal and priorities<textarea name="goalsDetail" defaultValue={intake?.goalsDetail ?? ""} placeholder="What the client wants to build, improve or change." /></label>
+      <label>Primary goal<select name="primaryGoal" defaultValue={payload.profile?.goals.primary ?? ""}><option value="">—</option>{PRIMARY_GOALS.map((goal) => <option key={goal} value={goal}>{goal}</option>)}</select><small>Structured value used by programme and nutrition logic. “Goal and priorities” above stays free-form coaching context.</small></label>
       <label>Injuries / limitations<textarea name="trainingConsiderations" defaultValue={intake?.trainingConsiderations ?? ""} placeholder="Current discomfort, limitations, movements to avoid…" /><small>Coach-facing record. The client portal never shows these notes.</small></label>
       <p className="nutrition-modal-heading">NUTRITION FOUNDATIONS</p>
       <div className="nutrition-modal-grid">
         <label>Age (years)<input name="ageYears" type="number" min={13} max={100} defaultValue={payload.profile?.demographics.ageYears ?? ""} placeholder="—" /></label>
         <label>Sex<select name="sex" defaultValue={payload.profile?.demographics.sex ?? ""}><option value="">—</option>{SEX_VALUES.map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}</select></label>
+        <label>Height (cm)<input name="heightCm" type="number" min={100} max={250} step="0.1" defaultValue={payload.profile?.measurements.heightCm ?? ""} placeholder="—" /></label>
+        <label>Activity level<select name="activity" defaultValue={payload.profile?.lifestyle.activity ?? ""}><option value="">—</option>{ACTIVITY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
         <label>Target weight (kg)<input name="targetWeightKg" type="number" min={25} max={400} step="0.1" defaultValue={payload.profile?.goals.targetWeightKg ?? ""} placeholder="—" /></label>
         <label>Meals per day<input name="mealsPerDay" type="number" min={1} max={10} defaultValue={payload.profile?.nutrition.mealsPerDay ?? ""} placeholder="—" /></label>
       </div>

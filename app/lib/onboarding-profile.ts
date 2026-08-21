@@ -417,6 +417,9 @@ export function applyTrainingSupervision(
 export type NutritionInputPatch = {
   demographics?: { ageYears?: unknown; sex?: unknown };
   targetWeightKg?: unknown;
+  measurements?: { heightCm?: unknown };
+  lifestyle?: { activity?: unknown };
+  goals?: { primary?: unknown };
   nutrition?: { allergies?: unknown; intolerances?: unknown; dislikedFoods?: unknown; mealsPerDay?: unknown };
   nutritionSafety?: { flags?: unknown; note?: unknown };
 };
@@ -429,6 +432,8 @@ export function applyNutritionInputs(
   const merged: OnboardingProfile = {
     ...base,
     demographics: { ...base.demographics },
+    measurements: { ...base.measurements },
+    lifestyle: { ...base.lifestyle },
     nutrition: { ...base.nutrition },
     nutritionSafety: { ...base.nutritionSafety },
     goals: { ...base.goals },
@@ -437,6 +442,12 @@ export function applyNutritionInputs(
   if (demographics.ageYears !== undefined) merged.demographics.ageYears = intIn(demographics.ageYears, AGE_MIN, AGE_MAX);
   if (demographics.sex !== undefined) merged.demographics.sex = oneOf(demographics.sex, SEX_VALUES);
   if (patch?.targetWeightKg !== undefined) merged.goals.targetWeightKg = numberIn(patch.targetWeightKg, 25, 400);
+  const measurements = record(patch?.measurements);
+  if (measurements.heightCm !== undefined) merged.measurements.heightCm = numberIn(measurements.heightCm, 100, 250);
+  const lifestyle = record(patch?.lifestyle);
+  if (lifestyle.activity !== undefined) merged.lifestyle.activity = oneOf(lifestyle.activity, ACTIVITY_LEVELS);
+  const goals = record(patch?.goals);
+  if (goals.primary !== undefined) merged.goals.primary = oneOf(goals.primary, PRIMARY_GOALS);
   const nutrition = record(patch?.nutrition);
   if (nutrition.allergies !== undefined) merged.nutrition.allergies = foodList(nutrition.allergies);
   if (nutrition.intolerances !== undefined) merged.nutrition.intolerances = foodList(nutrition.intolerances);

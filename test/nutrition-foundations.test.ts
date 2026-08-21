@@ -13,6 +13,7 @@ import {
   nutritionFoundationStatus,
   nutritionGuidanceBlocked,
   parseProfile,
+  profileFromIntake,
   sanitizeProfile,
   type OnboardingProfile,
 } from "../app/lib/onboarding-profile.ts";
@@ -342,6 +343,91 @@ test("applyNutritionInputs sanitizes values it receives (invalid ages/flags drop
   assert.equal(merged.demographics.ageYears, null);
   assert.equal(merged.demographics.sex, "");
   assert.deepEqual(merged.nutritionSafety.flags, []);
+});
+
+// ---------- coach modal: height / activity / primary goal ----------
+
+test("applyNutritionInputs sets height, activity and primary goal canonically", () => {
+  const merged = applyNutritionInputs(adultProfile(), {
+    measurements: { heightCm: 178 },
+    lifestyle: { activity: "Active" },
+    goals: { primary: "Lose body fat" },
+  });
+  assert.ok(merged);
+  assert.equal(merged.measurements.heightCm, 178);
+  assert.equal(merged.lifestyle.activity, "Active");
+  assert.equal(merged.goals.primary, "Lose body fat");
+});
+
+test("applyNutritionInputs sanitizes unknown activity, primary goal and out-of-bounds height", () => {
+  const merged = applyNutritionInputs(adultProfile(), {
+    measurements: { heightCm: 99 },
+    lifestyle: { activity: "Marathon runner" },
+    goals: { primary: "Become a bodybuilder" },
+  });
+  assert.ok(merged);
+  assert.equal(merged.measurements.heightCm, null); // below the 100–250 bound
+  assert.equal(merged.lifestyle.activity, ""); // unknown value cleared
+  assert.equal(merged.goals.primary, ""); // unknown value cleared
+});
+
+test("applyNutritionInputs preserves unrelated structured data when setting foundations", () => {
+  const existing = adultProfile();
+  existing.preferences.style = ["Machines"];
+  existing.nutrition.tracking = "Calories";
+  existing.limitations.note = "Old knee discomfort";
+  existing.schedule.daysPerWeek = 4;
+  const merged = applyNutritionInputs(existing, {
+    measurements: { heightCm: 180 },
+    lifestyle: { activity: "Very active / physical job" },
+    goals: { primary: "Get stronger" },
+  });
+  assert.ok(merged);
+  assert.equal(merged.measurements.heightCm, 180);
+  assert.equal(merged.lifestyle.activity, "Very active / physical job");
+  assert.equal(merged.goals.primary, "Get stronger");
+  assert.deepEqual(merged.preferences.style, ["Machines"]);
+  assert.equal(merged.nutrition.tracking, "Calories");
+  assert.equal(merged.limitations.note, "Old knee discomfort");
+  assert.equal(merged.schedule.daysPerWeek, 4);
+});
+
+test("legacy free-text goal is never promoted to a canonical primary goal", () => {
+  const legacy = profileFromIntake({ goalsDetail: "Wants to lose weight fast" }, { goal: "Build strength" });
+  // "Build strength" is not a canonical PRIMARY_GOALS value, so it must NOT
+  // become the structured primary goal — the coach selects it explicitly.
+  assert.equal(legacy.goals.primary, "");
+  assert.equal(legacy.goals.note, "Wants to lose weight fast");
+});
+
+// ---------- readiness transitions ----------
+
+test("missing height/activity/goal produces missing_inputs with those codes", () => {
+  const profile = adultProfile();
+  profile.measurements.heightCm = null;
+  profile.lifestyle.activity = "";
+  profile.goals.primary = "";
+  const status = nutritionFoundationStatus(profile);
+  assert.equal(status.status, "missing_inputs");
+  assert.ok(status.missing.includes("missing_height"));
+  assert.ok(status.missing.includes("missing_activity"));
+  assert.ok(status.missing.includes("missing_goal"));
+});
+
+test("filling height/activity/goal removes those codes and can reach ready", () => {
+  const incomplete = adultProfile();
+  incomplete.measurements.heightCm = null;
+  incomplete.lifestyle.activity = "";
+  incomplete.goals.primary = "";
+  const fixed = applyNutritionInputs(incomplete, {
+    measurements: { heightCm: 175 },
+    lifestyle: { activity: "Active" },
+    goals: { primary: "Build muscle" },
+  });
+  assert.ok(fixed);
+  const status = nutritionFoundationStatus(fixed);
+  assert.equal(status.status, "ready");
+  assert.deepEqual(status.missing, []);
 });
 
 // ---------- English labels (regression guard) ----------
