@@ -37,22 +37,26 @@ test("the onboarding profile migration (0007) is additive-only and adds only the
   assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
 });
 
-test("the latest migration (0010) is additive-only and creates only the client_body_measurements table", () => {
+test("the latest migration (0011) is additive-only and creates only the nutrition_targets table", () => {
   const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
   const latest = journal.entries[journal.entries.length - 1];
-  assert.equal(latest.tag, "0010_client-body-measurements");
+  assert.equal(latest.tag, "0011_nutrition-targets");
   const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
-  // The body-composition foundation migration must create ONLY the
-  // client_body_measurements table — exactly one CREATE TABLE, nothing else.
+  // The nutrition-targets migration must create ONLY the nutrition_targets
+  // table — exactly one CREATE TABLE, nothing else.
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, "exactly one table creation");
-  assert.match(sql, /CREATE TABLE "client_body_measurements"/);
+  assert.match(sql, /CREATE TABLE "nutrition_targets"/);
   // No destructive or unrelated operations anywhere in the latest migration.
   assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, "no destructive top-level operations");
   assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
   // The FK constraint is attached with ALTER TABLE on the NEW table (standard
   // drizzle output); any ALTER targeting a pre-existing table is forbidden.
-  assert.doesNotMatch(sql, /ALTER TABLE (?!"client_body_measurements")/i, "no ALTER of existing tables");
-  assert.doesNotMatch(sql, /CREATE UNIQUE INDEX/i, "no unique constraints on a historical ledger");
+  assert.doesNotMatch(sql, /ALTER TABLE (?!"nutrition_targets")/i, "no ALTER of existing tables");
+  // Unlike the append-only measurement ledger, this table needs exactly one
+  // active (approved) row per owner+client — enforced by a PARTIAL unique index
+  // (superseded history rows are unaffected).
+  assert.match(sql, /CREATE UNIQUE INDEX "nutrition_targets_owner_client_active_unique"/);
+  assert.match(sql, /WHERE "nutrition_targets"\."status" = 'approved'/);
 });
 
 test("every applied migration is additive-only (no destructive operations anywhere)", () => {

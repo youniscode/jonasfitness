@@ -113,6 +113,15 @@ export const FACTOR_ROUND = 3;
 /** Minimum adult age for nutrition calculation. */
 export const ADULT_AGE_MIN = 18;
 
+/**
+ * Deterministic engine-version marker (Nutrition Foundations V1 / Phase 2D).
+ * Persisted with each coach-approved target so a future formula change never
+ * makes historical approvals ambiguous. Bumped whenever the calculation rules
+ * change in a way that could alter estimates. Deliberately a plain string — no
+ * semantic-versioning machinery.
+ */
+export const NUTRITION_ENGINE_VERSION = "1";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

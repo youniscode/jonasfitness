@@ -443,3 +443,57 @@ export const communicationLogs = pgTable("communication_logs", {
   index("communication_logs_owner_created_idx").on(table.ownerId, table.createdAt),
   index("communication_logs_related_idx").on(table.ownerId, table.relatedKey),
 ]);
+
+// Nutrition Foundations V1 / Phase 2D — coach-approved nutrition targets.
+//
+// This is a coach DECISION layer, deliberately separate from the deterministic
+// engine estimate (app/lib/nutrition-engine.ts). A row is the numeric targets a
+// coach reviewed and approved (possibly adjusted by hand); the engine keeps
+// recalculating fresh estimates from current inputs without ever touching these.
+// Append-only history: approving a new target supersedes the previous active row
+// (never deletes it). Provenance columns capture the SERVER-recomputed engine
+// estimate that informed the approval so a future review can explain "these
+// targets were based on TDEE X at Y kg", and so the UI can flag when the current
+// estimate has since drifted. No demographic duplication (age/sex/height) is
+// stored — that stays in client_intakes.profile; only the engine OUTPUT
+// provenance needed for audit + drift detection is snapshotted. The partial
+// unique index enforces at most ONE active (status='approved') row per
+// owner+client at the database level.
+export const nutritionTargets = pgTable("nutrition_targets", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  // "approved" (active) | "superseded" (historical). New approvals supersede
+  // the previous active row; rows are never deleted.
+  status: text("status").notNull().default("approved"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
+  // Coach-approved numeric targets (may differ from the engine estimate).
+  calorieMinKcal: doublePrecision("calorie_min_kcal").notNull(),
+  calorieMaxKcal: doublePrecision("calorie_max_kcal").notNull(),
+  proteinMinGrams: doublePrecision("protein_min_grams").notNull(),
+  proteinMaxGrams: doublePrecision("protein_max_grams").notNull(),
+  fatMinGrams: doublePrecision("fat_min_grams").notNull(),
+  fatMaxGrams: doublePrecision("fat_max_grams").notNull(),
+  carbohydrateMinGrams: doublePrecision("carbohydrate_min_grams").notNull(),
+  carbohydrateMaxGrams: doublePrecision("carbohydrate_max_grams").notNull(),
+  // Server-recomputed engine provenance at approval time (audit + drift).
+  sourceEstimatedBmrKcal: doublePrecision("source_estimated_bmr_kcal"),
+  sourceEstimatedTdeeKcal: doublePrecision("source_estimated_tdee_kcal"),
+  sourceCalorieMinKcal: doublePrecision("source_calorie_min_kcal"),
+  sourceCalorieMaxKcal: doublePrecision("source_calorie_max_kcal"),
+  sourceActivityFactor: doublePrecision("source_activity_factor"),
+  sourceGoal: text("source_goal").notNull().default(""),
+  sourceWeightKg: doublePrecision("source_weight_kg"),
+  sourceWeightSource: text("source_weight_source"),
+  engineVersion: text("engine_version").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("nutrition_targets_owner_client_idx").on(table.ownerId, table.clientId),
+  index("nutrition_targets_owner_client_status_idx").on(table.ownerId, table.clientId, table.status),
+  index("nutrition_targets_owner_client_approved_idx").on(table.ownerId, table.clientId, table.approvedAt),
+  uniqueIndex("nutrition_targets_owner_client_active_unique")
+    .on(table.ownerId, table.clientId)
+    .where(sql`${table.status} = 'approved'`),
+]);
