@@ -252,10 +252,10 @@ export default function ProgressTracker({ client, onWeightChange }: { client: Cl
                   </article>
                   <article className="composition-card"><p>HISTORY</p>
                     <div className="body-history-scroll">
-                      <div className="body-history-head">
+                      <div className="body-history-head" style={{ display: "grid", gridTemplateColumns: "minmax(100px, 1.5fr) minmax(60px, 1fr) minmax(60px, 1fr) minmax(60px, 1fr) minmax(70px, 1.1fr) auto", gap: "0 12px" }}>
                         <span>Date</span><span>Weight</span><span>Body fat</span><span>Waist</span><span>Lean mass</span><span></span>
                       </div>
-                      {measurements.slice(0, 10).map(entry => <div className="body-history-row" key={entry.id}>
+                      {measurements.slice(0, 10).map(entry => <div className="body-history-row" key={entry.id} style={{ display: "grid", gridTemplateColumns: "minmax(100px, 1.5fr) minmax(60px, 1fr) minmax(60px, 1fr) minmax(60px, 1fr) minmax(70px, 1.1fr) auto", gap: "0 12px" }}>
                         <span className="body-history-date">{formatDate(entry.measuredAt)}</span>
                         <span>{entry.weightKg !== null ? `${entry.weightKg} kg` : EM_DASH}</span>
                         <span>{entry.bodyFatPercent !== null ? `${entry.bodyFatPercent}%` : EM_DASH}</span>
