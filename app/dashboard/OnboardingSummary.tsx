@@ -19,7 +19,7 @@ type ProfileBlock = { section: string; lines: string[] };
 type Programme = { id: number; title: string; status: string } | null;
 type State = { stage: string; label: string; nextAction: string; missingRequired: string[]; readiness: "noted" | "needs_review" | "ok" };
 type NutritionStatus = { status: "ready" | "missing_inputs" | "review_required"; missing: string[]; blockedReasons: string[] };
-type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[]; profile?: OnboardingProfile | null; nutritionStatus?: NutritionStatus };
+type Payload = { intake: Intake | null; client: { id: number; name: string; email: string; goal: string; currentWeight: number | null } | null; programme: Programme; state: State; checks: Check[]; summary?: ProfileBlock[]; profile?: OnboardingProfile | null; nutritionStatus?: NutritionStatus; resolvedWeightKg?: number | null };
 
 // Deterministic coach-facing labels for the missing-input codes returned by
 // `nutritionFoundationStatus`. No calories are ever shown here.
@@ -173,6 +173,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       coachNotes: form.get("coachNotes"),
       readinessReviewed: form.get("readinessReviewed") === "on",
       nutritionInputs,
+      currentWeightKg: form.get("currentWeightKg"),
     };
     try {
       const response = await fetch("/api/client-onboarding", {
@@ -182,7 +183,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not save the onboarding details.");
-      setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks, profile: data.profile ?? current.profile, nutritionStatus: data.nutritionStatus ?? current.nutritionStatus } : current);
+      setPayload((current) => current ? { ...current, intake: data.intake ?? current.intake, state: data.state ?? current.state, checks: data.checks ?? current.checks, profile: data.profile ?? current.profile, nutritionStatus: data.nutritionStatus ?? current.nutritionStatus, resolvedWeightKg: data.resolvedWeightKg ?? current.resolvedWeightKg } : current);
       setShowEdit(false);
       setNotice("Onboarding details saved.");
       // Notify dependent panels (e.g. Nutrition Guidance) that foundations
@@ -265,6 +266,7 @@ export default function OnboardingSummary({ client }: { client: Client }) {
         <label>Age (years)<input name="ageYears" type="number" min={13} max={100} defaultValue={payload.profile?.demographics.ageYears ?? ""} placeholder="—" /></label>
         <label>Sex<select name="sex" defaultValue={payload.profile?.demographics.sex ?? ""}><option value="">—</option>{SEX_VALUES.map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}</select></label>
         <label>Height (cm)<input name="heightCm" type="number" min={100} max={250} step="0.1" defaultValue={payload.profile?.measurements.heightCm ?? ""} placeholder="—" /></label>
+        <label>Current weight (kg)<input name="currentWeightKg" type="number" min={25} max={400} step="0.1" defaultValue={payload.resolvedWeightKg ?? ""} placeholder="—" /><small>Saving a changed value adds it to Body Composition history.</small></label>
         <label>Activity level<select name="activity" defaultValue={payload.profile?.lifestyle.activity ?? ""}><option value="">—</option>{ACTIVITY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
         <label>Target weight (kg)<input name="targetWeightKg" type="number" min={25} max={400} step="0.1" defaultValue={payload.profile?.goals.targetWeightKg ?? ""} placeholder="—" /></label>
         <label>Meals per day<input name="mealsPerDay" type="number" min={1} max={10} defaultValue={payload.profile?.nutrition.mealsPerDay ?? ""} placeholder="—" /></label>

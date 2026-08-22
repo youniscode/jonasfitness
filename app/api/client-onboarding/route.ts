@@ -5,6 +5,11 @@ import { evaluateCoachAuth, getCoachId } from "../../clerk-auth";
 import { getPortalAccess } from "../../client/portal-auth";
 import { publicIntake } from "../../lib/client-dto";
 import {
+  latestWeightForSync,
+  measurementNumberFrom,
+  type MeasurementRow,
+} from "../../lib/body-measurements";
+import {
   applyNutritionInputs,
   applyTrainingSupervision,
   deriveIntakeFields,
@@ -116,6 +121,7 @@ export async function GET(request: Request) {
     // Coach-facing structured summary (compact blocks, not a raw answer dump).
     summary: profileSummary(profile),
     nutritionStatus: nutritionFoundationStatus(profile, { currentWeightKg: resolvedWeight }),
+    resolvedWeightKg: resolvedWeight,
   });
 }
 
@@ -226,14 +232,94 @@ export async function PATCH(request: Request) {
     ? await db.update(clientIntakes).set(values).where(eq(clientIntakes.id, existing.id)).returning()
     : await db.insert(clientIntakes).values({ clientId, consentAt: new Date(), ...values }).returning();
 
+  // --- Current weight: append to body-measurement history when changed ---
+  // The coach modal may include a currentWeight field that represents the
+  // authoritative resolved weight. When it differs from the pre-save resolved
+  // value (or no weight existed), create a weight-only measurement event.
+  // This keeps the body-composition history as the single source of truth.
+  let submittedWeightKg: number | null = null;
+  if (body.currentWeightKg !== undefined && body.currentWeightKg !== null && body.currentWeightKg !== "") {
+    const parsed = measurementNumberFrom(body.currentWeightKg);
+    if (typeof parsed === "number" && Number.isFinite(parsed)) {
+      submittedWeightKg = parsed;
+    }
+  }
+
+  // Re-read all weight-bearing rows to compute pre-save resolved weight
+  const weightRows = await db.select({
+    id: clientBodyMeasurements.id,
+    clientId: clientBodyMeasurements.clientId,
+    weightKg: clientBodyMeasurements.weightKg,
+    bodyFatPercent: clientBodyMeasurements.bodyFatPercent,
+    leanMassKg: clientBodyMeasurements.leanMassKg,
+    waistCm: clientBodyMeasurements.waistCm,
+    chestCm: clientBodyMeasurements.chestCm,
+    hipsCm: clientBodyMeasurements.hipsCm,
+    armCm: clientBodyMeasurements.armCm,
+    thighCm: clientBodyMeasurements.thighCm,
+    measuredAt: clientBodyMeasurements.measuredAt,
+    source: clientBodyMeasurements.source,
+    notes: clientBodyMeasurements.notes,
+    createdAt: clientBodyMeasurements.createdAt,
+    ownerId: clientBodyMeasurements.ownerId,
+  }).from(clientBodyMeasurements)
+    .where(and(
+      eq(clientBodyMeasurements.clientId, clientId),
+      eq(clientBodyMeasurements.ownerId, ownerId),
+    ))
+    .orderBy(desc(clientBodyMeasurements.measuredAt), desc(clientBodyMeasurements.id));
+
+  const typedRows = weightRows as unknown as MeasurementRow[];
+  const preSyncWeight = latestWeightForSync(typedRows);
+
+  // Weight changed when: submitted differs from resolved, or no weight existed and one was provided
+  const weightChanged = submittedWeightKg !== null
+    && (preSyncWeight === null || Math.abs(submittedWeightKg - preSyncWeight) > 0.05);
+
+  if (weightChanged) {
+    await db.insert(clientBodyMeasurements).values({
+      clientId,
+      ownerId,
+      weightKg: submittedWeightKg,
+      measuredAt: new Date(),
+      source: "coach",
+      notes: "Saved from coaching foundations",
+    });
+
+    // Sync clients.currentWeight: re-read all weight-bearing rows + pick latest
+    const allWeightRows = await db.select({
+      id: clientBodyMeasurements.id,
+      clientId: clientBodyMeasurements.clientId,
+      weightKg: clientBodyMeasurements.weightKg,
+      bodyFatPercent: clientBodyMeasurements.bodyFatPercent,
+      leanMassKg: clientBodyMeasurements.leanMassKg,
+      waistCm: clientBodyMeasurements.waistCm,
+      chestCm: clientBodyMeasurements.chestCm,
+      hipsCm: clientBodyMeasurements.hipsCm,
+      armCm: clientBodyMeasurements.armCm,
+      thighCm: clientBodyMeasurements.thighCm,
+      measuredAt: clientBodyMeasurements.measuredAt,
+      source: clientBodyMeasurements.source,
+      notes: clientBodyMeasurements.notes,
+      createdAt: clientBodyMeasurements.createdAt,
+      ownerId: clientBodyMeasurements.ownerId,
+    }).from(clientBodyMeasurements)
+      .where(and(
+        eq(clientBodyMeasurements.clientId, clientId),
+        eq(clientBodyMeasurements.ownerId, ownerId),
+        isNotNull(clientBodyMeasurements.weightKg),
+      ));
+    const syncedWeight = latestWeightForSync(allWeightRows as unknown as MeasurementRow[]);
+    await db.update(clients).set({ currentWeight: syncedWeight }).where(eq(clients.id, clientId));
+  }
+
   const [programme] = await db.select({ id: programmes.id, title: programmes.title, status: programmes.status })
     .from(programmes)
     .where(and(eq(programmes.clientId, clientId), eq(programmes.ownerId, ownerId), eq(programmes.status, "approved")))
     .orderBy(desc(programmes.createdAt)).limit(1);
   const savedProfile = parseProfile(intake.profile) ?? profileFromIntake(intake, client);
 
-  // Same deterministic nutrition-status resolution as the coach GET, so the
-  // dashboard reflects the just-saved profile without a reload.
+  // Re-resolve current weight after potential write
   const [latestBodyWeight] = await db.select({ weightKg: clientBodyMeasurements.weightKg })
     .from(clientBodyMeasurements)
     .where(and(
@@ -252,6 +338,7 @@ export async function PATCH(request: Request) {
     state: onboardingState(client, intake, Boolean(programme), savedProfile),
     checks: onboardingChecks(client, intake, Boolean(programme), savedProfile),
     nutritionStatus: nutritionFoundationStatus(savedProfile, { currentWeightKg: resolvedWeight }),
+    resolvedWeightKg: resolvedWeight,
   });
 }
 
