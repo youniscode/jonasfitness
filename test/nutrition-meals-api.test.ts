@@ -10,10 +10,10 @@ import { emptyProfile, nutritionGuidanceBlocked, type OnboardingProfile } from "
 import { type NutritionTargetRow } from "../app/lib/nutrition-targets.ts";
 import type { GatewayResult } from "../app/lib/local-ai.ts";
 
-// The route (app/api/nutrition-meals/generate/route.ts) is a thin wire:
-// auth → ownership → profile → safety gate → active approved target → trusted
-// context → runMealGeneration (with the shared AI provider). These tests mirror
-// that sequence with an in-memory store and an INJECTED generator, so gating,
+// Food Nutrition Foundation V1 — API layer tests.
+// The route is a thin wire: auth, ownership, profile, safety gate, active
+// approved target, trusted context, runMealGeneration. Tests mirror that
+// sequence with an in-memory store and an INJECTED generator so gating,
 // trusted-data, repair orchestration, failure handling and DTO leaks are
 // verified deterministically — no live AI or network.
 
@@ -66,11 +66,10 @@ function validDay(): unknown {
   return {
     title: "Balanced training day",
     meals: [
-      { name: "Breakfast", foods: [{ food: "Oats", quantity: "80 g" }, { food: "Greek yogurt", quantity: "200 g" }], estimatedCalories: 520, estimatedProteinGrams: 35, estimatedFatGrams: 12, estimatedCarbohydrateGrams: 70 },
-      { name: "Lunch", foods: [{ food: "Chicken breast", quantity: "180 g" }, { food: "Rice", quantity: "200 g" }], estimatedCalories: 620, estimatedProteinGrams: 52, estimatedFatGrams: 14, estimatedCarbohydrateGrams: 75 },
-      { name: "Dinner", foods: [{ food: "Salmon", quantity: "160 g" }, { food: "Sweet potato", quantity: "250 g" }], estimatedCalories: 1045, estimatedProteinGrams: 80, estimatedFatGrams: 43, estimatedCarbohydrateGrams: 75 },
+      { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 150 }, { foodId: "greek-yogurt-plain", quantityG: 250 }] },
+      { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantityG: 200 }, { foodId: "rice-white-cooked", quantityG: 300 }] },
+      { name: "Dinner", foods: [{ foodId: "salmon-farmed-raw", quantityG: 180 }, { foodId: "sweet-potato-cooked", quantityG: 500 }] },
     ],
-    estimatedTotals: { calories: 2185, proteinGrams: 167, fatGrams: 69, carbohydrateGrams: 220 },
     notes: [],
   };
 }
@@ -117,7 +116,6 @@ function simulateGenerate(
   return runMealGeneration(contextFor(store, clientId), mode, generate);
 }
 
-/** A generator that pops responses off a queue; a `{ ok }` object is a GatewayResult, anything else is a value. */
 function queuedGenerator(...responses: unknown[]): (system: string, prompt: string) => Promise<GatewayResult<unknown>> {
   let index = 0;
   const prompts: string[] = [];
@@ -175,7 +173,7 @@ test("browser-supplied target numbers, ownerId and allergies are ignored", async
 
 // ---------- 3. Gating ----------
 
-test("no approved target → no generation (no AI call)", async () => {
+test("no approved target leads to no generation (no AI call)", async () => {
   const store = makeStore();
   let called = false;
   const gen = async () => { called = true; return { ok: true, value: validDay() } as GatewayResult<unknown>; };
@@ -184,7 +182,7 @@ test("no approved target → no generation (no AI call)", async () => {
   assert.equal(called, false, "AI must not be called without an approved target");
 });
 
-test("blocked client → no generation (no AI call)", async () => {
+test("blocked client leads to no generation (no AI call)", async () => {
   const store = makeStore();
   store.targets.push(approvedTarget());
   const profile: OnboardingProfile = { ...emptyProfile(), nutritionSafety: { flags: ["diabetes"], note: "" } };
@@ -197,7 +195,7 @@ test("blocked client → no generation (no AI call)", async () => {
   assert.equal(called, false, "AI must not be called for a blocked client");
 });
 
-test("a client with no intake still generates with empty preferences (controlled)", async () => {
+test("a client with no intake still generates with empty preferences", async () => {
   const store = makeStore();
   store.targets.push(approvedTarget());
   const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(validDay()));
@@ -211,13 +209,17 @@ test("valid structured output is returned ready", async () => {
   store.targets.push(approvedTarget());
   const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(validDay()));
   const ready = expectReady(result);
-  if (ready.mode === "example_day") assert.equal(ready.example.estimatedTotals.calories, 2185);
+  assert.equal(ready.mode, "example_day");
+  if (ready.mode === "example_day") {
+    assert.ok(typeof ready.example.estimatedTotals.calories === "number");
+    assert.ok(ready.example.estimatedTotals.calories > 0);
+  }
 });
 
 test("an invalid first generation is repaired once and returned ready", async () => {
   const store = makeStore();
   store.targets.push(approvedTarget());
-  const bad = { ...(validDay() as Record<string, unknown>), estimatedTotals: { calories: 5000, proteinGrams: 167, fatGrams: 69, carbohydrateGrams: 220 } };
+  const bad = { meals: [{ name: "Snack", foods: [{ foodId: "totally-fake-food-id", quantityG: 100 }] }] };
   const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(bad, validDay()));
   assert.equal((result as { status?: string }).status, "ready", "repair should recover with the second valid response");
 });
@@ -225,7 +227,7 @@ test("an invalid first generation is repaired once and returned ready", async ()
 test("two invalid responses fail safely", async () => {
   const store = makeStore();
   store.targets.push(approvedTarget());
-  const bad = { ...(validDay() as Record<string, unknown>), estimatedTotals: { calories: 5000, proteinGrams: 167, fatGrams: 69, carbohydrateGrams: 220 } };
+  const bad = { meals: [{ name: "Snack", foods: [{ foodId: "totally-fake-food-id", quantityG: 100 }] }] };
   const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(bad, bad));
   assert.equal((result as { status?: string }).status, "generation_failed");
   assert.equal((result as { reason?: string }).reason, "validation");
@@ -243,7 +245,7 @@ test("an allergy violation is never returned ready (fails safely)", async () => 
   const store = makeStore();
   store.targets.push(approvedTarget());
   store.intakes.push({ clientId: 7, ownerId: "coach-a", profile: { ...emptyProfile(), nutrition: { ...emptyProfile().nutrition, allergies: ["peanuts"] } }, preferredLanguage: "en" });
-  const peanutDay = { ...(validDay() as Record<string, unknown>), meals: [{ name: "Snack", foods: [{ food: "Peanut butter", quantity: "2 tbsp" }], estimatedCalories: 200, estimatedProteinGrams: 8, estimatedFatGrams: 16, estimatedCarbohydrateGrams: 8 }] };
+  const peanutDay = { title: "Peanut snack", meals: [{ name: "Snack", foods: [{ foodId: "peanut-butter", quantityG: 30 }] }], notes: [] };
   const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(peanutDay, peanutDay));
   assert.equal((result as { status?: string }).status, "generation_failed");
   assert.equal((result as { reason?: string }).reason, "validation");
@@ -278,9 +280,67 @@ test("the response never leaks ownerId, raw profile, prompt or safety notes", as
 test("alternatives mode is honoured", async () => {
   const store = makeStore();
   store.targets.push(approvedTarget());
-  const alternatives = { title: "Breakfast swaps", alternatives: [{ meal: "Breakfast", options: [{ title: "Oats + yogurt", foods: [{ food: "Oats", quantity: "80 g" }], estimatedCalories: 500, estimatedProteinGrams: 30, estimatedFatGrams: 10, estimatedCarbohydrateGrams: 70 }] }], notes: [] };
+  const alternatives = {
+    title: "Breakfast swaps",
+    alternatives: [
+      { meal: "Breakfast", options: [
+        { title: "Oats + yogurt", foods: [{ foodId: "oats-dry", quantityG: 150 }, { foodId: "greek-yogurt-plain", quantityG: 250 }] },
+      ] },
+    ],
+    notes: [],
+  };
   const result = await simulateGenerate(store, { clientId: 7, mode: "alternatives" }, "coach-a", queuedGenerator(alternatives));
   const ready = expectReady(result);
   assert.equal(ready.mode, "alternatives");
   if (ready.mode === "alternatives") assert.equal(ready.alternatives.alternatives[0].meal, "Breakfast");
+});
+
+// ---------- 7. Adversarial: AI nutrient injection ----------
+
+test("AI cannot inject trusted nutrient totals into the response", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const withFakeNutrition = {
+    ...validDay() as Record<string, unknown>,
+    estimatedTotals: { calories: 9999, proteinGrams: 999, fatGrams: 999, carbohydrateGrams: 999 },
+  };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(withFakeNutrition));
+  const ready = expectReady(result);
+  if (ready.mode === "example_day") {
+    assert.ok(ready.example.estimatedTotals.calories < 5000, "computed total must come from catalogue, not AI claim");
+  }
+});
+
+test("API returns catalogue-calculated nutrition in response", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(validDay()));
+  const ready = expectReady(result);
+  if (ready.mode === "example_day") {
+    for (const meal of ready.example.meals) {
+      assert.ok(typeof meal.estimatedCalories === "number" && Number.isFinite(meal.estimatedCalories));
+      assert.ok(typeof meal.estimatedProteinGrams === "number" && Number.isFinite(meal.estimatedProteinGrams));
+      assert.ok(typeof meal.estimatedFatGrams === "number" && Number.isFinite(meal.estimatedFatGrams));
+      assert.ok(typeof meal.estimatedCarbohydrateGrams === "number" && Number.isFinite(meal.estimatedCarbohydrateGrams));
+    }
+  }
+});
+
+test("nutritionSource is present in the ready response", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(validDay()));
+  const ready = expectReady(result);
+  assert.ok(ready.nutritionSource, "nutritionSource must be present");
+  assert.equal(ready.nutritionSource.provider, "CIQUAL");
+  assert.equal(ready.nutritionSource.datasetVersion, "2020");
+  assert.equal(ready.nutritionSource.catalogueVersion, "1");
+});
+
+test("invalid catalogue food returns not-ready (repair or fail)", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const badFood = { title: "Bad", meals: [{ name: "Snack", foods: [{ foodId: "nonexistent-food-xyz", quantityG: 100 }] }], notes: [] };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(badFood, badFood));
+  assert.equal((result as { status?: string }).status, "generation_failed");
 });

@@ -1,0 +1,2440 @@
+{
+  "catalogueVersion": "1",
+  "source": {
+    "provider": "CIQUAL",
+    "citation": "Anses. 2020. Ciqual French food composition table. https://ciqual.anses.fr/",
+    "datasetVersion": "2020",
+    "fileSetDate": "2020-07-07",
+    "constituentsUsed": {
+      "kcal": "328",
+      "proteinG": "25000",
+      "carbohydrateG": "31000",
+      "fatG": "40000",
+      "fibreG": "34100"
+    }
+  },
+  "foods": [
+    {
+      "id": "chicken-breast-raw",
+      "name": "Chicken, breast, without skin, raw",
+      "nameFr": "Poulet, filet, sans peau, cru",
+      "aliases": [
+        "raw chicken breast",
+        "chicken fillet raw",
+        "poulet filet cru"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 110,
+        "proteinG": 23.4,
+        "carbohydrateG": 0,
+        "fatG": 1.5,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "36017",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "chicken-breast-cooked",
+      "name": "Chicken, breast, without skin, cooked",
+      "nameFr": "Poulet, filet, sans peau, sauté/poêlé",
+      "aliases": [
+        "grilled chicken breast",
+        "cooked chicken breast",
+        "pan-fried chicken breast",
+        "poulet grille"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 141,
+        "proteinG": 30.1,
+        "carbohydrateG": 0,
+        "fatG": 2,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "36018",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "chicken-thigh-roasted",
+      "name": "Chicken leg, meat, roasted/baked",
+      "nameFr": "Poulet, cuisse, viande, rôti/cuit au four",
+      "aliases": [
+        "roasted chicken thigh",
+        "chicken thigh cooked"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 171,
+        "proteinG": 24.8,
+        "carbohydrateG": 0,
+        "fatG": 8.03,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "36006",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "turkey-escalope-raw",
+      "name": "Turkey, escalope, raw",
+      "nameFr": "Dinde, escalope, crue",
+      "aliases": [
+        "raw turkey escalope",
+        "turkey breast raw"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 109,
+        "proteinG": 24.1,
+        "carbohydrateG": 0.51,
+        "fatG": 1.22,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "36304",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "turkey-escalope-cooked",
+      "name": "Turkey, escalope, roasted/baked",
+      "nameFr": "Dinde, escalope, rôtie/cuite au four",
+      "aliases": [
+        "cooked turkey escalope",
+        "roasted turkey escalope"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 128,
+        "proteinG": 24.6,
+        "carbohydrateG": 0.5,
+        "fatG": 3.04,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "36308",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "beef-steak-raw",
+      "name": "Beef, steak or beef steak, raw",
+      "nameFr": "Boeuf, steak ou bifteck, cru",
+      "aliases": [
+        "raw beef steak",
+        "steak cru"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 223,
+        "proteinG": 19.2,
+        "carbohydrateG": 0,
+        "fatG": 16.2,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "6201",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "beef-steak-grilled",
+      "name": "Beef, steak or beef steak, grilled",
+      "nameFr": "Boeuf, steak ou bifteck, grillé",
+      "aliases": [
+        "grilled beef steak",
+        "steak grille"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 128,
+        "proteinG": 27.6,
+        "carbohydrateG": 0,
+        "fatG": 1.95,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "6200",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "beef-mince-5pct-raw",
+      "name": "Beef, minced steak, 5% fat, raw",
+      "nameFr": "Boeuf, steak haché 5% MG, cru",
+      "aliases": [
+        "lean beef mince raw",
+        "5% fat ground beef raw"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 130,
+        "proteinG": 21.9,
+        "carbohydrateG": 0.3,
+        "fatG": 4.59,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "6250",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "beef-mince-5pct-cooked",
+      "name": "Beef, minced steak, 5% fat, cooked",
+      "nameFr": "Boeuf, steak haché 5% MG, cuit",
+      "aliases": [
+        "lean beef mince cooked",
+        "5% fat ground beef cooked"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 155,
+        "proteinG": 25.5,
+        "carbohydrateG": 0,
+        "fatG": 5.85,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "6251",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "salmon-farmed-raw",
+      "name": "Salmon, raw, farmed",
+      "nameFr": "Saumon, cru, élevage",
+      "aliases": [
+        "raw salmon",
+        "salmon filet raw"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 194,
+        "proteinG": 20.5,
+        "carbohydrateG": 0,
+        "fatG": 12.4,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26036",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "salmon-steamed",
+      "name": "Salmon, steamed",
+      "nameFr": "Saumon, cuit à la vapeur",
+      "aliases": [
+        "steamed salmon",
+        "cooked salmon"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 195,
+        "proteinG": 23,
+        "carbohydrateG": 0,
+        "fatG": 11.5,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26038",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "salmon-grilled",
+      "name": "Salmon, grilled/pan-fried",
+      "nameFr": "Saumon, grillé/poêlé",
+      "aliases": [
+        "grilled salmon",
+        "pan-fried salmon"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 223,
+        "proteinG": 25.5,
+        "carbohydrateG": 0,
+        "fatG": 13.5,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26229",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "tuna-raw",
+      "name": "Tuna, raw",
+      "nameFr": "Thon, cru",
+      "aliases": [
+        "fresh tuna",
+        "raw tuna steak"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 144,
+        "proteinG": 24,
+        "carbohydrateG": 0,
+        "fatG": 5.38,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26053",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "tuna-canned-drained",
+      "name": "Tuna, plain, canned, drained",
+      "nameFr": "Thon, au naturel, appertisé, égoutté",
+      "aliases": [
+        "canned tuna",
+        "tuna in water drained"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 111,
+        "proteinG": 26.8,
+        "carbohydrateG": 0,
+        "fatG": 0.4,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26039",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "cod-raw",
+      "name": "Cod, raw",
+      "nameFr": "Cabillaud, cru",
+      "aliases": [
+        "raw cod",
+        "white fish raw",
+        "cabillaud cru"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 77.6,
+        "proteinG": 18.1,
+        "carbohydrateG": 0,
+        "fatG": 0.57,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26043",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "cod-steamed",
+      "name": "Cod, steamed",
+      "nameFr": "Cabillaud, cuit à la vapeur",
+      "aliases": [
+        "steamed cod",
+        "cooked white fish"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 106,
+        "proteinG": 24.5,
+        "carbohydrateG": 0,
+        "fatG": 0.95,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "26025",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "shrimp-raw",
+      "name": "Shrimp or prawn, raw",
+      "nameFr": "Crevette, crue",
+      "aliases": [
+        "raw shrimp",
+        "raw prawn"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 99,
+        "proteinG": 19.7,
+        "carbohydrateG": 3.21,
+        "fatG": 0.84,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "shellfish"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "10021",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "shrimp-cooked",
+      "name": "Shrimp or prawn, cooked",
+      "nameFr": "Crevette, cuite",
+      "aliases": [
+        "cooked shrimp",
+        "cooked prawn"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 93.8,
+        "proteinG": 19,
+        "carbohydrateG": 1.87,
+        "fatG": 1.16,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": false,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "shellfish"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "10007",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "egg-whole-raw",
+      "name": "Egg, raw",
+      "nameFr": "Oeuf, cru",
+      "aliases": [
+        "raw egg",
+        "whole egg",
+        "oeuf cru"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 140,
+        "proteinG": 12.7,
+        "carbohydrateG": 0.27,
+        "fatG": 9.83,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "egg"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "22000",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "egg-boiled",
+      "name": "Egg, hard-boiled",
+      "nameFr": "Oeuf, dur",
+      "aliases": [
+        "boiled egg",
+        "hard boiled egg",
+        "oeuf dur"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 134,
+        "proteinG": 13.5,
+        "carbohydrateG": 0.52,
+        "fatG": 8.62,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "egg"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "22010",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "egg-white-raw",
+      "name": "Egg white, raw",
+      "nameFr": "Oeuf, blanc (blanc d'oeuf), cru",
+      "aliases": [
+        "egg white",
+        "blanc d'oeuf",
+        "egg whites"
+      ],
+      "category": "protein",
+      "nutritionPer100g": {
+        "kcal": 48.1,
+        "proteinG": 10.8,
+        "carbohydrateG": 0.85,
+        "fatG": 0.19,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "egg"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "22001",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "milk-semi-skimmed-uht",
+      "name": "Milk, semi-skimmed, UHT",
+      "nameFr": "Lait demi-écrémé, UHT",
+      "aliases": [
+        "semi skimmed milk",
+        "lait demi-ecreme"
+      ],
+      "category": "dairy",
+      "nutritionPer100g": {
+        "kcal": 47,
+        "proteinG": 3.38,
+        "carbohydrateG": 4.83,
+        "fatG": 1.55,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "milk"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "19041",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "milk-whole-uht",
+      "name": "Milk, whole, UHT",
+      "nameFr": "Lait entier, UHT",
+      "aliases": [
+        "whole milk",
+        "full fat milk",
+        "lait entier"
+      ],
+      "category": "dairy",
+      "nutritionPer100g": {
+        "kcal": 65.1,
+        "proteinG": 3.32,
+        "carbohydrateG": 4.85,
+        "fatG": 3.63,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "milk"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "19023",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "greek-yogurt-plain",
+      "name": "Yogurt, Greek-style, plain",
+      "nameFr": "Yaourt à la grecque, nature",
+      "aliases": [
+        "greek yogurt",
+        "greek style yogurt plain",
+        "yaourt grec nature"
+      ],
+      "category": "dairy",
+      "nutritionPer100g": {
+        "kcal": 113.1,
+        "proteinG": 3.32,
+        "carbohydrateG": 4.21,
+        "fatG": 9.22,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "milk"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "19860",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "yogurt-plain-bifidus",
+      "name": "Fermented milk or dairy specialty, yogurt type, plain, with bifidus",
+      "nameFr": "Lait fermenté ou spécialité laitière type yaourt, nature, au bifidus",
+      "aliases": [
+        "plain yogurt",
+        "natural yogurt",
+        "yaourt nature"
+      ],
+      "category": "dairy",
+      "nutritionPer100g": {
+        "kcal": 64.5,
+        "proteinG": 3.84,
+        "carbohydrateG": 3.47,
+        "fatG": 3.6,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "milk"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "19546",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "fromage-blanc-0-fat",
+      "name": "Fresh cream cheese, plain, fat free",
+      "nameFr": "Fromage blanc nature, 0% MG",
+      "aliases": [
+        "fat free fromage blanc",
+        "0% quark",
+        "fromage blanc 0%"
+      ],
+      "category": "dairy",
+      "nutritionPer100g": {
+        "kcal": 49.4,
+        "proteinG": 7.95,
+        "carbohydrateG": 3.89,
+        "fatG": 0.04,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "milk"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "19644",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "fromage-blanc-3-fat",
+      "name": "Fresh cream cheese, plain, around 3% fat",
+      "nameFr": "Fromage blanc nature, 3% MG environ",
+      "aliases": [
+        "fromage blanc",
+        "quark 3%"
+      ],
+      "category": "dairy",
+      "nutritionPer100g": {
+        "kcal": 76.9,
+        "proteinG": 8.03,
+        "carbohydrateG": 3.46,
+        "fatG": 3.26,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": false,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "milk"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "19646",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "rice-white-raw",
+      "name": "Rice, raw",
+      "nameFr": "Riz blanc, cru",
+      "aliases": [
+        "white rice dry",
+        "uncooked white rice",
+        "riz blanc cru"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 352,
+        "proteinG": 7.04,
+        "carbohydrateG": 78,
+        "fatG": 0.91,
+        "fibreG": 1.05
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9100",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "rice-white-cooked",
+      "name": "Rice, cooked, unsalted",
+      "nameFr": "Riz blanc, cuit, non salé",
+      "aliases": [
+        "cooked white rice",
+        "boiled white rice",
+        "riz blanc cuit"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 145,
+        "proteinG": 2.92,
+        "carbohydrateG": 31.8,
+        "fatG": 0.41,
+        "fibreG": 0.8
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9104",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "rice-basmati-cooked",
+      "name": "Rice, basmati, cooked",
+      "nameFr": "Riz basmati, cuit, non salé",
+      "aliases": [
+        "basmati rice cooked",
+        "riz basmati cuit"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 117,
+        "proteinG": 2.74,
+        "carbohydrateG": 24.4,
+        "fatG": 0.6,
+        "fibreG": 1
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9125",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "rice-brown-raw",
+      "name": "Rice, brown, raw",
+      "nameFr": "Riz complet, cru",
+      "aliases": [
+        "brown rice dry",
+        "uncooked brown rice",
+        "riz complet cru"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 350,
+        "proteinG": 7.02,
+        "carbohydrateG": 71.4,
+        "fatG": 2.8,
+        "fibreG": 5
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9102",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "rice-brown-cooked",
+      "name": "Rice, brown, cooked, unsalted",
+      "nameFr": "Riz complet, cuit, non salé",
+      "aliases": [
+        "cooked brown rice",
+        "riz complet cuit"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 158,
+        "proteinG": 3.21,
+        "carbohydrateG": 32.6,
+        "fatG": 1,
+        "fibreG": 2.3
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9103",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "oats-dry",
+      "name": "Oatmeal flakes",
+      "nameFr": "Flocon d'avoine",
+      "aliases": [
+        "rolled oats",
+        "oat flakes",
+        "flocons d'avoine",
+        "avoine"
+      ],
+      "category": "grain",
+      "nutritionPer100g": {
+        "kcal": 367,
+        "proteinG": 13.3,
+        "carbohydrateG": 57.9,
+        "fatG": 6.51,
+        "fibreG": 10.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9311",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "pasta-dry-raw",
+      "name": "Dried pasta, raw",
+      "nameFr": "Pâtes sèches standard, crues",
+      "aliases": [
+        "dry pasta",
+        "uncooked pasta",
+        "pates seches crues"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 336,
+        "proteinG": 11.5,
+        "carbohydrateG": 65.8,
+        "fatG": 1.79,
+        "fibreG": 3
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9810",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "pasta-dry-cooked",
+      "name": "Dried pasta, cooked, unsalted",
+      "nameFr": "Pâtes sèches standard, cuites, non salées",
+      "aliases": [
+        "cooked pasta",
+        "boiled pasta",
+        "pates cuites"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 126,
+        "proteinG": 3.99,
+        "carbohydrateG": 25,
+        "fatG": 0.55,
+        "fibreG": 1.9
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9811",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "pasta-wholemeal-raw",
+      "name": "Dried pasta, wholemeal, raw",
+      "nameFr": "Pâtes sèches, au blé complet, crues",
+      "aliases": [
+        "wholemeal pasta dry",
+        "pates completes crues"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 353,
+        "proteinG": 11.8,
+        "carbohydrateG": 67.6,
+        "fatG": 2.2,
+        "fibreG": 6.1
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9870",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "pasta-wholemeal-cooked",
+      "name": "Dried pasta, wholemeal, cooked, unsalted",
+      "nameFr": "Pâtes sèches, au blé complet, cuites, non salées",
+      "aliases": [
+        "wholemeal pasta cooked",
+        "pates completes cuites"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 128,
+        "proteinG": 4.55,
+        "carbohydrateG": 23.4,
+        "fatG": 0.9,
+        "fibreG": 3.3
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9871",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "bread-baguette",
+      "name": "Bread, French bread, baguette",
+      "nameFr": "Pain, baguette, courante",
+      "aliases": [
+        "french baguette",
+        "baguette bread"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 287,
+        "proteinG": 8.27,
+        "carbohydrateG": 58.3,
+        "fatG": 1.4,
+        "fibreG": 2.7
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "7001",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "bread-wholemeal-t150",
+      "name": "Bread, wholemeal or integral bread (made with flour type 150)",
+      "nameFr": "Pain complet ou intégral (à la farine T150)",
+      "aliases": [
+        "wholemeal bread",
+        "integral bread",
+        "pain complet"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 244,
+        "proteinG": 8.38,
+        "carbohydrateG": 44.3,
+        "fatG": 1.8,
+        "fibreG": 6.9
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "7110",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "potato-boiled",
+      "name": "Potato, boiled/cooked in water",
+      "nameFr": "Pomme de terre, bouillie/cuite à l'eau",
+      "aliases": [
+        "boiled potatoes",
+        "potatoes cooked in water",
+        "pommes de terre a l'eau"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 80.5,
+        "proteinG": 1.8,
+        "carbohydrateG": 16.7,
+        "fatG": 0.34,
+        "fibreG": 1.8
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "4003",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "sweet-potato-raw",
+      "name": "Sweet potato, raw",
+      "nameFr": "Patate douce, crue",
+      "aliases": [
+        "raw sweet potato",
+        "patate douce crue"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 86.3,
+        "proteinG": 1.51,
+        "carbohydrateG": 18.3,
+        "fatG": 0.15,
+        "fibreG": 2.87
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "4101",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "sweet-potato-cooked",
+      "name": "Sweet potato, cooked",
+      "nameFr": "Patate douce, cuite",
+      "aliases": [
+        "cooked sweet potato",
+        "patate douce cuite"
+      ],
+      "category": "carbohydrate",
+      "nutritionPer100g": {
+        "kcal": 62.8,
+        "proteinG": 1.69,
+        "carbohydrateG": 12.2,
+        "fatG": 0.15,
+        "fibreG": 2.9
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "4102",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "couscous-raw",
+      "name": "Couscous (precooked durum wheat semolina), raw",
+      "nameFr": "Graine de couscous (semoule de blé dur précuite), crue",
+      "aliases": [
+        "dry couscous",
+        "uncooked couscous grain",
+        "semoule crue"
+      ],
+      "category": "grain",
+      "nutritionPer100g": {
+        "kcal": 365,
+        "proteinG": 12,
+        "carbohydrateG": 72.7,
+        "fatG": 1.45,
+        "fibreG": 4.33
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9681",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "couscous-cooked",
+      "name": "Couscous (precooked durum wheat semolina), cooked, unsalted",
+      "nameFr": "Graine de couscous (semoule de blé dur précuite), cuite, non salée",
+      "aliases": [
+        "cooked couscous",
+        "couscous grain cooked"
+      ],
+      "category": "grain",
+      "nutritionPer100g": {
+        "kcal": 157,
+        "proteinG": 4.56,
+        "carbohydrateG": 31,
+        "fatG": 1,
+        "fibreG": 2.3
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "gluten"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9683",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "quinoa-raw",
+      "name": "Quinoa, raw",
+      "nameFr": "Quinoa, cru",
+      "aliases": [
+        "dry quinoa",
+        "uncooked quinoa"
+      ],
+      "category": "grain",
+      "nutritionPer100g": {
+        "kcal": 358,
+        "proteinG": 13.2,
+        "carbohydrateG": 58.1,
+        "fatG": 6.07,
+        "fibreG": 7
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9340",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "quinoa-cooked",
+      "name": "Quinoa, boiled/cooked in water, unsalted",
+      "nameFr": "Quinoa, bouilli/cuit à l'eau, non salé",
+      "aliases": [
+        "cooked quinoa",
+        "boiled quinoa"
+      ],
+      "category": "grain",
+      "nutritionPer100g": {
+        "kcal": 149,
+        "proteinG": 4.66,
+        "carbohydrateG": 27.9,
+        "fatG": 1.1,
+        "fibreG": 3.8
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "9341",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "lentils-green-cooked",
+      "name": "Lentil, green, boiled/cooked in water",
+      "nameFr": "Lentille verte, bouillie/cuite à l'eau",
+      "aliases": [
+        "cooked green lentils",
+        "boiled lentils",
+        "lentilles vertes cuites"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 127,
+        "proteinG": 10.1,
+        "carbohydrateG": 16.2,
+        "fatG": 0.58,
+        "fibreG": 8.45
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20587",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "lentils-dry-raw",
+      "name": "Lentil, dried",
+      "nameFr": "Lentille, sèche",
+      "aliases": [
+        "dry lentils",
+        "uncooked lentils",
+        "lentilles seches"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 316.06,
+        "proteinG": 25.4,
+        "carbohydrateG": 50.6,
+        "fatG": 1.34,
+        "fibreG": 7.63
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20504",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "chickpeas-cooked",
+      "name": "Chick pea, boiled/cooked in water",
+      "nameFr": "Pois chiche, bouilli/cuit à l'eau",
+      "aliases": [
+        "boiled chickpeas",
+        "pois chiches cuits"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 147,
+        "proteinG": 8.31,
+        "carbohydrateG": 17.7,
+        "fatG": 3,
+        "fibreG": 8.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20507",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "chickpeas-canned-drained",
+      "name": "Chick pea, canned, drained",
+      "nameFr": "Pois chiche, appertisé, égoutté",
+      "aliases": [
+        "canned chickpeas",
+        "pois chiches appertises egouttes"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 111.08,
+        "proteinG": 6.74,
+        "carbohydrateG": 15,
+        "fatG": 2.68,
+        "fibreG": 5.45
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20532",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "kidney-beans-cooked",
+      "name": "Red kidney bean, boiled/cooked in water",
+      "nameFr": "Haricot rouge, bouilli/cuit à l'eau",
+      "aliases": [
+        "boiled red kidney beans",
+        "haricots rouges cuits"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 116,
+        "proteinG": 9.63,
+        "carbohydrateG": 12.3,
+        "fatG": 0.6,
+        "fibreG": 11.6
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20503",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "white-beans-cooked",
+      "name": "Haricot bean, boiled/cooked in water",
+      "nameFr": "Haricot blanc, bouilli/cuit à l'eau",
+      "aliases": [
+        "boiled white beans",
+        "haricots blancs cuits"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 112,
+        "proteinG": 6.75,
+        "carbohydrateG": 12,
+        "fatG": 1.1,
+        "fibreG": 13.8
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20502",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "tofu-plain",
+      "name": "Tofu, plain",
+      "nameFr": "Tofu nature, préemballé",
+      "aliases": [
+        "tofu",
+        "plain tofu firm"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 148,
+        "proteinG": 13.4,
+        "carbohydrateG": 2.87,
+        "fatG": 8.5,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "soy"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20904",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "tempeh",
+      "name": "Tempeh",
+      "nameFr": "Tempeh",
+      "aliases": [
+        "tempeh soy"
+      ],
+      "category": "legume",
+      "nutritionPer100g": {
+        "kcal": 157,
+        "proteinG": 16.1,
+        "carbohydrateG": 7.89,
+        "fatG": 4.7,
+        "fibreG": 6.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "soy"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20917",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "olive-oil-extra-virgin",
+      "name": "Olive oil, extra virgin",
+      "nameFr": "Huile d'olive vierge extra",
+      "aliases": [
+        "extra virgin olive oil",
+        "olive oil",
+        "huile d'olive vierge extra"
+      ],
+      "category": "fat",
+      "nutritionPer100g": {
+        "kcal": 900,
+        "proteinG": 0,
+        "carbohydrateG": 0,
+        "fatG": 99.9,
+        "fibreG": 0
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "17270",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "avocado-raw",
+      "name": "Avocado, pulp, raw",
+      "nameFr": "Avocat, pulpe, cru",
+      "aliases": [
+        "avocado pulp",
+        "avocat cru"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 205,
+        "proteinG": 1.56,
+        "carbohydrateG": 0.83,
+        "fatG": 20.6,
+        "fibreG": 3.6
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13004",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "almonds-with-skin",
+      "name": "Almond, (with peel)",
+      "nameFr": "Amande (avec peau)",
+      "aliases": [
+        "almonds",
+        "amandes avec peau"
+      ],
+      "category": "fat",
+      "nutritionPer100g": {
+        "kcal": 574.94,
+        "proteinG": 18.8,
+        "carbohydrateG": 9.51,
+        "fatG": 51.3,
+        "fibreG": 12.5
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "tree_nut"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "15000",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "walnuts-shelled",
+      "name": "Walnut, dried, husked",
+      "nameFr": "Noix, séchée, cerneaux",
+      "aliases": [
+        "walnuts",
+        "walnut kernels",
+        "noix cerneaux"
+      ],
+      "category": "fat",
+      "nutritionPer100g": {
+        "kcal": 686.42,
+        "proteinG": 13.3,
+        "carbohydrateG": 6.88,
+        "fatG": 67.3,
+        "fibreG": 6.7
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "tree_nut"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "15005",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "peanuts-raw",
+      "name": "Peanut",
+      "nameFr": "Cacahuète ou Arachide",
+      "aliases": [
+        "peanuts",
+        "arachides"
+      ],
+      "category": "fat",
+      "nutritionPer100g": {
+        "kcal": 592.3,
+        "proteinG": 22.8,
+        "carbohydrateG": 14.8,
+        "fatG": 49.1,
+        "fibreG": 8.6
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "peanut"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "15001",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "peanut-butter",
+      "name": "Peanut butter or peanut paste",
+      "nameFr": "Beurre de cacahuète ou Pâte d'arachide",
+      "aliases": [
+        "peanut butter smooth",
+        "pate d'arachide"
+      ],
+      "category": "fat",
+      "nutritionPer100g": {
+        "kcal": 625.7,
+        "proteinG": 22.2,
+        "carbohydrateG": 16.1,
+        "fatG": 52.5,
+        "fibreG": 5
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "allergens": [
+        "peanut"
+      ],
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "15202",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "banana-raw",
+      "name": "Banana, pulp, raw",
+      "nameFr": "Banane, pulpe, crue",
+      "aliases": [
+        "banana pulp",
+        "banane crue"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 90.5,
+        "proteinG": 1.06,
+        "carbohydrateG": 19.7,
+        "fatG": 0,
+        "fibreG": 2.7
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13005",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "apple-with-peel",
+      "name": "Apple, pulp and peel, raw",
+      "nameFr": "Pomme, pulpe et peau, crue",
+      "aliases": [
+        "apple with skin",
+        "pomme avec peau"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 49.65,
+        "proteinG": 0.25,
+        "carbohydrateG": 11.6,
+        "fatG": 0.25,
+        "fibreG": 1.4
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13039",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "orange-raw",
+      "name": "Orange, pulp, raw",
+      "nameFr": "Orange, pulpe, crue",
+      "aliases": [
+        "orange pulp",
+        "orange crue"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 45.5,
+        "proteinG": 0.75,
+        "carbohydrateG": 8.03,
+        "fatG": 0,
+        "fibreG": 2.7
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13034",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "strawberry-raw",
+      "name": "Strawberry, raw",
+      "nameFr": "Fraise, crue",
+      "aliases": [
+        "strawberries",
+        "fraises crues"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 38.6,
+        "proteinG": 0.63,
+        "carbohydrateG": 6.03,
+        "fatG": 0,
+        "fibreG": 3.8
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13014",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "blueberry-raw",
+      "name": "Blueberry, raw",
+      "nameFr": "Myrtille, crue",
+      "aliases": [
+        "blueberries",
+        "myrtilles crues"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 57.7,
+        "proteinG": 0.87,
+        "carbohydrateG": 10.6,
+        "fatG": 0.33,
+        "fibreG": 2.4
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13028",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "raspberry-raw",
+      "name": "Raspberry, raw",
+      "nameFr": "Framboise, crue",
+      "aliases": [
+        "raspberries",
+        "framboises crues"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 49.2,
+        "proteinG": 1.19,
+        "carbohydrateG": 5.83,
+        "fatG": 0.8,
+        "fibreG": 4.3
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13015",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "grapes-white-raw",
+      "name": "Grape, white, raw",
+      "nameFr": "Raisin blanc, à gros grain (type Italia ou Dattier), cru",
+      "aliases": [
+        "white grapes",
+        "raisin blanc cru"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 73.4,
+        "proteinG": 0.75,
+        "carbohydrateG": 16.6,
+        "fatG": 0,
+        "fibreG": 1
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13044",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "kiwi-raw",
+      "name": "Kiwi fruit, pulp and seeds, raw",
+      "nameFr": "Kiwi, pulpe et graines, cru",
+      "aliases": [
+        "kiwi fruit",
+        "kiwi cru"
+      ],
+      "category": "fruit",
+      "nutritionPer100g": {
+        "kcal": 60.5,
+        "proteinG": 0.88,
+        "carbohydrateG": 11,
+        "fatG": 0.6,
+        "fibreG": 2.4
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "13021",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "broccoli-raw",
+      "name": "Broccoli, raw",
+      "nameFr": "Brocoli, cru",
+      "aliases": [
+        "raw broccoli",
+        "brocoli cru"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 26.92,
+        "proteinG": 3.95,
+        "carbohydrateG": 1.7,
+        "fatG": 0.48,
+        "fibreG": 2.9
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20057",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "broccoli-steamed",
+      "name": "Broccoli, steamed",
+      "nameFr": "Brocoli, cuit à la vapeur",
+      "aliases": [
+        "steamed broccoli",
+        "broccoli cooked",
+        "brocoli cuit vapeur"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 37.6,
+        "proteinG": 4.13,
+        "carbohydrateG": 2.53,
+        "fatG": 0.7,
+        "fibreG": 2.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20304",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "spinach-raw",
+      "name": "Spinach, raw",
+      "nameFr": "Épinard, cru",
+      "aliases": [
+        "raw spinach",
+        "epinards crus"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 23.98,
+        "proteinG": 2.62,
+        "carbohydrateG": 2.25,
+        "fatG": 0.5,
+        "fibreG": 2.37
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20059",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "spinach-boiled",
+      "name": "Spinach, boiled/cooked in water",
+      "nameFr": "Épinard, bouilli/cuit à l'eau",
+      "aliases": [
+        "cooked spinach",
+        "boiled spinach",
+        "epinards cuits"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 28.1,
+        "proteinG": 3.38,
+        "carbohydrateG": 0,
+        "fatG": 0.7,
+        "fibreG": 3.5
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20336",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "tomato-raw",
+      "name": "Tomato, raw",
+      "nameFr": "Tomate, crue",
+      "aliases": [
+        "raw tomato",
+        "tomate crue"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 19.3,
+        "proteinG": 0.86,
+        "carbohydrateG": 2.49,
+        "fatG": 0.26,
+        "fibreG": 1.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20047",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "carrot-raw",
+      "name": "Carrot, raw",
+      "nameFr": "Carotte, crue",
+      "aliases": [
+        "raw carrot",
+        "carotte crue"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 40.2,
+        "proteinG": 0.63,
+        "carbohydrateG": 7.59,
+        "fatG": 0,
+        "fibreG": 2.7
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20009",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "cucumber-raw",
+      "name": "Cucumber, pulp and peel, raw",
+      "nameFr": "Concombre, pulpe et peau, cru",
+      "aliases": [
+        "cucumber with peel",
+        "concombre cru"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 15.6,
+        "proteinG": 0.64,
+        "carbohydrateG": 2.54,
+        "fatG": 0.11,
+        "fibreG": 0.6
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20019",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "bell-pepper-red-raw",
+      "name": "Sweet pepper, red, raw",
+      "nameFr": "Poivron rouge, cru",
+      "aliases": [
+        "red pepper raw",
+        "poivron rouge cru"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 36.6,
+        "proteinG": 1.06,
+        "carbohydrateG": 5.98,
+        "fatG": 0,
+        "fibreG": 3.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20087",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "courgette-raw",
+      "name": "Courgette or zucchini, pulp and peel, raw",
+      "nameFr": "Courgette, pulpe et peau, crue",
+      "aliases": [
+        "zucchini with peel",
+        "courgette crue"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 16.5,
+        "proteinG": 1.23,
+        "carbohydrateG": 1.8,
+        "fatG": 0.26,
+        "fibreG": 1.05
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20020",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "green-beans-raw",
+      "name": "French bean, raw",
+      "nameFr": "Haricot vert, cru",
+      "aliases": [
+        "raw green beans",
+        "haricots verts crus"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 25.85,
+        "proteinG": 1.85,
+        "carbohydrateG": 4.14,
+        "fatG": 0.21,
+        "fibreG": 2.85
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20061",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    },
+    {
+      "id": "green-beans-cooked",
+      "name": "French bean, cooked",
+      "nameFr": "Haricot vert, cuit",
+      "aliases": [
+        "cooked green beans",
+        "haricots verts cuits"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 29.4,
+        "proteinG": 2,
+        "carbohydrateG": 3,
+        "fatG": 0.17,
+        "fibreG": 4
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20030",
+        "datasetVersion": "2020",
+        "energyDerivation": "measured"
+      }
+    },
+    {
+      "id": "lettuce-raw",
+      "name": "Lettuce, raw",
+      "nameFr": "Laitue, crue",
+      "aliases": [
+        "lettuce",
+        "raw lettuce",
+        "laitue crue"
+      ],
+      "category": "vegetable",
+      "nutritionPer100g": {
+        "kcal": 12.32,
+        "proteinG": 1.3,
+        "carbohydrateG": 1.33,
+        "fatG": 0.2,
+        "fibreG": 1.2
+      },
+      "dietary": {
+        "vegetarian": true,
+        "vegan": true,
+        "containsPork": false,
+        "containsAlcohol": false
+      },
+      "source": {
+        "provider": "CIQUAL",
+        "sourceId": "20031",
+        "datasetVersion": "2020",
+        "energyDerivation": "atwater-4-4-9"
+      }
+    }
+  ]
+}

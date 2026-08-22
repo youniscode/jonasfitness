@@ -1,27 +1,37 @@
-/**
- * Nutrition Foundations V1 / Phase 3 — AI EXAMPLE MEALS from coach-approved targets.
+﻿/**
+ * Food Nutrition Foundation V1 — AI meal generation over a canonical catalogue.
  *
- * This module is the deterministic domain layer around the AI meal-generation
- * feature. It is PURE except for one deliberately-injected AI seam
+ * DIVISION OF RESPONSIBILITY (enforced in code, proven by adversarial tests):
+ *   - The AI chooses WHICH catalogue foods and HOW MANY grams, and writes
+ *     names/notes. It NEVER supplies nutrient numbers: any calorie/macro value
+ *     in its output is parsed only to be discarded.
+ *   - ALL nutrition numbers in responses come from deterministic calculators
+ *     (app/lib/food-nutrition.ts) applied to the versioned CIQUAL catalogue
+ *     (app/lib/food-catalogue.ts). Unknown food ids and out-of-range quantities
+ *     are validation errors that trigger exactly one constrained repair.
+ *
+ * This module is PURE except for one deliberately-injected AI seam
  * (`runMealGeneration` receives a `generate` function), so every gate,
  * validation rule, prompt and repair step is unit-testable with deterministic
  * fake responses — no live AI, network or DB.
  *
- * Boundary rules (enforced here + at the route):
+ * Boundary rules (unchanged from Phase 3):
  *   - The ACTIVE coach-approved nutrition target is the ONLY numeric authority.
- *     The AI never receives permission to derive different targets, and any
- *     attempt to recommend alternate targets is rejected.
- *   - No approved target → no generation (the route returns no_approved_target
- *     before any AI call; this module still validates against the target).
- *   - Allergies are HARD exclusions; intolerances are hard exclusions; disliked
- *     foods are soft (warning); dietary patterns are respected where
- *     deterministically detectable; unknown foods are allowed (not rejected).
+ *   - Allergies/intolerances are HARD exclusions; disliked foods warn;
+ *     dietary patterns are enforced via catalogue dietary flags AND text scans.
  *   - No medical/prescription language, no extreme-diet language.
- *   - Meals are "estimated example nutrition", never a medical diet plan, and
- *     are coach-facing only (never shared to the client in this phase).
+ *   - Coach-facing examples only — never presented as a medical diet plan.
  */
 
 import type { GatewayFailureReason, GatewayResult } from "./local-ai.ts";
+import { getCatalogueFoods, getCatalogueVersion, getFoodById, getCatalogueSource, type CatalogueFood } from "./food-catalogue.ts";
+import {
+  calculateMealDayNutrition,
+  calculateMealNutrition,
+  FOOD_QUANTITY_MAX_G,
+  FOOD_QUANTITY_MIN_G,
+  type FoodNutrition,
+} from "./food-nutrition.ts";
 
 // ---------------------------------------------------------------------------
 // Canonical values + constants (exported for tests)
@@ -48,7 +58,11 @@ export type MealMode = (typeof MEAL_MODES)[number];
 // Types
 // ---------------------------------------------------------------------------
 
-export type MealFood = { food: string; quantity: string };
+/** What the AI must output per food line: a catalogue id + grams. Nothing else. */
+export type MealLineInput = { foodId: string; quantityG: number };
+
+/** UI-facing food line — display labels + numbers COMPUTED server-side. */
+export type MealFood = { foodId: string; food: string; quantity: string };
 
 export type MealExample = {
   name: string;
@@ -103,7 +117,7 @@ export type MealValidationResult = {
   ok: boolean;
   errors: MealValidationError[];
   warnings: MealValidationWarning[];
-  /** True when daily totals fit the approved target (within tolerance). */
+  /** True when DETERMINISTIC daily totals fit the approved target (within tolerance). */
   withinTargets: boolean;
 };
 
@@ -114,22 +128,23 @@ export type MealApprovedTargetSummary = {
   carbohydrates: { min: number; max: number };
 };
 
+export type NutritionSourceInfo = { provider: string; datasetVersion: string; catalogueVersion: string };
+
 export type MealGenerationResponse =
-  | { status: "ready"; mode: "example_day"; example: MealExampleDay; approvedTargetSummary: MealApprovedTargetSummary; validation: { withinTargets: boolean; warnings: MealValidationWarning[] } }
-  | { status: "ready"; mode: "alternatives"; alternatives: MealAlternatives; approvedTargetSummary: MealApprovedTargetSummary; validation: { withinTargets: boolean; warnings: MealValidationWarning[] } }
+  | { status: "ready"; mode: "example_day"; example: MealExampleDay; approvedTargetSummary: MealApprovedTargetSummary; nutritionSource: NutritionSourceInfo; validation: { withinTargets: boolean; warnings: MealValidationWarning[] } }
+  | { status: "ready"; mode: "alternatives"; alternatives: MealAlternatives; approvedTargetSummary: MealApprovedTargetSummary; nutritionSource: NutritionSourceInfo; validation: { withinTargets: boolean; warnings: MealValidationWarning[] } }
   | { status: "blocked"; reasons: string[] }
   | { status: "no_approved_target" }
   | { status: "generation_failed"; reason: GatewayFailureReason | "validation" };
 
 // ---------------------------------------------------------------------------
-// Food-name normalization + category matching
+// Food-name normalization + category matching (text-level safety net)
 // ---------------------------------------------------------------------------
 
 const PLANT_MILK = /\b(soy|almond|oat|coconut|rice|cashew|hemp|hazelnut|macadamia|flax|pea)\s+milk\b/;
 const NUT_BUTTER = /\b(peanut|almond|cashew|sunflower|hazelnut|macadamia|seed|nut)\s+butter\b/;
 
 const DAIRY_WORDS = ["milk", "cheese", "yogurt", "yoghurt", "cream", "whey", "casein", "ghee", "curd", "paneer", "butter"];
-const MEAT_FISH_WORDS = ["chicken", "beef", "pork", "turkey", "lamb", "fish", "salmon", "tuna", "shrimp", "prawn", "bacon", "ham", "sausage", "steak", "mince", "meat", "cod", "sardine", "mackerel", "duck", "veal", "pepperoni"];
 const PORK_ALCOHOL_WORDS = ["pork", "bacon", "ham", "prosciutto", "pepperoni", "wine", "beer", "alcohol", "vodka", "whisky", "whiskey", "gin", "rum", "champagne", "cider"];
 const GLUTEN_WORDS = ["wheat", "bread", "pasta", "barley", "rye", "couscous", "noodle", "seitan", "farro", "spelt"];
 
@@ -160,15 +175,6 @@ function containsDairy(food: string): boolean {
     if (wordIn(f, word)) return true;
   }
   return false;
-}
-
-function containsEgg(food: string): boolean {
-  return /\beggs?\b/i.test(food.toLowerCase());
-}
-
-function containsMeatFish(food: string): boolean {
-  const f = food.toLowerCase();
-  return MEAT_FISH_WORDS.some((word) => wordIn(f, word));
 }
 
 function containsPorkAlcohol(food: string): boolean {
@@ -216,60 +222,200 @@ function scansAlternateTarget(texts: string[]): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Text collection
+// Raw AI structures (coerced; nutrient fields deliberately ABSENT)
 // ---------------------------------------------------------------------------
 
-function dayTexts(day: MealExampleDay): string[] {
-  const texts = [day.title, ...day.notes];
-  for (const meal of day.meals) {
-    texts.push(meal.name);
-    for (const item of meal.foods) texts.push(item.food, item.quantity);
+type RawLine = { foodId: string; quantityG: number };
+type RawMeal = { name: string; lines: RawLine[] };
+type RawExampleDay = { title: string; meals: RawMeal[]; notes: string[] };
+type RawOption = { title: string; lines: RawLine[] };
+type RawAlternatives = { title: string; alternatives: { meal: string; options: RawOption[] }[]; notes: string[] };
+
+const str = (value: unknown, limit: number) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
+const numOrNaN = (value: unknown): number => {
+  if (value === null || value === undefined || value === "") return Number.NaN;
+  return typeof value === "number" ? value : Number(value);
+};
+
+function parseLines(value: unknown): RawLine[] {
+  const list = Array.isArray(value) ? value : [];
+  return list.map((item) => {
+    const record = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
+    // Accept both camelCase and snake_case ids/keys from models that improvise.
+    const idRaw = record.foodId ?? record.food_id ?? record.id;
+    const quantityRaw = record.quantityG ?? record.quantity_g ?? record.grams;
+    // Any estimated*/calorie fields present are IGNORED by design (never read).
+    return { foodId: str(idRaw, 80).toLowerCase(), quantityG: numOrNaN(quantityRaw) };
+  });
+}
+
+export function parseMealExampleDay(value: unknown): RawExampleDay {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const meals = (Array.isArray(record.meals) ? record.meals : []).map((item) => {
+    const row = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
+    return { name: str(row.name, 120), lines: parseLines(row.foods ?? row.lines) };
+  });
+  return {
+    title: str(record.title, 160),
+    meals,
+    notes: (Array.isArray(record.notes) ? record.notes : []).map((note) => str(note, 300)),
+  };
+}
+
+export function parseMealAlternatives(value: unknown): RawAlternatives {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const alternatives = (Array.isArray(record.alternatives) ? record.alternatives : []).map((item) => {
+    const row = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
+    const options = (Array.isArray(row.options) ? row.options : []).map((option) => {
+      const opt = option && typeof option === "object" && !Array.isArray(option) ? option as Record<string, unknown> : {};
+      return { title: str(opt.title, 160), lines: parseLines(opt.foods ?? opt.lines) };
+    });
+    return { meal: str(row.meal, 120), options };
+  });
+  return {
+    title: str(record.title, 160),
+    alternatives,
+    notes: (Array.isArray(record.notes) ? record.notes : []).map((note) => str(note, 300)),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Resolution + deterministic computation (the heart of V1)
+// ---------------------------------------------------------------------------
+
+type ResolvedLine = { input: RawLine; food: CatalogueFood; quantityG: number };
+type ResolvedMeal = { name: string; lines: ResolvedLine[]; nutrition: FoodNutrition };
+
+function formatQuantity(quantityG: number): string {
+  return Number.isInteger(quantityG) ? `${quantityG} g` : `${Math.round(quantityG * 10) / 10} g`;
+}
+
+function displayFoods(lines: readonly ResolvedLine[]): MealFood[] {
+  return lines.map((line) => ({
+    foodId: line.food.id,
+    food: line.food.name,
+    quantity: formatQuantity(line.quantityG),
+  }));
+}
+
+/**
+ * Resolves raw lines against the catalogue, enforcing hard bounds.
+ * A meal with any invalid line cannot be partially computed.
+ */
+function resolveLines(lines: RawLine[], label: string): { errors: MealValidationError[]; resolved: ResolvedLine[] } {
+  const errors: MealValidationError[] = [];
+  let valid = true;
+  const resolved: ResolvedLine[] = [];
+  for (const line of lines) {
+    if (!line.foodId) {
+      errors.push({ code: "unknown_food_id", message: `${label}: a food line has no foodId.` });
+      valid = false;
+      continue;
+    }
+    const food = getFoodById(line.foodId);
+    if (!food) {
+      errors.push({ code: "unknown_food_id", message: `${label}: "${line.foodId}" is not in the canonical food catalogue. Choose ONLY ids from AVAILABLE FOODS.` });
+      valid = false;
+      continue;
+    }
+    if (!Number.isFinite(line.quantityG)) {
+      errors.push({ code: "invalid_quantity", message: `${label}: "${line.foodId}" needs a numeric quantityG in grams.` });
+      valid = false;
+      continue;
+    }
+    if (line.quantityG < FOOD_QUANTITY_MIN_G || line.quantityG > FOOD_QUANTITY_MAX_G) {
+      errors.push({ code: "invalid_quantity", message: `${label}: "${line.foodId}" quantity ${line.quantityG} g must be between ${FOOD_QUANTITY_MIN_G} and ${FOOD_QUANTITY_MAX_G} g.` });
+      valid = false;
+      continue;
+    }
+    resolved.push({ input: line, food, quantityG: line.quantityG });
   }
-  return texts.filter((text) => typeof text === "string" && text.length > 0);
+  return { errors, resolved: valid ? resolved : [] };
 }
 
-function dayFoodTexts(day: MealExampleDay): string[] {
-  const foods: string[] = [];
-  for (const meal of day.meals) for (const item of meal.foods) foods.push(item.food);
-  return foods;
+function resolveExampleDay(raw: RawExampleDay): { errors: MealValidationError[]; meals: ResolvedMeal[] } {
+  const errors: MealValidationError[] = [];
+  const meals: ResolvedMeal[] = [];
+  raw.meals.forEach((meal, index) => {
+    const label = `Meal ${index + 1}${meal.name ? ` "${meal.name}"` : ""}`;
+    const { errors: lineErrors, resolved } = resolveLines(meal.lines, label);
+    errors.push(...lineErrors);
+    if (!resolved.length && !lineErrors.length) {
+      errors.push({ code: "missing_foods", message: `${label} contains no foods.` });
+      return;
+    }
+    if (!resolved.length) return;
+    meals.push({ name: meal.name || `Meal ${index + 1}`, lines: resolved, nutrition: calculateMealNutrition(resolved) });
+  });
+  return { errors, meals };
 }
 
-function alternativesTexts(alternatives: MealAlternatives): string[] {
-  const texts = [alternatives.title, ...alternatives.notes];
-  for (const group of alternatives.alternatives) {
-    texts.push(group.meal);
-    for (const option of group.options) {
-      texts.push(option.title);
-      for (const item of option.foods) texts.push(item.food, item.quantity);
+function resolveAlternatives(raw: RawAlternatives): { errors: MealValidationError[]; groups: { meal: string; options: { title: string; lines: ResolvedLine[]; nutrition: FoodNutrition }[] }[] } {
+  const errors: MealValidationError[] = [];
+  const groups: { meal: string; options: { title: string; lines: ResolvedLine[]; nutrition: FoodNutrition }[] }[] = [];
+  for (const group of raw.alternatives) {
+    const options: { title: string; lines: ResolvedLine[]; nutrition: FoodNutrition }[] = [];
+    group.options.forEach((option, index) => {
+      const label = `Option${option.title ? ` "${option.title}"` : ` ${index + 1}`}`;
+      const { errors: lineErrors, resolved } = resolveLines(option.lines, label);
+      errors.push(...lineErrors);
+      if (!resolved.length) return;
+      options.push({ title: option.title || label.trim(), lines: resolved, nutrition: calculateMealNutrition(resolved) });
+    });
+    if (group.options.length && !options.length) continue;
+    groups.push({ meal: group.meal, options });
+  }
+  return { errors, groups };
+}
+
+// ---------------------------------------------------------------------------
+// Safety checks (structured catalogue flags first, then text-level net)
+// ---------------------------------------------------------------------------
+
+function structuredDietaryErrors(context: MealGenerationContext, lines: readonly ResolvedLine[]): MealValidationError[] {
+  const errors: MealValidationError[] = [];
+  const pattern = context.pattern.trim();
+  for (const line of lines) {
+    if (pattern === "Vegetarian" && !line.food.dietary.vegetarian) {
+      errors.push({ code: "pattern_violation", message: `Vegetarian pattern violated by catalogue food "${line.food.name}" (not vegetarian).` });
+    }
+    if (pattern === "Vegan" && !line.food.dietary.vegan) {
+      errors.push({ code: "pattern_violation", message: `Vegan pattern violated by catalogue food "${line.food.name}" (not vegan).` });
+    }
+    if ((pattern === "Halal" || pattern === "Kosher") && line.food.dietary.containsPork) {
+      errors.push({ code: "pattern_violation", message: `${pattern} pattern violated by catalogue food "${line.food.name}" (contains pork).` });
     }
   }
-  return texts.filter((text) => typeof text === "string" && text.length > 0);
+  return errors;
 }
 
-function alternativesFoodTexts(alternatives: MealAlternatives): string[] {
-  const foods: string[] = [];
-  for (const group of alternatives.alternatives) {
-    for (const option of group.options) for (const item of option.foods) foods.push(item.food);
+function allergenFlagErrors(context: MealGenerationContext, lines: readonly ResolvedLine[]): MealValidationError[] {
+  const errors: MealValidationError[] = [];
+  for (const allergy of context.allergies) {
+    const token = normalizeFoodToken(allergy);
+    for (const line of lines) {
+      for (const flag of line.food.allergens ?? []) {
+        if (containsToken(flag, token) || containsToken(token, flag)) {
+          errors.push({ code: "allergy_violation", message: `Allergy "${allergy}" matches catalogue allergen "${flag}" on "${line.food.name}". Allergies are hard exclusions.` });
+        }
+      }
+    }
   }
-  return foods;
+  return errors;
 }
 
-// ---------------------------------------------------------------------------
-// Shared food-level checks
-// ---------------------------------------------------------------------------
-
-function foodLevelErrors(context: MealGenerationContext, foods: string[]): MealValidationError[] {
+function foodLevelErrors(context: MealGenerationContext, names: string[]): MealValidationError[] {
   const errors: MealValidationError[] = [];
 
   for (const allergy of context.allergies) {
-    const offending = foods.filter((food) => containsToken(food, allergy));
+    const offending = names.filter((food) => containsToken(food, allergy));
     if (offending.length) {
       errors.push({ code: "allergy_violation", message: `Allergy "${allergy}" appears in: ${offending[0]}. Allergies are hard exclusions.` });
     }
   }
 
   for (const intolerance of context.intolerances) {
-    const offending = foods.filter((food) => {
+    const offending = names.filter((food) => {
       if (isDairyIntolerance(intolerance)) return containsDairy(food);
       if (isGlutenIntolerance(intolerance)) return GLUTEN_WORDS.some((word) => wordIn(food, word));
       return containsToken(food, intolerance);
@@ -282,31 +428,10 @@ function foodLevelErrors(context: MealGenerationContext, foods: string[]): MealV
   return errors;
 }
 
-function patternErrors(context: MealGenerationContext, foods: string[], texts: string[]): MealValidationError[] {
-  const errors: MealValidationError[] = [];
-  const pattern = context.pattern.trim();
-  if (pattern === "Vegetarian") {
-    const offending = foods.find(containsMeatFish);
-    if (offending) errors.push({ code: "pattern_violation", message: `Vegetarian pattern violated by: ${offending}.` });
-  } else if (pattern === "Vegan") {
-    const meat = foods.find(containsMeatFish);
-    const dairy = foods.find(containsDairy);
-    const egg = foods.find(containsEgg);
-    if (meat) errors.push({ code: "pattern_violation", message: `Vegan pattern violated by: ${meat}.` });
-    else if (dairy) errors.push({ code: "pattern_violation", message: `Vegan pattern violated by: ${dairy}.` });
-    else if (egg) errors.push({ code: "pattern_violation", message: `Vegan pattern violated by: ${egg}.` });
-  } else if (pattern === "Halal") {
-    // Halal scans food names, meal names, title and notes (e.g. a wine pairing).
-    const offending = foods.concat(texts).find(containsPorkAlcohol);
-    if (offending) errors.push({ code: "pattern_violation", message: `Halal pattern violated by: ${offending}.` });
-  }
-  return errors;
-}
-
-function foodLevelWarnings(context: MealGenerationContext, foods: string[]): MealValidationWarning[] {
+function foodLevelWarnings(context: MealGenerationContext, names: string[]): MealValidationWarning[] {
   const warnings: MealValidationWarning[] = [];
   for (const disliked of context.dislikedFoods) {
-    const offending = foods.filter((food) => containsToken(food, disliked));
+    const offending = names.filter((food) => containsToken(food, disliked));
     if (offending.length) {
       warnings.push({ code: "disliked_food", message: `Disliked food "${disliked}" appears in: ${offending[0]} (preference, not a hard exclusion).` });
     }
@@ -328,108 +453,168 @@ function languageErrors(texts: string[]): MealValidationError[] {
   return errors;
 }
 
-// ---------------------------------------------------------------------------
-// Validators
-// ---------------------------------------------------------------------------
-
-function finiteNonNegative(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
-}
-
 function withinRange(value: number, range: { min: number; max: number }, tolerance: number): boolean {
   return value >= range.min - tolerance && value <= range.max + tolerance;
 }
 
-export function validateMealExampleDay(value: unknown, context: MealGenerationContext): MealValidationResult {
+/** Target gate applied to DETERMINISTIC totals (never AI-claimed ones). */
+function targetGate(context: MealGenerationContext, totals: FoodNutrition, errors: MealValidationError[], warnings: MealValidationWarning[]): boolean {
+  let withinTargets = true;
+  if (!withinRange(totals.kcal, context.calories, MEAL_CALORIE_TOLERANCE_KCAL)) {
+    errors.push({ code: "calories_outside_target", message: `Computed calories (${totals.kcal}) are outside the approved range ${context.calories.min}-${context.calories.max} kcal (+/-${MEAL_CALORIE_TOLERANCE_KCAL}). Adjust quantities or food choices.` });
+    withinTargets = false;
+  }
+  if (!withinRange(totals.proteinG, context.protein, MEAL_PROTEIN_TOLERANCE_G)) {
+    warnings.push({ code: "macro_outside_target", message: `Computed protein (${totals.proteinG} g) is outside the approved range ${context.protein.min}-${context.protein.max} g.` });
+    withinTargets = false;
+  }
+  if (!withinRange(totals.fatG, context.fat, MEAL_FAT_TOLERANCE_G)) {
+    warnings.push({ code: "macro_outside_target", message: `Computed fat (${totals.fatG} g) is outside the approved range ${context.fat.min}-${context.fat.max} g.` });
+    withinTargets = false;
+  }
+  if (!withinRange(totals.carbohydrateG, context.carbohydrates, MEAL_CARB_TOLERANCE_G)) {
+    warnings.push({ code: "macro_outside_target", message: `Computed carbohydrates (${totals.carbohydrateG} g) are outside the approved range ${context.carbohydrates.min}-${context.carbohydrates.max} g.` });
+    withinTargets = false;
+  }
+  return withinTargets;
+}
+
+// ---------------------------------------------------------------------------
+// Validators (raw AI JSON + context -> validation result + RESOLVED payload)
+// ---------------------------------------------------------------------------
+
+type Validated<T> = MealValidationResult & { payload: T | null };
+
+/**
+ * Public validation entry points: coerce raw AI JSON, resolve against the
+ * catalogue, compute deterministic nutrition and run every safety gate.
+ * The resolved UI-facing payload is returned alongside the validation result.
+ */
+export function resolveAndValidateExampleDay(value: unknown, context: MealGenerationContext): Validated<MealExampleDay> {
+  return validateResolvedExampleDay(parseMealExampleDay(value), context);
+}
+
+export function resolveAndValidateAlternatives(value: unknown, context: MealGenerationContext): Validated<MealAlternatives> {
+  return validateResolvedAlternatives(parseMealAlternatives(value), context);
+}
+
+function patternNeedsFullTextScan(pattern: string): boolean {
+  const p = pattern.trim();
+  return p === "Halal" || p === "Kosher";
+}
+
+/**
+ * Pattern checks that need free text: Vegan egg/dairy fallback, and the
+ * Halal/Kosher pork/alcohol scan across food names AND meal names/title/notes.
+ */
+function patternTextErrors(context: MealGenerationContext, foodNames: string[], texts: string[]): MealValidationError[] {
+  const errors: MealValidationError[] = [];
+  const pattern = context.pattern.trim();
+  if (pattern === "Vegan") {
+    const dairy = foodNames.find(containsDairy);
+    if (dairy) errors.push({ code: "pattern_violation", message: `Vegan pattern violated by: ${dairy}.` });
+  } else if (patternNeedsFullTextScan(pattern)) {
+    const offending = [...foodNames, ...texts].find(containsPorkAlcohol);
+    if (offending) errors.push({ code: "pattern_violation", message: `${pattern} pattern violated by: ${offending}.` });
+  }
+  return errors;
+}
+
+function validateResolvedExampleDay(raw: RawExampleDay, context: MealGenerationContext): Validated<MealExampleDay> {
   const errors: MealValidationError[] = [];
   const warnings: MealValidationWarning[] = [];
-  const day = (value ?? {}) as MealExampleDay;
 
-  const meals = Array.isArray(day.meals) ? day.meals : [];
+  const meals = Array.isArray(raw.meals) ? raw.meals : [];
   if (!meals.length) {
     errors.push({ code: "missing_meals", message: "An example day must contain at least one meal." });
   } else if (meals.length < MEAL_COUNT_MIN || meals.length > MEAL_COUNT_MAX) {
     errors.push({ code: "meal_count", message: `An example day must contain between ${MEAL_COUNT_MIN} and ${MEAL_COUNT_MAX} meals.` });
   }
 
-  const foods = Array.isArray(day.meals) ? dayFoodTexts(day) : [];
-  const texts = dayTexts(day);
-  errors.push(...foodLevelErrors(context, foods));
-  warnings.push(...foodLevelWarnings(context, foods));
-  errors.push(...patternErrors(context, foods, texts));
+  const { errors: resolveErrors, meals: resolvedMeals } = resolveExampleDay(raw);
+  errors.push(...resolveErrors);
+
+  const foodNames = resolvedMeals.flatMap((meal) => displayFoods(meal.lines).map((food) => food.food));
+  const texts = [raw.title, ...raw.notes, ...resolvedMeals.map((meal) => meal.name)];
+  const allLines = resolvedMeals.flatMap((meal) => meal.lines);
+
+  errors.push(...allergenFlagErrors(context, allLines));
+  errors.push(...structuredDietaryErrors(context, allLines));
+  errors.push(...foodLevelErrors(context, foodNames));
+  warnings.push(...foodLevelWarnings(context, foodNames));
+  errors.push(...patternTextErrors(context, foodNames, texts));
   errors.push(...languageErrors(texts));
 
-  // Per-meal numeric sanity.
-  for (const meal of meals) {
-    for (const field of ["estimatedCalories", "estimatedProteinGrams", "estimatedFatGrams", "estimatedCarbohydrateGrams"] as const) {
-      if (!finiteNonNegative(meal[field])) {
-        errors.push({ code: "invalid_nutrition", message: `Meal "${String(meal.name ?? "unnamed")}" has an invalid ${field} value.` });
-      }
-    }
-    for (const item of (Array.isArray(meal.foods) ? meal.foods : [])) {
-      if (!item || typeof item.food !== "string" || !item.food.trim()) {
-        errors.push({ code: "invalid_food", message: `Meal "${String(meal.name ?? "unnamed")}" has a food without a name.` });
-      }
-    }
-  }
-
-  // Daily totals vs approved target.
-  const totals = day.estimatedTotals;
+  let payload: MealExampleDay | null = null;
   let withinTargets = true;
-  if (!totals || !finiteNonNegative(totals.calories) || !finiteNonNegative(totals.proteinGrams) || !finiteNonNegative(totals.fatGrams) || !finiteNonNegative(totals.carbohydrateGrams)) {
-    errors.push({ code: "invalid_totals", message: "Estimated daily totals must be finite, non-negative numbers." });
-    withinTargets = false;
-  } else {
-    if (!withinRange(totals.calories, context.calories, MEAL_CALORIE_TOLERANCE_KCAL)) {
-      errors.push({ code: "calories_outside_target", message: `Estimated calories (${totals.calories}) are outside the approved range ${context.calories.min}–${context.calories.max} kcal (±${MEAL_CALORIE_TOLERANCE_KCAL}).` });
-      withinTargets = false;
-    }
-    if (!withinRange(totals.proteinGrams, context.protein, MEAL_PROTEIN_TOLERANCE_G)) {
-      warnings.push({ code: "macro_outside_target", message: `Estimated protein (${totals.proteinGrams} g) is outside the approved range ${context.protein.min}–${context.protein.max} g.` });
-      withinTargets = false;
-    }
-    if (!withinRange(totals.fatGrams, context.fat, MEAL_FAT_TOLERANCE_G)) {
-      warnings.push({ code: "macro_outside_target", message: `Estimated fat (${totals.fatGrams} g) is outside the approved range ${context.fat.min}–${context.fat.max} g.` });
-      withinTargets = false;
-    }
-    if (!withinRange(totals.carbohydrateGrams, context.carbohydrates, MEAL_CARB_TOLERANCE_G)) {
-      warnings.push({ code: "macro_outside_target", message: `Estimated carbohydrates (${totals.carbohydrateGrams} g) are outside the approved range ${context.carbohydrates.min}–${context.carbohydrates.max} g.` });
-      withinTargets = false;
-    }
+  if (!errors.length && resolvedMeals.length >= MEAL_COUNT_MIN) {
+    const totals = calculateMealDayNutrition(resolvedMeals.map((meal) => meal.lines));
+    withinTargets = targetGate(context, totals, errors, warnings);
+    payload = {
+      title: raw.title,
+      meals: resolvedMeals.map((meal) => ({
+        name: meal.name,
+        foods: displayFoods(meal.lines),
+        estimatedCalories: meal.nutrition.kcal,
+        estimatedProteinGrams: meal.nutrition.proteinG,
+        estimatedFatGrams: meal.nutrition.fatG,
+        estimatedCarbohydrateGrams: meal.nutrition.carbohydrateG,
+      })),
+      estimatedTotals: {
+        calories: totals.kcal,
+        proteinGrams: totals.proteinG,
+        fatGrams: totals.fatG,
+        carbohydrateGrams: totals.carbohydrateG,
+      },
+      notes: raw.notes,
+    };
   }
-
-  return { ok: errors.length === 0, errors, warnings, withinTargets };
+  return { ok: errors.length === 0, errors, warnings, withinTargets, payload };
 }
 
-export function validateMealAlternatives(value: unknown, context: MealGenerationContext): MealValidationResult {
+function validateResolvedAlternatives(raw: RawAlternatives, context: MealGenerationContext): Validated<MealAlternatives> {
   const errors: MealValidationError[] = [];
   const warnings: MealValidationWarning[] = [];
-  const alternatives = (value ?? {}) as MealAlternatives;
 
-  const groups = Array.isArray(alternatives.alternatives) ? alternatives.alternatives : [];
+  const groups = Array.isArray(raw.alternatives) ? raw.alternatives : [];
   if (!groups.length) {
     errors.push({ code: "missing_alternatives", message: "Meal alternatives must contain at least one meal group." });
   }
 
-  const foods = Array.isArray(alternatives.alternatives) ? alternativesFoodTexts(alternatives) : [];
-  const texts = alternativesTexts(alternatives);
-  errors.push(...foodLevelErrors(context, foods));
-  warnings.push(...foodLevelWarnings(context, foods));
-  errors.push(...patternErrors(context, foods, texts));
+  const { errors: resolveErrors, groups: resolvedGroups } = resolveAlternatives(raw);
+  errors.push(...resolveErrors);
+
+  const foodNames = resolvedGroups.flatMap((group) => group.options.flatMap((option) => displayFoods(option.lines).map((food) => food.food)));
+  const texts = [raw.title, ...raw.notes, ...resolvedGroups.map((group) => group.meal)];
+  const allLines = resolvedGroups.flatMap((group) => group.options.flatMap((option) => option.lines));
+
+  errors.push(...allergenFlagErrors(context, allLines));
+  errors.push(...structuredDietaryErrors(context, allLines));
+  errors.push(...foodLevelErrors(context, foodNames));
+  warnings.push(...foodLevelWarnings(context, foodNames));
+  errors.push(...patternTextErrors(context, foodNames, texts));
   errors.push(...languageErrors(texts));
 
-  for (const group of groups) {
-    for (const option of (Array.isArray(group.options) ? group.options : [])) {
-      for (const field of ["estimatedCalories", "estimatedProteinGrams", "estimatedFatGrams", "estimatedCarbohydrateGrams"] as const) {
-        if (!finiteNonNegative(option[field])) {
-          errors.push({ code: "invalid_nutrition", message: `Alternative "${String(option.title ?? "unnamed")}" has an invalid ${field} value.` });
-        }
-      }
-    }
+  let payload: MealAlternatives | null = null;
+  if (!errors.length && resolvedGroups.length) {
+    payload = {
+      title: raw.title,
+      alternatives: resolvedGroups.map((group) => ({
+        meal: group.meal,
+        options: group.options.map((option) => ({
+          title: option.title,
+          foods: displayFoods(option.lines),
+          estimatedCalories: option.nutrition.kcal,
+          estimatedProteinGrams: option.nutrition.proteinG,
+          estimatedFatGrams: option.nutrition.fatG,
+          estimatedCarbohydrateGrams: option.nutrition.carbohydrateG,
+        })),
+      })),
+      notes: raw.notes,
+    };
   }
-
   // Alternatives are per-meal swaps, not a full day — no daily-total gate.
-  return { ok: errors.length === 0, errors, warnings, withinTargets: true };
+  return { ok: errors.length === 0, errors, warnings, withinTargets: true, payload };
 }
 
 // ---------------------------------------------------------------------------
@@ -443,16 +628,18 @@ const MEAL_SYSTEM_PROMPT = [
   "The approved calorie and macronutrient targets are authoritative. Do not recalculate or alter the provided calorie or macronutrient targets.",
   "Never recommend extreme restriction, fasting, purging, detoxes, dehydration, or rapid weight-loss practices.",
   "Respect all listed allergies and intolerances as hard exclusions, and disliked foods as strong preferences to avoid.",
-    "Return structured JSON only — no markdown, no code fences, no free-form essay.",
+  "Choose foods ONLY from the provided AVAILABLE FOODS list, referenced by their exact foodId, with quantities in grams (quantityG).",
+  "Never invent food ids, nutrition values or calories — the system computes all nutrition deterministically from an official food composition table.",
+  "Return structured JSON only — no markdown, no code fences, no free-form essay.",
 ].join(" ");
 
 function targetBlock(context: MealGenerationContext): string {
   return [
     "APPROVED TARGETS (authoritative — do NOT recalculate or alter these):",
-    `Calories: ${context.calories.min}–${context.calories.max} kcal/day`,
-    `Protein: ${context.protein.min}–${context.protein.max} g/day`,
-    `Fat: ${context.fat.min}–${context.fat.max} g/day`,
-    `Carbohydrates: ${context.carbohydrates.min}–${context.carbohydrates.max} g/day`,
+    `Calories: ${context.calories.min}-${context.calories.max} kcal/day`,
+    `Protein: ${context.protein.min}-${context.protein.max} g/day`,
+    `Fat: ${context.fat.min}-${context.fat.max} g/day`,
+    `Carbohydrates: ${context.carbohydrates.min}-${context.carbohydrates.max} g/day`,
   ].join("\n");
 }
 
@@ -469,18 +656,28 @@ function dietaryBlock(context: MealGenerationContext): string {
   return lines.join("\n");
 }
 
+/** Compact food selection list (id + name + category). Nutrient values are omitted — the system computes them deterministically. */
+function availableFoodsBlock(): string {
+  const header = "AVAILABLE FOODS (choose ONLY these foodIds; the system computes all nutrition deterministically):\nfoodId | name | category";
+  const rows = getCatalogueFoods()
+    .map((food) => `${food.id} | ${food.name} | ${food.category}`);
+  return [header, ...rows].join("\n");
+}
+
 const EXAMPLE_DAY_CONTRACT = [
   "Return a single JSON object with exactly this shape:",
-  '{ "title": string, "meals": [ { "name": string, "foods": [ { "food": string, "quantity": string } ], "estimatedCalories": number, "estimatedProteinGrams": number, "estimatedFatGrams": number, "estimatedCarbohydrateGrams": number } ], "estimatedTotals": { "calories": number, "proteinGrams": number, "fatGrams": number, "carbohydrateGrams": number }, "notes": string[] }',
-  "Use understandable portions (grams, ml, pieces, servings) — never vague amounts like \"some\" or \"a bit\".",
-  "Make the estimated daily totals fall inside the approved target ranges.",
+  '{ "title": string, "meals": [ { "name": string, "foods": [ { "foodId": string, "quantityG": number } ] } ], "notes": string[] }',
+  "Every foodId MUST be copied EXACTLY from the AVAILABLE FOODS list. quantityG is a number of grams (1-2000).",
+  "Do NOT include any calorie or macro estimates — the system computes them deterministically.",
+  "Plan quantities so the computed daily total lands inside the approved target ranges.",
 ].join("\n");
 
 const ALTERNATIVES_CONTRACT = [
   "Return a single JSON object with exactly this shape:",
-  '{ "title": string, "alternatives": [ { "meal": string, "options": [ { "title": string, "foods": [ { "food": string, "quantity": string } ], "estimatedCalories": number, "estimatedProteinGrams": number, "estimatedFatGrams": number, "estimatedCarbohydrateGrams": number } ] } ], "notes": string[] }',
-  "Each meal group should offer 2–3 practical, broadly compatible swaps (e.g. Breakfast A / B / C).",
-  "Use understandable portions — never vague amounts.",
+  '{ "title": string, "alternatives": [ { "meal": string, "options": [ { "title": string, "foods": [ { "foodId": string, "quantityG": number } ] } ] } ], "notes": string[] }',
+  "Every foodId MUST be copied EXACTLY from the AVAILABLE FOODS list. quantityG is a number of grams (1-2000).",
+  "Each meal group should offer 2-3 practical, broadly compatible swaps (e.g. Breakfast A / B / C).",
+  "Do NOT include any calorie or macro estimates — the system computes them deterministically.",
 ].join("\n");
 
 export function buildMealSystemPrompt(): string {
@@ -489,6 +686,8 @@ export function buildMealSystemPrompt(): string {
 
 export function buildMealUserPrompt(context: MealGenerationContext, mode: MealMode): string {
   return [
+    availableFoodsBlock(),
+    "",
     targetBlock(context),
     "",
     dietaryBlock(context),
@@ -502,79 +701,10 @@ export function buildMealRepairPrompt(context: MealGenerationContext, mode: Meal
   return [
     "Your previous output failed validation. Fix ONLY the following problems and keep everything else as close as possible:",
     errors.map((error) => `- ${error.message}`).join("\n"),
-    "Do not invent new targets — the approved target is authoritative and must not change.",
+    "Use ONLY exact foodIds from the AVAILABLE FOODS list. Never include calorie or macro estimates.",
     "",
     buildMealUserPrompt(context, mode),
   ].join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Raw-output parsing (coerce to a bounded typed structure; validator rejects)
-// ---------------------------------------------------------------------------
-
-const str = (value: unknown, limit: number) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
-const num = (value: unknown): number => {
-  if (value === null || value === undefined || value === "") return Number.NaN;
-  return typeof value === "number" ? value : Number(value);
-};
-
-function parseFoods(value: unknown): MealFood[] {
-  const list = Array.isArray(value) ? value : [];
-  return list.map((item) => {
-    const record = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
-    return { food: str(record.food, 120), quantity: str(record.quantity, 80) };
-  });
-}
-
-export function parseMealExampleDay(value: unknown): MealExampleDay {
-  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  const meals = (Array.isArray(record.meals) ? record.meals : []).map((item) => {
-    const row = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
-    return {
-      name: str(row.name, 120),
-      foods: parseFoods(row.foods),
-      estimatedCalories: num(row.estimatedCalories),
-      estimatedProteinGrams: num(row.estimatedProteinGrams),
-      estimatedFatGrams: num(row.estimatedFatGrams),
-      estimatedCarbohydrateGrams: num(row.estimatedCarbohydrateGrams),
-    };
-  });
-  const totals = record.estimatedTotals && typeof record.estimatedTotals === "object" && !Array.isArray(record.estimatedTotals) ? record.estimatedTotals as Record<string, unknown> : {};
-  return {
-    title: str(record.title, 160),
-    meals,
-    estimatedTotals: {
-      calories: num(totals.calories),
-      proteinGrams: num(totals.proteinGrams),
-      fatGrams: num(totals.fatGrams),
-      carbohydrateGrams: num(totals.carbohydrateGrams),
-    },
-    notes: (Array.isArray(record.notes) ? record.notes : []).map((note) => str(note, 300)),
-  };
-}
-
-export function parseMealAlternatives(value: unknown): MealAlternatives {
-  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  const alternatives = (Array.isArray(record.alternatives) ? record.alternatives : []).map((item) => {
-    const row = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : {};
-    const options = (Array.isArray(row.options) ? row.options : []).map((option) => {
-      const opt = option && typeof option === "object" && !Array.isArray(option) ? option as Record<string, unknown> : {};
-      return {
-        title: str(opt.title, 160),
-        foods: parseFoods(opt.foods),
-        estimatedCalories: num(opt.estimatedCalories),
-        estimatedProteinGrams: num(opt.estimatedProteinGrams),
-        estimatedFatGrams: num(opt.estimatedFatGrams),
-        estimatedCarbohydrateGrams: num(opt.estimatedCarbohydrateGrams),
-      };
-    });
-    return { meal: str(row.meal, 120), options };
-  });
-  return {
-    title: str(record.title, 160),
-    alternatives,
-    notes: (Array.isArray(record.notes) ? record.notes : []).map((note) => str(note, 300)),
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -590,9 +720,18 @@ function approvedTargetSummary(context: MealGenerationContext): MealApprovedTarg
   };
 }
 
+function nutritionSource(): NutritionSourceInfo {
+  const source = getCatalogueSource();
+  return { provider: source.provider, datasetVersion: source.datasetVersion, catalogueVersion: getCatalogueVersion() };
+}
+
 type AttemptResult =
   | { kind: "provider_failure"; reason: GatewayFailureReason }
   | { kind: "ok"; example: MealExampleDay | null; alternatives: MealAlternatives | null; validation: MealValidationResult };
+
+function stripPayload<T>(validated: Validated<T>): MealValidationResult {
+  return { ok: validated.ok, errors: validated.errors, warnings: validated.warnings, withinTargets: validated.withinTargets };
+}
 
 async function attemptGeneration(
   context: MealGenerationContext,
@@ -603,11 +742,11 @@ async function attemptGeneration(
   const result = await generate(MEAL_SYSTEM_PROMPT, prompt);
   if (!result.ok) return { kind: "provider_failure", reason: result.reason };
   if (mode === "alternatives") {
-    const parsed = parseMealAlternatives(result.value);
-    return { kind: "ok", example: null, alternatives: parsed, validation: validateMealAlternatives(parsed, context) };
+    const validated = validateResolvedAlternatives(parseMealAlternatives(result.value), context);
+    return { kind: "ok", example: null, alternatives: validated.payload, validation: stripPayload(validated) };
   }
-  const parsed = parseMealExampleDay(result.value);
-  return { kind: "ok", example: parsed, alternatives: null, validation: validateMealExampleDay(parsed, context) };
+  const validated = validateResolvedExampleDay(parseMealExampleDay(result.value), context);
+  return { kind: "ok", example: validated.payload, alternatives: null, validation: stripPayload(validated) };
 }
 
 /**
@@ -619,46 +758,47 @@ export async function runMealGeneration(
   mode: MealMode,
   generate: (system: string, prompt: string) => Promise<GatewayResult<unknown>>,
 ): Promise<MealGenerationResponse> {
+  const base = {
+    approvedTargetSummary: approvedTargetSummary(context),
+    nutritionSource: nutritionSource(),
+  };
   const first = await attemptGeneration(context, mode, generate, buildMealUserPrompt(context, mode));
   if (first.kind === "provider_failure") return { status: "generation_failed", reason: first.reason };
   if (first.validation.ok) {
-    return readyResponse(mode, first.example, first.alternatives, context, first.validation);
+    return readyResponse(mode, first.example, first.alternatives, base, first.validation);
   }
 
   // Exactly one constrained repair, then fail safely.
   const repairPrompt = buildMealRepairPrompt(context, mode, first.validation.errors);
   const second = await generate(MEAL_SYSTEM_PROMPT, repairPrompt);
   if (!second.ok) return { status: "generation_failed", reason: second.reason };
-  let reparsedExample: MealExampleDay | null = null;
-  let reparsedAlternatives: MealAlternatives | null = null;
-  let revalidation: MealValidationResult;
+  let repaired: AttemptResult;
   if (mode === "alternatives") {
-    reparsedAlternatives = parseMealAlternatives(second.value);
-    revalidation = validateMealAlternatives(reparsedAlternatives, context);
+    const validated = validateResolvedAlternatives(parseMealAlternatives(second.value), context);
+    repaired = { kind: "ok", example: null, alternatives: validated.payload, validation: stripPayload(validated) };
   } else {
-    reparsedExample = parseMealExampleDay(second.value);
-    revalidation = validateMealExampleDay(reparsedExample, context);
+    const validated = validateResolvedExampleDay(parseMealExampleDay(second.value), context);
+    repaired = { kind: "ok", example: validated.payload, alternatives: null, validation: stripPayload(validated) };
   }
-  if (!revalidation.ok) return { status: "generation_failed", reason: "validation" };
-  return readyResponse(mode, reparsedExample, reparsedAlternatives, context, revalidation);
+  if (!repaired.validation.ok || (!repaired.example && !repaired.alternatives)) {
+    return { status: "generation_failed", reason: "validation" };
+  }
+  return readyResponse(mode, repaired.example, repaired.alternatives, base, repaired.validation);
 }
 
 function readyResponse(
   mode: MealMode,
   example: MealExampleDay | null,
   alternatives: MealAlternatives | null,
-  context: MealGenerationContext,
+  base: { approvedTargetSummary: MealApprovedTargetSummary; nutritionSource: NutritionSourceInfo },
   validation: MealValidationResult,
 ): MealGenerationResponse {
-  const base = {
-    approvedTargetSummary: approvedTargetSummary(context),
-    validation: { withinTargets: validation.withinTargets, warnings: validation.warnings },
-  };
+  const meta = { ...base, validation: { withinTargets: validation.withinTargets, warnings: validation.warnings } };
   if (mode === "alternatives" && alternatives) {
-    return { status: "ready", mode: "alternatives", alternatives, ...base };
+    return { status: "ready", mode: "alternatives", alternatives, ...meta };
   }
   if (example) {
-    return { status: "ready", mode: "example_day", example, ...base };
+    return { status: "ready", mode: "example_day", example, ...meta };
   }
   return { status: "generation_failed", reason: "validation" };
 }
