@@ -44,6 +44,23 @@ export const MEAL_PROTEIN_TOLERANCE_G = 20;
 export const MEAL_FAT_TOLERANCE_G = 15;
 export const MEAL_CARB_TOLERANCE_G = 30;
 
+export type NutrientTargetStatus = "inside_target" | "within_tolerance" | "outside_tolerance";
+
+export function nutrientTargetStatus(
+  value: number,
+  min: number,
+  max: number,
+  tolerance: number,
+): { status: NutrientTargetStatus; delta: number } {
+  if (value >= min && value <= max) return { status: "inside_target", delta: 0 };
+  const lower = min - tolerance;
+  const upper = max + tolerance;
+  if (value < lower) return { status: "outside_tolerance", delta: value - min };
+  if (value > upper) return { status: "outside_tolerance", delta: value - max };
+  const delta = value < min ? value - min : value - max;
+  return { status: "within_tolerance", delta };
+}
+
 /** Sensible meal-count bounds for an example day. */
 export const MEAL_COUNT_MIN = 2;
 export const MEAL_COUNT_MAX = 6;

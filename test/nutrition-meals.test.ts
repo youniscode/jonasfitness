@@ -4,6 +4,11 @@ import {
   normalizeFoodToken,
   resolveAndValidateExampleDay,
   resolveAndValidateAlternatives,
+  nutrientTargetStatus,
+  MEAL_CALORIE_TOLERANCE_KCAL,
+  MEAL_PROTEIN_TOLERANCE_G,
+  MEAL_FAT_TOLERANCE_G,
+  MEAL_CARB_TOLERANCE_G,
   type MealGenerationContext,
 } from "../app/lib/nutrition-meals.ts";
 
@@ -303,4 +308,106 @@ test("empty meal list is rejected even with fake totals", () => {
   }), makeContext());
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e: { code: string }) => e.code === "missing_meals" || e.code === "meal_count"));
+});
+
+// ---------- 12. nutrientTargetStatus ----------
+
+test("nutrientTargetStatus: inside_target at exact boundaries", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const atMin = nutrientTargetStatus(min, min, max, tol);
+  const atMax = nutrientTargetStatus(max, min, max, tol);
+  assert.equal(atMin.status, "inside_target");
+  assert.equal(atMin.delta, 0);
+  assert.equal(atMax.status, "inside_target");
+  assert.equal(atMax.delta, 0);
+});
+
+test("nutrientTargetStatus: within_tolerance above max", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const r = nutrientTargetStatus(3209, min, max, tol);
+  assert.equal(r.status, "within_tolerance");
+  assert.equal(r.delta, 90);
+});
+
+test("nutrientTargetStatus: within_tolerance at upper bound (max + tolerance)", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const r = nutrientTargetStatus(max + tol, min, max, tol);
+  assert.equal(r.status, "within_tolerance");
+  assert.equal(r.delta, tol);
+});
+
+test("nutrientTargetStatus: within_tolerance below min", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const r = nutrientTargetStatus(3000, min, max, tol);
+  assert.equal(r.status, "within_tolerance");
+  assert.equal(r.delta, -62);
+});
+
+test("nutrientTargetStatus: within_tolerance at lower bound (min - tolerance)", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const r = nutrientTargetStatus(min - tol, min, max, tol);
+  assert.equal(r.status, "within_tolerance");
+  assert.equal(r.delta, -tol);
+});
+
+test("nutrientTargetStatus: outside_tolerance above", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const r = nutrientTargetStatus(max + tol + 1, min, max, tol);
+  assert.equal(r.status, "outside_tolerance");
+  assert.equal(r.delta, max + tol + 1 - max);
+});
+
+test("nutrientTargetStatus: outside_tolerance below", () => {
+  const min = 3062, max = 3119, tol = MEAL_CALORIE_TOLERANCE_KCAL;
+  const r = nutrientTargetStatus(min - tol - 1, min, max, tol);
+  assert.equal(r.status, "outside_tolerance");
+  assert.equal(r.delta, min - tol - 1 - min);
+});
+
+test("nutrientTargetStatus: protein boundary cases", () => {
+  const min = 138, max = 189, tol = MEAL_PROTEIN_TOLERANCE_G;
+  assert.equal(nutrientTargetStatus(189, min, max, tol).status, "inside_target");
+  const r = nutrientTargetStatus(207.7, min, max, tol);
+  assert.equal(r.status, "within_tolerance");
+  assert.ok(Math.abs(r.delta - 18.7) < 1e-10, "delta should be ~18.7");
+  assert.equal(nutrientTargetStatus(209, min, max, tol).status, "within_tolerance");
+  assert.equal(nutrientTargetStatus(209.1, min, max, tol).status, "outside_tolerance");
+});
+
+test("nutrientTargetStatus: fat boundary cases", () => {
+  const min = 69, max = 121, tol = MEAL_FAT_TOLERANCE_G;
+  assert.equal(nutrientTargetStatus(102.5, min, max, tol).status, "inside_target");
+  assert.equal(nutrientTargetStatus(136, min, max, tol).status, "within_tolerance");
+  assert.equal(nutrientTargetStatus(137, min, max, tol).status, "outside_tolerance");
+});
+
+test("nutrientTargetStatus: carb boundary cases", () => {
+  const min = 304, max = 487, tol = MEAL_CARB_TOLERANCE_G;
+  assert.equal(nutrientTargetStatus(331.9, min, max, tol).status, "inside_target");
+  assert.equal(nutrientTargetStatus(517, min, max, tol).status, "within_tolerance");
+  assert.equal(nutrientTargetStatus(518, min, max, tol).status, "outside_tolerance");
+});
+
+test("nutrientTargetStatus: delta sign is negative below min", () => {
+  const r = nutrientTargetStatus(2962, 3062, 3119, MEAL_CALORIE_TOLERANCE_KCAL);
+  assert.equal(r.status, "within_tolerance");
+  assert.equal(r.delta, -100);
+});
+
+test("nutrientTargetStatus: delta sign is positive above max", () => {
+  const r = nutrientTargetStatus(3219, 3062, 3119, MEAL_CALORIE_TOLERANCE_KCAL);
+  assert.equal(r.status, "within_tolerance");
+  assert.equal(r.delta, 100);
+});
+
+test("nutrientTargetStatus: outside_tolerance above delta references max", () => {
+  const r = nutrientTargetStatus(3220, 3062, 3119, MEAL_CALORIE_TOLERANCE_KCAL);
+  assert.equal(r.status, "outside_tolerance");
+  assert.equal(r.delta, 3220 - 3119);
+});
+
+test("nutrientTargetStatus: outside_tolerance below delta references min", () => {
+  const r = nutrientTargetStatus(2961, 3062, 3119, MEAL_CALORIE_TOLERANCE_KCAL);
+  assert.equal(r.status, "outside_tolerance");
+  assert.equal(r.delta, 2961 - 3062);
 });
