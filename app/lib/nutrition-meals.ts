@@ -121,6 +121,13 @@ export type MealValidationResult = {
   withinTargets: boolean;
 };
 
+/** Safe diagnostic codes exposed to the coach UI on generation failure. */
+export type MealValidationDiagnostic = { code: string; message: string };
+export type MealGenerationDiagnostics = {
+  firstAttempt: MealValidationDiagnostic[];
+  repairAttempt: MealValidationDiagnostic[];
+};
+
 export type MealApprovedTargetSummary = {
   calories: { min: number; max: number };
   protein: { min: number; max: number };
@@ -135,7 +142,7 @@ export type MealGenerationResponse =
   | { status: "ready"; mode: "alternatives"; alternatives: MealAlternatives; approvedTargetSummary: MealApprovedTargetSummary; nutritionSource: NutritionSourceInfo; validation: { withinTargets: boolean; warnings: MealValidationWarning[] } }
   | { status: "blocked"; reasons: string[] }
   | { status: "no_approved_target" }
-  | { status: "generation_failed"; reason: GatewayFailureReason | "validation" };
+  | { status: "generation_failed"; reason: GatewayFailureReason | "validation"; diagnostics?: MealGenerationDiagnostics };
 
 // ---------------------------------------------------------------------------
 // Food-name normalization + category matching (text-level safety net)
@@ -769,7 +776,8 @@ export async function runMealGeneration(
   }
 
   // Exactly one constrained repair, then fail safely.
-  const repairPrompt = buildMealRepairPrompt(context, mode, first.validation.errors);
+  const firstErrors = first.validation.errors;
+  const repairPrompt = buildMealRepairPrompt(context, mode, firstErrors);
   const second = await generate(MEAL_SYSTEM_PROMPT, repairPrompt);
   if (!second.ok) return { status: "generation_failed", reason: second.reason };
   let repaired: AttemptResult;
@@ -781,7 +789,11 @@ export async function runMealGeneration(
     repaired = { kind: "ok", example: validated.payload, alternatives: null, validation: stripPayload(validated) };
   }
   if (!repaired.validation.ok || (!repaired.example && !repaired.alternatives)) {
-    return { status: "generation_failed", reason: "validation" };
+    return {
+      status: "generation_failed",
+      reason: "validation",
+      diagnostics: { firstAttempt: firstErrors, repairAttempt: repaired.validation.errors },
+    };
   }
   return readyResponse(mode, repaired.example, repaired.alternatives, base, repaired.validation);
 }

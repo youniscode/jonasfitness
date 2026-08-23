@@ -101,5 +101,12 @@ export async function POST(request: Request) {
     return generateCoachDraft<unknown>({ provider, model, system, prompt, mode: "meals" });
   };
 
-  return Response.json(await runMealGeneration(context, mode, generate));
+  const result = await runMealGeneration(context, mode, generate);
+  if (result.status === "generation_failed" && result.reason === "validation" && result.diagnostics) {
+    console.error("[nutrition-meals] validation failed", {
+      firstAttemptCodes: result.diagnostics.firstAttempt.map((e) => e.code),
+      repairAttemptCodes: result.diagnostics.repairAttempt.map((e) => e.code),
+    });
+  }
+  return Response.json(result);
 }

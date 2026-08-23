@@ -344,3 +344,72 @@ test("invalid catalogue food returns not-ready (repair or fail)", async () => {
   const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(badFood, badFood));
   assert.equal((result as { status?: string }).status, "generation_failed");
 });
+
+// ---------- 8. Validation diagnostics ----------
+
+test("validation failure includes first-attempt and repair-attempt diagnostic codes", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const bad = { meals: [{ name: "Snack", foods: [{ foodId: "totally-fake-food-id", quantityG: 100 }] }] };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(bad, bad));
+  assert.equal((result as { status?: string }).status, "generation_failed");
+  assert.equal((result as { reason?: string }).reason, "validation");
+  const res = result as { status: string; reason: string; diagnostics?: { firstAttempt: { code: string }[]; repairAttempt: { code: string }[] } };
+  assert.ok(res.diagnostics, "diagnostics must be present on validation failure");
+  assert.ok(res.diagnostics!.firstAttempt.length > 0, "firstAttempt must have at least one error");
+  assert.ok(res.diagnostics!.repairAttempt.length > 0, "repairAttempt must have at least one error");
+  assert.ok(res.diagnostics!.firstAttempt.every((e: { code: string }) => typeof e.code === "string"), "firstAttempt codes must be strings");
+  assert.ok(res.diagnostics!.repairAttempt.every((e: { code: string }) => typeof e.code === "string"), "repairAttempt codes must be strings");
+});
+
+test("ready response does not include diagnostics", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(validDay()));
+  const ready = expectReady(result);
+  assert.equal((ready as Record<string, unknown>).diagnostics, undefined, "diagnostics must not be present on ready response");
+});
+
+test("repair success does not include failure diagnostics", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const bad = { meals: [{ name: "Snack", foods: [{ foodId: "totally-fake-food-id", quantityG: 100 }] }] };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(bad, validDay()));
+  assert.equal((result as { status?: string }).status, "ready");
+  assert.equal((result as Record<string, unknown>).diagnostics, undefined, "diagnostics must not be present when repair succeeds");
+});
+
+test("provider failure does not include validation diagnostics", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator({ ok: false, reason: "timeout" }));
+  assert.equal((result as { status?: string }).status, "generation_failed");
+  assert.equal((result as { reason?: string }).reason, "timeout");
+  assert.equal((result as Record<string, unknown>).diagnostics, undefined, "diagnostics must not be present on provider failure");
+});
+
+test("validation failure diagnostics do not contain ownerId or private data", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const profile = { ...emptyProfile(), nutritionSafety: { flags: [], note: "PRIVATE SAFETY NOTE" } };
+  store.intakes.push({ clientId: 7, ownerId: "coach-a", profile, preferredLanguage: "en" });
+  const bad = { meals: [{ name: "Snack", foods: [{ foodId: "fake-id", quantityG: 100 }] }] };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(bad, bad));
+  const json = JSON.stringify(result);
+  assert.ok(!json.includes("coach-a"), "diagnostics must not contain ownerId");
+  assert.ok(!json.includes("PRIVATE SAFETY NOTE"), "diagnostics must not contain private safety notes");
+  assert.ok(!json.includes("APPROVED TARGETS"), "diagnostics must not contain internal prompt text");
+});
+
+test("different first-attempt and repair-attempt codes are preserved separately", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  store.intakes.push({ clientId: 7, ownerId: "coach-a", profile: { ...emptyProfile(), nutrition: { ...emptyProfile().nutrition, allergies: ["peanuts"] } }, preferredLanguage: "en" });
+  const badAllergy = { title: "Peanut snack", meals: [{ name: "Snack", foods: [{ foodId: "peanut-butter", quantityG: 30 }] }], notes: [] };
+  const badId = { meals: [{ name: "Snack", foods: [{ foodId: "nonexistent-xyz", quantityG: 100 }] }] };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(badAllergy, badId));
+  assert.equal((result as { status?: string }).status, "generation_failed");
+  const res = result as { diagnostics: { firstAttempt: { code: string }[]; repairAttempt: { code: string }[] } };
+  assert.ok(res.diagnostics.firstAttempt.some((e) => e.code === "allergy_violation"), "first attempt should contain allergy_violation");
+  assert.ok(res.diagnostics.repairAttempt.some((e) => e.code === "unknown_food_id"), "repair attempt should contain unknown_food_id");
+});
