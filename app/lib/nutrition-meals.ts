@@ -279,7 +279,7 @@ export function getAllowedFoodsForMealContext(context: MealGenerationContext): r
 // ---------------------------------------------------------------------------
 
 const BANNED_LANGUAGE_PATTERNS: RegExp[] = [
-  /\bcure\w*\b/i, /\bheal\w*\b/i, /\btreat\w*\b/i, /\bmedicat\w*\b/i, /\bdiagnos\w*\b/i,
+  /\bcure\w*\b/i, /\bheal(?:s|ed|ing)?\b/i, /\btreat\w*\b/i, /\bmedicat\w*\b/i, /\bdiagnos\w*\b/i,
   /\btherap\w*\b/i, /\bprescri\w*\b/i, /\bdetox\w*\b/i, /\bcleanse\w*\b/i, /\btoxin\w*\b/i,
   /\bpurg\w*\b/i, /\bstarv\w*\b/i, /\bfasting\b/i, /\bdehydrat\w*\b/i,
   /\bextreme (calorie )?restriction\b/i, /\brapid weight loss\b/i,

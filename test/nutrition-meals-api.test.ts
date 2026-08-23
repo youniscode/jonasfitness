@@ -476,3 +476,33 @@ test("banned_language diagnostic message is safe static text only", async () => 
   // Message must NOT contain anything that looks like user input or AI output
   assert.ok(!msg.includes("Try this cleanse"), "message must not contain the AI-generated note text");
 });
+
+test("production-like: calories_outside_target then repaired healthy meal is not banned", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  // First response: valid foods but ~3029 kcal (outside 2100-2200 range)
+  const overshoot = {
+    title: "High-cal day",
+    meals: [
+      { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 250 }, { foodId: "greek-yogurt-plain", quantityG: 300 }] },
+      { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantityG: 300 }, { foodId: "rice-white-cooked", quantityG: 400 }] },
+      { name: "Dinner", foods: [{ foodId: "salmon-farmed-raw", quantityG: 250 }, { foodId: "sweet-potato-cooked", quantityG: 600 }] },
+    ],
+    notes: [],
+  };
+  // Second response: corrected to ~2134 kcal with ordinary "Healthy" phrasing
+  const repaired = {
+    title: "Balanced day",
+    meals: [
+      { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 150 }, { foodId: "greek-yogurt-plain", quantityG: 250 }] },
+      { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantityG: 250 }, { foodId: "rice-white-cooked", quantityG: 250 }] },
+      { name: "Dinner", foods: [{ foodId: "salmon-farmed-raw", quantityG: 180 }, { foodId: "sweet-potato-cooked", quantityG: 500 }] },
+    ],
+    notes: ["Healthy high-energy breakfast"],
+  };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(overshoot, repaired));
+  // First attempt fails calories_outside_target; repair succeeds
+  assert.equal((result as { status?: string }).status, "ready", "repaired healthy meal should become ready");
+  const ready = result as { status: "ready"; example: { estimatedTotals: { calories: number } } };
+  assert.ok(ready.example.estimatedTotals.calories > 0, "repaired response has computed calories");
+});

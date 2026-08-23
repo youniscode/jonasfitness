@@ -189,6 +189,42 @@ test("banned/detox language is rejected", () => {
   assert.ok(result.errors.some((e: { code: string }) => e.code === "banned_language"));
 });
 
+test("heal verb forms are rejected (heal/heals/healed/healing)", () => {
+  const forms = ["heal", "heals", "healed", "healing"];
+  for (const word of forms) {
+    const result = resolveAndValidateExampleDay(makeDay({ notes: [`This will ${word} your body`] }), makeContext());
+    assert.equal(result.ok, false, `"${word}" should be rejected`);
+    assert.ok(result.errors.some((e: { code: string }) => e.code === "banned_language"), `"${word}" triggers banned_language`);
+  }
+});
+
+test("health/healthy words are NOT rejected by the heal pattern", () => {
+  const safe = ["healthy", "health", "healthier", "healthiest", "healthful"];
+  for (const word of safe) {
+    const result = resolveAndValidateExampleDay(makeDay({ notes: [`A ${word} meal option`] }), makeContext());
+    assert.equal(result.ok, true, `"${word}" should NOT be rejected`);
+    assert.ok(!result.errors.some((e: { code: string }) => e.code === "banned_language"), `"${word}" must not trigger banned_language`);
+  }
+});
+
+test("production-like: 'Healthy high-energy breakfast' does not trigger banned_language", () => {
+  const result = resolveAndValidateExampleDay(
+    makeDay({ notes: ["Healthy high-energy breakfast"] }),
+    makeContext(),
+  );
+  assert.equal(result.ok, true);
+  assert.ok(!result.errors.some((e: { code: string }) => e.code === "banned_language"), "healthy must not trigger banned_language");
+});
+
+test("real healing claim remains blocked", () => {
+  const result = resolveAndValidateExampleDay(
+    makeDay({ notes: ["Healing meal designed to heal inflammation"] }),
+    makeContext(),
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e: { code: string }) => e.code === "banned_language"), "healing claim still triggers banned_language");
+});
+
 test("alternate target recommendation is rejected", () => {
   const result = resolveAndValidateExampleDay(makeDay({ notes: ["You should increase your calorie target to 2500 kcal"] }), makeContext());
   assert.equal(result.ok, false);
