@@ -413,3 +413,66 @@ test("different first-attempt and repair-attempt codes are preserved separately"
   assert.ok(res.diagnostics.firstAttempt.some((e) => e.code === "allergy_violation"), "first attempt should contain allergy_violation");
   assert.ok(res.diagnostics.repairAttempt.some((e) => e.code === "unknown_food_id"), "repair attempt should contain unknown_food_id");
 });
+
+// ---------- 9. Banned-language diagnostic messages ----------
+
+test("banned_language diagnostic includes safe pattern message", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  // AI returns a valid meal but with a banned word ("fasting") in notes
+  const dayWithBanned = {
+    title: "Fasting day plan",
+    meals: [
+      { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 150 }, { foodId: "greek-yogurt-plain", quantityG: 250 }] },
+    ],
+    notes: ["Pre-fasting meal option"],
+  };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(dayWithBanned, dayWithBanned));
+  assert.equal((result as { status?: string }).status, "generation_failed");
+  assert.equal((result as { reason?: string }).reason, "validation");
+  const res = result as { diagnostics: { firstAttempt: { code: string; message: string }[]; repairAttempt: { code: string; message: string }[] } };
+  assert.ok(res.diagnostics, "diagnostics present");
+  const firstBanned = res.diagnostics.firstAttempt.find((e) => e.code === "banned_language");
+  assert.ok(firstBanned, "first attempt has banned_language");
+  assert.ok(firstBanned.message.includes("Output contains unsafe or medical language"), "message contains safe static prefix");
+  assert.ok(firstBanned.message.includes("fasting"), "message contains the regex pattern identifier");
+  const repairBanned = res.diagnostics.repairAttempt.find((e) => e.code === "banned_language");
+  assert.ok(repairBanned, "repair attempt has banned_language");
+  assert.ok(repairBanned.message.includes("Output contains unsafe or medical language"), "repair message contains safe static prefix");
+});
+
+test("diagnostics do not contain raw AI output or private data", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const profile = { ...emptyProfile(), nutritionSafety: { flags: [], note: "SECRET COACH NOTE" } };
+  store.intakes.push({ clientId: 7, ownerId: "coach-a", profile, preferredLanguage: "en" });
+  const dayWithBanned = {
+    title: "Test",
+    meals: [{ name: "Meal", foods: [{ foodId: "oats-dry", quantityG: 150 }] }],
+    notes: ["This is a detox plan"],
+  };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(dayWithBanned, dayWithBanned));
+  const json = JSON.stringify(result);
+  assert.ok(!json.includes("SECRET COACH NOTE"), "diagnostics must not contain private safety notes");
+  assert.ok(!json.includes("coach-a"), "diagnostics must not contain ownerId");
+  assert.ok(!json.includes("APPROVED TARGETS"), "diagnostics must not contain internal prompt text");
+  assert.ok(!json.includes("This is a detox plan"), "diagnostics must not contain raw AI notes");
+});
+
+test("banned_language diagnostic message is safe static text only", async () => {
+  const store = makeStore();
+  store.targets.push(approvedTarget());
+  const dayWithBanned = {
+    title: "Test",
+    meals: [{ name: "Meal", foods: [{ foodId: "oats-dry", quantityG: 150 }] }],
+    notes: ["Try this cleanse recipe"],
+  };
+  const result = await simulateGenerate(store, { clientId: 7 }, "coach-a", queuedGenerator(dayWithBanned, dayWithBanned));
+  const res = result as { diagnostics: { firstAttempt: { code: string; message: string }[] } };
+  const msg = res.diagnostics.firstAttempt.find((e) => e.code === "banned_language")?.message ?? "";
+  // Message should contain the static prefix and the regex pattern source
+  assert.ok(msg.startsWith("Output contains unsafe or medical language"), "message starts with safe prefix");
+  assert.ok(msg.endsWith(")."), "message ends with pattern identifier and closing paren");
+  // Message must NOT contain anything that looks like user input or AI output
+  assert.ok(!msg.includes("Try this cleanse"), "message must not contain the AI-generated note text");
+});

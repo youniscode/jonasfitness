@@ -487,8 +487,8 @@ function ValidationDiagnostics({ diagnostics }: { diagnostics: MealGenerationDia
   if (!diagnostics.firstAttempt.length && !diagnostics.repairAttempt.length) return null;
   return <div className="nutrition-diagnostics" style={{ marginTop: 8, fontSize: 9, color: "#777b71", lineHeight: 1.6 }}>
     <strong style={{ fontSize: 8, letterSpacing: ".12em", textTransform: "uppercase" }}>Validation details</strong>
-    {diagnostics.firstAttempt.length > 0 && <div>First attempt: {diagnostics.firstAttempt.map((e) => e.code).join(", ")}</div>}
-    {diagnostics.repairAttempt.length > 0 && <div>Repair attempt: {diagnostics.repairAttempt.map((e) => e.code).join(", ")}</div>}
+    {diagnostics.firstAttempt.length > 0 && <div>First attempt: {diagnostics.firstAttempt.map((e) => `${e.code} — ${e.message}`).join("; ")}</div>}
+    {diagnostics.repairAttempt.length > 0 && <div>Repair attempt: {diagnostics.repairAttempt.map((e) => `${e.code} — ${e.message}`).join("; ")}</div>}
   </div>;
 }
 

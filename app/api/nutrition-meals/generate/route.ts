@@ -104,8 +104,8 @@ export async function POST(request: Request) {
   const result = await runMealGeneration(context, mode, generate);
   if (result.status === "generation_failed" && result.reason === "validation" && result.diagnostics) {
     console.error("[nutrition-meals] validation failed", {
-      firstAttemptCodes: result.diagnostics.firstAttempt.map((e) => e.code),
-      repairAttemptCodes: result.diagnostics.repairAttempt.map((e) => e.code),
+      firstAttempt: result.diagnostics.firstAttempt,
+      repairAttempt: result.diagnostics.repairAttempt,
     });
   }
   return Response.json(result);
