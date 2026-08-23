@@ -198,6 +198,83 @@ function isGlutenIntolerance(token: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Deterministic food-allowance filter (pre-generation prevention)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns restriction reasons for a single catalogue food against the client's
+ * hard restrictions. Uses the SAME matching semantics as the post-generation
+ * validators (allergenFlagErrors, foodLevelErrors, structuredDietaryErrors)
+ * so pre-filter and post-validator never drift.
+ *
+ * Empty array = food is allowed. Non-empty = food is forbidden.
+ */
+export function foodRestrictionReasons(food: CatalogueFood, context: MealGenerationContext): string[] {
+  const reasons: string[] = [];
+
+  // --- Allergies (hard exclusion) ---
+  for (const allergy of context.allergies) {
+    const token = normalizeFoodToken(allergy);
+    // 1. Catalogue allergen flags (mirrors allergenFlagErrors)
+    for (const flag of food.allergens ?? []) {
+      if (containsToken(flag, token) || containsToken(token, flag)) {
+        reasons.push("allergy");
+        break;
+      }
+    }
+    // 2. Food name substring (mirrors foodLevelErrors allergy branch)
+    if (!reasons.includes("allergy") && containsToken(food.name, allergy)) {
+      reasons.push("allergy");
+    }
+  }
+
+  // --- Intolerances (hard exclusion) ---
+  for (const intolerance of context.intolerances) {
+    // 3. Dairy intolerance (mirrors foodLevelErrors intolerance branch)
+    if (isDairyIntolerance(intolerance)) {
+      if (containsDairy(food.name)) {
+        reasons.push("intolerance");
+        continue;
+      }
+    }
+    // 4. Gluten intolerance (mirrors foodLevelErrors intolerance branch)
+    else if (isGlutenIntolerance(intolerance)) {
+      if (GLUTEN_WORDS.some((word) => wordIn(food.name, word))) {
+        reasons.push("intolerance");
+        continue;
+      }
+    }
+    // 5. Generic intolerance (mirrors foodLevelErrors intolerance branch)
+    else if (containsToken(food.name, intolerance)) {
+      reasons.push("intolerance");
+      continue;
+    }
+  }
+
+  // --- Dietary pattern (hard exclusion, mirrors structuredDietaryErrors) ---
+  const pattern = context.pattern.trim();
+  if (pattern === "Vegetarian" && !food.dietary.vegetarian) {
+    reasons.push("pattern");
+  } else if (pattern === "Vegan" && !food.dietary.vegan) {
+    reasons.push("pattern");
+  } else if ((pattern === "Halal" || pattern === "Kosher") && food.dietary.containsPork) {
+    reasons.push("pattern");
+  }
+
+  return reasons;
+}
+
+/** Returns true if the food has zero hard-restriction reasons against the client context. */
+export function foodAllowedForMealContext(food: CatalogueFood, context: MealGenerationContext): boolean {
+  return foodRestrictionReasons(food, context).length === 0;
+}
+
+/** Returns the catalogue filtered to only foods allowed for the given client context. */
+export function getAllowedFoodsForMealContext(context: MealGenerationContext): readonly CatalogueFood[] {
+  return getCatalogueFoods().filter((food) => foodAllowedForMealContext(food, context));
+}
+
+// ---------------------------------------------------------------------------
 // Banned / dangerous language + alternate-target detection
 // ---------------------------------------------------------------------------
 
@@ -663,10 +740,27 @@ function dietaryBlock(context: MealGenerationContext): string {
   return lines.join("\n");
 }
 
-/** Compact food selection list (id + name + category). Nutrient values are omitted — the system computes them deterministically. */
-function availableFoodsBlock(): string {
+function hardRestrictionBlock(context: MealGenerationContext): string {
+  const lines: string[] = ["HARD FOOD RESTRICTIONS (the AVAILABLE FOODS list has been filtered to exclude these):"];
+  if (context.allergies.length) {
+    lines.push(`Allergies: ${context.allergies.join(", ")}`);
+  }
+  if (context.intolerances.length) {
+    lines.push(`Intolerances: ${context.intolerances.join(", ")}`);
+  }
+  const pattern = context.pattern.trim();
+  if (pattern === "Vegetarian" || pattern === "Vegan" || pattern === "Halal" || pattern === "Kosher") {
+    lines.push(`Pattern: ${pattern}`);
+  }
+  lines.push("Use ONLY foodIds from the AVAILABLE FOODS list. Never invent or substitute another foodId.");
+  return lines.join("\n");
+}
+
+/** Compact food selection list (id + name + category). Nutrient values are omitted — the system computes them deterministically. When a context is provided, only foods passing all hard restrictions are included. */
+function availableFoodsBlock(context?: MealGenerationContext): string {
+  const foods = context ? getAllowedFoodsForMealContext(context) : getCatalogueFoods();
   const header = "AVAILABLE FOODS (choose ONLY these foodIds; the system computes all nutrition deterministically):\nfoodId | name | category";
-  const rows = getCatalogueFoods()
+  const rows = foods
     .map((food) => `${food.id} | ${food.name} | ${food.category}`);
   return [header, ...rows].join("\n");
 }
@@ -693,7 +787,9 @@ export function buildMealSystemPrompt(): string {
 
 export function buildMealUserPrompt(context: MealGenerationContext, mode: MealMode): string {
   return [
-    availableFoodsBlock(),
+    availableFoodsBlock(context),
+    "",
+    hardRestrictionBlock(context),
     "",
     targetBlock(context),
     "",
@@ -769,6 +865,14 @@ export async function runMealGeneration(
     approvedTargetSummary: approvedTargetSummary(context),
     nutritionSource: nutritionSource(),
   };
+
+  // Zero-safe-food failsafe: if restrictions filter out the entire catalogue,
+  // fail immediately without calling AI. Never fall back to the unfiltered list.
+  const allowedFoods = getAllowedFoodsForMealContext(context);
+  if (!allowedFoods.length) {
+    return { status: "generation_failed", reason: "validation" };
+  }
+
   const first = await attemptGeneration(context, mode, generate, buildMealUserPrompt(context, mode));
   if (first.kind === "provider_failure") return { status: "generation_failed", reason: first.reason };
   if (first.validation.ok) {
