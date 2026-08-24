@@ -15,12 +15,8 @@ import {
   type MealExampleDay,
   type MealGenerationResponse,
   type MealGenerationDiagnostics,
-  nutrientTargetStatus,
-  MEAL_CALORIE_TOLERANCE_KCAL,
-  MEAL_PROTEIN_TOLERANCE_G,
-  MEAL_FAT_TOLERANCE_G,
-  MEAL_CARB_TOLERANCE_G,
 } from "../lib/nutrition-meals";
+import { MealBuilder } from "./MealBuilder";
 
 type Client = { id: number; name: string };
 
@@ -353,7 +349,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
             <button type="button" className="nutrition-adjust-button" disabled={mealLoading} onClick={() => void generateMeals("alternatives")}>Generate meal alternatives</button>
           </div>
           {mealError && <p className="nutrition-approval-error" role="alert">{mealError}</p>}
-          {meal && meal.targetId === (targets.current?.id ?? null) && <MealResultView result={meal.result} />}
+          {meal && meal.targetId === (targets.current?.id ?? null) && <MealResultView result={meal.result} clientId={client.id} />}
         </>}
     </div>
 
@@ -497,7 +493,7 @@ function ValidationDiagnostics({ diagnostics }: { diagnostics: MealGenerationDia
   </div>;
 }
 
-function MealResultView({ result }: { result: MealGenerationResponse }) {
+function MealResultView({ result, clientId }: { result: MealGenerationResponse; clientId: number }) {
   if (result.status === "generation_failed") {
     return <div className="nutrition-approved-empty"><strong>Meal generation failed.</strong><span>{mealFailureLabel(result.reason)}</span>{result.diagnostics && <ValidationDiagnostics diagnostics={result.diagnostics} />}</div>;
   }
@@ -510,7 +506,7 @@ function MealResultView({ result }: { result: MealGenerationResponse }) {
   if (result.status === "ready" && result.mode === "alternatives") {
     return <AlternativesView alternatives={result.alternatives} warnings={result.validation.warnings} />;
   }
-  return <ExampleDayView example={result.example} summary={result.approvedTargetSummary} warnings={result.validation.warnings} />;
+  return <ExampleDayView example={result.example} summary={result.approvedTargetSummary} warnings={result.validation.warnings} clientId={clientId} />;
 }
 
 function mealFailureLabel(reason: string): string {
@@ -530,39 +526,11 @@ function mealFailureLabel(reason: string): string {
 
 type MealTargetSummary = { calories: { min: number; max: number }; protein: { min: number; max: number }; fat: { min: number; max: number }; carbohydrates: { min: number; max: number } };
 
-function fmtDelta(delta: number, unit: string): string {
-  if (delta === 0) return "";
-  const sign = delta > 0 ? "+" : "";
-  return `${sign}${delta} ${unit}`;
-}
-
-function nutrientStatusLabel(status: "inside_target" | "within_tolerance" | "outside_tolerance"): string {
-  return status === "inside_target" ? "Inside target" : status === "within_tolerance" ? "Within tolerance" : "Outside tolerance";
-}
-
-function NutrientStatusLine({ value, min, max, tolerance, unit }: { value: number; min: number; max: number; tolerance: number; unit: string }) {
-  const { status, delta } = nutrientTargetStatus(value, min, max, tolerance);
-  return <span className="nutrition-target-status">{nutrientStatusLabel(status)}{delta !== 0 ? ` (${fmtDelta(delta, unit)})` : ""}</span>;
-}
-
-function ExampleDayView({ example, summary, warnings }: { example: MealExampleDay; summary: MealTargetSummary; warnings: { message: string }[] }) {
-  const cal = nutrientTargetStatus(example.estimatedTotals.calories, summary.calories.min, summary.calories.max, MEAL_CALORIE_TOLERANCE_KCAL);
+function ExampleDayView({ example, summary, warnings, clientId }: { example: MealExampleDay; summary: MealTargetSummary; warnings: { message: string }[]; clientId: number }) {
   return <div className="nutrition-meal-result">
     <div className="nutrition-meal-head"><strong>{example.title || "Example meal day"}</strong><em>CALCULATED NUTRITION · CIQUAL CATALOGUE</em></div>
     {warnings.length > 0 && <div className="nutrition-warnings" role="note">⚠ {warnings.map((w) => w.message).join(" · ")}</div>}
-    <div className="nutrition-meal-list">{example.meals.map((meal, index) => <article className="nutrition-meal-card" key={index}>
-      <h4>{meal.name}</h4>
-      <ul>{meal.foods.map((item, foodIndex) => <li key={foodIndex}><span>{item.food}</span><em>{item.quantity}</em></li>)}</ul>
-      <div className="nutrition-meal-macros"><span>{meal.estimatedCalories} kcal</span><span>P {meal.estimatedProteinGrams} g</span><span>F {meal.estimatedFatGrams} g</span><span>C {meal.estimatedCarbohydrateGrams} g</span></div>
-    </article>)}</div>
-    <div className="nutrition-meal-totals">
-      <div><small>CALCULATED DAILY TOTAL</small><strong>{example.estimatedTotals.calories} kcal</strong><span className="nutrition-target-status">{nutrientStatusLabel(cal.status)}{cal.delta !== 0 ? ` (${fmtDelta(cal.delta, "kcal")})` : ""}</span></div>
-      <div className="nutrition-macro-status"><span>P {example.estimatedTotals.proteinGrams} g · <NutrientStatusLine value={example.estimatedTotals.proteinGrams} min={summary.protein.min} max={summary.protein.max} tolerance={MEAL_PROTEIN_TOLERANCE_G} unit="g" /></span>
-      <span>F {example.estimatedTotals.fatGrams} g · <NutrientStatusLine value={example.estimatedTotals.fatGrams} min={summary.fat.min} max={summary.fat.max} tolerance={MEAL_FAT_TOLERANCE_G} unit="g" /></span>
-      <span>C {example.estimatedTotals.carbohydrateGrams} g · <NutrientStatusLine value={example.estimatedTotals.carbohydrateGrams} min={summary.carbohydrates.min} max={summary.carbohydrates.max} tolerance={MEAL_CARB_TOLERANCE_G} unit="g" /></span></div>
-      <div><small>APPROVED TARGET</small><strong>{fmtRange(summary.calories.min, summary.calories.max, "kcal")}</strong><span>P {fmtRange(summary.protein.min, summary.protein.max, "g")} · F {fmtRange(summary.fat.min, summary.fat.max, "g")} · C {fmtRange(summary.carbohydrates.min, summary.carbohydrates.max, "g")}</span></div>
-    </div>
-    <p className="nutrition-meal-source">Nutrition is calculated from the Jonas-Fitness food catalogue using ANSES-CIQUAL composition data. AI selects foods and quantities; it does not calculate these values.</p>
+    <MealBuilder example={example} summary={summary} clientId={clientId} />
     {example.notes.length > 0 && <p className="nutrition-meal-notes">{example.notes.join(" · ")}</p>}
   </div>;
 }
