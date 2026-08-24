@@ -61,6 +61,19 @@ export function nutrientTargetStatus(
   return { status: "within_tolerance", delta };
 }
 
+/**
+ * Display-only number formatting for meal-builder target read-outs.
+ * Presentation only — never changes stored or computed values.
+ */
+export function formatKcal(value: number): string {
+  return String(Math.round(value));
+}
+
+export function formatMacroGrams(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  return String(Number(value.toFixed(1)));
+}
+
 /** Sensible meal-count bounds for an example day. */
 export const MEAL_COUNT_MIN = 2;
 export const MEAL_COUNT_MAX = 6;

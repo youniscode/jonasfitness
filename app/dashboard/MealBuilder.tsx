@@ -24,6 +24,8 @@ import {
   type MealExampleDay,
   type MealApprovedTargetSummary,
   nutrientTargetStatus,
+  formatKcal,
+  formatMacroGrams,
   MEAL_CALORIE_TOLERANCE_KCAL,
   MEAL_PROTEIN_TOLERANCE_G,
   MEAL_FAT_TOLERANCE_G,
@@ -592,12 +594,13 @@ export function MealBuilder({ example, summary, clientId }: Props) {
         </div>
         <div className="meal-builder-remaining">
           <small>REMAINING TO TARGET</small>
-          <div className="meal-builder-remaining-grid">
-            <span>{remaining.calories.remaining >= 0 ? `${remaining.calories.remaining} kcal below minimum` : `${Math.abs(remaining.calories.remaining)} kcal above maximum`}</span>
-            <span>{remaining.protein.remaining >= 0 ? `${remaining.protein.remaining} g below minimum` : `${Math.abs(remaining.protein.remaining)} g above maximum`}</span>
-            <span>{remaining.fat.remaining >= 0 ? `${remaining.fat.remaining} g below minimum` : `${Math.abs(remaining.fat.remaining)} g above maximum`}</span>
-            <span>{remaining.carbohydrates.remaining >= 0 ? `${remaining.carbohydrates.remaining} g below minimum` : `${Math.abs(remaining.carbohydrates.remaining)} g above maximum`}</span>
-          </div>
+            <div className="meal-builder-remaining-grid">
+              <span>{remaining.calories.remaining >= 0 ? `${formatKcal(remaining.calories.remaining)} kcal below minimum` : `${formatKcal(Math.abs(remaining.calories.remaining))} kcal above maximum`}</span>
+              <span>{remaining.protein.remaining >= 0 ? `${formatMacroGrams(remaining.protein.remaining)} g below minimum` : `${formatMacroGrams(Math.abs(remaining.protein.remaining))} g above maximum`}</span>
+              <span>{remaining.fat.remaining >= 0 ? `${formatMacroGrams(remaining.fat.remaining)} g below minimum` : `${formatMacroGrams(Math.abs(remaining.fat.remaining))} g above maximum`}</span>
+              <span>{remaining.carbohydrates.remaining >= 0 ? `${formatMacroGrams(remaining.carbohydrates.remaining)} g below minimum` : `${formatMacroGrams(Math.abs(remaining.carbohydrates.remaining))} g above maximum`}</span>
+            </div>
+
         </div>
         {locked && (locked.kcal > 0 || locked.proteinG > 0) && (
           <div className="meal-builder-locked">
@@ -635,9 +638,9 @@ export function MealBuilder({ example, summary, clientId }: Props) {
             </div>
           </div>
           <div className="meal-builder-optimize-before-after">
-            <span className="before">{preview.before.kcal} kcal · P {preview.before.proteinG} g · F {preview.before.fatG} g · C {preview.before.carbohydrateG} g</span>
+            <span className="before">{formatKcal(preview.before.kcal)} kcal · P {formatMacroGrams(preview.before.proteinG)} g · F {formatMacroGrams(preview.before.fatG)} g · C {formatMacroGrams(preview.before.carbohydrateG)} g</span>
             <span className="arrow">→</span>
-            <span className="after">{preview.after.kcal} kcal · P {preview.after.proteinG} g · F {preview.after.fatG} g · C {preview.after.carbohydrateG} g</span>
+            <span className="after">{formatKcal(preview.after.kcal)} kcal · P {formatMacroGrams(preview.after.proteinG)} g · F {formatMacroGrams(preview.after.fatG)} g · C {formatMacroGrams(preview.after.carbohydrateG)} g</span>
           </div>
           {preview.changes.length > 0 && (
             <ul className="meal-builder-optimize-changes">
@@ -686,26 +689,26 @@ export function MealBuilder({ example, summary, clientId }: Props) {
         </div>
         {planError && <div className="meal-builder-error">{planError}</div>}
         <div className="meal-plan-actions">
-          <button className="meal-plan-btn primary" disabled={planBusy !== null} onClick={handleSaveDraft}>
+          <button type="button" className="meal-plan-btn primary" disabled={planBusy !== null} onClick={handleSaveDraft}>
             {planBusy === "saving" ? "Saving…" : saveLabel}
           </button>
           {hasDraft && drafts[0] && (
             <>
-              <button className="meal-plan-btn" disabled={planBusy !== null} onClick={() => handleApproveVersion(drafts[0].id)}>
+              <button type="button" className="meal-plan-btn" disabled={planBusy !== null} onClick={() => handleApproveVersion(drafts[0].id)}>
                 {planBusy === "approving" ? "Approving…" : `Approve v${drafts[0].versionNumber}`}
               </button>
-              <button className="meal-plan-btn danger" disabled={planBusy !== null} onClick={() => handleDeleteDraft(drafts[0].id)}>
+              <button type="button" className="meal-plan-btn danger" disabled={planBusy !== null} onClick={() => handleDeleteDraft(drafts[0].id)}>
                 {planBusy === "deleting" ? "Deleting…" : `Delete draft v${drafts[0].versionNumber}`}
               </button>
             </>
           )}
           {!hasDraft && latestVersion?.status === "approved" && !latestVersion.assignedToClient && (
-            <button className="meal-plan-btn" disabled={planBusy !== null} onClick={() => handleAssignVersion(latestVersion.id)}>
+            <button type="button" className="meal-plan-btn" disabled={planBusy !== null} onClick={() => handleAssignVersion(latestVersion.id)}>
               {planBusy === "assigning" ? "Assigning…" : `Assign v${latestVersion.versionNumber} to client`}
             </button>
           )}
           {plan?.activeAssignment && (
-            <button className="meal-plan-btn" disabled={planBusy !== null} onClick={handleUnassign}>
+            <button type="button" className="meal-plan-btn" disabled={planBusy !== null} onClick={handleUnassign}>
               {planBusy === "unassigning" ? "Unassigning…" : `Unassign v${plan.activeAssignment.versionNumber}`}
             </button>
           )}
@@ -725,7 +728,7 @@ export function MealBuilder({ example, summary, clientId }: Props) {
                 <div className="meal-plan-version-actions">
                   {v.meals && (
                     <button
-                      className="meal-plan-btn small"
+                      type="button" className="meal-plan-btn small"
                       disabled={planBusy !== null}
                       onClick={() => { if (loadPlanIntoBuilder(v.meals!)) setPlanError(null); }}
                     >
@@ -733,13 +736,13 @@ export function MealBuilder({ example, summary, clientId }: Props) {
                     </button>
                   )}
                   {v.status === "draft" && (
-                    <button className="meal-plan-btn small" disabled={planBusy !== null} onClick={() => handleApproveVersion(v.id)}>Approve</button>
+                    <button type="button" className="meal-plan-btn small" disabled={planBusy !== null} onClick={() => handleApproveVersion(v.id)}>Approve</button>
                   )}
                   {v.status === "approved" && !v.assignedToClient && (
-                    <button className="meal-plan-btn small" disabled={planBusy !== null} onClick={() => handleAssignVersion(v.id)}>Assign</button>
+                    <button type="button" className="meal-plan-btn small" disabled={planBusy !== null} onClick={() => handleAssignVersion(v.id)}>Assign</button>
                   )}
                   {v.status === "draft" && (
-                    <button className="meal-plan-btn small danger" disabled={planBusy !== null} onClick={() => handleDeleteDraft(v.id)}>Delete</button>
+                    <button type="button" className="meal-plan-btn small danger" disabled={planBusy !== null} onClick={() => handleDeleteDraft(v.id)}>Delete</button>
                   )}
                 </div>
               </div>
