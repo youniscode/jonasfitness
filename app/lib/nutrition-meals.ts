@@ -32,6 +32,8 @@ import {
   FOOD_QUANTITY_MIN_G,
   type FoodNutrition,
 } from "./food-nutrition.ts";
+import { builderStateFromExampleDay } from "./nutrition-meal-builder.ts";
+import { optimizeMealBuilderDay } from "./nutrition-meal-optimizer.ts";
 
 // ---------------------------------------------------------------------------
 // Canonical values + constants (exported for tests)
@@ -860,7 +862,15 @@ function nutritionSource(): NutritionSourceInfo {
 
 type AttemptResult =
   | { kind: "provider_failure"; reason: GatewayFailureReason }
-  | { kind: "ok"; example: MealExampleDay | null; alternatives: MealAlternatives | null; validation: MealValidationResult };
+  | {
+      kind: "ok";
+      /** Validated example day (with computed totals) — null when validation failed. */
+      example: MealExampleDay | null;
+      /** Parsed raw example day (meals/lines) even when validation failed, for optimizer use. */
+      raw: ReturnType<typeof parseMealExampleDay> | null;
+      alternatives: MealAlternatives | null;
+      validation: MealValidationResult;
+    };
 
 function stripPayload<T>(validated: Validated<T>): MealValidationResult {
   return { ok: validated.ok, errors: validated.errors, warnings: validated.warnings, withinTargets: validated.withinTargets };
@@ -876,15 +886,95 @@ async function attemptGeneration(
   if (!result.ok) return { kind: "provider_failure", reason: result.reason };
   if (mode === "alternatives") {
     const validated = validateResolvedAlternatives(parseMealAlternatives(result.value), context);
-    return { kind: "ok", example: null, alternatives: validated.payload, validation: stripPayload(validated) };
+    return { kind: "ok", example: null, raw: null, alternatives: validated.payload, validation: stripPayload(validated) };
   }
-  const validated = validateResolvedExampleDay(parseMealExampleDay(result.value), context);
-  return { kind: "ok", example: validated.payload, alternatives: null, validation: stripPayload(validated) };
+  const raw = parseMealExampleDay(result.value);
+  const validated = validateResolvedExampleDay(raw, context);
+  return { kind: "ok", example: validated.ok ? validated.payload : null, raw, alternatives: null, validation: stripPayload(validated) };
+}
+
+/**
+ * A failure is "nutrient-only" when the ONLY blocking errors are calorie-target
+ * misses. Hard safety failures (allergies, intolerances, dietary pattern, unknown
+ * food, invalid grams, malformed structure, banned language) use other error codes
+ * and must keep flowing through the existing AI repair/failure path — the optimizer
+ * may only adjust quantities of an otherwise safe, structurally-valid day.
+ */
+function isNutrientOnlyFailure(errors: MealValidationError[]): boolean {
+  return errors.length > 0 && errors.every((e) => e.code === "calories_outside_target");
+}
+
+/**
+ * Convert a generated example day into a builder state, run the deterministic
+ * quantity-only optimizer against the exact approved target, then re-validate.
+ * Returns the optimized, re-validated payload only when it passes — the optimizer
+ * never adds/removes/swaps foods, it only changes grams. Returns null when the
+ * optimized day still fails validation (best effort did not reach the target).
+ */
+function optimizeExampleDayIfFeasible(
+  raw: ReturnType<typeof parseMealExampleDay>,
+  context: MealGenerationContext,
+): { example: MealExampleDay; validation: MealValidationResult } | null {
+  const { errors: resolveErrors, meals: resolvedMeals } = resolveExampleDay(raw);
+  if (resolveErrors.length) return null;
+  const mealExampleDay: MealExampleDay = {
+    title: raw.title,
+    meals: resolvedMeals.map((meal) => ({
+      name: meal.name,
+      foods: displayFoods(meal.lines),
+      estimatedCalories: meal.nutrition.kcal,
+      estimatedProteinGrams: meal.nutrition.proteinG,
+      estimatedFatGrams: meal.nutrition.fatG,
+      estimatedCarbohydrateGrams: meal.nutrition.carbohydrateG,
+    })),
+    estimatedTotals: (() => {
+      const t = calculateMealDayNutrition(resolvedMeals.map((meal) => meal.lines));
+      return { calories: t.kcal, proteinGrams: t.proteinG, fatGrams: t.fatG, carbohydrateGrams: t.carbohydrateG };
+    })(),
+    notes: raw.notes,
+  };
+  const state = builderStateFromExampleDay(mealExampleDay);
+  const result = optimizeMealBuilderDay(state, approvedTargetSummary(context));
+  const optimizedRaw = {
+    title: raw.title,
+    meals: result.optimized.meals.map((meal) => ({
+      name: meal.name,
+      foods: meal.foods.map((f) => ({ foodId: f.foodId, quantityG: f.quantityG })),
+    })),
+    notes: raw.notes,
+  };
+  const revalidated = validateResolvedExampleDay(parseMealExampleDay(optimizedRaw), context);
+  if (!revalidated.ok || !revalidated.payload) return null;
+  return { example: revalidated.payload, validation: stripPayload(revalidated) };
+}
+
+/**
+ * Post-process a generated example day after a single AI pass: if already valid,
+ * return it ready; if the only failure is a nutrient-target miss, attempt the
+ * deterministic optimizer and return the optimized result when it validates.
+ * Returns null when the optimizer must not run (unsafe output) or cannot reach
+ * the target (caller then proceeds to the single AI repair / failure path).
+ */
+function postProcessExampleDay(
+  raw: ReturnType<typeof parseMealExampleDay>,
+  context: MealGenerationContext,
+  base: { approvedTargetSummary: MealApprovedTargetSummary; nutritionSource: NutritionSourceInfo },
+): MealGenerationResponse | null {
+  const validated = validateResolvedExampleDay(raw, context);
+  if (validated.ok && validated.payload) {
+    return readyResponse("example_day", validated.payload, null, base, stripPayload(validated));
+  }
+  if (!isNutrientOnlyFailure(validated.errors)) return null;
+  const optimized = optimizeExampleDayIfFeasible(raw, context);
+  if (optimized) return readyResponse("example_day", optimized.example, null, base, optimized.validation);
+  return null;
 }
 
 /**
  * Generates + validates an example day/alternatives with at most ONE constrained
- * AI repair. Never mutates the approved target (it is read-only context here).
+ * AI repair. Before spending that repair on a full-day nutrient miss, a
+ * deterministic quantity optimizer is attempted (calorie-target correction only,
+ * foods unchanged). Never mutates the approved target (it is read-only context here).
  */
 export async function runMealGeneration(
   context: MealGenerationContext,
@@ -909,6 +999,14 @@ export async function runMealGeneration(
     return readyResponse(mode, first.example, first.alternatives, base, first.validation);
   }
 
+  // Deterministic optimizer: for full-day generation, if the ONLY failure is a
+  // nutrient-target miss, rebalance existing-food quantities before spending the
+  // single AI repair. The optimizer never runs on unsafe / structurally-invalid output.
+  if (mode === "example_day" && first.raw) {
+    const optimized = postProcessExampleDay(first.raw, context, base);
+    if (optimized) return optimized;
+  }
+
   // Exactly one constrained repair, then fail safely.
   const firstErrors = first.validation.errors;
   const repairPrompt = buildMealRepairPrompt(context, mode, firstErrors);
@@ -917,17 +1015,31 @@ export async function runMealGeneration(
   let repaired: AttemptResult;
   if (mode === "alternatives") {
     const validated = validateResolvedAlternatives(parseMealAlternatives(second.value), context);
-    repaired = { kind: "ok", example: null, alternatives: validated.payload, validation: stripPayload(validated) };
+    repaired = { kind: "ok", example: null, raw: null, alternatives: validated.payload, validation: stripPayload(validated) };
   } else {
-    const validated = validateResolvedExampleDay(parseMealExampleDay(second.value), context);
-    repaired = { kind: "ok", example: validated.payload, alternatives: null, validation: stripPayload(validated) };
+    const raw = parseMealExampleDay(second.value);
+    const validated = validateResolvedExampleDay(raw, context);
+    repaired = { kind: "ok", example: validated.ok ? validated.payload : null, raw, alternatives: null, validation: stripPayload(validated) };
   }
-  if (!repaired.validation.ok || (!repaired.example && !repaired.alternatives)) {
+  // Nutrient-only repair errors (calories_outside_target only) are handled
+  // by the optimizer pass below, not as a hard failure.
+  const repairOnlyHasCalorieErrors =
+    repaired.validation.errors?.every((e) => e.code === "calories_outside_target");
+  if (
+    !repaired.validation.ok &&
+    !repairOnlyHasCalorieErrors &&
+    (!repaired.example && !repaired.alternatives)
+  ) {
     return {
       status: "generation_failed",
       reason: "validation",
       diagnostics: { firstAttempt: firstErrors, repairAttempt: repaired.validation.errors },
     };
+  }
+  // Same optimizer pass after the single AI repair when the miss is nutrient-only.
+  if (mode === "example_day" && repaired.raw) {
+    const optimized = postProcessExampleDay(repaired.raw, context, base);
+    if (optimized) return optimized;
   }
   return readyResponse(mode, repaired.example, repaired.alternatives, base, repaired.validation);
 }
