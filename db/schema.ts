@@ -497,3 +497,72 @@ export const nutritionTargets = pgTable("nutrition_targets", {
     .on(table.ownerId, table.clientId)
     .where(sql`${table.status} = 'approved'`),
 ]);
+
+// Meal Builder V2 Phase 2B — persisted meal plans with immutable versions.
+//
+// A meal plan is a logical container per (owner, client). Its content lives in
+// append-only versions: one mutable draft at a time, frozen approved snapshots
+// forever. Nothing becomes client-visible through these tables until a coach
+// BOTH approves a version AND creates an active assignment — AI generation,
+// optimizer runs and draft saves never publish anything on their own.
+//
+// Snapshots are deliberately denormalized JSON: an approved version must stay
+// historically meaningful even when the CIQUAL catalogue, nutrition formulas
+// or the client's current approved target change later. Approved versions are
+// never mutated; editing clones the latest version into a new draft.
+export const mealPlans = pgTable("meal_plans", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  title: text("title").notNull().default("Nutrition Plan"),
+  status: text("status").notNull().default("active"),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("meal_plans_owner_client_idx").on(table.ownerId, table.clientId),
+]);
+
+export const mealPlanVersions = pgTable("meal_plan_versions", {
+  id: serial("id").primaryKey(),
+  mealPlanId: integer("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  // Sequential per plan; the unique index below means two concurrent saves can
+  // never both claim version N.
+  versionNumber: integer("version_number").notNull(),
+  // "draft" | "approved" | "superseded". Approval freezes every snapshot
+  // column permanently; drafts may be overwritten until approved.
+  status: text("status").notNull().default("draft"),
+  mealsSnapshot: text("meals_snapshot").notNull(),
+  nutritionSnapshot: text("nutrition_snapshot").notNull(),
+  approvedTargetSnapshot: text("approved_target_snapshot").notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("meal_plan_versions_plan_number_unique").on(table.mealPlanId, table.versionNumber),
+  index("meal_plan_versions_owner_plan_idx").on(table.ownerId, table.mealPlanId),
+  index("meal_plan_versions_plan_status_idx").on(table.mealPlanId, table.status),
+]);
+
+// Current + historical client assignments. History rows are never deleted;
+// assigning a new version deactivates the previous active row inside one
+// transaction. The partial unique index guarantees at most ONE active
+// assignment per client across ALL plans — the database itself rejects a
+// double-assign race even if service logic were bypassed.
+export const mealPlanAssignments = pgTable("meal_plan_assignments", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  mealPlanId: integer("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: "cascade" }),
+  mealPlanVersionId: integer("meal_plan_version_id").notNull().references(() => mealPlanVersions.id, { onDelete: "cascade" }),
+  active: boolean("active").notNull().default(true),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+  unassignedAt: timestamp("unassigned_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [
+  index("meal_plan_assignments_owner_client_idx").on(table.ownerId, table.clientId),
+  index("meal_plan_assignments_client_active_idx").on(table.clientId, table.active),
+  uniqueIndex("meal_plan_assignments_client_active_unique")
+    .on(table.clientId)
+    .where(sql`${table.active} = true`),
+]);

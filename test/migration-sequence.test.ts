@@ -37,11 +37,8 @@ test("the onboarding profile migration (0007) is additive-only and adds only the
   assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
 });
 
-test("the latest migration (0011) is additive-only and creates only the nutrition_targets table", () => {
-  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
-  const latest = journal.entries[journal.entries.length - 1];
-  assert.equal(latest.tag, "0011_nutrition-targets");
-  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+test("the nutrition-targets migration (0011) is additive-only and creates only the nutrition_targets table", () => {
+  const sql = readFileSync(join(DRIZZLE, "0011_nutrition-targets.sql"), "utf8");
   // The nutrition-targets migration must create ONLY the nutrition_targets
   // table — exactly one CREATE TABLE, nothing else.
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, "exactly one table creation");
@@ -57,6 +54,28 @@ test("the latest migration (0011) is additive-only and creates only the nutritio
   // (superseded history rows are unaffected).
   assert.match(sql, /CREATE UNIQUE INDEX "nutrition_targets_owner_client_active_unique"/);
   assert.match(sql, /WHERE "nutrition_targets"\."status" = 'approved'/);
+});
+
+test("the meal-plans migration (0012) is additive-only and creates only the three meal-plan tables", () => {
+  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
+  const latest = journal.entries[journal.entries.length - 1];
+  assert.equal(latest.tag, "0012_magenta_wallflower");
+  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+  // Exactly the three Phase 2B tables — nothing else is touched.
+  assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 3, "exactly three table creations");
+  assert.match(sql, /CREATE TABLE "meal_plans"/);
+  assert.match(sql, /CREATE TABLE "meal_plan_versions"/);
+  assert.match(sql, /CREATE TABLE "meal_plan_assignments"/);
+  // No destructive or unrelated operations.
+  assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, "no destructive top-level operations");
+  assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
+  assert.doesNotMatch(sql, /ALTER TABLE (?!"meal_plans"|"meal_plan_versions"|"meal_plan_assignments")/i, "no ALTER of existing tables");
+  // Version immutability + single-active-assignment guarantees.
+  assert.match(sql, /CREATE UNIQUE INDEX "meal_plan_versions_plan_number_unique"/);
+  assert.match(sql, /CREATE UNIQUE INDEX "meal_plan_assignments_client_active_unique"/);
+  assert.match(sql, /WHERE "meal_plan_assignments"\."active" = true/);
+  // Client deletion cascades through plans → versions → assignments.
+  assert.match(sql, /ON DELETE cascade/);
 });
 
 test("every applied migration is additive-only (no destructive operations anywhere)", () => {

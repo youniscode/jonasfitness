@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type MealBuilderState,
   type BuilderFood,
@@ -39,6 +39,11 @@ import {
   type NutrientOutsideInfo,
   type OptimizerNutrientKey,
 } from "../lib/nutrition-meal-optimizer";
+import {
+  builderStateFromSnapshot,
+  MEAL_PLAN_TITLE_DEFAULT,
+  type MealPlanMealsSnapshot,
+} from "../lib/nutrition-meal-plans";
 
 type OptimizePreview = {
   token: number;
@@ -50,6 +55,26 @@ type OptimizePreview = {
   statusByNutrientAfter: Record<OptimizerNutrientKey, NutrientOutsideInfo>;
   optimizedMeals: { mealId: string; foods: { foodId: string; quantityG: number }[] }[];
 };
+
+type PlanVersionSummary = {
+  id: number;
+  versionNumber: number;
+  status: string;
+  approvedAt: string | null;
+  assignedToClient?: boolean;
+  meals?: MealPlanMealsSnapshot;
+};
+
+type PlanDetail = {
+  id: number;
+  clientId: number;
+  title: string;
+  status: string;
+  versions: PlanVersionSummary[];
+  activeAssignment: { versionId: number; versionNumber: number; assignedAt: string } | null;
+};
+
+type PlanBusy = null | "saving" | "approving" | "assigning" | "unassigning" | "deleting";
 
 const OPTIMIZE_NUTRIENT_META: { key: OptimizerNutrientKey; label: string; unit: string; tolerance: number }[] = [
   { key: "calories", label: "Calories", unit: "kcal", tolerance: MEAL_CALORIE_TOLERANCE_KCAL },
@@ -86,6 +111,171 @@ export function MealBuilder({ example, summary, clientId }: Props) {
     setEditToken(editTokenRef.current);
     setPreview(null);
   }, []);
+
+  // --- Saved-plan persistence (Phase 2B) ---------------------------------
+  const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const [planTitle, setPlanTitle] = useState(MEAL_PLAN_TITLE_DEFAULT);
+  const [planBusy, setPlanBusy] = useState<PlanBusy>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+
+  const loadPlanIntoBuilder = useCallback((snapshot: MealPlanMealsSnapshot) => {
+    const built = builderStateFromSnapshot(snapshot);
+    if (!built) return false;
+    setState(built);
+    setPendingInputs(new Map());
+    setPreview(null);
+    return true;
+  }, []);
+
+  const openPlan = useCallback(async (planId: number): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/nutrition-meal-plans/${planId}`);
+      if (!res.ok) return false;
+      const detail = (await res.json()) as PlanDetail;
+      setPlan(detail);
+      setPlanTitle(detail.title || MEAL_PLAN_TITLE_DEFAULT);
+      const draft = detail.versions.find((v) => v.status === "draft");
+      const newest = draft ?? detail.versions[0];
+      if (newest?.meals && !loadPlanIntoBuilder(newest.meals)) {
+        setPlanError("Stored version could not be opened in the builder.");
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, [loadPlanIntoBuilder]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/nutrition-meal-plans?clientId=${clientId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const first = data?.plans?.[0];
+        if (!cancelled && first?.id) await openPlan(first.id);
+      } catch {
+        /* plan history simply stays hidden */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clientId, openPlan]);
+
+  const structuralMeals = useCallback(() => (
+    state.meals.map((m: BuilderMeal) => ({
+      name: m.name,
+      foods: m.foods.map((f: BuilderFood) => ({ foodId: f.foodId, quantityG: f.quantityG })),
+    }))
+  ), [state]);
+
+  const refreshPlan = useCallback(async (planId: number) => {
+    await openPlan(planId);
+  }, [openPlan]);
+
+  const handleSaveDraft = useCallback(async () => {
+    if (planBusy) return;
+    setPlanBusy("saving");
+    setPlanError(null);
+    try {
+      const res = await fetch("/api/nutrition-meal-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, mealPlanId: plan?.id ?? undefined, title: planTitle, meals: structuralMeals() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setPlanError(data.error || "Could not save the draft.");
+        return;
+      }
+      await refreshPlan(data.planId);
+    } catch {
+      setPlanError("Could not save the draft.");
+    } finally {
+      setPlanBusy(null);
+    }
+  }, [planBusy, clientId, plan, planTitle, structuralMeals, refreshPlan]);
+
+  const handleApproveVersion = useCallback(async (versionId: number) => {
+    if (planBusy || !plan) return;
+    setPlanBusy("approving");
+    setPlanError(null);
+    try {
+      const res = await fetch(`/api/nutrition-meal-plans/${plan.id}/versions/${versionId}/approve`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setPlanError(data.error || "Approval failed.");
+        return;
+      }
+      await refreshPlan(plan.id);
+    } catch {
+      setPlanError("Approval failed.");
+    } finally {
+      setPlanBusy(null);
+    }
+  }, [planBusy, plan, refreshPlan]);
+
+  const handleAssignVersion = useCallback(async (versionId: number) => {
+    if (planBusy || !plan) return;
+    setPlanBusy("assigning");
+    setPlanError(null);
+    try {
+      const res = await fetch(`/api/nutrition-meal-plans/${plan.id}/versions/${versionId}/assign`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setPlanError(data.error || "Assignment failed.");
+        return;
+      }
+      await refreshPlan(plan.id);
+    } catch {
+      setPlanError("Assignment failed.");
+    } finally {
+      setPlanBusy(null);
+    }
+  }, [planBusy, plan, refreshPlan]);
+
+  const handleUnassign = useCallback(async () => {
+    if (planBusy || !plan?.activeAssignment) return;
+    setPlanBusy("unassigning");
+    setPlanError(null);
+    try {
+      const res = await fetch(`/api/nutrition-meal-plans/${plan.id}/versions/${plan.activeAssignment.versionId}/unassign`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setPlanError(data.error || "Unassign failed.");
+        return;
+      }
+      await refreshPlan(plan.id);
+    } catch {
+      setPlanError("Unassign failed.");
+    } finally {
+      setPlanBusy(null);
+    }
+  }, [planBusy, plan, refreshPlan]);
+
+  const handleDeleteDraft = useCallback(async (versionId: number) => {
+    if (planBusy || !plan) return;
+    setPlanBusy("deleting");
+    setPlanError(null);
+    try {
+      const res = await fetch(`/api/nutrition-meal-plans/${plan.id}/versions/${versionId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setPlanError(data.error || "Delete failed.");
+        return;
+      }
+      if (data.planDeleted) {
+        setPlan(null);
+        setPlanTitle(MEAL_PLAN_TITLE_DEFAULT);
+      } else {
+        await refreshPlan(plan.id);
+      }
+    } catch {
+      setPlanError("Delete failed.");
+    } finally {
+      setPlanBusy(null);
+    }
+  }, [planBusy, plan, refreshPlan]);
+  // ------------------------------------------------------------------------
 
   const dirty = useMemo(() => isBuilderDirty(state, original), [state, original]);
 
@@ -302,6 +492,17 @@ export function MealBuilder({ example, summary, clientId }: Props) {
   const meals = recalc.meals;
   const totals = recalc.totals;
 
+  const drafts = useMemo(() => plan?.versions.filter((v) => v.status === "draft") ?? [], [plan]);
+  const hasDraft = drafts.length > 0;
+  const latestVersion = plan?.versions[0] ?? null;
+  const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
+  const assignedVersionId = plan?.activeAssignment?.versionId ?? null;
+  const saveLabel = !plan
+    ? "Create draft"
+    : hasDraft
+      ? `Save draft v${drafts[0].versionNumber}`
+      : `Save as draft v${nextVersionNumber}`;
+
   return (
     <div className="meal-builder">
       <div className="meal-builder-header">
@@ -472,6 +673,81 @@ export function MealBuilder({ example, summary, clientId }: Props) {
           )}
         </div>
       )}
+      <div className="meal-plan-panel">
+        <div className="meal-plan-head">
+          <strong>Saved plan</strong>
+          <input
+            className="meal-plan-title"
+            value={planTitle}
+            maxLength={80}
+            placeholder={MEAL_PLAN_TITLE_DEFAULT}
+            onChange={(e) => setPlanTitle(e.target.value)}
+          />
+        </div>
+        {planError && <div className="meal-builder-error">{planError}</div>}
+        <div className="meal-plan-actions">
+          <button className="meal-plan-btn primary" disabled={planBusy !== null} onClick={handleSaveDraft}>
+            {planBusy === "saving" ? "Saving…" : saveLabel}
+          </button>
+          {hasDraft && drafts[0] && (
+            <>
+              <button className="meal-plan-btn" disabled={planBusy !== null} onClick={() => handleApproveVersion(drafts[0].id)}>
+                {planBusy === "approving" ? "Approving…" : `Approve v${drafts[0].versionNumber}`}
+              </button>
+              <button className="meal-plan-btn danger" disabled={planBusy !== null} onClick={() => handleDeleteDraft(drafts[0].id)}>
+                {planBusy === "deleting" ? "Deleting…" : `Delete draft v${drafts[0].versionNumber}`}
+              </button>
+            </>
+          )}
+          {!hasDraft && latestVersion?.status === "approved" && !latestVersion.assignedToClient && (
+            <button className="meal-plan-btn" disabled={planBusy !== null} onClick={() => handleAssignVersion(latestVersion.id)}>
+              {planBusy === "assigning" ? "Assigning…" : `Assign v${latestVersion.versionNumber} to client`}
+            </button>
+          )}
+          {plan?.activeAssignment && (
+            <button className="meal-plan-btn" disabled={planBusy !== null} onClick={handleUnassign}>
+              {planBusy === "unassigning" ? "Unassigning…" : `Unassign v${plan.activeAssignment.versionNumber}`}
+            </button>
+          )}
+        </div>
+        {plan?.activeAssignment && (
+          <div className="meal-plan-assigned-note">
+            Client sees v{plan.activeAssignment.versionNumber} since {new Date(plan.activeAssignment.assignedAt).toLocaleDateString()}
+          </div>
+        )}
+        {plan && plan.versions.length > 0 && (
+          <div className="meal-plan-versions">
+            {plan.versions.map((v) => (
+              <div key={v.id} className={`meal-plan-version-row ${v.status}`}>
+                <span className="meal-plan-version-number">v{v.versionNumber}</span>
+                <span className={`meal-plan-version-status ${v.status}`}>{v.status}</span>
+                {assignedVersionId === v.id && <span className="meal-plan-version-assigned">visible to client</span>}
+                <div className="meal-plan-version-actions">
+                  {v.meals && (
+                    <button
+                      className="meal-plan-btn small"
+                      disabled={planBusy !== null}
+                      onClick={() => { if (loadPlanIntoBuilder(v.meals!)) setPlanError(null); }}
+                    >
+                      Open
+                    </button>
+                  )}
+                  {v.status === "draft" && (
+                    <button className="meal-plan-btn small" disabled={planBusy !== null} onClick={() => handleApproveVersion(v.id)}>Approve</button>
+                  )}
+                  {v.status === "approved" && !v.assignedToClient && (
+                    <button className="meal-plan-btn small" disabled={planBusy !== null} onClick={() => handleAssignVersion(v.id)}>Assign</button>
+                  )}
+                  {v.status === "draft" && (
+                    <button className="meal-plan-btn small danger" disabled={planBusy !== null} onClick={() => handleDeleteDraft(v.id)}>Delete</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!plan && <div className="meal-plan-empty">No saved versions yet — create a draft to keep this day.</div>}
+      </div>
     </div>
   );
 }
