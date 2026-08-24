@@ -15,6 +15,15 @@ import {
   type MealGenerationContext,
   type MealApprovedTargetSummary,
 } from "./nutrition-meals.ts";
+import {
+  optimizeMealBuilderDay,
+  type MealOptimizationChange,
+  type MealOptimizationResult,
+  type NutrientOutsideInfo,
+  type OptimizerNutrientKey,
+  type TargetGaps,
+} from "./nutrition-meal-optimizer.ts";
+import type { MealBuilderState } from "./nutrition-meal-builder.ts";
 import type { OnboardingProfile } from "./onboarding-profile.ts";
 import type { NutritionTargetRow } from "./nutrition-targets.ts";
 import type { GatewayResult } from "./local-ai.ts";
@@ -412,4 +421,152 @@ export async function regenerateMealBuilderMeal(
   }
 
   return { ok: false, error: "Regeneration failed." };
+}
+
+// ---------------------------------------------------------------------------
+// 4. Deterministic portion optimizer service (Phase 2A)
+// ---------------------------------------------------------------------------
+
+export type OptimizeRequestMeal = { name?: unknown; locked?: unknown; foods?: unknown };
+export type OptimizeRequestFood = { foodId?: unknown; quantityG?: unknown; locked?: unknown };
+
+export type OptimizeResult =
+  | { ok: false; error: string; status?: number }
+  | {
+      ok: true;
+      status: "ready";
+      optimization: {
+        status: MealOptimizationResult["status"];
+        reachedExactTarget: boolean;
+        iterations: number;
+        before: FoodNutrition;
+        after: FoodNutrition;
+        changes: MealOptimizationChange[];
+        gapsAfter: TargetGaps;
+        statusByNutrientAfter: Record<OptimizerNutrientKey, NutrientOutsideInfo>;
+      };
+      meals: {
+        name: string;
+        foods: { foodId: string; name: string; quantityG: number; nutrition: FoodNutrition }[];
+        totals: FoodNutrition;
+      }[];
+      totals: FoodNutrition;
+      approvedTarget: MealApprovedTargetSummary;
+    }
+  | { ok: true; status: "no_approved_target" };
+
+function parseOptimizeFood(raw: unknown): { foodId: string; quantityG: number; locked: boolean } | { error: string } {
+  if (!raw || typeof raw !== "object") return { error: "Invalid food entry." };
+  const food = raw as OptimizeRequestFood;
+  if (typeof food.foodId !== "string" || !food.foodId) return { error: "Invalid foodId." };
+  if (!isValidQty(food.quantityG)) return { error: `Invalid quantity for ${food.foodId}: ${String(food.quantityG)}` };
+  return { foodId: food.foodId, quantityG: food.quantityG, locked: food.locked === true };
+}
+
+/**
+ * Deterministic "Adjust to target". Validates structure, ownership, catalogue
+ * membership and restrictions server-side, then runs the PURE optimizer
+ * against the SERVER-loaded approved target. No AI. No DB writes.
+ */
+export function optimizeMealBuilder(
+  ownerId: string,
+  clientId: number,
+  meals: unknown,
+  store: MealBuilderStore,
+): OptimizeResult {
+  if (!ownerId) return { ok: false, error: "Sign in required", status: 401 };
+  if (!Number.isInteger(clientId) || clientId < 1) return { ok: false, error: "Choose a valid client.", status: 400 };
+  if (!Array.isArray(meals) || meals.length < 2 || meals.length > 6) return { ok: false, error: "Meals must be an array of 2–6.", status: 400 };
+
+  const client = resolveClient(store, ownerId, clientId);
+  if (!client) return { ok: false, error: "Client not found.", status: 404 };
+
+  const target = resolveTarget(store, ownerId, clientId);
+  if (!target) return { ok: true, status: "no_approved_target" };
+
+  const profile = resolveProfile(store, ownerId, clientId);
+  const intake = store.intakes.find((i) => i.clientId === clientId && i.ownerId === ownerId);
+  const context = buildContext(target, profile, intake?.preferredLanguage ?? "");
+  const allowedIds = new Set(getAllowedFoodsForMealContext(context).map((f) => f.id));
+
+  type ParsedMeal = { name: string; locked: boolean; foods: { foodId: string; quantityG: number; locked: boolean }[] };
+  const parsedMeals: ParsedMeal[] = [];
+  for (const rawMeal of meals as OptimizeRequestMeal[]) {
+    if (!rawMeal || typeof rawMeal !== "object") return { ok: false, error: "Invalid meal entry.", status: 400 };
+    if (!Array.isArray(rawMeal.foods)) return { ok: false, error: "Meal must contain a foods array.", status: 400 };
+    if (rawMeal.foods.length < 1) return { ok: false, error: "Meal must contain at least one food.", status: 400 };
+    const parsedFoods: { foodId: string; quantityG: number; locked: boolean }[] = [];
+    for (const rawFood of rawMeal.foods as OptimizeRequestFood[]) {
+      const parsed = parseOptimizeFood(rawFood);
+      if ("error" in parsed) return { ok: false, error: parsed.error, status: 400 };
+      const catalogueFood = getFoodById(parsed.foodId);
+      if (!catalogueFood) return { ok: false, error: `Unknown food: ${parsed.foodId}`, status: 400 };
+      if (!allowedIds.has(parsed.foodId)) return { ok: false, error: `Food not permitted by client restrictions: ${parsed.foodId}`, status: 400 };
+      parsedFoods.push(parsed);
+    }
+    parsedMeals.push({
+      name: typeof rawMeal.name === "string" ? rawMeal.name : "",
+      locked: rawMeal.locked === true,
+      foods: parsedFoods,
+    });
+  }
+
+  const builderState: MealBuilderState = {
+    meals: parsedMeals.map((meal, mealIndex) => ({
+      id: `meal-${mealIndex}`,
+      name: meal.name,
+      locked: meal.locked,
+      foods: meal.foods.map((food) => {
+        const catalogueFood = getFoodById(food.foodId)!;
+        return {
+          foodId: food.foodId,
+          name: catalogueFood.name,
+          quantityG: food.quantityG,
+          locked: food.locked,
+          nutrition: calculateFoodNutrition(catalogueFood, food.quantityG),
+          catalogueFood,
+        };
+      }),
+    })),
+  };
+
+  const approved: MealApprovedTargetSummary = {
+    calories: { min: target.calorieMinKcal, max: target.calorieMaxKcal },
+    protein: { min: target.proteinMinGrams, max: target.proteinMaxGrams },
+    fat: { min: target.fatMinGrams, max: target.fatMaxGrams },
+    carbohydrates: { min: target.carbohydrateMinGrams, max: target.carbohydrateMaxGrams },
+  };
+
+  const optimization = optimizeMealBuilderDay(builderState, approved);
+
+  const optimizedMeals = optimization.optimized.meals.map((meal) => {
+    const items: { food: CatalogueFood; quantityG: number }[] = [];
+    const foods = meal.foods.map((food) => {
+      const catalogueFood = getFoodById(food.foodId)!;
+      const nutrition = calculateFoodNutrition(catalogueFood, food.quantityG);
+      items.push({ food: catalogueFood, quantityG: food.quantityG });
+      return { foodId: food.foodId, name: catalogueFood.name, quantityG: food.quantityG, nutrition };
+    });
+    return { name: meal.name, foods, totals: calculateMealNutrition(items) };
+  });
+
+  const totals = calculateMealDayNutrition(optimizedMeals.map((m) => m.foods.map((f) => ({ food: getFoodById(f.foodId)!, quantityG: f.quantityG }))));
+
+  return {
+    ok: true,
+    status: "ready",
+    optimization: {
+      status: optimization.status,
+      reachedExactTarget: optimization.reachedExactTarget,
+      iterations: optimization.iterations,
+      before: optimization.before,
+      after: optimization.after,
+      changes: optimization.changes,
+      gapsAfter: optimization.gapsAfter,
+      statusByNutrientAfter: optimization.scoreAfter.statusByNutrient,
+    },
+    meals: optimizedMeals,
+    totals,
+    approvedTarget: approved,
+  };
 }

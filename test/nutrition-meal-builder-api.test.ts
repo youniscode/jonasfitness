@@ -4,6 +4,7 @@ import {
   recalculateMealBuilder,
   listMealBuilderFoods,
   regenerateMealBuilderMeal,
+  optimizeMealBuilder,
   calculateLockedContribution,
   calculateOtherMealsContribution,
   buildMealBudget,
@@ -737,4 +738,226 @@ test("regenerate: negative mealIndex", async () => {
   const result = await regenerateMealBuilderMeal("coach-a", 7, -1, twoMealsLocked(), store, gen);
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 400);
+});
+
+// ===========================================================================
+// 6. OPTIMIZE SERVICE TESTS (Phase 2A — deterministic portion optimizer)
+// ===========================================================================
+
+function optimizeMeals(): { name: string; foods: { foodId: string; quantityG: number; locked?: boolean }[]; locked?: boolean }[] {
+  return [
+    { name: "Fat top-up", foods: [{ foodId: "olive-oil-extra-virgin", quantityG: 356 }] },
+    { name: "Main", foods: [{ foodId: "rice-white-cooked", quantityG: 200 }] },
+  ];
+}
+
+test("optimize: empty owner denied", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const result = optimizeMealBuilder("", 7, optimizeMeals(), store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 401);
+});
+
+test("optimize: cross-owner denied", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const result = optimizeMealBuilder("coach-b", 7, optimizeMeals(), store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 404);
+});
+
+test("optimize: unknown client denied", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const result = optimizeMealBuilder("coach-a", 999, optimizeMeals(), store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 404);
+});
+
+test("optimize: non-integer clientId rejected", () => {
+  const store = makeStore("coach-a", 7);
+  const result = optimizeMealBuilder("coach-a", 1.5, optimizeMeals(), store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 400);
+});
+
+test("optimize: meals count outside 2-6 rejected", () => {
+  const store = makeStore("coach-a", 7);
+  const result = optimizeMealBuilder("coach-a", 7, [optimizeMeals()[0]], store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /2–6/);
+});
+
+test("optimize: no approved target returns status", () => {
+  const store = makeStore("coach-a", 7);
+  const result = optimizeMealBuilder("coach-a", 7, optimizeMeals(), store);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.status, "no_approved_target");
+});
+
+test("optimize: server target drives the optimization (no browser target exists)", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget({
+    calorieMinKcal: 3000,
+    calorieMaxKcal: 3100,
+    proteinMinGrams: 0,
+    proteinMaxGrams: 500,
+    fatMinGrams: 0,
+    fatMaxGrams: 500,
+    carbohydrateMinGrams: 0,
+    carbohydrateMaxGrams: 500,
+  })];
+  const result = optimizeMealBuilder("coach-a", 7, optimizeMeals(), store);
+  assert.equal(result.ok, true);
+  if (result.ok && result.status === "ready") {
+    assert.equal(result.optimization.status, "optimized");
+    assert.equal(result.optimization.reachedExactTarget, true);
+    assert.ok(result.optimization.after.kcal >= 3000 && result.optimization.after.kcal <= 3100);
+    assert.deepEqual(result.approvedTarget.calories, { min: 3000, max: 3100 });
+  }
+});
+
+test("optimize: nutrition totals computed entirely server-side", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  // Input carries no nutrition fields at all — only structure.
+  const result = optimizeMealBuilder("coach-a", 7, optimizeMeals(), store);
+  assert.equal(result.ok, true);
+  if (result.ok && result.status === "ready") {
+    assert.ok(result.totals.kcal > 0);
+    for (const meal of result.meals) {
+      for (const food of meal.foods) {
+        assert.ok(food.nutrition.kcal >= 0, "per-food nutrition present");
+      }
+      assert.ok(meal.totals.kcal >= 0, "meal totals present");
+    }
+  }
+});
+
+test("optimize: canonical food names resolved from catalogue", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const result = optimizeMealBuilder("coach-a", 7, optimizeMeals(), store);
+  assert.equal(result.ok, true);
+  if (result.ok && result.status === "ready") {
+    for (const meal of result.meals) {
+      for (const food of meal.foods) {
+        assert.ok(food.name.length > 0, `name resolved for ${food.foodId}`);
+        assert.notEqual(food.name, food.foodId);
+      }
+    }
+  }
+});
+
+test("optimize: unknown food id rejected", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const meals = [
+    { name: "A", foods: [{ foodId: "ghost-food-id", quantityG: 100 }] },
+    optimizeMeals()[1],
+  ];
+  const result = optimizeMealBuilder("coach-a", 7, meals, store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Unknown food/);
+});
+
+test("optimize: restriction violation rejected (nuts allergy)", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  store.intakes = [{ clientId: 7, ownerId: "coach-a", profile: profileWith(["nuts"]), preferredLanguage: "" }];
+  const meals = [
+    { name: "A", foods: [{ foodId: "almonds-with-skin", quantityG: 50 }] },
+    optimizeMeals()[1],
+  ];
+  const result = optimizeMealBuilder("coach-a", 7, meals, store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /not permitted/);
+});
+
+test("optimize: invalid quantities rejected (below min)", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const meals = [
+    { name: "A", foods: [{ foodId: "olive-oil-extra-virgin", quantityG: 0 }] },
+    optimizeMeals()[1],
+  ];
+  const result = optimizeMealBuilder("coach-a", 7, meals, store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Invalid quantity/);
+});
+
+test("optimize: invalid quantities rejected (NaN)", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const meals = [
+    { name: "A", foods: [{ foodId: "olive-oil-extra-virgin", quantityG: NaN }] },
+    optimizeMeals()[1],
+  ];
+  const result = optimizeMealBuilder("coach-a", 7, meals, store);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Invalid quantity/);
+});
+
+test("optimize: locked foods preserved in response", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget({ calorieMinKcal: 3000, calorieMaxKcal: 3100, proteinMinGrams: 0, proteinMaxGrams: 500, fatMinGrams: 0, fatMaxGrams: 500, carbohydrateMinGrams: 0, carbohydrateMaxGrams: 500 })];
+  const meals = optimizeMeals();
+  (meals[0].foods[0] as { locked?: boolean }).locked = true;
+  meals[0].locked = true;
+  const result = optimizeMealBuilder("coach-a", 7, meals, store);
+  assert.equal(result.ok, true);
+  if (result.ok && result.status === "ready") {
+    const oil = result.meals[0].foods.find((f) => f.foodId === "olive-oil-extra-virgin");
+    assert.equal(oil?.quantityG, 356, "locked meal food unchanged");
+  }
+});
+
+test("optimize: pure function — store and inputs not mutated", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  const target = store.targets[0];
+  const meals = optimizeMeals();
+  const before = JSON.stringify({ store, meals, target });
+  optimizeMealBuilder("coach-a", 7, meals, store);
+  const after = JSON.stringify({ store, meals, target });
+  assert.equal(before, after, "No DB/store/input mutation");
+});
+
+test("optimize: response leaks no private data", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget()];
+  store.intakes = [{ clientId: 7, ownerId: "coach-a", profile: profileWith(["nuts"], ["Lactose"]), preferredLanguage: "" }];
+  const result = optimizeMealBuilder("coach-a", 7, optimizeMeals(), store);
+  const json = JSON.stringify(result);
+  assert.ok(!json.includes("allergies"), "No allergies in response");
+  assert.ok(!json.includes("intolerances"), "No intolerances in response");
+  assert.ok(!json.includes("coach-a"), "No ownerId in response");
+  assert.ok(!json.includes("nutritionPer100g"), "No raw nutrient table");
+  assert.ok(!json.includes("sourceEstimatedBmr"), "No target provenance internals");
+});
+
+test("optimize: already-inside day reports no_change_needed with zero iterations", () => {
+  const store = makeStore("coach-a", 7);
+  store.targets = [approvedTarget({
+    calorieMinKcal: 950,
+    calorieMaxKcal: 1000,
+    proteinMinGrams: 0,
+    proteinMaxGrams: 10,
+    fatMinGrams: 90,
+    fatMaxGrams: 105,
+    carbohydrateMinGrams: 10,
+    carbohydrateMaxGrams: 30,
+  })];
+  const meals = [
+    { name: "Oil", foods: [{ foodId: "olive-oil-extra-virgin", quantityG: 100 }] },
+    { name: "Banana", foods: [{ foodId: "banana-raw", quantityG: 100 }] },
+  ];
+  const result = optimizeMealBuilder("coach-a", 7, meals, store);
+  assert.equal(result.ok, true);
+  if (result.ok && result.status === "ready") {
+    assert.equal(result.optimization.status, "no_change_needed");
+    assert.equal(result.optimization.iterations, 0);
+    assert.deepEqual(result.optimization.changes, []);
+  }
 });

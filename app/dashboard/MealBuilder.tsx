@@ -23,10 +23,40 @@ import {
 import {
   type MealExampleDay,
   type MealApprovedTargetSummary,
+  nutrientTargetStatus,
+  MEAL_CALORIE_TOLERANCE_KCAL,
+  MEAL_PROTEIN_TOLERANCE_G,
+  MEAL_FAT_TOLERANCE_G,
+  MEAL_CARB_TOLERANCE_G,
 } from "../lib/nutrition-meals";
 import { FOOD_QUANTITY_MIN_G, FOOD_QUANTITY_MAX_G } from "../lib/food-nutrition";
-import { calculateFoodNutrition } from "../lib/food-nutrition";
+import { calculateFoodNutrition, type FoodNutrition } from "../lib/food-nutrition";
 import { getFoodById } from "../lib/food-catalogue";
+import {
+  applyOptimizationChanges,
+  formatOptimizationChange,
+  type MealOptimizationChange,
+  type NutrientOutsideInfo,
+  type OptimizerNutrientKey,
+} from "../lib/nutrition-meal-optimizer";
+
+type OptimizePreview = {
+  token: number;
+  optStatus: "no_change_needed" | "optimized" | "no_feasible_improvement";
+  reachedExactTarget: boolean;
+  before: FoodNutrition;
+  after: FoodNutrition;
+  changes: MealOptimizationChange[];
+  statusByNutrientAfter: Record<OptimizerNutrientKey, NutrientOutsideInfo>;
+  optimizedMeals: { mealId: string; foods: { foodId: string; quantityG: number }[] }[];
+};
+
+const OPTIMIZE_NUTRIENT_META: { key: OptimizerNutrientKey; label: string; unit: string; tolerance: number }[] = [
+  { key: "calories", label: "Calories", unit: "kcal", tolerance: MEAL_CALORIE_TOLERANCE_KCAL },
+  { key: "protein", label: "Protein", unit: "g", tolerance: MEAL_PROTEIN_TOLERANCE_G },
+  { key: "fat", label: "Fat", unit: "g", tolerance: MEAL_FAT_TOLERANCE_G },
+  { key: "carbohydrates", label: "Carbs", unit: "g", tolerance: MEAL_CARB_TOLERANCE_G },
+];
 
 type Props = {
   example: MealExampleDay;
@@ -45,6 +75,17 @@ export function MealBuilder({ example, summary, clientId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pendingInputs, setPendingInputs] = useState<Map<string, string>>(new Map());
   const swapRef = useRef<number>(0);
+  const [optimizing, setOptimizing] = useState(false);
+  const optimizeRef = useRef<number>(0);
+  const [preview, setPreview] = useState<OptimizePreview | null>(null);
+  const [editToken, setEditToken] = useState<number>(0);
+  const editTokenRef = useRef<number>(0);
+
+  const bumpEdits = useCallback(() => {
+    editTokenRef.current += 1;
+    setEditToken(editTokenRef.current);
+    setPreview(null);
+  }, []);
 
   const dirty = useMemo(() => isBuilderDirty(state, original), [state, original]);
 
@@ -84,8 +125,9 @@ export function MealBuilder({ example, summary, clientId }: Props) {
       return next;
     });
     setError(null);
+    bumpEdits();
     setState((prev) => setFoodQuantity(prev, mealId, foodId, Math.round(num)));
-  }, [inputKey]);
+  }, [inputKey, bumpEdits]);
 
   const getDisplayValue = useCallback((mealId: string, foodId: string, committed: number) => {
     const pending = pendingInputs.get(inputKey(mealId, foodId));
@@ -119,10 +161,11 @@ export function MealBuilder({ example, summary, clientId }: Props) {
 
   const handleSwapSelect = useCallback((newFood: SwapCandidate) => {
     if (!swapTarget) return;
+    bumpEdits();
     setState((prev) => swapFood(prev, swapTarget.mealId, swapTarget.foodId, newFood));
     setSwapTarget(null);
     setSwapCandidates([]);
-  }, [swapTarget]);
+  }, [swapTarget, bumpEdits]);
 
   const handleRegenerate = useCallback(async (mealId: string, mealIndex: number) => {
     regeneratingRef.current += 1;
@@ -147,6 +190,7 @@ export function MealBuilder({ example, summary, clientId }: Props) {
         return;
       }
       if (data.status === "ready" && data.meal) {
+        bumpEdits();
         setState((prev: MealBuilderState) => ({
           ...prev,
           meals: prev.meals.map((m: BuilderMeal, i: number) =>
@@ -180,9 +224,80 @@ export function MealBuilder({ example, summary, clientId }: Props) {
   }, [state, clientId]);
 
   const handleReset = useCallback(() => {
+    bumpEdits();
     setState(original);
     setError(null);
-  }, [original]);
+  }, [original, bumpEdits]);
+
+  const handleToggleMealLock = useCallback((mealId: string) => {
+    bumpEdits();
+    setState((prev) => toggleMealLock(prev, mealId));
+  }, [bumpEdits]);
+
+  const handleToggleFoodLock = useCallback((mealId: string, foodId: string) => {
+    bumpEdits();
+    setState((prev) => toggleFoodLock(prev, mealId, foodId));
+  }, [bumpEdits]);
+
+  const handleAdjustToTarget = useCallback(async () => {
+    if (optimizing) return;
+    optimizeRef.current += 1;
+    const reqId = optimizeRef.current;
+    const tokenAtRequest = editTokenRef.current;
+    setOptimizing(true);
+    setError(null);
+    try {
+      const meals = state.meals.map((m: BuilderMeal) => ({
+        name: m.name,
+        locked: m.locked,
+        foods: m.foods.map((f: BuilderFood) => ({ foodId: f.foodId, quantityG: f.quantityG, locked: f.locked })),
+      }));
+      const res = await fetch("/api/nutrition-meals/optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, meals }),
+      });
+      const data = await res.json();
+      if (reqId !== optimizeRef.current || editTokenRef.current !== tokenAtRequest) return;
+      if (!res.ok || data.error) {
+        setError(data.error || "Adjustment failed");
+        return;
+      }
+      if (data.status === "no_approved_target") {
+        setError("No approved nutrition target for this client yet");
+        return;
+      }
+      if (data.status === "ready" && data.optimization) {
+        setPreview({
+          token: tokenAtRequest,
+          optStatus: data.optimization.status,
+          reachedExactTarget: data.optimization.reachedExactTarget,
+          before: data.optimization.before,
+          after: data.optimization.after,
+          changes: data.optimization.changes ?? [],
+          statusByNutrientAfter: data.optimization.statusByNutrientAfter,
+          optimizedMeals: (data.meals as { name: string; foods: { foodId: string; quantityG: number }[] }[]).map((m, i) => ({
+            mealId: `meal-${i}`,
+            foods: m.foods.map((f) => ({ foodId: f.foodId, quantityG: f.quantityG })),
+          })),
+        });
+      }
+    } catch {
+      if (reqId !== optimizeRef.current || editTokenRef.current !== tokenAtRequest) return;
+      setError("Adjustment failed");
+    } finally {
+      if (reqId === optimizeRef.current) {
+        setOptimizing(false);
+      }
+    }
+  }, [optimizing, state, clientId]);
+
+  const handleApplyOptimization = useCallback(() => {
+    if (!preview) return;
+    bumpEdits();
+    setState((prev) => applyOptimizationChanges(prev, preview.changes));
+    setPreview(null);
+  }, [preview, bumpEdits]);
 
   const meals = recalc.meals;
   const totals = recalc.totals;
@@ -218,7 +333,7 @@ export function MealBuilder({ example, summary, clientId }: Props) {
             <div className="meal-builder-card-head">
               <strong>{meal.name}</strong>
               <div className="meal-builder-card-actions">
-                <button className={`meal-builder-lock-btn ${isLocked ? "locked" : ""}`} onClick={() => setState((prev) => toggleMealLock(prev, builderMeal.id))}>
+                <button className={`meal-builder-lock-btn ${isLocked ? "locked" : ""}`} onClick={() => handleToggleMealLock(builderMeal.id)}>
                   {isLocked ? "Unlock meal" : "Lock meal"}
                 </button>
                 {!isLocked && <button className="meal-builder-regen-btn" disabled={regenerating !== null} onClick={() => handleRegenerate(builderMeal.id, mi)}>{regenerating === builderMeal.id ? "Regenerating…" : "Regenerate"}</button>}
@@ -244,7 +359,7 @@ export function MealBuilder({ example, summary, clientId }: Props) {
                       />
                       <span className="meal-builder-grams-unit">g</span>
                       {!isLocked && <button className="meal-builder-swap-btn" onClick={() => handleSwapClick(builderMeal.id, food.foodId, bf?.catalogueFood?.category ?? "protein")}>Swap</button>}
-                      <button className={`meal-builder-lock-btn small ${bf?.locked ? "locked" : ""}`} disabled={isLocked} onClick={() => setState((prev) => toggleFoodLock(prev, builderMeal.id, food.foodId))}>
+                      <button className={`meal-builder-lock-btn small ${bf?.locked ? "locked" : ""}`} disabled={isLocked} onClick={() => handleToggleFoodLock(builderMeal.id, food.foodId)}>
                         {bf?.locked ? "Locked" : "Lock"}
                       </button>
                     </div>
@@ -290,6 +405,73 @@ export function MealBuilder({ example, summary, clientId }: Props) {
           </div>
         )}
       </div>
+      <div className="meal-builder-optimize-bar">
+        <button
+          className="meal-builder-optimize-btn"
+          disabled={optimizing || regenerating !== null}
+          onClick={handleAdjustToTarget}
+        >
+          {optimizing ? "Adjusting…" : "Adjust to target"}
+        </button>
+      </div>
+      {preview && preview.token === editToken && (
+        <div className={`meal-builder-optimize-preview ${preview.optStatus}`}>
+          <div className="meal-builder-optimize-head">
+            <strong>
+              {preview.optStatus === "no_change_needed"
+                ? "Already inside approved target"
+                : preview.reachedExactTarget
+                  ? "Adjusted to fit approved target"
+                  : preview.changes.length > 0
+                    ? "Best available adjustment"
+                    : "Locked foods limit available adjustment"}
+            </strong>
+            <div className="meal-builder-optimize-actions">
+              {preview.changes.length > 0 && (
+                <button className="meal-builder-optimize-apply" onClick={handleApplyOptimization}>Apply</button>
+              )}
+              <button className="meal-builder-optimize-cancel" onClick={() => setPreview(null)}>Cancel</button>
+            </div>
+          </div>
+          <div className="meal-builder-optimize-before-after">
+            <span className="before">{preview.before.kcal} kcal · P {preview.before.proteinG} g · F {preview.before.fatG} g · C {preview.before.carbohydrateG} g</span>
+            <span className="arrow">→</span>
+            <span className="after">{preview.after.kcal} kcal · P {preview.after.proteinG} g · F {preview.after.fatG} g · C {preview.after.carbohydrateG} g</span>
+          </div>
+          {preview.changes.length > 0 && (
+            <ul className="meal-builder-optimize-changes">
+              {preview.changes.map((c) => (
+                <li key={`${c.mealId}:${c.foodId}`} className="meal-builder-change-item">{formatOptimizationChange(c)}</li>
+              ))}
+            </ul>
+          )}
+          <div className="meal-builder-optimize-status">
+            {OPTIMIZE_NUTRIENT_META.map(({ key, label, unit, tolerance }) => {
+              const info = preview.statusByNutrientAfter[key];
+              if (!info) return null;
+              const st = nutrientTargetStatus(info.value, info.min, info.max, tolerance);
+              return (
+                <span key={key} className={`meal-builder-nutrient-chip ${st.status}`}>
+                  {label} {info.value}{unit}
+                </span>
+              );
+            })}
+          </div>
+          {!preview.reachedExactTarget && preview.optStatus !== "no_change_needed" && (
+            <ul className="meal-builder-optimize-gaps">
+              {OPTIMIZE_NUTRIENT_META.map(({ key, label, unit }) => {
+                const info = preview.statusByNutrientAfter[key];
+                if (!info || info.outsideDistance <= 0) return null;
+                return (
+                  <li key={key}>
+                    {label} — {Math.round(info.outsideDistance)} {unit} {info.value < info.min ? "below minimum" : "above maximum"}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
