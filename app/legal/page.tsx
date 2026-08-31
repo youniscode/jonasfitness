@@ -1,5 +1,5 @@
 import Link from "next/link";
-import LegalShell, { Placeholder } from "./LegalShell";
+import LegalShell, { Placeholder, SellerIdentity } from "./LegalShell";
 
 export const metadata = { title: "Legal · Jonas Fitness" };
 
@@ -23,24 +23,29 @@ export default function LegalPage() {
 
       <section>
         <h2>Seller / legal identity</h2>
+        <p>The legal seller / operator of Jonas Fitness Progress is:</p>
+        <SellerIdentity />
         <p>
-          The following seller and legal identity details are <strong>still required</strong> before live sales and are
-          shown here as explicit placeholders:
+          Jonas Fitness is the <strong>product/brand</strong>. The legal seller / operator is Younis MOHAMMAD,
+          entrepreneur individuel. Riviera With Younis is an existing commercial name of the same enterprise
+          individuelle; it is not a separate company. Jonas Fitness represents an additional activity of this
+          existing EI.
         </p>
         <ul>
-          <li>Legal seller name / entity <Placeholder label="SELLER NAME / ENTITY" /></li>
-          <li>Legal form / status <Placeholder label="LEGAL FORM / STATUS" /></li>
-          <li>Registered / business address <Placeholder label="REGISTERED ADDRESS" /></li>
-          <li>Business identifiers (SIREN / SIRET / RCS / VAT id where applicable) <Placeholder label="BUSINESS IDENTIFIERS" /></li>
-          <li>Business contact / support email <Placeholder label="BUSINESS EMAIL" /></li>
+          <li>
+            Jonas Fitness additional digital/software activity registration (French Guichet unique / RNE){" "}
+            <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />
+          </li>
+          <li>Consumer mediator (not yet selected/contracted) <Placeholder label="CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER" /></li>
+          <li>VAT number (if applicable) <Placeholder label="VAT NUMBER" /></li>
           <li>Publication director if required <Placeholder label="PUBLICATION DIRECTOR" /></li>
           <li>Hosting provider &amp; details <Placeholder label="HOSTING" /></li>
-          <li>Consumer mediator name / contact / site (if applicable) <Placeholder label="CONSUMER MEDIATOR" /></li>
           <li>Governing law / dispute provisions <Placeholder label="GOVERNING LAW" /></li>
         </ul>
         <p>
-          None of these details have been invented here. This page remains <strong>NOT PRODUCTION READY</strong> until
-          each placeholder is supplied and reviewed.
+          Seller name, legal form/status, registered address, SIREN/SIRET and business email are now verified and
+          shown above. The items still listed remain <strong>explicit launch blockers</strong>. This page is still{" "}
+          <strong>NOT PRODUCTION READY</strong> until the outstanding placeholders are supplied and reviewed.
         </p>
       </section>
 

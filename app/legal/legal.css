@@ -24,6 +24,10 @@
 .legal-placeholder{font-size:13px;color:#ffd9a8;background:rgba(255,150,40,.1);border:1px dashed #ffb35c;border-radius:8px;padding:3px 8px;margin-left:4px;letter-spacing:.02em;}
 .legal-placeholder strong{font-weight:700;}
 
+.legal-seller{display:inline-block;font-style:normal;font-size:15px;line-height:1.8;color:#eef2e4;background:rgba(182,243,76,.06);border:1px solid rgba(182,243,76,.25);border-radius:10px;padding:14px 18px;margin:6px 0 14px;}
+.legal-seller a{color:#b6f34c;text-decoration:none;}
+.legal-seller a:hover{text-decoration:underline;}
+
 .legal-footer{border-top:1px solid rgba(255,255,255,.08);padding:26px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;max-width:760px;margin:0 auto;}
 .legal-footer p{color:#8a8f7e;font-size:12px;margin:0;}
 .legal-footer nav{display:flex;gap:14px;}

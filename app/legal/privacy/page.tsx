@@ -1,4 +1,4 @@
-import LegalShell, { Placeholder } from "../LegalShell";
+import LegalShell, { Placeholder, SellerIdentity } from "../LegalShell";
 
 export const metadata = { title: "Privacy · Jonas Fitness" };
 
@@ -57,16 +57,27 @@ export default function PrivacyPage() {
       </section>
 
       <section>
+        <h2>Status</h2>
+        <p>
+          Jonas Fitness is an <strong>additional digital/software activity</strong> of the legal seller’s existing
+          enterprise. Registration of this additional activity with the French Guichet unique / RNE is{" "}
+          <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />. This document remains{" "}
+          <strong>NOT PRODUCTION READY</strong> until registration and the other outstanding items below are resolved.
+        </p>
+      </section>
+
+      <section>
         <h2>Legal basis &amp; rights</h2>
         <p>
           Where EU/UK data-protection law applies, your rights (access, rectification, erasure, restriction,
-          portability, objection) and the precise legal bases will be set out once this page is completed. Specifics:
+          portability, objection) and the precise legal bases will be set out once this page is completed. The data
+          controller for Progress personal data is the legal seller:
         </p>
+        <SellerIdentity />
         <ul>
-          <li>Controller / data controller identity <Placeholder label="DATA CONTROLLER" /></li>
           <li>Legal bases for each processing purpose <Placeholder label="LEGAL BASES" /></li>
           <li>Data-transfer safeguards (e.g. outside EEA) <Placeholder label="TRANSFER SAFEGUARDS" /></li>
-          <li>Contact for privacy requests <Placeholder label="PRIVACY CONTACT" /></li>
+          <li>Contact for privacy requests — use the seller email above.</li>
         </ul>
       </section>
     </LegalShell>

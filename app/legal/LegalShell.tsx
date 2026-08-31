@@ -10,6 +10,27 @@ export function Placeholder({ label }: { label: string }) {
 }
 
 /**
+ * VERIFIED legal seller identity (checked against the existing French EI registration).
+ * Jonas Fitness is the product/brand; the legal seller/operator is Younis MOHAMMAD,
+ * entrepreneur individuel (micro-entrepreneur). This is NOT a separate company.
+ */
+export function SellerIdentity() {
+  return (
+    <address className="legal-seller">
+      <strong>Younis MOHAMMAD</strong>
+      <br />
+      Entrepreneur individuel (micro-entrepreneur)
+      <br />
+      SIREN 108 783 192 — SIRET 108 783 192 00017
+      <br />
+      104 Avenue Vauban, 83000 Toulon, France
+      <br />
+      <a href="mailto:contact@jonascode.com">contact@jonascode.com</a>
+    </address>
+  );
+}
+
+/**
  * Shared shell for the Jonas Fitness legal/document pages (dark + lime brand,
  * consistent with the public Progress offer page). These pages are intentionally
  * DRAFT structure, not production legal documents: every identity/data/legal

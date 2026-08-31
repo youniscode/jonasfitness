@@ -1,4 +1,4 @@
-import LegalShell, { Placeholder } from "../LegalShell";
+import LegalShell, { Placeholder, SellerIdentity } from "../LegalShell";
 
 export const metadata = { title: "Refunds & withdrawals · Jonas Fitness" };
 
@@ -64,9 +64,15 @@ export default function RefundsPage() {
       </section>
 
       <section>
-        <h2>Still required</h2>
+        <h2>Refund addressee &amp; outstanding items</h2>
+        <p>Refunds are the responsibility of the legal seller:</p>
+        <SellerIdentity />
         <ul>
-          <li>Seller identity for the refund addressee <Placeholder label="SELLER NAME / ENTITY" /></li>
+          <li>
+            Jonas Fitness additional digital/software activity registration (French Guichet unique / RNE){" "}
+            <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />
+          </li>
+          <li>Consumer mediator (not yet selected/contracted) <Placeholder label="CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER" /></li>
           <li>Governing law applicable to refunds <Placeholder label="GOVERNING LAW" /></li>
         </ul>
       </section>

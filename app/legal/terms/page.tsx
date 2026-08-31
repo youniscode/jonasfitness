@@ -1,4 +1,4 @@
-import LegalShell, { Placeholder } from "../LegalShell";
+import LegalShell, { Placeholder, SellerIdentity } from "../LegalShell";
 
 export const metadata = { title: "Terms of use · Jonas Fitness" };
 
@@ -59,13 +59,21 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>Seller / legal identity (required)</h2>
+        <h2>Seller / legal identity</h2>
+        <p>The legal seller / operator of Jonas Fitness Progress is:</p>
+        <SellerIdentity />
+        <p>
+          Jonas Fitness is the <strong>product/brand</strong>; the legal seller / operator is Younis MOHAMMAD,
+          entrepreneur individuel. Riviera With Younis is an existing commercial name of the same enterprise
+          individuelle. Jonas Fitness is an additional activity of this existing EI.
+        </p>
         <ul>
-          <li>Seller name / entity <Placeholder label="SELLER NAME / ENTITY" /></li>
-          <li>Legal form / status <Placeholder label="LEGAL FORM / STATUS" /></li>
-          <li>Registered address <Placeholder label="REGISTERED ADDRESS" /></li>
-          <li>Business identifiers <Placeholder label="BUSINESS IDENTIFIERS" /></li>
-          <li>Business email <Placeholder label="BUSINESS EMAIL" /></li>
+          <li>
+            Jonas Fitness additional digital/software activity registration (French Guichet unique / RNE){" "}
+            <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />
+          </li>
+          <li>Consumer mediator (not yet selected/contracted) <Placeholder label="CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER" /></li>
+          <li>VAT number (if applicable) <Placeholder label="VAT NUMBER" /></li>
           <li>Governing law / competent jurisdiction <Placeholder label="GOVERNING LAW" /></li>
         </ul>
       </section>

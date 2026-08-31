@@ -13,9 +13,10 @@ that code cannot perform.
 ## 0. State: `NOT PRODUCTION READY`
 
 The repository is prepared and sandbox-validated, but it **must not sell live money yet**. The
-single non-negotiable blocker is the missing legal seller identity/consumer disclosures (Section 4)
-followed by the live Stripe/Dashboard activation steps (Section 3). Until those are done the paywall
-stays **off** and no live orders are possible.
+non-negotiable blockers are the pending Jonas Fitness French Guichet unique / RNE activity
+registration and the consumer mediator (Section 4), followed by the live Stripe/Dashboard activation
+steps (Section 3). The legal seller identity itself is now **verified** (Section 4a). Until the
+remaining blockers are cleared the paywall stays **off** and no live orders are possible.
 
 ---
 
@@ -116,6 +117,30 @@ Any row here is a **partial application** and must be fixed before going live.
 
 ---
 
+## 1b. VERIFIED production database state (as of this launch-readiness pass)
+
+Underlying schema state verified against the production DB:
+
+- **Progress tables present:** `training_routines`, `training_routine_exercises`,
+  `training_workout_sessions` (0013); `commerce_orders`, `product_entitlements`,
+  `payment_webhook_events`, `validation_events` (0014).
+- **Drizzle Progress migrations recorded:** `0013`, `0014`, `0015`.
+- **Correct partial active-entitlement unique index exists**
+  (`product_entitlements_owner_product_active_unique` on `(owner_id, product_key)`
+  `WHERE status = 'active'`), and the redundant broad unique was dropped by `0015`.
+- **Sandbox cleanup complete:** `commerce_orders`=0, `product_entitlements`=0,
+  `payment_webhook_events`=0, `validation_events`=0 (no Stripe test session/event IDs remain).
+
+**→ RESOLVED: production DB migrations/schema state is confirmed green.** The read-only checks in
+Sections 1a–1g remain the on-going preflight procedure for any future migration.
+
+## 1c. Clerk status (verified)
+
+- The deployed production sign-in page was manually verified and does **not** display Clerk
+  "Development mode". → RESOLVED (non-blocking) for runtime.
+- **Non-blocking branding task (owner):** change the Clerk application display name from
+  "My Application" to **"Jonas Fitness"** before public launch.
+
 ## 2. Production environment checklist
 
 ### SAFE IDENTIFIERS (encode the expected values)
@@ -166,14 +191,36 @@ paywall, a non-https/missing app URL, or Clerk still pointing at development con
 - [ ] Live **`sk_live_...`** secret key stored securely → `STRIPE_SECRET_KEY`.
 - [ ] **No sandbox/test IDs** (keys, price ids, webhook secrets) in the production environment.
 
-## 4. Legal / consumer items (all P0 blockers — see README)
+## 4. Legal / consumer items (P0 blockers — see README)
 
-Confirm and fill every placeholder in `/legal`, `/privacy`, `/terms`, `/refunds`:
-seller name/entity, legal form/status, registered address, SIREN/SIRET/RCS/VAT where applicable,
-business contact email, publication director if required, hosting provider, consumer mediator
-(where required), and governing law. Decide the digital-content withdrawal policy and, if you ever
-wish to rely on a withdrawal exception, add the explicit checkout consent/acknowledgement (not yet
-implemented). Until then the conservative refund policy stands.
+### 4a. Verified seller identity (RESOLVED — no longer a blocker)
+
+- **Younis MOHAMMAD** — Entrepreneur individuel (micro-entrepreneur)
+- SIREN **108 783 192** — SIRET **108 783 192 00017**
+- Registered establishment: **104 Avenue Vauban, 83000 Toulon, France**
+- Contact / support: **contact@jonascode.com**
+- Commercial name: **Riviera With Younis** (existing commercial name of the same EI, not a separate entity)
+
+This identity is now filled into `/legal`, `/legal/privacy`, `/legal/terms`, `/legal/refunds`. Jonas
+Fitness is the **product/brand**; the legal seller/operator is Younis MOHAMMAD, EI. Do **not** use
+`512 Rue Henri Pertus` as the registered address and do not imply Jonas Fitness is a separate company.
+
+The **data controller** for Progress personal data is Younis MOHAMMAD, EI (address above).
+
+### 4b. Remaining P0 legal blockers (still required before live sales)
+
+- **Jonas Fitness additional digital/software activity registration with the French Guichet
+  unique / RNE is PENDING** (INPI modification not yet submitted/completed). Until finalised, do
+  not claim the Jonas Fitness activity registration is finalized. → BLOCKER
+- **Consumer mediator** not yet selected/contracted. → BLOCKER
+- **VAT number** if not known/applicable — still open.
+- **Publication director** if required — open.
+- **Hosting provider details** — open.
+- **Governing law / competent jurisdiction** — open.
+- **Retention periods** still undefined (privacy page keepers placeholders).
+- **Digital-content withdrawal policy:** decide, and if ever relying on a withdrawal exception,
+  add the explicit checkout consent/acknowledgement (not yet implemented). Until then the
+  conservative refund policy stands.
 
 ---
 
@@ -189,21 +236,31 @@ implemented). Until then the conservative refund policy stands.
 
 ## 6. Deployment gate — BLOCK launch if ANY are true
 
-| # | Blocker | Check |
-|---|---|---|
-| 1 | Any legal placeholder unsupplied (`/legal`, `/privacy`, `/terms`, `/refunds`) | manual |
-| 2 | No confirmed legal seller identity/status | manual |
-| 3 | No consumer mediator where required | manual |
-| 4 | Managed Payments not confirmed live | Stripe Dashboard |
-| 5 | No live `price_...` in `STRIPE_PROGRESS_FOUNDING_PRICE_ID` | env |
-| 6 | No live webhook endpoint/secret | Stripe Dashboard / env |
-| 7 | Production DB migration state unknown (Section 1 not clean) | DB |
-| 8 | Clerk still development-mode in production | Clerk |
-| 9 | Test Stripe credentials in production | env |
-| 10 | `PROGRESS_PAYWALL_ENABLED` not `true` in production | env |
-| 11 | `PROGRESS_DEV_TEST_BYPASS=true` in production | env |
-| 12 | Wrong `NEXT_PUBLIC_APP_URL` | env |
-| 13 | `npm test` / `tsc` / `lint` / `build` failing | CI/local |
+## 6. Deployment gate — BLOCK launch if ANY `BLOCKING` row is true
 
-Only when **every** row is clear do you flip `PROGRESS_PAYWALL_ENABLED=true` in the production
-environment and begin selling.
+### BLOCKING
+| # | Blocker | Status |
+|---|---|---|
+| 1 | Any remaining legal placeholder unsupplied (Section 4b) | **still open** |
+| 2 | Jonas Fitness INPI/Guichet-unique activity registration not complete | **still open** |
+| 3 | Consumer mediator not selected/contracted | **still open** |
+| 4 | Managed Payments not confirmed live | Stripe Dashboard |
+| 5 | No live `price_...` in `STRIPE_PROGRESS_FOUNDING_PRICE_ID` | env — open |
+| 6 | No live webhook endpoint/secret | Stripe Dashboard / env — open |
+| 7 | Test Stripe credentials in production | env |
+| 8 | `PROGRESS_PAYWALL_ENABLED` not `true` in production | env — open |
+| 9 | `PROGRESS_DEV_TEST_BYPASS=true` in production | env |
+| 10 | Wrong `NEXT_PUBLIC_APP_URL` | env — open until set |
+| 11 | `npm test` / `tsc` / `lint` / `build` failing | CI/local |
+
+### RESOLVED
+| # | Item | Note |
+|---|---|---|
+| 1 | Production DB migrations / schema (0013–0015, tables, indexes) | confirmed (Section 1b) |
+| 2 | Sandbox commerce pollution | cleaned (all 4 commerce/tables at 0) |
+| 3 | Legal seller identity | verified (Section 4a) |
+| 4 | Production Clerk runtime non-“Development mode” | verified (Section 1c); branding task remains |
+| 5 | Migration preflight procedure | documented and read-only (Section 1a–1g) |
+
+Only when **every `BLOCKING` row** is clear do you flip `PROGRESS_PAYWALL_ENABLED=true` in the
+production environment and begin selling.
