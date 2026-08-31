@@ -11,6 +11,20 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// —————————————————————————————————————————————————————————————————
+// Phase 2 — Jonas Fitness Progress commercial layer (Founding Access).
+//
+// Three minimal, provider-faithful tables power the paid product: an
+// authoritative order ledger (one row per purchase attempt, keyed by the
+// unique Stripe checkout/payment id so retries can never duplicate), an
+// entitlement ledger (one active row per owner+product at the database level
+// via a partial unique index, `revoked_at` superseding rather than deleting),
+// and an append-only webhook idempotency trail (one row per consumed provider
+// event id). Ownership is the ATHLETE'S OWN Clerk user id (`owner_id`),
+// resolved server-side only — never from the browser. Monetary amounts are
+// stored as integer minor units (cents) to avoid floating-point drift; the
+// provider (Stripe) remains authoritative for amounts, tax and compliance.
+
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 export const clients = pgTable("clients", {
@@ -544,6 +558,81 @@ export const mealPlanVersions = pgTable("meal_plan_versions", {
   index("meal_plan_versions_plan_status_idx").on(table.mealPlanId, table.status),
 ]);
 
+// —————————————————————————————————————————————————————————————————
+// Self-service "Jonas Fitness Progress" training log domain.
+//
+// Deliberately separate from the coach-owned domain. Every self-service
+// routine/workout belongs to the ATHLETE'S OWN Clerk user id (`ownerId`), not
+// to a coach. The coach tables (clients, workoutSessions, programmes) are all
+// scoped to a coach's `ownerId` and require a `clientId` FK into a coach-owned
+// `clients` row, so a self-directed athlete with no coach cannot reuse them
+// without polluting the coaching domain. The workout history is stored as a
+// JSON snapshot of the same `WorkoutExercise[]` shape used by the existing
+// workout engine (app/lib/workouts.ts), so the parsed-workout, normalisation,
+// stats and exercise-history logic is shared unchanged and historical data is
+// immutable: editing or deleting a routine never rewrites what was logged.
+// Metric units are the Phase 1 default; `weight_unit` (kg|lb) is stored per
+// prescription from day one so imperial support can be added safely later.
+
+// A self-service athlete's routine template (a training day: e.g. Push).
+export const trainingRoutines = pgTable("training_routines", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  name: text("name").notNull(),
+  notes: text("notes").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [index("training_routines_owner_updated_idx").on(table.ownerId, table.updatedAt)]);
+
+// One prescription per exercise inside a routine template: working-set count
+// and target rep range (double progression). `position` preserves explicit
+// exercise ordering; the unique (routine_id, position) constraint prevents two
+// exercises claiming the same slot even under a concurrent reorder.
+export const trainingRoutineExercises = pgTable("training_routine_exercises", {
+  id: serial("id").primaryKey(),
+  routineId: integer("routine_id").notNull().references(() => trainingRoutines.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  position: integer("position").notNull(),
+  // Canonical built-in catalogue id (builtin-*) or a stable custom-* slug.
+  exerciseId: text("exercise_id").notNull(),
+  name: text("name").notNull(),
+  nameFr: text("name_fr").notNull().default(""),
+  nameAr: text("name_ar").notNull().default(""),
+  sets: integer("sets").notNull().default(3),
+  targetRepMin: integer("target_rep_min").notNull().default(8),
+  targetRepMax: integer("target_rep_max").notNull().default(12),
+  targetRir: integer("target_rir").notNull().default(2),
+  weightUnit: text("weight_unit").notNull().default("kg"),
+  notes: text("notes").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [
+  index("training_routine_exercises_owner_routine_idx").on(table.ownerId, table.routineId),
+  uniqueIndex("training_routine_exercises_routine_position_unique").on(table.routineId, table.position),
+]);
+
+// A started/completed self-service workout. `exercises` is an immutable JSON
+// snapshot of the logged sets. `routine_id` is set-null on routine deletion so
+// the training history always survives routine edits/deletes. `weight_unit`
+// reflects the routine prescription used when this workout was started (kg by
+// default); the trainer enters weight in that same unit.
+export const trainingWorkoutSessions = pgTable("training_workout_sessions", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  routineId: integer("routine_id").references(() => trainingRoutines.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  exercises: text("exercises").notNull().default("[]"),
+  weightUnit: text("weight_unit").notNull().default("kg"),
+  notes: text("notes").notNull().default(""),
+  // active | completed | discarded
+  status: text("status").notNull().default("active"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("training_workout_sessions_owner_status_idx").on(table.ownerId, table.status),
+  index("training_workout_sessions_owner_routine_completed_idx").on(table.ownerId, table.routineId, table.completedAt),
+]);
+
 // Current + historical client assignments. History rows are never deleted;
 // assigning a new version deactivates the previous active row inside one
 // transaction. The partial unique index guarantees at most ONE active
@@ -565,4 +654,103 @@ export const mealPlanAssignments = pgTable("meal_plan_assignments", {
   uniqueIndex("meal_plan_assignments_client_active_unique")
     .on(table.clientId)
     .where(sql`${table.active} = true`),
+]);
+
+// —————————————————————————————————————————————————————————————————
+// Phase 2 — Jonas Fitness Progress commercial layer (Founding Access).
+//
+// Three minimal, provider-faithful tables drive the paid validation loop:
+//  - A commerce order ledger keyed by the Stripe session id, recording every
+//    purchase attempt and its amount/currency in integer minor units.
+//  - A product entitlement ledger granting `progress_founding` on authoritative
+//    payment confirmation, with at most ONE active entitlement per owner+product
+//    enforced by a partial unique index; `revoked_at` supersedes (never deletes).
+//  - An append-only webhook idempotency trail so a replayed Stripe event can
+//    never double-grant.
+// Ownership is always the ATHLETE'S OWN Clerk user id, resolved server-side
+// only — never from the browser. The provider (Stripe) remains authoritative
+// for amounts, currency and tax treatment.
+
+// One commerce order per purchase attempt. `provider_checkout_id` is the unique
+// Stripe Checkout Session id (a provider identifier requiring idempotency).
+// Amounts are integer minor units (cents). No payment/card details ever stored.
+export const commerceOrders = pgTable("commerce_orders", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  productKey: text("product_key").notNull(),
+  provider: text("provider").notNull().default("stripe"),
+  // Unique Stripe Checkout Session id — idempotency anchor + audit.
+  providerCheckoutId: text("provider_checkout_id").notNull(),
+  // Stripe PaymentIntent / Payment id once known (null until paid).
+  providerPaymentId: text("provider_payment_id"),
+  amountMinor: integer("amount_minor").notNull(),
+  currency: text("currency").notNull().default("eur"),
+  // created | paid | refunded | failed | canceled
+  status: text("status").notNull().default("created"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  refundedAt: timestamp("refunded_at", { withTimezone: true }),
+  canceledAt: timestamp("canceled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("commerce_orders_owner_created_idx").on(table.ownerId, table.createdAt),
+  uniqueIndex("commerce_orders_provider_checkout_unique").on(table.provider, table.providerCheckoutId),
+]);
+
+// One active entitlement per owner+product is enforced at the database level
+// by the partial unique index so a double-grant (webhook replay, manual seed)
+// is impossible even if service logic is bypassed. `source` records how the
+// entitlement arrived (stripe_checkout | manual_test | grant). A grant is
+// superseded by setting `revoked_at` / flipping status to "revoked" rather than
+// deleting — the commerce order that sourced it stays intact for audit.
+export const productEntitlements = pgTable("product_entitlements", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  productKey: text("product_key").notNull(),
+  status: text("status").notNull().default("active"),
+  source: text("source").notNull().default("stripe_checkout"),
+  orderId: integer("order_id").references(() => commerceOrders.id, { onDelete: "set null" }),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [
+  index("product_entitlements_owner_idx").on(table.ownerId),
+  uniqueIndex("product_entitlements_owner_product_unique")
+    .on(table.ownerId, table.productKey),
+  uniqueIndex("product_entitlements_owner_product_active_unique")
+    .on(table.ownerId, table.productKey)
+    .where(sql`${table.status} = 'active'`),
+]);
+
+// Idempotency trail for consumed provider webhook events.
+// `provider_event_id` is unique so a Stripe retry (Stripe retries signatures a
+// few times on transient failures) or a manual re-delivery is processed once.
+// Full payloads are NOT stored — only the id, type and outcome.
+export const paymentWebhookEvents = pgTable("payment_webhook_events", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull().default("stripe"),
+  providerEventId: text("provider_event_id").notNull(),
+  eventType: text("event_type").notNull(),
+  outcome: text("outcome").notNull().default("processed"),
+  processedAt: timestamp("processed_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("payment_webhook_events_provider_event_unique").on(table.provider, table.providerEventId),
+  index("payment_webhook_events_provider_type_idx").on(table.provider, table.eventType),
+]);
+
+// Minimal first-party validation analytics. We deliberately avoided a third-party
+// analytics vendor; this append-only table records only a tiny authenticated
+// funnel (offer viewed, checkout started, purchase completed, activation). Each
+// row is deduplicated by a (owner, name, key) guard so retries never double-count
+// a real activation event. No PII beyond the server-resolved owner id.
+export const validationEvents = pgTable("validation_events", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  eventName: text("event_name").notNull(),
+  dedupeKey: text("dedupe_key").notNull().default(""),
+  createdAt: createdAt(),
+}, (table) => [
+  index("validation_events_owner_created_idx").on(table.ownerId, table.createdAt),
+  uniqueIndex("validation_events_owner_name_key_unique").on(table.ownerId, table.eventName, table.dedupeKey),
 ]);

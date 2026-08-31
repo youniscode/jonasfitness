@@ -57,10 +57,13 @@ test("the nutrition-targets migration (0011) is additive-only and creates only t
 });
 
 test("the meal-plans migration (0012) is additive-only and creates only the three meal-plan tables", () => {
+  // Looked up by its own index/tag (not "latest") so later additive migrations
+  // (e.g. the self-service Progress migrations 0013+) do not invalidate it.
   const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
-  const latest = journal.entries[journal.entries.length - 1];
-  assert.equal(latest.tag, "0012_magenta_wallflower");
-  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+  const mealPlans = journal.entries.find((entry) => entry.idx === 12);
+  assert.ok(mealPlans, "meal-plans migration is journal index 12");
+  assert.equal(mealPlans.tag, "0012_magenta_wallflower");
+  const sql = readFileSync(join(DRIZZLE, `${mealPlans.tag}.sql`), "utf8");
   // Exactly the three Phase 2B tables — nothing else is touched.
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 3, "exactly three table creations");
   assert.match(sql, /CREATE TABLE "meal_plans"/);
@@ -87,4 +90,52 @@ test("every applied migration is additive-only (no destructive operations anywhe
     // clauses in CREATE TABLE, which is fine; the banned words are top-level ops.)
     assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, `destructive op in ${entry.tag}`);
   }
+});
+
+test("the Progress training migration (0013) is additive-only and creates the three owner-scoped training tables", () => {
+  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
+  // Looked up by its own index/tag (not "latest") so the later additive
+  // commerce migration (0014) does not invalidate this guard.
+  const training = journal.entries.find((entry) => entry.idx === 13);
+  assert.ok(training, "Progress training migration is journal index 13");
+  assert.equal(training.tag, "0013_parched_madrox");
+  const sql = readFileSync(join(DRIZZLE, `${training.tag}.sql`), "utf8");
+  // Exactly the three self-service Progress tables.
+  assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 3, "exactly three table creations");
+  assert.match(sql, /CREATE TABLE "training_routines"/);
+  assert.match(sql, /CREATE TABLE "training_routine_exercises"/);
+  assert.match(sql, /CREATE TABLE "training_workout_sessions"/);
+  // No destructive or unrelated operations.
+  assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, "no destructive top-level operations");
+  assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
+  // Ordering is enforced at the database level via the unique (routine, position).
+  assert.match(sql, /CREATE UNIQUE INDEX "training_routine_exercises_routine_position_unique"/);
+  // Client-less self-service tables must never leak across owners: owner_id is
+  // indexed everywhere it is queried.
+  assert.match(sql, /CREATE INDEX "training_routines_owner_updated_idx"/);
+  assert.match(sql, /CREATE INDEX "training_workout_sessions_owner_status_idx"/);
+  // Routine deletion must NOT destroy logged history (workout sessions survive).
+  assert.ok(sql.includes("training_workout_sessions_routine_id_training_routines_id_fk"), "workout session FK to routine");
+});
+
+test("the Founding Access commerce migration (0014) is additive-only and creates the four commercial tables", () => {
+  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
+  const latest = journal.entries[journal.entries.length - 1];
+  assert.equal(latest.idx, 14, "latest journal index is the Founding Access commerce migration");
+  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+  // Exactly the four Phase 2 commercial tables, nothing else.
+  assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 4, "exactly four table creations");
+  assert.match(sql, /CREATE TABLE "commerce_orders"/);
+  assert.match(sql, /CREATE TABLE "product_entitlements"/);
+  assert.match(sql, /CREATE TABLE "payment_webhook_events"/);
+  assert.match(sql, /CREATE TABLE "validation_events"/);
+  // No destructive or unrelated operations.
+  assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, "no destructive top-level operations");
+  assert.doesNotMatch(sql, /\bALTER COLUMN\b/i, "no destructive ALTER COLUMN");
+  // Idempotency + ownership guarantees enforced at the database level.
+  assert.match(sql, /CREATE UNIQUE INDEX "commerce_orders_provider_checkout_unique"/, "checkout id is the idempotency anchor");
+  assert.match(sql, /CREATE UNIQUE INDEX "payment_webhook_events_provider_event_unique"/, "webhook event id is unique for replays");
+  assert.match(sql, /CREATE UNIQUE INDEX "product_entitlements_owner_product_active_unique"/, "at most one active entitlement per owner+product");
+  assert.match(sql, /WHERE "product_entitlements"\.\"status" = 'active'/, "partial unique on active entitlement");
+  assert.match(sql, /CREATE UNIQUE INDEX "validation_events_owner_name_key_unique"/, "validation events are deduplicated by (owner, name, key)");
 });
