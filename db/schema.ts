@@ -715,8 +715,10 @@ export const productEntitlements = pgTable("product_entitlements", {
   createdAt: createdAt(),
 }, (table) => [
   index("product_entitlements_owner_idx").on(table.ownerId),
-  uniqueIndex("product_entitlements_owner_product_unique")
-    .on(table.ownerId, table.productKey),
+  // UNIQUENESS is enforced ONLY by the partial index below: at most one ACTIVE
+  // entitlement per (owner, product). A revoked/superseded row must not block a
+  // later legitimate re-grant, so there is deliberately NO broad unique on
+  // (owner, product) — "refund → revoked → later purchase again → active".
   uniqueIndex("product_entitlements_owner_product_active_unique")
     .on(table.ownerId, table.productKey)
     .where(sql`${table.status} = 'active'`),

@@ -1,0 +1,1 @@
+DROP INDEX "product_entitlements_owner_product_unique";

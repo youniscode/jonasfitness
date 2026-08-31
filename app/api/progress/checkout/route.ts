@@ -30,7 +30,7 @@ export async function POST() {
   // host-header/paywall-bypass or open-redirect surface. The success page only
   // ever reflects the server-side entitlement (the webhook grants, never this).
   const origin = config.publicOrigin;
-  const successUrl = `${origin}/progress/purchase/success`;
+  const successUrl = `${origin}/progress/purchase`;
   const cancelUrl = `${origin}/progress/founding`;
 
   try {

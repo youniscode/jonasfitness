@@ -12,6 +12,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
+import { ACTIVE_ENTITLEMENT_CONFLICT } from "./entitlement-constraints.ts";
 import {
   commerceOrders,
   productEntitlements,
@@ -24,6 +25,11 @@ import {
 import { computeValidationMetrics, FOUNDING_ACCESS_PRODUCT_KEY as FOUNDING_KEY } from "./payments-domain.ts";
 
 // ——— Entitlements ————————————————————————————————————
+
+// The ON CONFLICT target for granting an entitlement lives in
+// entitlement-constraints.ts and MUST match the partial unique index
+// ((owner_id, product_key) WHERE status = 'active'). Matching a 3-column target
+// would reference an index that does not exist and Postgres would reject it.
 
 /** Active (never revoked) entitlement for a product + owner, or null. */
 export async function getActiveEntitlement(ownerId: string, productKey: string) {
@@ -47,7 +53,7 @@ export async function grantEntitlement(ownerId: string, productKey: string, sour
   const db = getDb();
   await db.insert(productEntitlements)
     .values({ ownerId, productKey, status: "active", source, orderId, grantedAt: new Date(), revokedAt: null })
-    .onConflictDoNothing({ target: [productEntitlements.ownerId, productEntitlements.productKey, productEntitlements.status] })
+    .onConflictDoNothing(ACTIVE_ENTITLEMENT_CONFLICT)
     .returning();
 }
 
@@ -85,12 +91,18 @@ export async function recordCheckoutOrder(ownerId: string, providerCheckoutId: s
 }
 
 /**
- * Marks an order paid (sets status + payment id + paidAt), idempotently keyed
- * by (provider, checkoutId). Returns the owner that owns that checkout.
+ * Marks an order paid and returns its owning order (`id`, `ownerId`,
+ * `productKey`), idempotently keyed by (provider, checkoutId). If the order is
+ * still `created` it is transitioned to `paid`; if it was already marked paid
+ * (a fulfilled event that failed AFTER this step and is now retried) it is
+ * simply re-read by the trusted checkout id so the OWNER order id stays
+ * available to grant an entitlement linked to the LOCAL commerce order.
+ * Returns null only when no `paid` order exists for that checkout (`created`
+ * orders are never the result of an actual payment, so they grant nothing).
  */
-export async function markOrderPaid(providerCheckoutId: string, providerPaymentId: string | null, amountMinor: number, currency: string): Promise<string | null> {
+export async function markOrderPaid(providerCheckoutId: string, providerPaymentId: string | null, amountMinor: number, currency: string): Promise<{ id: number; ownerId: string; productKey: string } | null> {
   const db = getDb();
-  const [row] = await db.update(commerceOrders)
+  const [updated] = await db.update(commerceOrders)
     .set({
       providerPaymentId,
       status: "paid",
@@ -105,18 +117,32 @@ export async function markOrderPaid(providerCheckoutId: string, providerPaymentI
       eq(commerceOrders.status, "created"),
     ))
     .returning({ id: commerceOrders.id, ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey });
-  return row ? row.ownerId : null;
+  if (updated) return updated;
+  // Already paid — idempotent replay of a fulfillment that completed this step
+  // then failed later. Only a genuinely PAID order is returned (a refunded or
+  // canceled order must never be re-granted by a replayed completed event).
+  const [existing] = await db.select({ id: commerceOrders.id, ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey })
+    .from(commerceOrders)
+    .where(and(
+      eq(commerceOrders.provider, "stripe"),
+      eq(commerceOrders.providerCheckoutId, providerCheckoutId),
+      eq(commerceOrders.status, "paid"),
+    ))
+    .limit(1);
+  return existing ?? null;
 }
 
 /**
  * Marks an order refunded (full refund), matched by the STRIPE PAYMENT id
  * (PaymentIntent / invoice) carried on the charge, because a `charge.refunded`
- * webhook references the payment, not the Checkout Session. Returns owner +
- * product or null if no matching paid order. Only a paid order is revoked.
+ * webhook references the payment, not the Checkout Session. Idempotent: a
+ * replay after a partial failure (order already refunded but revocation to
+ * run) returns the same owned order so `revokeEntitlement` can run safely.
+ * Only a genuinely PAID→REFUNDED order is returned.
  */
 export async function markOrderRefundedByPaymentId(providerPaymentId: string): Promise<{ ownerId: string; productKey: string } | null> {
   const db = getDb();
-  const [row] = await db.update(commerceOrders)
+  const [updated] = await db.update(commerceOrders)
     .set({ status: "refunded", refundedAt: new Date(), updatedAt: new Date() })
     .where(and(
       eq(commerceOrders.provider, "stripe"),
@@ -124,7 +150,18 @@ export async function markOrderRefundedByPaymentId(providerPaymentId: string): P
       eq(commerceOrders.status, "paid"),
     ))
     .returning({ ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey });
-  return row ? { ownerId: row.ownerId, productKey: row.productKey } : null;
+  if (updated) return updated;
+  // Already refunded — idempotent replay of a refund that completed this step
+  // then failed before revoking. Re-read the refunded order for owner/product.
+  const [existing] = await db.select({ ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey })
+    .from(commerceOrders)
+    .where(and(
+      eq(commerceOrders.provider, "stripe"),
+      eq(commerceOrders.providerPaymentId, providerPaymentId),
+      eq(commerceOrders.status, "refunded"),
+    ))
+    .limit(1);
+  return existing ?? null;
 }
 
 // ——— Webhook idempotency trail ——————————————————————————

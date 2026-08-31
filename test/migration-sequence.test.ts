@@ -81,14 +81,15 @@ test("the meal-plans migration (0012) is additive-only and creates only the thre
   assert.match(sql, /ON DELETE cascade/);
 });
 
-test("every applied migration is additive-only (no destructive operations anywhere)", () => {
+test("every applied migration is additive-only (no destructive table/column/data operations)", () => {
   const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
   for (const entry of journal.entries) {
     const sql = readFileSync(join(DRIZZLE, `${entry.tag}.sql`), "utf8");
     // Project convention: migrations create tables/columns/indexes and add
-    // columns — never drop, truncate or delete. (FK references use ON DELETE
-    // clauses in CREATE TABLE, which is fine; the banned words are top-level ops.)
-    assert.doesNotMatch(sql, /^\s*(DROP|DELETE FROM|TRUNCATE)\b/mi, `destructive op in ${entry.tag}`);
+    // columns — never drop data-bearing objects, truncate or delete. The one
+    // sanctioned exception is DROP INDEX: dropping a redundant uniqueness index
+    // (migration 0015) preserves every row while fixing the re-grant invariant.
+    assert.doesNotMatch(sql, /^\s*(DROP (TABLE|COLUMN|SCHEMA|VIEW|TRIGGER|FUNCTION|SEQUENCE)|DELETE FROM|TRUNCATE)\b/mi, `destructive op in ${entry.tag}`);
   }
 });
 
@@ -120,9 +121,11 @@ test("the Progress training migration (0013) is additive-only and creates the th
 
 test("the Founding Access commerce migration (0014) is additive-only and creates the four commercial tables", () => {
   const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
-  const latest = journal.entries[journal.entries.length - 1];
-  assert.equal(latest.idx, 14, "latest journal index is the Founding Access commerce migration");
-  const sql = readFileSync(join(DRIZZLE, `${latest.tag}.sql`), "utf8");
+  // Looked up by its own index/tag (not "latest") so the later index-fix
+  // migration (0015) does not invalidate this guard.
+  const commerce = journal.entries.find((entry) => entry.idx === 14);
+  assert.ok(commerce, "Founding Access commerce migration is journal index 14");
+  const sql = readFileSync(join(DRIZZLE, `${commerce.tag}.sql`), "utf8");
   // Exactly the four Phase 2 commercial tables, nothing else.
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 4, "exactly four table creations");
   assert.match(sql, /CREATE TABLE "commerce_orders"/);
@@ -138,4 +141,19 @@ test("the Founding Access commerce migration (0014) is additive-only and creates
   assert.match(sql, /CREATE UNIQUE INDEX "product_entitlements_owner_product_active_unique"/, "at most one active entitlement per owner+product");
   assert.match(sql, /WHERE "product_entitlements"\.\"status" = 'active'/, "partial unique on active entitlement");
   assert.match(sql, /CREATE UNIQUE INDEX "validation_events_owner_name_key_unique"/, "validation events are deduplicated by (owner, name, key)");
+});
+
+test("the entitlement index fix (0015) drops only the redundant broad unique so a revoked grant can be re-granted", () => {
+  const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
+  const fix = journal.entries.find((entry) => entry.idx === 15);
+  assert.ok(fix, "entitlement index fix migration is journal index 15");
+  const sql = readFileSync(join(DRIZZLE, `${fix.tag}.sql`), "utf8");
+  // The ONLY thing this migration does is drop the broad (owner_id, product_key)
+  // unique that would otherwise block a later re-grant after a revocation.
+  assert.equal((sql.match(/DROP INDEX/g) ?? []).length, 1, "exactly one index drop");
+  assert.match(sql, /DROP INDEX "product_entitlements_owner_product_unique"/, "drops the redundant broad unique on (owner, product)");
+  // It must not alter the PARTIAL active-entitlement unique (the invariant that
+  // guarantees at most one ACTIVE entitlement per owner+product).
+  assert.doesNotMatch(sql, /product_entitlements_owner_product_active_unique/, "partial active unique untouched");
+  assert.doesNotMatch(sql, /INSERT|UPDATE|DELETE|CREATE TABLE/, "no data or table/column changes");
 });

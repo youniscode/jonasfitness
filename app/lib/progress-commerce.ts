@@ -47,14 +47,12 @@ export async function fulfillStripeSession(event: {
     priceId: string | null;
   };
 }): Promise<{ outcome: string; granted: boolean }> {
-  // 1. Idempotency guard — replay-safe.
-  const isNew = await claimWebhookEvent(event.providerEventId, event.eventType);
-  if (!isNew) return { outcome: "duplicate_event", granted: false };
-
+  // Payment must be provider-authoritative before anything is written.
   const config = getStripeCommerceConfig();
   const paid = checkoutIsPaid(event.session.paymentStatus);
   if (!paid) return { outcome: "not_paid", granted: false };
 
+  // Price/amount/currency guard — a wrong product/price never grants.
   const payment: CheckoutPaymentView = {
     sessionId: event.session.id,
     paymentId: event.session.paymentId,
@@ -65,20 +63,28 @@ export async function fulfillStripeSession(event: {
   const decision = decideFulfillment(payment, config.progressFoundingPriceId);
   if (decision !== "granted") return { outcome: decision, granted: false };
 
-  // 2. Reconcile the order → owner server-side. If no order exists (shouldn't
-  // happen for a legit session) fall back to the metadata-bound owner we set on
-  // session creation. We never accept an ownerId supplied by the browser.
-  const ownerId = await markOrderPaid(event.session.id, event.session.paymentId, event.session.amountTotal ?? 0, event.session.currency ?? "eur");
-  if (!ownerId) return { outcome: "unknown_order", granted: false };
+  // Reconcile the trusted order → owner + LOCAL order id. Idempotent (handles
+  // a retry where this step already marked the order paid). ownerId is NEVER
+  // taken from the browser/mail — only from the order row bound to the Stripe
+  // session by the server-side checkout.
+  const order = await markOrderPaid(event.session.id, event.session.paymentId, event.session.amountTotal ?? 0, event.session.currency ?? "eur");
+  if (!order) return { outcome: "unknown_order", granted: false };
 
-  // 3. Grant entitlement (idempotent).
-  const already = await getActiveEntitlement(ownerId, configProductKey());
-  if (!already) {
-    await grantEntitlement(ownerId, configProductKey(), "stripe_checkout", null);
+  // Grant entitlement linked to the LOCAL commerce order id (non-null for
+  // stripe_checkout). Idempotent: if an active entitlement already exists it is
+  // left untouched (partial unique active index matches the ON CONFLICT target).
+  if (!(await getActiveEntitlement(order.ownerId, order.productKey))) {
+    await grantEntitlement(order.ownerId, order.productKey, "stripe_checkout", order.id);
   }
 
-  // 4. Emit purchase_completed once per unique session.
-  await recordValidationEvent(ownerId, "founding_purchase_completed", event.session.id);
+  // Emit purchase_completed once per unique session (deduped by session id).
+  await recordValidationEvent(order.ownerId, "founding_purchase_completed", event.session.id);
+
+  // Success marker written LAST: if any step above throws, the idempotency
+  // record is NOT written, so a Stripe retry re-processes (all writes above are
+  // idempotent) instead of being blocked. A replay after success is deduped by
+  // the unique (provider, event id) plus the idempotent writes above.
+  await claimWebhookEvent(event.providerEventId, event.eventType);
 
   return { outcome: "granted", granted: true };
 }
@@ -95,21 +101,24 @@ export async function handleRefundStripeSession(event: {
   amountPaidMinor: number | null;
   amountRefundedMinor: number | null;
 }): Promise<{ outcome: string; revoked: boolean }> {
-  const isNew = await claimWebhookEvent(event.providerEventId, event.eventType);
-  if (!isNew) return { outcome: "duplicate_event", revoked: false };
   if (!event.providerPaymentId) return { outcome: "missing_payment_id", revoked: false };
 
   const full = decideRefund(event.amountPaidMinor, event.amountRefundedMinor);
   if (!full) return { outcome: "partial_refund_ignored", revoked: false };
 
+  // Idempotent: returns the owned order whether this delivery or an earlier
+  // (partially-failed) one marked it refunded, so revocation still runs.
   const order = await markOrderRefundedByPaymentId(event.providerPaymentId);
   if (!order) return { outcome: "unknown_order", revoked: false };
 
-  await revokeEntitlement(order.ownerId, order.productKey);
-  return { outcome: "revoked", revoked: true };
-}
+  const wasActive = !!(await getActiveEntitlement(order.ownerId, order.productKey));
+  if (wasActive) {
+    await revokeEntitlement(order.ownerId, order.productKey);
+  }
 
-/** Helper to avoid repeated config reads in the pure path above. */
-function configProductKey(): string {
-  return "progress_founding";
+  // Success marker written LAST (see fulfillStripeSession): a transient failure
+  // must never poison the idempotency record and block the retry.
+  await claimWebhookEvent(event.providerEventId, event.eventType);
+
+  return { outcome: wasActive ? "revoked" : "already_revoked", revoked: wasActive };
 }
