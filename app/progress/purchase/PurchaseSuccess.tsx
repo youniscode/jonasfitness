@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import {
+  ACTIVATION_POLL_INTERVAL_MS,
+  ACTIVATION_TIMEOUT_MS,
+  nextActivationPhase,
+} from "../../lib/purchase-activation.ts";
 
 const copy = {
   fr: {
@@ -13,8 +18,8 @@ const copy = {
     activate: "Activation de ton accès…",
     activateBody: "Le paiement est confirmé. Nous appliquons l’activation — cela ne prend que quelques secondes.",
     retry: "Réessayer",
-    notYet: "Pas encore activé.",
-    notYetBody: "Ton accès n’a pas encore été activé. Vérifie ta confirmation de paiement ; si cela persiste, contacte nous.",
+    notYet: "Nous confirmons encore ton paiement…",
+    notYetBody: "Ton accès n’est pas encore activé. Recharge la page ou réessaie dans un instant ; si cela persiste, contacte-nous.",
     contact: "Contact",
     logoutCheck: "Revenir à l’offre",
     hint: "L’accès est accordé automatiquement dès que le paiement est confirmé.",
@@ -25,10 +30,10 @@ const copy = {
     body: "Your Founding Access to Jonas Fitness Progress is active. Create your first routine and open your training log.",
     cta: "Create your first routine",
     activate: "Activating your access…",
-    activateBody: "Your payment is confirmed. We’re applying your activation — just a few seconds.",
+    activateBody: "Your payment is confirmed. We’re confirming your access — just a few seconds.",
     retry: "Check again",
-    notYet: "Not activated yet.",
-    notYetBody: "Your access hasn’t been activated yet. Check your payment confirmation; if it persists, reach out to us.",
+    notYet: "We’re still confirming your payment…",
+    notYetBody: "Your access hasn’t activated yet. Refresh or check again in a moment; if it persists, reach out to us.",
     contact: "Contact us",
     logoutCheck: "Back to the offer",
     hint: "Access is granted automatically the moment payment is confirmed.",
@@ -36,39 +41,63 @@ const copy = {
 } as const;
 
 export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitled: boolean }) {
-  const { isLoaded } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const [phase, setPhase] = useState<"active" | "activating" | "stalled">(
     initiallyEntitled ? "active" : "activating",
   );
+  // Drives manual "Check again" retries from the stalled state.
+  const [pollKey, setPollKey] = useState(0);
   const t = copy.en; // success page copy default English for now
 
   // Server-authoritative recheck: fetch the entitlement endpoint. Because the
-  // webhook can still be delivering, we poll a bounded number of times (do NOT
-  // poll indefinitely) then show a recoverable "not activated yet" state.
+  // webhook can still be delivering, we poll for a bounded window (see the pure
+  // module) then show a recoverable "still confirming" state. Once the Clerk
+  // client loads, if the user is genuinely signed out we send them to sign-in
+  // (preserving their return) — but we never grant access client-side and never
+  // bounce a signed-in-but-not-yet-entitled user to the founding offer.
   useEffect(() => {
     if (initiallyEntitled) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
-    const MAX = 10; // ~10 × 2.5s ≈ 25s cap
-    const check = async () => {
-      if (cancelled || phase === "active" || attempts >= MAX) {
-        if (attempts >= MAX) { setPhase((p) => (p === "activating" ? "stalled" : p)); }
+
+    const step = async () => {
+      if (cancelled) return;
+      // If Clerk finished loading and reports signed-out, authenticate first.
+      if (isLoaded && !isSignedIn) {
+        window.location.assign(`/sign-in?redirect_url=/progress/purchase`);
         return;
       }
       attempts += 1;
+      let entitled = false;
       try {
         const response = await fetch("/api/progress/entitlement", { method: "GET" });
-        const data = await response.json().catch(() => ({ entitled: false })) as { entitled?: boolean };
+        const data = (await response.json().catch(() => ({}))) as { entitled?: boolean; signedIn?: boolean };
         if (cancelled) return;
-        if (data.entitled) { setPhase("active"); return; }
+        if (response.ok && data.signedIn === false) {
+          window.location.assign(`/sign-in?redirect_url=/progress/purchase`);
+          return;
+        }
+        entitled = Boolean(data.entitled);
       } catch {
-        /* transient — keep trying */
+        /* transient — keep trying within the bounded window */
       }
-      window.setTimeout(check, 2500);
+      if (cancelled) return;
+      const next = nextActivationPhase({
+        entitled,
+        signedIn: true, // we follow the server's signedIn signal above; false already routed to sign-in
+        attempts,
+        timeoutMs: ACTIVATION_TIMEOUT_MS,
+        intervalMs: ACTIVATION_POLL_INTERVAL_MS,
+      });
+      if (next === "active") { setPhase("active"); return; }
+      if (next === "stalled") { setPhase("stalled"); return; }
+      timer = setTimeout(step, ACTIVATION_POLL_INTERVAL_MS);
     };
-    void check();
-    return () => { cancelled = true; };
-  }, [initiallyEntitled, phase]);
+
+    void step();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [initiallyEntitled, pollKey, isLoaded, isSignedIn]);
 
   return (
     <section className="founding purchase">
@@ -90,7 +119,9 @@ export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitl
           <>
             <h1>{t.notYet}</h1>
             <p className="purchase-body">{t.notYetBody}</p>
-            <button className="found-cta" type="button" disabled={!isLoaded} onClick={() => setPhase("activating")}>{t.retry}<span>↻</span></button>
+            <div className="purchase-actions">
+              <button className="found-cta" type="button" disabled={!isLoaded} onClick={() => { setPhase("activating"); setPollKey((k) => k + 1); }}>{t.retry}<span>↻</span></button>
+            </div>
             <Link className="purchase-back" href="/progress/founding">{t.logoutCheck}</Link>
           </>
         ) : (
