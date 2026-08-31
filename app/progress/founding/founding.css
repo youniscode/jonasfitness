@@ -60,6 +60,9 @@
 .faq-list details p{color:#c9cfb8;font-size:14px;line-height:1.5;padding:0 0 14px;margin:0;}
 
 .found-footer{padding:28px 20px;border-top:1px solid rgba(255,255,255,.08);text-align:center;color:#8a8f7e;font-size:12px;line-height:1.6;}
+.found-legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin:6px 0 4px;}
+.found-legal-links a{color:#8a8f7e;font-size:12px;text-decoration:none;}
+.found-legal-links a:hover{color:#b6f34c;}
 
 @media (max-width:520px){
   .found-hero{padding:44px 18px 34px;}

@@ -1,0 +1,33 @@
+/* Jonas Fitness legal/document pages — dark + lime, matching the public offer.
+   Structure only; not legal advice. */
+.legal{background:#0b0d0a;color:#eef2e4;min-height:100vh;font-family:var(--font-geist-sans),system-ui,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:.01em;}
+.legal *{box-sizing:border-box;}
+.legal-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);}
+.legal-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#eef2e4;font-weight:800;letter-spacing:.14em;font-size:13px;}
+.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#b6f34c;color:#0b0d0a;font-weight:900;font-size:11px;}
+.legal-links{display:flex;gap:14px;font-size:13px;}
+.legal-links a{color:#c9cfb8;text-decoration:none;}
+.legal-links a:hover{color:#b6f34c;}
+
+.legal-alert{max-width:760px;margin:24px auto 0;padding:12px 16px;border:1px solid #ffb35c;border-radius:10px;background:rgba(255,150,40,.08);color:#ffd9a8;font-size:13px;line-height:1.5;}
+
+.legal-article{max-width:760px;margin:0 auto;padding:32px 20px 60px;}
+.legal-kicker{display:flex;align-items:center;gap:10px;text-transform:uppercase;letter-spacing:.24em;font-size:11px;color:#b6f34c;margin:0 0 14px;}
+.legal-kicker span{width:22px;height:1px;background:#b6f34c;display:inline-block;}
+.legal-article h1{font-size:clamp(28px,5vw,44px);font-weight:900;letter-spacing:-.02em;margin:0 0 6px;line-height:1.1;}
+.legal-updated{color:#8a8f7e;font-size:12px;margin:0 0 28px;}
+.legal-article h2{font-size:clamp(18px,3vw,24px);font-weight:800;margin:34px 0 10px;color:#eef2e4;}
+.legal-article p,.legal-article li{color:#c9cfb8;font-size:15px;line-height:1.65;}
+.legal-article ul{margin:8px 0 20px;padding-left:20px;display:grid;gap:6px;margin-top:8px;}
+.legal-article section{margin-bottom:8px;}
+
+.legal-placeholder{font-size:13px;color:#ffd9a8;background:rgba(255,150,40,.1);border:1px dashed #ffb35c;border-radius:8px;padding:3px 8px;margin-left:4px;letter-spacing:.02em;}
+.legal-placeholder strong{font-weight:700;}
+
+.legal-footer{border-top:1px solid rgba(255,255,255,.08);padding:26px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;max-width:760px;margin:0 auto;}
+.legal-footer p{color:#8a8f7e;font-size:12px;margin:0;}
+.legal-footer nav{display:flex;gap:14px;}
+.legal-footer nav a{color:#8a8f7e;font-size:12px;text-decoration:none;}
+.legal-footer nav a:hover{color:#b6f34c;}
+
+@media (max-width:520px){.legal-article{padding:24px 16px 48px;}.legal-nav{padding:14px 16px;}}

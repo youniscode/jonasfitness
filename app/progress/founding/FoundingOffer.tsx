@@ -229,6 +229,12 @@ export default function FoundingOffer() {
 
     <footer className="found-footer">
       <p>{t.legalNote}</p>
+      <nav className="found-legal-links">
+        <Link href="/legal">Legal</Link>
+        <Link href="/legal/privacy">Privacy</Link>
+        <Link href="/legal/terms">Terms</Link>
+        <Link href="/legal/refunds">Refunds</Link>
+      </nav>
       <span>{t.footer}</span>
     </footer>
   </section>;

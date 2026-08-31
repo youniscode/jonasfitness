@@ -58,8 +58,20 @@ Configuration (server-only; see `.env.example`):
 
 ## PRE-LAUNCH BLOCKERS (payments)
 
-- **Terms / Privacy / legal seller disclosure are NOT yet published.** Before opening live sales, public Privacy policy, Terms of use, and seller/legal disclosures must be reviewed and made available (e.g. the offer and success pages). The Phase 2 code intentionally does **not** claim legal compliance is complete.
+- **Legal pages are DRAFT placeholders only (`/legal`, `/privacy`, `/terms`, `/refunds`).** They are **NOT production-ready legal documents**: seller identity, entity/status, registered address, business identifiers (SIREN/SIRET/RCS/VAT where applicable), business email, publication director, hosting, consumer mediator, governing law, and data-retention/controller specifics are shown as explicit placeholders that must be supplied and reviewed before live sales. **Launch is blocked until every placeholder is resolved.**
+- **EU digital-content withdrawal exception is NOT relied upon.** No automatic loss of 14-day withdrawal rights is claimed, and no checkout consent/acknowledgement is implemented. Until legally resolved we keep a conservative, customer-friendly refund policy.
 - Stripe account activation (Managed Payments terms + eligible digital-product tax code if `STRIPE_PAYMENT_MODE=managed`), a live €19 `price_...`, a live webhook endpoint + secret, and live `sk_live_*` keys are required before turning the paywall on.
+
+## PRODUCTION LAUNCH GATE
+
+See [`docs/production-launch-gate.md`](docs/production-launch-gate.md) for the deterministic launch gate:
+- **read-only migration preflight** procedure (checks `drizzle.__drizzle_migrations`, `0013` training tables, `0014` commerce tables/indexes, `0015` index cleanup, and partial-application detection — no writes);
+- production environment checklist separated into safe identifiers vs secrets;
+- live-Stripe pre-launch checklist; and a deployment gate that blocks launch until all legal/identity, Stripe, Clerk, DB, env, and build data are green.
+
+## Legal pages
+
+Draft legal/document pages live under `/legal` (`/legal`, `/legal/privacy`, `/legal/terms`, `/legal/refunds`) using the Jonas Fitness brand. They render every still-required seller/legal/data fact as an explicit placeholder and clearly state they are **NOT PRODUCTION READY** until supplied. Accessible links to them are present in the public landing-page footer and the Progress Founding-offer footer.
 
 ## Local Ollama
 
