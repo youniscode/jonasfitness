@@ -50,11 +50,13 @@ export async function createFoundingCheckout({
   priceId,
   successUrl,
   cancelUrl,
+  attribution = null,
 }: {
   ownerId: string;
   priceId: string;
   successUrl: string;
   cancelUrl: string;
+  attribution?: { source: string; medium: string; campaign: string } | null;
 }): Promise<FoundingCheckoutSession> {
   const config = getStripeCommerceConfig();
   const stripe = getStripeClient(config);
@@ -71,6 +73,12 @@ export async function createFoundingCheckout({
     metadata: {
       ownerId,
       productKey: "progress_founding",
+      // Only pre-sanitized attribution values (never raw query strings) reach
+      // Stripe metadata so the Stripe Dashboard and Jonas Fitness stay
+      // traceable against each other.
+      ...(attribution?.source ? { utm_source: attribution.source } : {}),
+      ...(attribution?.medium ? { utm_medium: attribution.medium } : {}),
+      ...(attribution?.campaign ? { utm_campaign: attribution.campaign } : {}),
     },
     // Collect a minimal set - no onboarding questionnaire before paying.
     allow_promotion_codes: false,

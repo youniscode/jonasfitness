@@ -32,6 +32,40 @@ export function sourceFromReferrer(referrer: string): AcquisitionSource {
   } catch { return "Referral"; }
 }
 
+// Attribution carried into the Progress checkout flow. ONLY sanitized values
+// ever leave the browser: source is allowlist-mapped (never raw), medium and
+// campaign are trimmed + length-capped. Referrers, landing-page query strings
+// and personal information are deliberately not carried.
+export type SanitizedAttribution = {
+  source: string;
+  medium: string;
+  campaign: string;
+};
+
+/**
+ * Server-side sanitization of a client-supplied attribution object. Returns
+ * null when nothing usable is present (checkout without attribution is fine).
+ * `source` is mapped through the allowlist (`safeSource`), `medium`/`campaign`
+ * through the existing capped `safeText` - raw values are never trusted.
+ */
+export function sanitizeAttribution(value: unknown): SanitizedAttribution | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const source = safeText(raw.source, 40);
+  const medium = safeText(raw.medium, 80);
+  const campaign = safeText(raw.campaign, 120);
+  if (!source && !medium && !campaign) return null;
+  return {
+    // Empty source becomes "". Non-empty sources are mapped through the UTM/
+    // referrer classifier first (handles raw lowercase "instagram"), falling
+    // back to the canonical allowlist (handles stored "Direct"/"Instagram").
+    // Unknown values always land on "Other" - never on raw input.
+    source: source ? (sourceFromUtm(source) === "Other" ? safeSource(source) : sourceFromUtm(source)) : "",
+    medium,
+    campaign,
+  };
+}
+
 export function sourceFromUtm(value: string): AcquisitionSource {
   const source = value.trim().toLowerCase();
   if (source.includes("instagram") || source === "ig") return "Instagram";

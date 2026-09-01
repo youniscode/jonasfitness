@@ -22,7 +22,7 @@ import {
   trainingWorkoutSessions,
 } from "../../db/schema";
 
-import { computeValidationMetrics, FOUNDING_ACCESS_PRODUCT_KEY as FOUNDING_KEY } from "./payments-domain.ts";
+import { computeValidationMetrics, computeFirst50Report, FOUNDING_ACCESS_PRODUCT_KEY as FOUNDING_KEY } from "./payments-domain.ts";
 
 // --- Entitlements ------------------------------------
 
@@ -74,8 +74,19 @@ export async function revokeEntitlement(ownerId: string, productKey: string) {
 
 // --- Orders ------------------------------------------
 
-/** Records the fact that a Checkout Session was created (owner-scoped). */
-export async function recordCheckoutOrder(ownerId: string, providerCheckoutId: string, amountMinor: number, currency: string, productKey: string) {
+/**
+ * Records the fact that a Checkout Session was created (owner-scoped).
+ * `attribution` is optional and ALWAYS pre-sanitized by the caller - only
+ * allowlist-mapped source and length-capped medium/campaign are persisted.
+ */
+export async function recordCheckoutOrder(
+  ownerId: string,
+  providerCheckoutId: string,
+  amountMinor: number,
+  currency: string,
+  productKey: string,
+  attribution?: { source: string; medium: string; campaign: string } | null,
+) {
   const db = getDb();
   await db.insert(commerceOrders)
     .values({
@@ -86,6 +97,9 @@ export async function recordCheckoutOrder(ownerId: string, providerCheckoutId: s
       amountMinor,
       currency: currency.toLowerCase(),
       status: "created",
+      acquisitionSource: attribution?.source || null,
+      acquisitionMedium: attribution?.medium || null,
+      acquisitionCampaign: attribution?.campaign || null,
     })
     .onConflictDoNothing({ target: [commerceOrders.provider, commerceOrders.providerCheckoutId] });
 }
@@ -220,7 +234,13 @@ export async function getValidationMetrics() {
   const db = getDb();
 
   const [entitledRows, routineRows, workoutRows, completedRows, paidDollarsRows] = await Promise.all([
-    db.select({ ownerId: productEntitlements.ownerId }).from(productEntitlements).where(eq(productEntitlements.productKey, FOUNDING_KEY)),
+    // ACTIVE entitlements only: a refunded/revoked buyer stays visible
+    // historically (order/refund records) but is NOT an active paid customer.
+    db.select({ ownerId: productEntitlements.ownerId }).from(productEntitlements)
+      .where(and(
+        eq(productEntitlements.productKey, FOUNDING_KEY),
+        eq(productEntitlements.status, "active"),
+      )),
     db.select({ ownerId: trainingRoutines.ownerId }).from(trainingRoutines),
     db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions),
     db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions).where(eq(trainingWorkoutSessions.status, "completed")),
@@ -238,4 +258,48 @@ export async function getValidationMetrics() {
   const grossRevenueMinor = Number(paidDollarsRows?.[0]?.total) || 0;
   const metrics = computeValidationMetrics({ entitledOwners, ownedRoutines, ownedWorkouts, completedWorkouts });
   return { ...metrics, grossRevenueMinor };
+}
+
+/**
+ * First-50 validation report for the internal coach page. Pure over the store
+ * tables: the funnel stages, active paid customers (never revoked), refunds,
+ * net paid revenue, post-purchase activation and the per-source breakdown.
+ * The 50-prospect denominator is the manual launch cohort - never anonymous
+ * traffic.
+ */
+export async function getFirst50Report() {
+  const db = getDb();
+  const [validationRows, entitledRows, orderRows, routineRows, workoutRows, completedRows] = await Promise.all([
+    db.select({ ownerId: validationEvents.ownerId, eventName: validationEvents.eventName }).from(validationEvents),
+    db.select({ ownerId: productEntitlements.ownerId }).from(productEntitlements)
+      .where(and(
+        eq(productEntitlements.productKey, FOUNDING_KEY),
+        eq(productEntitlements.status, "active"),
+      )),
+    db.select({
+      ownerId: commerceOrders.ownerId,
+      amountMinor: commerceOrders.amountMinor,
+      status: commerceOrders.status,
+      source: commerceOrders.acquisitionSource,
+    }).from(commerceOrders).where(eq(commerceOrders.productKey, FOUNDING_KEY)),
+    db.select({ ownerId: trainingRoutines.ownerId }).from(trainingRoutines),
+    db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions),
+    db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions).where(eq(trainingWorkoutSessions.status, "completed")),
+  ]);
+
+  const ownedRoutines = new Map<string, number>();
+  const ownedWorkouts = new Map<string, number>();
+  const completedWorkouts = new Map<string, number>();
+  for (const r of routineRows) ownedRoutines.set(r.ownerId, (ownedRoutines.get(r.ownerId) ?? 0) + 1);
+  for (const r of workoutRows) ownedWorkouts.set(r.ownerId, (ownedWorkouts.get(r.ownerId) ?? 0) + 1);
+  for (const r of completedRows) completedWorkouts.set(r.ownerId, (completedWorkouts.get(r.ownerId) ?? 0) + 1);
+
+  return computeFirst50Report({
+    validationRows,
+    activeEntitledOwners: new Set(entitledRows.map((r) => r.ownerId)),
+    orderRows,
+    ownedRoutines,
+    ownedWorkouts,
+    completedWorkouts,
+  });
 }

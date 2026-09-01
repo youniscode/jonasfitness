@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  *
  * Whitelist of accepted event names - arbitrary event strings are rejected.
  */
-const ALLOWED = new Set(["founding_offer_viewed"]);
+const ALLOWED = new Set(["founding_offer_viewed", "founding_buy_clicked"]);
 
 export async function POST(request: Request) {
   const { userId } = await auth();

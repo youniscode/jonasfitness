@@ -84,6 +84,132 @@ export interface ValidationMetrics {
   purchaseToWorkoutStart: number | null;
   purchaseToWorkoutComplete: number | null;
 }
+// ---------------------------------------------------------------------------
+// First-50 validation report (manual 50-prospect launch cohort).
+//
+// Pure over raw query rows so the coach dashboard and the test suite share one
+// deterministic computation. The denominator (targetedProspects) is a manual
+// launch cohort - there is deliberately no anonymous "visitor conversion rate".
+// ---------------------------------------------------------------------------
+
+export const TARGETED_PROSPECTS = 50;
+
+export interface First50Input {
+  /** Raw validation_events rows (ownerId + eventName). */
+  validationRows: { ownerId: string; eventName: string }[];
+  /** ACTIVE progress_founding entitlement owners only. */
+  activeEntitledOwners: Set<string>;
+  /** Raw commerce order rows for the Progress product. */
+  orderRows: { ownerId: string; amountMinor: number; status: string; source: string | null }[];
+  ownedRoutines: Map<string, number>;
+  ownedWorkouts: Map<string, number>;
+  completedWorkouts: Map<string, number>;
+}
+
+export interface SourceRow {
+  source: string;
+  checkoutStarts: number;
+  purchases: number;
+  revenueEur: number;
+}
+
+export interface First50Report {
+  targetedProspects: number;
+  offerViewers: number;
+  buyClicks: number;
+  checkoutStarts: number;
+  purchases: number;
+  activePaidCustomers: number;
+  fullRefunds: number;
+  netPaidRevenueEur: number;
+  buyClickToCheckoutPct: number | null;
+  checkoutToPurchasePct: number | null;
+  manualValidationRatePct: number;
+  createdFirstRoutine: number;
+  startedFirstWorkout: number;
+  completedFirstWorkout: number;
+  signal: { level: "none" | "weak" | "promising" | "strong" | "very_strong"; label: string };
+  sources: SourceRow[];
+}
+
+/**
+ * Internal business guidance only - never customer-visible. Based on purchases
+ * out of the manually defined 50-person launch cohort.
+ */
+export function validationSignal(purchases: number): First50Report["signal"] {
+  if (purchases <= 0) return { level: "none", label: "No validation yet" };
+  if (purchases <= 2) return { level: "weak", label: "Weak signal" };
+  if (purchases <= 5) return { level: "promising", label: "Promising validation signal" };
+  if (purchases <= 9) return { level: "strong", label: "Strong signal" };
+  return { level: "very_strong", label: "Very strong signal" };
+}
+
+/** One-decimal percentage, null when the denominator is zero. */
+function pct(part: number, whole: number): number | null {
+  if (whole <= 0) return null;
+  return Math.round((part / whole) * 1000) / 10;
+}
+
+/**
+ * Deterministic First-50 funnel from raw rows. Duplicate rows are collapsed to
+ * distinct owners per event; a fully refunded buyer stays visible historically
+ * (fullRefunds, refunded order rows) while dropping out of active paid
+ * customers, revenue and the post-purchase ratios.
+ */
+export function computeFirst50Report(input: First50Input): First50Report {
+  const owners = (name: string) => new Set(input.validationRows.filter((r) => r.eventName === name).map((r) => r.ownerId));
+  const offerViewers = owners("founding_offer_viewed");
+  const buyClickers = owners("founding_buy_clicked");
+  const checkoutStarters = owners("founding_checkout_started");
+  const purchasers = owners("founding_purchase_completed");
+
+  const paidOrders = input.orderRows.filter((o) => o.status === "paid");
+  const fullRefunds = input.orderRows.filter((o) => o.status === "refunded");
+  const netPaidRevenueMinor = paidOrders.reduce((sum, o) => sum + o.amountMinor, 0);
+
+  // Source breakdown: every order row is one checkout started; paid orders are
+  // purchases; revenue sums paid amounts only (refunds never add revenue).
+  const sourceMap = new Map<string, SourceRow>();
+  const rowFor = (source: string): SourceRow => {
+    let row = sourceMap.get(source);
+    if (!row) { row = { source, checkoutStarts: 0, purchases: 0, revenueEur: 0 }; sourceMap.set(source, row); }
+    return row;
+  };
+  for (const order of input.orderRows) rowFor(order.source || "(not set)").checkoutStarts += 1;
+  for (const order of paidOrders) {
+    const row = rowFor(order.source || "(not set)");
+    row.purchases += 1;
+    row.revenueEur += order.amountMinor;
+  }
+  const sources = [...sourceMap.values()]
+    .map((row) => ({ ...row, revenueEur: Math.round(row.revenueEur / 100) }))
+    .toSorted((a, b) => b.revenueEur - a.revenueEur || b.purchases - a.purchases || a.source.localeCompare(b.source));
+
+  const activePaidCustomers = input.activeEntitledOwners.size;
+  const createdFirstRoutine = [...input.activeEntitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
+  const startedFirstWorkout = [...input.activeEntitledOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
+  const completedFirstWorkout = [...input.activeEntitledOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
+
+  return {
+    targetedProspects: TARGETED_PROSPECTS,
+    offerViewers: offerViewers.size,
+    buyClicks: buyClickers.size,
+    checkoutStarts: checkoutStarters.size,
+    purchases: purchasers.size,
+    activePaidCustomers,
+    fullRefunds: fullRefunds.length,
+    netPaidRevenueEur: Math.round(netPaidRevenueMinor / 100),
+    buyClickToCheckoutPct: pct(checkoutStarters.size, buyClickers.size),
+    checkoutToPurchasePct: pct(purchasers.size, checkoutStarters.size),
+    manualValidationRatePct: pct(purchasers.size, TARGETED_PROSPECTS) ?? 0,
+    createdFirstRoutine,
+    startedFirstWorkout,
+    completedFirstWorkout,
+    signal: validationSignal(purchasers.size),
+    sources,
+  };
+}
+
 export function computeValidationMetrics(input: MetricsInput): ValidationMetrics {
   const paidCustomers = input.entitledOwners.size;
   const createdFirstRoutine = [...input.entitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;

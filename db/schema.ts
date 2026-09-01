@@ -690,6 +690,14 @@ export const commerceOrders = pgTable("commerce_orders", {
   paidAt: timestamp("paid_at", { withTimezone: true }),
   refundedAt: timestamp("refunded_at", { withTimezone: true }),
   canceledAt: timestamp("canceled_at", { withTimezone: true }),
+  // Optional first-touch attribution captured at checkout creation. Only
+  // SANITIZED values (allowlist-mapped source, length-capped medium/campaign)
+  // from the existing client-side first-touch store are ever persisted - never
+  // raw query strings, referrers or personal data. Nullable so legacy orders
+  // (pre-attribution) stay intact and checkout without attribution still works.
+  acquisitionSource: text("acquisition_source"),
+  acquisitionMedium: text("acquisition_medium"),
+  acquisitionCampaign: text("acquisition_campaign"),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { LANGS, persistLang, readStoredLang, type Lang } from "../../lib/lang-store";
+import { attributionStorageKey } from "../../lib/attribution";
 
 // Trilingual copy for the public Founding Access offer (fr/en/ar). French is
 // the default language (matching the rest of Jonas Fitness). Inline dictionary;
@@ -224,6 +225,22 @@ export default function FoundingOffer() {
     persistLang(next);
   }
 
+  // Read only the sanitized first-touch attribution fields (source / medium /
+  // campaign) already stored by the app's existing attribution capture. Referrer
+  // URLs, landing-page query strings and personal data are deliberately NOT sent.
+  function readAttribution() {
+    try {
+      const saved = window.localStorage.getItem(attributionStorageKey);
+      if (!saved) return null;
+      const parsed = JSON.parse(saved) as Record<string, unknown>;
+      return {
+        source: typeof parsed.source === "string" ? parsed.source : "",
+        medium: typeof parsed.medium === "string" ? parsed.medium : "",
+        campaign: typeof parsed.campaign === "string" ? parsed.campaign : "",
+      };
+    } catch { return null; }
+  }
+
   async function handleBuy() {
     // Anonymous visitors go through Clerk first (the project's sign-in flow),
     // preserving the return path so they land back here authenticated and can
@@ -234,9 +251,20 @@ export default function FoundingOffer() {
       await redirectToSignIn({ redirectUrl: "/progress/founding" });
       return; // redirect() maps to the Clerk sign-in; we don't continue here
     }
+    // Funnel: authenticated buy click (server-deduped per owner per day).
+    void fetch("/api/progress/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ eventName: "founding_buy_clicked" }),
+    }).catch(() => {});
     setState("checkout");
     try {
-      const response = await fetch("/api/progress/checkout", { method: "POST" });
+      const attribution = readAttribution();
+      const response = await fetch("/api/progress/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ attribution }),
+      });
       const data = await response.json().catch(() => ({})) as { url?: string; error?: string; status?: string };
       if (!response.ok || !data.url) {
         if (data.status === "entitled") { window.location.href = "/progress"; return; }
