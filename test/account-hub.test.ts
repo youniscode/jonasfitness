@@ -112,6 +112,47 @@ test("hub copy answers what-do-I-have and where-do-I-go", () => {
   assert.ok(hub.includes('coachingTitle: "Coaching avec Jonas"'), "FR coaching card title");
 });
 
+test("brand logo links home with a localized accessible label", () => {
+  const hub = read("app/account/AccountHub.tsx");
+  assert.ok(hub.includes('<Link className="account-brand" href="/" aria-label={t.home}>'), "JP + JONAS PROGRESS brand links to / with an aria-label");
+  assert.ok(hub.includes('home: "Accueil"'), "FR home label");
+  assert.ok(hub.includes('home: "Home"'), "EN home label");
+  assert.ok(hub.includes('home: "الرئيسية"'), "AR home label");
+});
+
+test("sign-out action exists in FR/EN/AR, uses Clerk and returns to /", () => {
+  const hub = read("app/account/AccountHub.tsx");
+  assert.ok(hub.includes('signOut: "Se déconnecter"'), "FR sign-out label");
+  assert.ok(hub.includes('signOut: "Sign out"'), "EN sign-out label");
+  assert.ok(hub.includes('signOut: "تسجيل الخروج"'), "AR sign-out label");
+  assert.ok(hub.includes('import { useClerk } from "@clerk/nextjs"'), "uses the existing Clerk client auth");
+  assert.ok(hub.includes("const { signOut } = useClerk()"), "sign-out comes from Clerk, not custom session logic");
+  assert.ok(hub.includes('signOut({ redirectUrl: "/" })'), "sign-out redirects to the public homepage");
+  assert.ok(hub.includes('className="account-signout"'), "secondary visual treatment");
+  assert.ok(hub.includes('type="button" onClick={handleSignOut}'), "header control wired to the handler");
+});
+
+test("new Progress card descriptions exist in FR/EN/AR", () => {
+  const hub = read("app/account/AccountHub.tsx");
+  assert.ok(hub.includes('progressDesc: "Planifie tes routines, enregistre tes séances et suis ta progression."'), "FR description");
+  assert.ok(hub.includes('progressDesc: "Plan your routines, log your workouts and track your progression."'), "EN description");
+  assert.ok(hub.includes('progressDesc: "خطط لروتيناتك، سجّل جلساتك وتابع تقدّمك."'), "AR description");
+});
+
+test("new Coaching card descriptions exist in FR/EN/AR", () => {
+  const hub = read("app/account/AccountHub.tsx");
+  assert.ok(hub.includes('coachingDesc: "Un accompagnement personnalisé avec Jonas pour ton entraînement, ta progression et tes objectifs."'), "FR description");
+  assert.ok(hub.includes('coachingDesc: "Personalized coaching with Jonas for your training, progression and goals."'), "EN description");
+  assert.ok(hub.includes('coachingDesc: "مرافقة شخصية مع Jonas لتدريبك وتقدّمك وأهدافك."'), "AR description");
+});
+
+test("responsive account CSS stacks cards on mobile and pairs them on desktop", () => {
+  const css = read("app/account/account.css");
+  assert.match(css, /grid-template-columns:1fr 1fr/, "desktop: two cards side by side");
+  assert.match(css, /@media \(max-width:760px\)\{[\s\S]*?grid-template-columns:1fr/, "mobile: cards stack vertically");
+  assert.match(css, /\.account\{background:#0b0d0a;[^}]*display:flex;flex-direction:column/, "page is a full-height flex column (footer grounded)");
+});
+
 test("hub keeps JP branding and zero old-brand wording", () => {
   const hub = read("app/account/AccountHub.tsx");
   const page = read("app/account/page.tsx");

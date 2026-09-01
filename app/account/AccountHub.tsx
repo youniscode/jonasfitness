@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useClerk } from "@clerk/nextjs";
 import { LANGS, persistLang, readStoredLang, type Lang } from "../lib/lang-store";
 
 const copy = {
@@ -10,14 +11,16 @@ const copy = {
     title: "Mon espace",
     intro: "Choisis où tu veux continuer.",
     progressTitle: "Jonas Progress",
-    progressDesc: "Logiciel d’entraînement auto-dirigé pour routines, suivi des séances et progression.",
+    progressDesc: "Planifie tes routines, enregistre tes séances et suis ta progression.",
     openProgress: "Ouvrir Progress",
     getProgress: "Obtenir Jonas Progress",
     price: "19 € une seule fois",
     coachingTitle: "Coaching avec Jonas",
-    coachingDesc: "Coaching personnalisé et suivi.",
+    coachingDesc: "Un accompagnement personnalisé avec Jonas pour ton entraînement, ta progression et tes objectifs.",
     openCoaching: "Ouvrir mon coaching",
     applyCoaching: "Postuler au coaching",
+    signOut: "Se déconnecter",
+    home: "Accueil",
     legalLinks: ["Légal", "Confidentialité", "Conditions", "Remboursements"],
     footer: "© 2026 Jonas Progress",
   },
@@ -26,14 +29,16 @@ const copy = {
     title: "My space",
     intro: "Choose where you want to continue.",
     progressTitle: "Jonas Progress",
-    progressDesc: "Self-directed training software for routines, workout logging and progression.",
+    progressDesc: "Plan your routines, log your workouts and track your progression.",
     openProgress: "Open Progress",
     getProgress: "Get Jonas Progress",
     price: "€19 one-time",
     coachingTitle: "Coaching with Jonas",
-    coachingDesc: "Personalized coaching and follow-up.",
+    coachingDesc: "Personalized coaching with Jonas for your training, progression and goals.",
     openCoaching: "Open coaching",
     applyCoaching: "Apply for coaching",
+    signOut: "Sign out",
+    home: "Home",
     legalLinks: ["Legal", "Privacy", "Terms", "Refunds"],
     footer: "© 2026 Jonas Progress",
   },
@@ -42,14 +47,16 @@ const copy = {
     title: "مساحتي",
     intro: "اختر من أين تريد المتابعة.",
     progressTitle: "Jonas Progress",
-    progressDesc: "برنامج تدريب ذاتي لإدارة الروتينات وتسجيل الجلسات وتتبّع التقدم.",
+    progressDesc: "خطط لروتيناتك، سجّل جلساتك وتابع تقدّمك.",
     openProgress: "افتح Progress",
     getProgress: "احصل على Jonas Progress",
     price: "19 € دفعة واحدة",
     coachingTitle: "التدريب مع Jonas",
-    coachingDesc: "تدريب شخصي ومتابعة.",
+    coachingDesc: "مرافقة شخصية مع Jonas لتدريبك وتقدّمك وأهدافك.",
     openCoaching: "افتح التدريب",
     applyCoaching: "قدّم طلبك للتدريب",
+    signOut: "تسجيل الخروج",
+    home: "الرئيسية",
     legalLinks: ["قانوني", "الخصوصية", "الشروط", "الاسترداد"],
     footer: "© 2026 Jonas Progress",
   },
@@ -58,6 +65,7 @@ const copy = {
 /** Light "My space" service hub: what do I have access to, where can I go next. */
 export default function AccountHub({ progressEntitled, coachingProfile }: { progressEntitled: boolean; coachingProfile: boolean }) {
   const [lang, setLang] = useState<Lang>(readStoredLang);
+  const { signOut } = useClerk();
   const t = copy[lang];
   const rtl = lang === "ar";
 
@@ -66,18 +74,27 @@ export default function AccountHub({ progressEntitled, coachingProfile }: { prog
     persistLang(next);
   }
 
+  function handleSignOut() {
+    // Standard Clerk sign-out; returns the visitor to the public homepage.
+    void signOut({ redirectUrl: "/" });
+  }
+
   return (
     <section dir={rtl ? "rtl" : "ltr"} className={`account ${rtl ? "rtl-site" : ""}`}>
       <header className="account-nav">
-        <Link className="account-brand" href="/"><span className="brand-mark">JP</span><span>JONAS PROGRESS</span></Link>
-        <div className="account-lang" aria-label="Language">{(LANGS as Lang[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => switchLang(l)}>{l.toUpperCase()}</button>)}</div>
+        <Link className="account-brand" href="/" aria-label={t.home}><span className="brand-mark">JP</span><span>JONAS PROGRESS</span></Link>
+        <div className="account-actions">
+          <button className="account-signout" type="button" onClick={handleSignOut}>{t.signOut}</button>
+          <div className="account-lang" aria-label="Language">{(LANGS as Lang[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => switchLang(l)}>{l.toUpperCase()}</button>)}</div>
+        </div>
       </header>
 
-      <section className="account-hero">
-        <p className="account-kicker"><span />{t.kicker}</p>
-        <h1>{t.title}</h1>
-        <p className="account-intro">{t.intro}</p>
-      </section>
+      <main className="account-main">
+        <section className="account-hero">
+          <p className="account-kicker"><span />{t.kicker}</p>
+          <h1>{t.title}</h1>
+          <p className="account-intro">{t.intro}</p>
+        </section>
 
       <section className="account-grid">
         <article className="account-card">
@@ -101,6 +118,7 @@ export default function AccountHub({ progressEntitled, coachingProfile }: { prog
             : <Link className="account-cta account-cta-outline" href="/#early-access">{t.applyCoaching}<span>→</span></Link>}
         </article>
       </section>
+      </main>
 
       <footer className="account-footer">
         <nav className="account-legal-links">
