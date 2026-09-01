@@ -35,13 +35,16 @@ export default function RoutinesView() {
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    // Capture the form element BEFORE the await: React nulls event.currentTarget
+    // once the handler yields, so touching it after the POST would throw.
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("name") ?? "").trim();
     if (!name) return;
     setCreating(true);
     try {
       const data = await json<{ routine: Routine }>("/api/progress/routines", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
-      event.currentTarget.reset();
+      formElement.reset();
       setError("");
       // Navigate straight to the new routine to add exercises.
       window.location.href = `/progress/routines/${data.routine.id}`;
