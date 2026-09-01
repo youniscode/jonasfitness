@@ -67,6 +67,7 @@ const copy = {
     legalNote: "L’accès fondateur est un achat unique (19 €). C’est un logiciel auto-dirigé : ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
     signInFirst: "Connecte-toi pour continuer",
     starting: "Redirection vers le paiement…",
+    purchaseNotice: "Achat unique : 19 €. Droit de rétractation de 14 jours. Voir la politique de remboursement.",
     legalLinks: ["Légal", "Confidentialité", "Conditions", "Remboursements"],
     footer: "© 2026 Jonas Fitness",
   },
@@ -128,6 +129,7 @@ const copy = {
     legalNote: "Founding Access is a one-time purchase (€19). It is self-directed software: not personalized coaching, not medical or rehabilitation software.",
     signInFirst: "Sign in to continue",
     starting: "Redirecting to checkout…",
+    purchaseNotice: "One-time purchase: €19. 14-day withdrawal right. See the refund policy.",
     legalLinks: ["Legal", "Privacy", "Terms", "Refunds"],
     footer: "© 2026 Jonas Fitness",
   },
@@ -189,6 +191,7 @@ const copy = {
     legalNote: "الوصول التأسيسي هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه: ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
     signInFirst: "سجّل الدخول للمتابعة",
     starting: "جارٍ تحويلك إلى الدفع…",
+    purchaseNotice: "شراء لمرة واحدة: 19 €. حق الانسحاب خلال 14 يومًا. اطّلع على سياسة الاسترداد.",
     legalLinks: ["قانوني", "الخصوصية", "الشروط", "الاسترداد"],
     footer: "© 2026 Jonas Fitness",
   },
@@ -262,6 +265,7 @@ export default function FoundingOffer() {
         <button className="found-cta" type="button" onClick={handleBuy} disabled={state !== "idle"}>{state === "checkout" ? t.starting : state === "signing" ? t.signInFirst : t.cta}<span>→</span></button>
         <span className="found-price">{t.priceLine}</span>
       </div>
+      <Link className="found-refund-notice" href="/legal/refunds">{t.purchaseNotice}</Link>
     </section>
 
     <section className="found-problem">

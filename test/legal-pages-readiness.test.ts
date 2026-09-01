@@ -168,7 +168,7 @@ test("terms page describes the product accurately and does NOT promise AI coachi
   assert.match(terms, /Not medical advice/i);
   assert.match(terms, /Not an AI trainer/i);
   assert.match(terms, /No guaranteed fitness results/i);
-  assert.match(terms, /one-time Founding Access/i);
+  assert.match(terms, /one-time access/i);
   assert.match(terms, /not a subscription/i);
 });
 
@@ -187,6 +187,31 @@ test("refunds page keeps a conservative customer-friendly policy and does not cl
   assert.match(refunds, /do <strong>not<\/strong> currently (?:rely on|claim|use)|no express checkout consent/i, "withdrawal exception not claimed");
   assert.match(refunds, /charge\.refunded/, "refund handling (unchanged) documented");
   assert.doesNotMatch(refunds, /REFUND WINDOW|SUPPORT \/ REFUND EMAIL|REFUND PROCESSING TIME|REFUND METHOD/, "no raw refund placeholders");
+});
+
+test("founding offer shows a localized pre-purchase notice linking to the refund policy", () => {
+  const offer = readFileSync(join(ROOT, "app", "progress", "founding", "FoundingOffer.tsx"), "utf8");
+  assert.match(offer, /found-refund-notice/, "notice element present beside the purchase CTA");
+  assert.match(offer, /href=\"\/legal\/refunds\"/, "notice links to the refund policy");
+  assert.ok(offer.includes("Achat unique : 19 €. Droit de rétractation de 14 jours. Voir la politique de remboursement."), "FR notice");
+  assert.ok(offer.includes("One-time purchase: €19. 14-day withdrawal right. See the refund policy."), "EN notice");
+  assert.ok(offer.includes("شراء لمرة واحدة: 19 €. حق الانسحاب خلال 14 يومًا. اطّلع على سياسة الاسترداد."), "AR notice");
+});
+
+test("legal purchase/refund copy refers to the product as Progress access, not Founding Access", () => {
+  const src = [readLegal("legal"), readLegal("terms"), readLegal("refunds"), readSellerShell()].join("\n");
+  assert.doesNotMatch(src, /Founding Access/i, "no English Founding Access in legal copy");
+  assert.doesNotMatch(src, /accès fondateur/i, "no French accès fondateur in legal copy");
+  assert.doesNotMatch(src, /الوصول التأسيسي|وصول المؤسسين|وصول تأسيسي/, "no Arabic founding-access terminology in legal copy");
+  assert.match(src, /Progress access|access to Jonas Fitness Progress/i, "EN refers to Progress access");
+  assert.match(src, /accès à Progress/, "FR refers to accès à Progress");
+  assert.match(src, /الوصول إلى Progress/, "AR refers to الوصول إلى Progress");
+});
+
+test("digital-content withdrawal wording never cites the wrong article number", () => {
+  const refunds = readLegal("refunds");
+  assert.doesNotMatch(refunds, /L\s*221[-\s]?28[^\n]{0,10}4°/, "no outdated L221-28 4° citation (exception is 13°)");
+  assert.match(refunds, /do <strong>not<\/strong> currently (?:rely on|claim|use)|no express checkout consent/i, "waiver still not claimed");
 });
 
 test("legal index page cross-links privacy/terms/refunds", () => {

@@ -88,7 +88,7 @@ export default function LegalShell({
       </article>
 
       <footer className="legal-footer">
-        <p>© 2026 Jonas Fitness · Founding Access</p>
+        <p>© 2026 Jonas Fitness · Progress</p>
         <nav>
           {navHrefs.map((href, index) => (
             <Link key={href} href={href}>{t.nav[index]}</Link>

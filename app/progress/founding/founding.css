@@ -26,6 +26,8 @@
 .found-cta:disabled{opacity:.7;cursor:progress;}
 .found-cta span{font-size:18px;line-height:1;}
 .found-price{color:#8a8f7e;font-size:13px;}
+.found-refund-notice{display:inline-block;margin-top:12px;color:#8a8f7e;font-size:12px;text-decoration:underline;text-underline-offset:3px;}
+.found-refund-notice:hover{color:#c3ff5a;}
 
 .found-problem{padding:44px 20px;border-top:1px solid rgba(255,255,255,.08);max-width:760px;margin:0 auto;}
 .found-eyebrow{text-transform:uppercase;letter-spacing:.24em;font-size:11px;color:#8a8f7e;margin:0 0 10px;}

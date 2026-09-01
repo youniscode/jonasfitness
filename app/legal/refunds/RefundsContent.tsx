@@ -7,12 +7,12 @@ const copy = {
   fr: {
     kicker: "REMBOURSEMENTS",
     title: "Remboursements & rétractation",
-    intro: "Cette page décrit notre approche en matière de remboursement et de rétractation du consommateur pour l’accès fondateur de Jonas Fitness Progress.",
+    intro: "Cette page décrit notre approche en matière de remboursement et de rétractation du consommateur pour l’accès à Jonas Fitness Progress.",
     policy: "Politique de remboursement (conservatrice et favorable au client)",
     policyList: [
       "Si vous changez d’avis avant de commencer à utiliser Progress, vous pouvez demander un remboursement.",
-      "Si vous n’êtes pas satisfait dans les <strong>14 jours</strong> suivant votre achat, vous pouvez demander un remboursement et votre accès fondateur sera révoqué.",
-      "Un remboursement intégral confirmé sur votre commande entraîne la révocation du droit d’accès fondateur correspondant (l’accès est retiré ; les journaux d’entraînement que vous avez créés sont conservés mais ne sont plus accessibles via le produit payant).",
+      "Si vous n’êtes pas satisfait dans les <strong>14 jours</strong> suivant votre achat, vous pouvez demander un remboursement et votre accès Progress sera révoqué.",
+      "Un remboursement intégral confirmé sur votre commande entraîne la révocation du droit d’accès Progress correspondant (l’accès est retiré ; les journaux d’entraînement que vous avez créés sont conservés mais ne sont plus accessibles via le produit payant).",
       "Les remboursements partiels ne révoquent pas l’accès.",
     ],
     withdrawal: "Rétractation : contenus/services numériques (UE)",
@@ -37,12 +37,12 @@ const copy = {
   en: {
     kicker: "REFUNDS",
     title: "Refunds & withdrawals",
-    intro: "This page describes our refund and consumer-withdrawal approach for Jonas Fitness Progress Founding Access.",
+    intro: "This page describes our refund and consumer-withdrawal approach for access to Jonas Fitness Progress.",
     policy: "Refund policy (conservative & customer-friendly)",
     policyList: [
       "If you change your mind before you begin using Progress, you may request a refund.",
-      "If you are not satisfied within <strong>14 days</strong> of your purchase, you may request a refund and your Founding Access will be revoked.",
-      "A confirmed full refund on your order results in the revocation of the corresponding Founding Access entitlement (access is withdrawn; training logs you created are preserved but no longer accessible under the paid product).",
+      "If you are not satisfied within <strong>14 days</strong> of your purchase, you may request a refund and your Progress access will be revoked.",
+      "A confirmed full refund on your order results in the revocation of the corresponding Progress access entitlement (access is withdrawn; training logs you created are preserved but no longer accessible under the paid product).",
       "Partial refunds do not revoke access.",
     ],
     withdrawal: "EU digital-content / digital-service withdrawal",
@@ -67,12 +67,12 @@ const copy = {
   ar: {
     kicker: "الاسترداد",
     title: "الاسترداد والانسحاب",
-    intro: "تصف هذه الصفحة نهجنا في الاسترداد وانصراف المستهلك الخاص بوصول المؤسسين إلى Jonas Fitness Progress.",
+    intro: "تصف هذه الصفحة نهجنا في الاسترداد وانصراف المستهلك الخاص بالوصول إلى Jonas Fitness Progress.",
     policy: "سياسة الاسترداد (تحفظية ومراعية للعميل)",
     policyList: [
       "إذا غيّرت رأيك قبل بدء استخدام Progress، يمكنك طلب استرداد المبلغ.",
-      "إذا لم تكن راضيًا خلال <strong>14 يومًا</strong> من شرائك، يمكنك طلب استرداد المبلغ وسيُلغى وصولك التأسيسي.",
-      "يؤدي استرداد كامل مؤكد على طلبك إلى إلغاء حق الوصول التأسيسي المقابل (يُسحب الوصول؛ وتُحتفظ بسجلات التدريب التي أنشأتها لكنها لن تكون متاحة بعد الآن ضمن المنتج المدفوع).",
+      "إذا لم تكن راضيًا خلال <strong>14 يومًا</strong> من شرائك، يمكنك طلب استرداد المبلغ وسيُلغى وصولك إلى Progress.",
+      "يؤدي استرداد كامل مؤكد على طلبك إلى إلغاء حق الوصول المقابل إلى Progress (يُسحب الوصول؛ وتُحتفظ بسجلات التدريب التي أنشأتها لكنها لن تكون متاحة بعد الآن ضمن المنتج المدفوع).",
       "الاستردادات الجزئية لا تلغي الوصول.",
     ],
     withdrawal: "الانسحاب: المحتوى/الخدمات الرقمية (الاتحاد الأوروبي)",

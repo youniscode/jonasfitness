@@ -8,10 +8,10 @@ const copy = {
   fr: {
     kicker: "LÉGAL",
     title: "Légal",
-    intro: "Cette section présente les documents juridiques et de consommation qui régissent l’achat et l’utilisation de Jonas Fitness Progress (« Progress »), un carnet d’entraînement numérique de force/musculation auto-dirigé proposé au prix unique de 19 € (Accès fondateur).",
+    intro: "Cette section présente les documents juridiques et de consommation qui régissent l’achat et l’utilisation de Jonas Fitness Progress (« Progress »), un carnet d’entraînement numérique de force/musculation auto-dirigé proposé au prix unique de 19 € (accès à Progress).",
     documents: [
       ["Confidentialité", " : comment nous traitons les données personnelles et quels processeurs sont impliqués."],
-      ["Conditions d’utilisation", " : le produit, ce qu’il est et n’est pas, et l’accès fondateur."],
+      ["Conditions d’utilisation", " : le produit, ce qu’il est et n’est pas, et l’accès à Progress."],
       ["Remboursements & rétractation", " : politique de remboursement / droits des consommateurs."],
     ],
     sellerLabel: "Le vendeur / exploitant légal de Jonas Fitness Progress est :",
@@ -31,10 +31,10 @@ const copy = {
   en: {
     kicker: "LEGAL",
     title: "Legal",
-    intro: "This section lists the legal and consumer documents that govern the purchase and use of Jonas Fitness Progress (“Progress”), a self-directed strength/bodybuilding training log offered as a €19 one-time Founding Access.",
+    intro: "This section lists the legal and consumer documents that govern the purchase and use of Jonas Fitness Progress (“Progress”), a self-directed strength/bodybuilding training log offered as a €19 one-time access.",
     documents: [
       ["Privacy", ": how we process personal data and which processors are involved."],
-      ["Terms of use", ": the product, what it is and is not, and Founding Access."],
+      ["Terms of use", ": the product, what it is and is not, and Progress access."],
       ["Refunds & withdrawals", ": money-back / consumer-rights policy."],
     ],
     sellerLabel: "The legal seller / operator of Jonas Fitness Progress is:",
@@ -54,10 +54,10 @@ const copy = {
   ar: {
     kicker: "قانوني",
     title: "قانوني",
-    intro: "يعرض هذا القسم المستندات القانونية والمتعلقة بحقوق المستهلك التي تنظم شراء واستخدام Jonas Fitness Progress («بروغريس»)، سجل تدريب ذاتي التوجيه للقوة وكمال الأجسام يُقدَّم مقابل وصول تأسيسي لمرة واحدة بقيمة 19 €.",
+    intro: "يعرض هذا القسم المستندات القانونية والمتعلقة بحقوق المستهلك التي تنظم شراء واستخدام Jonas Fitness Progress («بروغريس»)، سجل تدريب ذاتي التوجيه للقوة وكمال الأجسام يُقدَّم مقابل وصول إلى Progress لمرة واحدة بقيمة 19 €.",
     documents: [
       ["الخصوصية", ": كيف نعالج البيانات الشخصية والجهات المعالجة المعنية."],
-      ["شروط الاستخدام", ": المنتج، ما هو وما ليس هو، وصول المؤسسين."],
+      ["شروط الاستخدام", ": المنتج، ما هو وما ليس هو، والوصول إلى Progress."],
       ["الاسترداد والانسحاب", ": سياسة استرداد الأموال وحقوق المستهلك."],
     ],
     sellerLabel: "البائع / المشغِّل القانوني لمنتج Jonas Fitness Progress هو:",
