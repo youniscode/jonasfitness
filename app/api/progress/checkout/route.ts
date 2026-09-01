@@ -62,7 +62,14 @@ export async function POST(request: Request) {
     }
     return Response.json({ url: session.url, status: "checkout" });
   } catch (issue) {
-    const message = issue instanceof Error ? issue.message : "Checkout could not be started.";
-    return Response.json({ error: message }, { status: 500 });
+    // Never surface raw database/Stripe/internal error text to the browser:
+    // it can contain SQL, column names, owner ids, or session identifiers.
+    // Return only a safe generic message and log minimal, production-safe
+    // context. No SQL text, credentials, secrets, or payment details.
+    console.error("[checkout] session or order creation failed", {
+      route: "POST /api/progress/checkout",
+      errorKind: issue instanceof Error ? issue.name : typeof issue,
+    });
+    return Response.json({ error: "Checkout could not be started. Please try again." }, { status: 500 });
   }
 }

@@ -241,3 +241,21 @@ test("the First-50 validation page is coach-only and never public", () => {
   assert.match(page, /getFirst50Report/, "page consumes the server-side report");
   assert.match(page, /force-dynamic/, "never statically prerendered (no public cache)");
 });
+
+// ---------- 8. Checkout error hardening ----------
+
+test("checkout route never exposes raw database/Stripe/internal error text to the browser", () => {
+  const route = read("app", "api", "progress", "checkout", "route.ts");
+  // The catch block returns a fixed generic message and a 500, never the error text.
+  assert.match(
+    route,
+    /catch \(issue\) \{[\s\S]*?return Response\.json\(\{ error: "Checkout could not be started\. Please try again\." \}, \{ status: 500 \}\);/,
+    "catch returns the exact safe generic message",
+  );
+  assert.doesNotMatch(route, /error: message\b/, "the raw error string is never interpolated into the response");
+  assert.doesNotMatch(route, /\.message/, "no error .message text exists anywhere in the route (body or log)");
+  // Diagnostics stay server-side; the log carries only a fixed route label and
+  // the error class name (safe), never the raw error message content.
+  assert.match(route, /console\.error\(/, "a server-side diagnostic log exists");
+  assert.match(route, /errorKind: issue instanceof Error \? issue\.name : typeof issue/, "log context is limited to the safe error kind");
+});
