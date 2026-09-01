@@ -10,10 +10,19 @@ const legalPages = {
   terms: ["app", "legal", "terms", "page.tsx"],
   refunds: ["app", "legal", "refunds", "page.tsx"],
 };
+// The customer-facing copy lives in trilingual client content components;
+// page.tsx is the server wrapper (metadata + render). Read both.
+const legalContent: Record<keyof typeof legalPages, string[]> = {
+  legal: ["app", "legal", "LegalIndexContent.tsx"],
+  privacy: ["app", "legal", "privacy", "PrivacyContent.tsx"],
+  terms: ["app", "legal", "terms", "TermsContent.tsx"],
+  refunds: ["app", "legal", "refunds", "RefundsContent.tsx"],
+};
 
 function readLegal(name: keyof typeof legalPages): string {
   const rel = legalPages[name].join("/");
-  return readFileSync(join(ROOT, rel), "utf8");
+  const contentRel = legalContent[name].join("/");
+  return readFileSync(join(ROOT, rel), "utf8") + "\n" + readFileSync(join(ROOT, contentRel), "utf8");
 }
 
 // ---------------------------------------------------------------------------

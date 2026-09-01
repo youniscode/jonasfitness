@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { LANGS, persistLang, readStoredLang, type Lang } from "../../lib/lang-store";
 import {
   ACTIVATION_POLL_INTERVAL_MS,
   ACTIVATION_TIMEOUT_MS,
   nextActivationPhase,
 } from "../../lib/purchase-activation.ts";
 
+// Trilingual activation/success copy. French is the default language (matching
+// the rest of Jonas Fitness); the selection is shared with the other customer
+// surfaces via the app's lang store.
 const copy = {
   fr: {
-    kicker: "BLESSÉ · BIENVENUE",
-    thanks: "L’accès fondateur est actif.",
+    kicker: "BIENVENUE · ACCÈS ACTIF",
+    thanks: "Ton accès fondateur est actif.",
     body: "Ton accès fondateur à Jonas Fitness Progress est actif. Tu peux créer ta première routine et ouvrir ton carnet d’entraînement.",
     cta: "Créer ma première routine",
     activate: "Activation de ton accès…",
@@ -38,16 +42,37 @@ const copy = {
     logoutCheck: "Back to the offer",
     hint: "Access is granted automatically the moment payment is confirmed.",
   },
+  ar: {
+    kicker: "مرحبًا · تم التفعيل",
+    thanks: "وصولك التأسيسي نشط.",
+    body: "وصولك التأسيسي إلى Jonas Fitness Progress نشط. يمكنك إنشاء أول روتين لك وفتح سجلّك التدريبي.",
+    cta: "أنشئ أول روتين لك",
+    activate: "جارٍ تفعيل وصولك…",
+    activateBody: "تم تأكيد الدفع. نحن نُكمل التفعيل — يستغرق ذلك بضع ثوانٍ فقط.",
+    retry: "تحقق مجددًا",
+    notYet: "ما زلنا نأكد دفعك…",
+    notYetBody: "لم يتم تفعيل وصولك بعد. حدّث الصفحة أو حاول مجددًا بعد لحظة؛ وإذا استمر الأمر، تواصل معنا.",
+    contact: "تواصل معنا",
+    logoutCheck: "العودة إلى العرض",
+    hint: "يُمنح الوصول تلقائيًا فور تأكيد الدفع.",
+  },
 } as const;
 
 export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitled: boolean }) {
   const { isLoaded, isSignedIn } = useAuth();
+  const [lang, setLangState] = useState<Lang>(readStoredLang);
   const [phase, setPhase] = useState<"active" | "activating" | "stalled">(
     initiallyEntitled ? "active" : "activating",
   );
   // Drives manual "Check again" retries from the stalled state.
   const [pollKey, setPollKey] = useState(0);
-  const t = copy.en; // success page copy default English for now
+  const t = copy[lang];
+  const rtl = lang === "ar";
+
+  function switchLang(next: Lang) {
+    setLangState(next);
+    persistLang(next);
+  }
 
   // Server-authoritative recheck: fetch the entitlement endpoint. Because the
   // webhook can still be delivering, we poll for a bounded window (see the pure
@@ -100,9 +125,10 @@ export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitl
   }, [initiallyEntitled, pollKey, isLoaded, isSignedIn]);
 
   return (
-    <section className="founding purchase">
+    <section dir={rtl ? "rtl" : "ltr"} className={`founding purchase ${rtl ? "rtl-site" : ""}`}>
       <header className="purchase-top">
         <Link className="founding-brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link>
+        <div className="founding-lang" aria-label="Language">{(LANGS as Lang[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => switchLang(l)}>{l.toUpperCase()}</button>)}</div>
       </header>
 
       <div className="purchase-card">

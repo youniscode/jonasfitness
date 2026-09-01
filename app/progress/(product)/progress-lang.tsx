@@ -1,23 +1,17 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { parseLang, type ProgressText } from "./progress-text";
+import { type ProgressText } from "./progress-text";
 import { progressText } from "./progress-text";
-
-type Lang = "fr" | "en" | "ar";
+import { persistLang, readStoredLang, type Lang } from "../../lib/lang-store";
 
 const LangContext = createContext<{ lang: Lang; setLang: (lang: Lang) => void; t: ProgressText } | null>(null);
 
-const STORAGE_KEY = "jonas-progress-lang";
-
 export function ProgressLangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => {
-    if (typeof window === "undefined") return "en";
-    try { return parseLang(window.localStorage.getItem(STORAGE_KEY)); } catch { return "en"; }
-  });
+  const [lang, setLangState] = useState<Lang>(() => readStoredLang());
   const setLang = useCallback((next: Lang) => {
     setLangState(next);
-    try { window.localStorage.setItem(STORAGE_KEY, next); } catch { /* storage may be disabled */ }
+    persistLang(next);
   }, []);
   const t = useMemo(() => progressText(lang), [lang]);
   const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);

@@ -8,6 +8,9 @@
 .legal-links{display:flex;gap:14px;font-size:13px;}
 .legal-links a{color:#c9cfb8;text-decoration:none;}
 .legal-links a:hover{color:#b6f34c;}
+.legal-lang{display:flex;gap:2px;}
+.legal-lang button{background:none;border:none;color:#8a8f7e;font-size:10px;letter-spacing:.1em;padding:6px 7px;cursor:pointer;}
+.legal-lang button.active{color:#b6f34c;text-decoration:underline;text-underline-offset:4px;}
 
 .legal-article{max-width:760px;margin:0 auto;padding:32px 20px 60px;}
 .legal-kicker{display:flex;align-items:center;gap:10px;text-transform:uppercase;letter-spacing:.24em;font-size:11px;color:#b6f34c;margin:0 0 14px;}
@@ -29,5 +32,12 @@
 .legal-footer nav a{color:#8a8f7e;font-size:12px;text-decoration:none;}
 .legal-footer nav a:hover{color:#b6f34c;}
 .legal-disclaimer{max-width:760px;margin:0 auto;padding:0 20px 34px;color:#8a8f7e;font-size:12px;}
+
+/* Arabic RTL — keep the language switch, links and brand direction LTR while the
+   page text flows right; numbers like €19 are left readable by the bidi algorithm. */
+.legal[dir="rtl"]{font-family:Arial,var(--font-geist-sans),sans-serif;}
+.rtl-site .legal-links,.rtl-site .legal-lang{direction:ltr;}
+.rtl-site .legal-article{text-align:right;}
+.rtl-site .legal-footer nav{direction:ltr;}
 
 @media (max-width:520px){.legal-article{padding:24px 16px 48px;}.legal-nav{padding:14px 16px;}}

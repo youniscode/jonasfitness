@@ -69,9 +69,20 @@
   .found-actions{flex-direction:column;align-items:flex-start;}
 }
 
+/* Arabic RTL — page text flows right; the language switch stays LTR and the
+   arrow glyphs in CTA buttons are mirrored. Numeric values are not mirrored. */
+.founding[dir="rtl"]{font-family:Arial,var(--font-geist-sans),sans-serif;}
+.rtl-site .founding-lang{direction:ltr;}
+.rtl-site .found-hero{text-align:right;}
+.rtl-site .found-not-included{text-align:right;}
+.rtl-site .found-not-included li{padding:7px 22px 7px 0;}
+.rtl-site .found-not-included li::before{left:auto;right:4px;}
+.rtl-site .found-cta span{transform:rotate(180deg);}
+.rtl-site .found-legal-links{direction:ltr;}
+
 /* Purchase success / activation page */
 .purchase{padding:0 20px;}
-.purchase-top{display:flex;align-items:center;padding:16px 0;}
+.purchase-top{display:flex;align-items:center;justify-content:space-between;padding:16px 0;}
 .purchase-card{max-width:480px;margin:8vh auto 12vh;display:flex;flex-direction:column;align-items:flex-start;gap:8px;}
 .purchase-kicker{text-transform:uppercase;letter-spacing:.24em;font-size:11px;color:#b6f34c;margin:0;}
 .purchase h1{font-size:clamp(26px,5vw,36px);font-weight:900;line-height:1.1;margin:4px 0;letter-spacing:-.01em;}

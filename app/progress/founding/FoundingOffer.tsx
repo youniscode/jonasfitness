@@ -3,17 +3,18 @@
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import { useAuth, useClerk } from "@clerk/nextjs";
+import { LANGS, persistLang, readStoredLang, type Lang } from "../../lib/lang-store";
 
-// Bil-lingual copy for the public Founding Access offer (fr/en). Kept inline to
-// match the project's localized-page pattern. Arabic support is not required on
-// the commercial landing page for this validation phase.
+// Trilingual copy for the public Founding Access offer (fr/en/ar). French is
+// the default language (matching the rest of Jonas Fitness). Inline dictionary
+// — no i18n framework, no URL routing, per the app's existing convention.
 const copy = {
   fr: {
     brand: "JONAS FITNESS",
     tag: "PROGRESS · ACCÈS FONDATEUR",
     kicker: "JONAS FITNESS PROGRESS",
-    headline: "Arrête d’estimer.",
-    headline2: "Bats le carnet d’entraînement.",
+    headline: "Arrête de deviner.",
+    headline2: "Bats ton carnet d’entraînement.",
     "lede-top": "Sache ce que tu as fait la dernière fois, ce que tu essaies de battre aujourd’hui, et si tu progresses vraiment.",
     cta: "Obtenir l’accès fondateur",
     priceLine: "Accès fondateur · 19 € en paiement unique",
@@ -53,15 +54,15 @@ const copy = {
     notIncludedTitle: "CE QUI N’EST PAS INCLUS",
     faq: "FAQ",
     faqs: [
-      ["Est-ce du coaching ?", "Non. Progress est un logiciel logiciel auto-dirigé d’entraînement. Il ne fournit pas de coaching professionnel personnalisé."],
-      ["Est-ce un générateur d’entraînement IA ?", "Non. Il ne crée pas de programmes à ta place : il te aide à suivre et interpréter ton propre entraînement."],
+      ["Est-ce du coaching ?", "Non. Progress est un logiciel auto-dirigé d’entraînement. Il ne fournit pas de coaching professionnel personnalisé."],
+      ["Est-ce un générateur d’entraînement IA ?", "Non. Il ne crée pas de programmes à ta place : il t’aide à suivre et interpréter ton propre entraînement."],
       ["Puis-je créer mes propres routines ?", "Oui. Tu construis tes routines, tes exercices et tes fourchettes de reps."],
       ["Que suit-il ?", "Poids, répétitions, RIR, fourchettes cibles, historique d’exercices et indicateurs de progression."],
       ["Est-ce un abonnement ?", "Non. Un paiement unique de 19 € pour l’accès fondateur."],
       ["Ca marche sur mobile ?", "Oui. Conçu pour être utilisé en salle, depuis ton téléphone."],
       ["Que comprend l’accès fondateur ?", "L’accès au produit Progress actuel. Des produits futurs éventuels sont vendus séparément."],
     ],
-    use: "Professeur courant",
+    use: "Utilisateur actuel",
     legalNote: "L’accès fondateur est un achat unique (19 €). C’est un logiciel auto-dirigé — ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
     signInFirst: "Connecte-toi pour continuer",
     starting: "Redirection vers le paiement…",
@@ -126,14 +127,74 @@ const copy = {
     starting: "Redirecting to checkout…",
     footer: "© 2026 Jonas Fitness",
   },
+  ar: {
+    brand: "JONAS FITNESS",
+    tag: "PROGRESS · الوصول التأسيسي",
+    kicker: "JONAS FITNESS PROGRESS",
+    headline: "توقّف عن التخمين.",
+    headline2: "تفوّق على سجلّك التدريبي.",
+    "lede-top": "اعرف ما فعلته آخر مرة، وما تحاول تجاوزه اليوم، وما إذا كنت تتقدم فعلًا.",
+    cta: "احصل على الوصول التأسيسي",
+    priceLine: "الوصول التأسيسي · 19 € دفعة واحدة",
+    problem: "المشكلة",
+    problemTitle: "معظم المتدربين يعرفون التمارين التي يؤدونها.",
+    problemList: [
+      ["ما الذي فعلته آخر مرة؟", ""],
+      ["هل تقدمت؟", ""],
+      ["هل أضفت تكرارات؟", ""],
+      ["هل أضفت وزنًا؟", ""],
+      ["أي الحركات تتقدم؟", ""],
+      ["أي الحركات راكدة؟", ""],
+    ],
+    core: "التجربة",
+    coreTitle: "السابق ← الهدف ← الفعلي",
+    coreItems: [
+      ["الروتينات", "أنشئ خطة تدريب وتمارينها."],
+      ["تسجيل سريع", "سجّل الوزن والتكرارات وRIR بلمسات قليلة."],
+      ["الأداء السابق", "شاهد أرقام آخر حصة بجانب مجموعات اليوم."],
+      ["نطاقات التكرار", "أهداف واضحة يمكنك تحقيقها فعلًا."],
+      ["السجل", "حصصك وأفضل أرقامك وتقدير 1RM."],
+      ["مؤشرات شفافة", "إشارات تفهمها — لا «درجات ذكاء اصطناعي» مبهمة."],
+    ],
+    why: "لماذا JONAS FITNESS",
+    whyText: "مبني على أكثر من 16 عامًا من خبرة كمال الأجسام الحقيقية. الهدف ليس أن يتدرب البرنامج بدلًا منك — بل أن يجعل بياناتك التدريبية مفيدة.",
+    offerTitle: "الوصول التأسيسي",
+    offerPrice: "19 € · دفعة واحدة",
+    offerBody: "وصول تأسيسي لمرة واحدة إلى منتج Progress من Jonas Fitness.",
+    offerFuture: "قد تُباع منتجات أو خدمات مستقبلية اختيارية بشكل منفصل.",
+    notIncluded: [
+      "تدريب فردي 1:1",
+      "تدريب شخصي احترافي مخصص",
+      "نصيحة طبية أو تشخيص",
+      "خدمة تغذية فردية",
+      "ضمان نتائج",
+    ],
+    notIncludedTitle: "ما ليس هذا المنتج",
+    faq: "الأسئلة الشائعة",
+    faqs: [
+      ["هل هذا تدريب؟", "لا. Progress برنامج تدريبي ذاتي التوجيه. لا يقدم تدريبًا شخصيًا احترافيًا مخصصًا."],
+      ["هل هو مولّد تمارين بالذكاء الاصطناعي؟", "لا. لا يبني برنامجك بدلًا منك: بل يساعدك على تسجيل تدريبك وفهمه."],
+      ["هل يمكنني إنشاء روتيناتي الخاصة؟", "نعم. أنت تبني روتيناتك وتمارينك ونطاقات التكرار."],
+      ["ماذا يتتبع؟", "الوزن والتكرارات وRIR والنطاقات المستهدفة وسجل التمارين ومؤشرات التقدم."],
+      ["هل هو اشتراك؟", "لا. دفعة واحدة بقيمة 19 € للوصول التأسيسي."],
+      ["هل يعمل على الجوال؟", "نعم. صُمم ليُستخدم في صالة الألعاب من هاتفك."],
+      ["ماذا يشمل الوصول التأسيسي؟", "الوصول إلى منتج Progress الحالي. أي منتجات مستقبلية اختيارية تُباع بشكل منفصل."],
+    ],
+    use: "المستخدم الحالي",
+    legalNote: "الوصول التأسيسي هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه — ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
+    signInFirst: "سجّل الدخول للمتابعة",
+    starting: "جارٍ تحويلك إلى الدفع…",
+    footer: "© 2026 Jonas Fitness",
+  },
 } as const;
 
 export default function FoundingOffer() {
-  const [lang, setLang] = useState<"fr" | "en">("en");
+  const [lang, setLang] = useState<Lang>(readStoredLang);
   const t = copy[lang];
   const { isSignedIn } = useAuth();
   const { redirectToSignIn } = useClerk();
   const [state, setState] = useState<"idle" | "signing" | "checkout">("idle");
+  const rtl = lang === "ar";
 
   // First-party funnel: fire the server-authenticated `founding_offer_viewed`
   // once per mount (the server dedupes per day and only records signed-in views;
@@ -148,6 +209,11 @@ export default function FoundingOffer() {
       body: JSON.stringify({ eventName: "founding_offer_viewed" }),
     }).catch(() => {});
   }, []);
+
+  function switchLang(next: Lang) {
+    setLang(next);
+    persistLang(next);
+  }
 
   async function handleBuy() {
     // Anonymous visitors go through Clerk first (the project's sign-in flow),
@@ -176,12 +242,10 @@ export default function FoundingOffer() {
     }
   }
 
-  const rtl = lang === "fr"; // keeping simple; en is the default
-
-  return <section dir={rtl ? "ltr" : "ltr"} className="founding">
+  return <section dir={rtl ? "rtl" : "ltr"} className={`founding ${rtl ? "rtl-site" : ""}`}>
     <header className="founding-nav">
       <Link className="founding-brand" href="/"><span className="brand-mark">JF</span><span>{t.brand}</span></Link>
-      <div className="founding-lang">{(Object.keys(copy) as ("fr" | "en")[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}</div>
+      <div className="founding-lang" aria-label="Language">{(LANGS as Lang[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => switchLang(l)}>{l.toUpperCase()}</button>)}</div>
     </header>
 
     <section className="found-hero">
@@ -197,14 +261,16 @@ export default function FoundingOffer() {
     <section className="found-problem">
       <p className="found-eyebrow">{t.problem}</p>
       <h2>{t.problemTitle}</h2>
-      <p>Far fewer can quickly answer:</p>
+      <p>Fewer still can answer:</p>
       <div className="found-problem-list">{t.problemList.map(([q]) => <span key={q}>· {q}</span>)}</div>
     </section>
 
     <section className="found-core">
-      <p className="found-eyebrow deep">{t.core}</p>
-      <h2>{t.coreTitle}</h2>
-      <div className="core-grid">{t.coreItems.map(([a, b]) => <article key={a}><strong>{a}</strong><span>{b}</span></article>)}</div>
+      <div className="found-core-inner">
+        <p className="found-eyebrow deep">{t.core}</p>
+        <h2>{t.coreTitle}</h2>
+        <div className="core-grid">{t.coreItems.map(([a, b]) => <article key={a}><strong>{a}</strong><span>{b}</span></article>)}</div>
+      </div>
     </section>
 
     <section className="found-why">

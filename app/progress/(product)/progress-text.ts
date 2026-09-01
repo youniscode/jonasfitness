@@ -1,15 +1,15 @@
 /**
  * Shared fr/en/ar copy for the self-service Progress product, following the
- * app's existing no-i18n-library convention of inline dictionaries (see
- * ClientWorkoutMode.tsx). English is the product's primary language; French and
- * Arabic translations fall back to English where a string is untranslated.
+ * app's existing no-i18n-library convention of inline dictionaries.
+ * French is the default language (matching the rest of Jonas Fitness); the
+ * dictionaries are complete for fr, en and ar.
  */
 
 type Lang = "fr" | "en" | "ar";
 
 export const progressLocales: { code: Lang; label: string }[] = [
-  { code: "en", label: "EN" },
   { code: "fr", label: "FR" },
+  { code: "en", label: "EN" },
   { code: "ar", label: "AR" },
 ];
 
@@ -389,5 +389,5 @@ export function progressText(lang: Lang): ProgressText {
 }
 
 export function parseLang(value: string | null): Lang {
-  return value === "fr" || value === "ar" ? value : "en";
+  return value === "en" || value === "ar" ? value : "fr";
 }
