@@ -1,13 +1,13 @@
-import LegalShell, { Placeholder, SellerIdentity } from "../LegalShell";
+import LegalShell, { SellerIdentity } from "../LegalShell";
 
 export const metadata = { title: "Terms of use · Jonas Fitness" };
 
 export default function TermsPage() {
   return (
-    <LegalShell kicker="TERMS" title="Terms of use" updated="Not yet published to production — DRAFT structure">
+    <LegalShell kicker="TERMS" title="Terms of use" updated="2026">
       <p>
-        These terms describe the Jonas Fitness Progress (“Progress”) software product and the one-time
-        Founding Access purchase. They are <strong>DRAFT structure</strong> and not yet production-ready.
+        These terms govern the Jonas Fitness Progress (“Progress”) software product and the one-time
+        Founding Access purchase.
       </p>
 
       <section>
@@ -54,7 +54,8 @@ export default function TermsPage() {
         </p>
         <p>
           Where ordinary Stripe Payments (non-managed) is used instead, the applicable tax/compliance treatment — including
-          any VAT/indirect-tax obligations — is our responsibility under this draft; specifics still to be confirmed.
+          any VAT/indirect-tax obligations — is our responsibility; the specifics are not yet confirmed, and no VAT number
+          is claimed in these terms.
         </p>
       </section>
 
@@ -69,20 +70,32 @@ export default function TermsPage() {
         </p>
         <ul>
           <li>
-            Jonas Fitness additional digital/software activity registration (French Guichet unique / RNE){" "}
-            <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />
+            <strong>Governing law / competent jurisdiction:</strong> French law applies to these terms. Nothing in
+            them limits the mandatory consumer-protection rights you may have under the law of your country of
+            residence, including the right to bring a dispute before the courts of your place of residence where
+            applicable law grants it.
           </li>
-          <li>Consumer mediator (not yet selected/contracted) <Placeholder label="CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER" /></li>
-          <li>VAT number (if applicable) <Placeholder label="VAT NUMBER" /></li>
-          <li>Governing law / competent jurisdiction <Placeholder label="GOVERNING LAW" /></li>
+          <li>
+            <strong>Additional-activity registration (French Guichet unique / RNE):</strong> the filing for the
+            Jonas Fitness additional digital/software activity is <strong>pending</strong> — an administrative update
+            in progress, not claimed as completed.
+          </li>
+          <li>
+            <strong>Consumer mediator:</strong> no consumer mediator is currently designated; designation and
+            publication of a referenced mediator’s details for consumer-mediation matters are pending.
+          </li>
+          <li>
+            <strong>VAT:</strong> no VAT number is currently displayed. VAT treatment follows the applicable French
+            rules for the seller’s activity and will be updated here when confirmed.
+          </li>
         </ul>
       </section>
 
       <section>
         <h2>Acceptance &amp; availability</h2>
         <p>
-          Final acceptance conditions, applicable-territory statements, and any consumer rights (including withdrawal) will be
-          completed once the seller identity above is confirmed. This page remains <strong>NOT PRODUCTION READY</strong>.
+          By purchasing Founding Access or using Progress, you accept these terms. These terms do not exclude the
+          mandatory rights you have under consumer law.
         </p>
       </section>
     </LegalShell>

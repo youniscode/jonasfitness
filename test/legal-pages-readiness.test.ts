@@ -73,21 +73,55 @@ test("Jonas Fitness is framed as brand/product, not a separate company; Riviera 
   assert.match(terms, /product\/brand/i);
 });
 
-test("registration-pending blocker is explicit and NOT claimed finalised", () => {
+test("additional-activity registration is stated factually as pending on every legal page (never claimed finalised)", () => {
   for (const name of Object.keys(legalPages) as (keyof typeof legalPages)[]) {
     const src = readLegal(name);
-    assert.match(src, /REGISTRATION PENDING — LAUNCH BLOCKER/, `${name} keeps the registration-pending blocker`);
     assert.match(src, /Guichet unique \/ RNE|Guichet/, `${name} references the Guichet unique / RNE`);
+    assert.match(src, /pending|in progress|not yet/i, `${name} states the registration status as outstanding`);
+    assert.doesNotMatch(src, /REGISTRATION PENDING — LAUNCH BLOCKER/, `${name} removed launch-blocker language`);
+    assert.doesNotMatch(src, /registration[^.!?]{0,60}finali[sz]ed\b/i, `${name} does not claim the registration is finalised`);
   }
   const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
   assert.match(doc, /PENDING/, "gate doc marks registration pending");
 });
 
-test("no fabricated consumer mediator is invented", () => {
+test("no consumer mediator is invented and no compliance is claimed", () => {
   const src = [readLegal("legal"), readLegal("terms"), readLegal("refunds")].join("\n");
-  assert.match(src, /CONSUMER MEDIATOR.*PENDING|CONSUMER MEDIATOR/, "mediator remains a placeholder");
+  assert.match(src, /no (?:consumer )?mediator is currently designated/i, "neutral mediator status stated");
   // No made-up mediator name, e.g. no named mediator organisation invented.
   assert.doesNotMatch(src, /(CMAP|CNPM|Médicys|Medicys|Conciliateur)/i, "no invented mediator organisation");
+  assert.doesNotMatch(src, /CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER/, "no launch-blocker language");
+});
+
+// ---------------------------------------------------------------------------
+// Customer-presentable copy invariants (raw development placeholders removed,
+// unresolved items stated honestly)
+// ---------------------------------------------------------------------------
+
+test("legal pages are customer-presentable: no DRAFT/NOT-PRODUCTION-READY banners, no raw [REQUIRED] markers", () => {
+  for (const name of Object.keys(legalPages) as (keyof typeof legalPages)[]) {
+    const src = readLegal(name);
+    assert.doesNotMatch(src, /NOT PRODUCTION READY|DRAFT|LAUNCH BLOCKER|\[[^\]]*REQUIRED\]|legal-placeholder/i, `${name} has no dev banner or raw placeholder language`);
+    assert.match(src, /SellerIdentity/, `${name} keeps the verified seller block`);
+  }
+  const shell = readSellerShell();
+  assert.doesNotMatch(shell, /export function Placeholder|\[[^\]]*REQUIRED\]/, "shell no longer exports/renders raw placeholder markers");
+});
+
+test("verifiable facts are stated on the legal index: publication director, hosting, governing law, honest VAT", () => {
+  const legal = readLegal("legal");
+  assert.match(legal, /Publication director[\s\S]{0,80}Younis MOHAMMAD/i, "publication director is the verified operator");
+  assert.match(legal, /Hosting[\s\S]{0,60}Vercel/i, "Vercel stated as hosting/deployment provider");
+  assert.match(legal, /French law/, "French governing law stated");
+  assert.match(legal, /consumer-?protection rights|consumer rights/i, "mandatory consumer rights preserved");
+  assert.match(legal, /no VAT number is currently displayed/i, "VAT not invented");
+  assert.doesNotMatch(legal, /\[VAT NUMBER\]|FR[A-Z0-9]{9,}\b/, "no VAT placeholder or invented VAT number");
+  const terms = readLegal("terms");
+  assert.match(terms, /no VAT number is currently displayed/i, "terms keep honest VAT wording");
+  const privacy = readLegal("privacy");
+  assert.match(privacy, /Vercel/, "privacy lists Vercel as processor");
+  const refunds = readLegal("refunds");
+  assert.match(refunds, /French law/i);
 });
 
 // ---------------------------------------------------------------------------
@@ -101,22 +135,6 @@ test("all four legal routes exist and import the shared shell", () => {
   }
 });
 
-test("every legal page clearly states it is NOT production-ready (no invented legal identity)", () => {
-  for (const name of Object.keys(legalPages) as (keyof typeof legalPages)[]) {
-    const src = readLegal(name);
-    assert.match(src, /NOT PRODUCTION READY|DRAFT/i, `${name} must not claim production readiness`);
-  }
-});
-
-test("legal pages use explicit placeholders rather than fabricated identity details", () => {
-  const shell = readSellerShell();
-  assert.match(shell, /REQUIRED/, "shared shell renders the REQUIRED placeholder marker");
-  for (const name of Object.keys(legalPages) as (keyof typeof legalPages)[]) {
-    const src = readLegal(name);
-    assert.match(src, /Placeholder label=/, `${name} uses the placeholder component`);
-  }
-});
-
 test("privacy page inventories only real processors (no invented services)", () => {
   const privacy = readLegal("privacy");
   for (const service of ["Clerk", "Neon", "Vercel", "Stripe", "Link"]) {
@@ -124,10 +142,13 @@ test("privacy page inventories only real processors (no invented services)", () 
   }
 });
 
-test("privacy flags undefined retention/controller items rather than inventing periods", () => {
+test("privacy states a documented retention/legal-basis policy without inventing periods or features", () => {
   const privacy = readLegal("privacy");
-  assert.match(privacy, /Placeholder label=/, "retention/controller items left as placeholders");
-  assert.match(privacy, /not currently defined|NOT PRODUCTION READY|DRAFT/i);
+  assert.match(privacy, /retained for as long as your account remains active/i, "account/training retention policy stated");
+  assert.match(privacy, /Article 6\(1\)\(b\) GDPR/, "contract legal basis stated");
+  assert.match(privacy, /standard contractual clauses where applicable/i, "transfer safeguards stated conservatively");
+  assert.match(privacy, /(?:does|do) not currently offer an in-app self-service data export/i, "no invented export feature claimed");
+  assert.doesNotMatch(privacy, /RETENTION PERIOD —|DELETION & EXPORT PROCEDURE|LEGAL BASES|TRANSFER SAFEGUARDS/, "no raw retention/legal-basis placeholders");
 });
 
 test("terms page describes the product accurately and does NOT promise AI coaching or guaranteed results", () => {
@@ -150,11 +171,13 @@ test("terms keeps Jonas Fitness terms distinct from Stripe/Link transaction term
   assert.match(terms, /our own legal,?\s*privacy\s*,?\s*product-support/i, "enumerates the duties kept by us");
 });
 
-test("refunds page is conservative and does NOT claim automatic loss of withdrawal rights", () => {
+test("refunds page keeps a conservative customer-friendly policy and does not claim a withdrawal waiver", () => {
   const refunds = readLegal("refunds");
   assert.match(refunds, /customer-friendly/i, "conservative customer-friendly policy");
-  assert.match(refunds, /NOT YET IMPLEMENTED — CHECKOUT CONSENT/, "withdrawal exception consent not claimed");
+  assert.match(refunds, /14 days/, "conservative 14-day refund window stated");
+  assert.match(refunds, /do <strong>not<\/strong> currently (?:rely on|claim|use)|no express checkout consent/i, "withdrawal exception not claimed");
   assert.match(refunds, /charge\.refunded/, "refund handling (unchanged) documented");
+  assert.doesNotMatch(refunds, /REFUND WINDOW|SUPPORT \/ REFUND EMAIL|REFUND PROCESSING TIME|REFUND METHOD/, "no raw refund placeholders");
 });
 
 test("legal index page cross-links privacy/terms/refunds", () => {

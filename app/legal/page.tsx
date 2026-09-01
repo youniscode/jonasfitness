@@ -1,13 +1,13 @@
 import Link from "next/link";
-import LegalShell, { Placeholder, SellerIdentity } from "./LegalShell";
+import LegalShell, { SellerIdentity } from "./LegalShell";
 
 export const metadata = { title: "Legal · Jonas Fitness" };
 
 export default function LegalPage() {
   return (
-    <LegalShell kicker="LEGAL" title="Legal" updated="Not yet published to production — DRAFT structure">
+    <LegalShell kicker="LEGAL" title="Legal" updated="2026">
       <p>
-        This section lists the legal and consumer documents that will govern the purchase and use of
+        This section lists the legal and consumer documents that govern the purchase and use of
         Jonas Fitness Progress (“Progress”), a self-directed strength/bodybuilding training log offered
         as a €19 one-time Founding Access.
       </p>
@@ -32,21 +32,28 @@ export default function LegalPage() {
           existing EI.
         </p>
         <ul>
-          <li>
-            Jonas Fitness additional digital/software activity registration (French Guichet unique / RNE){" "}
-            <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />
-          </li>
-          <li>Consumer mediator (not yet selected/contracted) <Placeholder label="CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER" /></li>
-          <li>VAT number (if applicable) <Placeholder label="VAT NUMBER" /></li>
-          <li>Publication director if required <Placeholder label="PUBLICATION DIRECTOR" /></li>
-          <li>Hosting provider &amp; details <Placeholder label="HOSTING" /></li>
-          <li>Governing law / dispute provisions <Placeholder label="GOVERNING LAW" /></li>
+          <li><strong>Publication director:</strong> Younis MOHAMMAD, 104 Avenue Vauban, 83000 Toulon, France.</li>
+          <li><strong>Hosting / deployment:</strong> Vercel — hosting and deployment of https://jonas-fitness.jonascode.com.</li>
+          <li><strong>Governing law:</strong> French law applies to these documents, without limiting the mandatory consumer-protection rights you may have under the law of your country of residence.</li>
+          <li><strong>VAT:</strong> no VAT number is currently displayed. VAT treatment follows the applicable French rules for the seller’s activity and will be updated here when confirmed.</li>
         </ul>
+        <h3>Status of administrative items</h3>
         <p>
-          Seller name, legal form/status, registered address, SIREN/SIRET and business email are now verified and
-          shown above. The items still listed remain <strong>explicit launch blockers</strong>. This page is still{" "}
-          <strong>NOT PRODUCTION READY</strong> until the outstanding placeholders are supplied and reviewed.
+          The following items remain outstanding and are <strong>not claimed as completed</strong>; they are part of
+          the seller’s administrative follow-up, separate from the technical operation of the service:
         </p>
+        <ul>
+          <li>
+            <strong>Additional-activity registration (French Guichet unique / RNE):</strong> the filing for the
+            Jonas Fitness additional digital/software activity is <strong>pending</strong> — an administrative update
+            in progress, not claimed as completed.
+          </li>
+          <li>
+            <strong>Consumer mediator:</strong> no consumer mediator is currently designated. A referenced mediator
+            will be designated and its details published for consumer-mediation matters as required by French consumer
+            law; this is being handled alongside the administrative update.
+          </li>
+        </ul>
       </section>
 
       <p>

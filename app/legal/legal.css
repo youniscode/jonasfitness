@@ -9,8 +9,6 @@
 .legal-links a{color:#c9cfb8;text-decoration:none;}
 .legal-links a:hover{color:#b6f34c;}
 
-.legal-alert{max-width:760px;margin:24px auto 0;padding:12px 16px;border:1px solid #ffb35c;border-radius:10px;background:rgba(255,150,40,.08);color:#ffd9a8;font-size:13px;line-height:1.5;}
-
 .legal-article{max-width:760px;margin:0 auto;padding:32px 20px 60px;}
 .legal-kicker{display:flex;align-items:center;gap:10px;text-transform:uppercase;letter-spacing:.24em;font-size:11px;color:#b6f34c;margin:0 0 14px;}
 .legal-kicker span{width:22px;height:1px;background:#b6f34c;display:inline-block;}
@@ -21,9 +19,6 @@
 .legal-article ul{margin:8px 0 20px;padding-left:20px;display:grid;gap:6px;margin-top:8px;}
 .legal-article section{margin-bottom:8px;}
 
-.legal-placeholder{font-size:13px;color:#ffd9a8;background:rgba(255,150,40,.1);border:1px dashed #ffb35c;border-radius:8px;padding:3px 8px;margin-left:4px;letter-spacing:.02em;}
-.legal-placeholder strong{font-weight:700;}
-
 .legal-seller{display:inline-block;font-style:normal;font-size:15px;line-height:1.8;color:#eef2e4;background:rgba(182,243,76,.06);border:1px solid rgba(182,243,76,.25);border-radius:10px;padding:14px 18px;margin:6px 0 14px;}
 .legal-seller a{color:#b6f34c;text-decoration:none;}
 .legal-seller a:hover{text-decoration:underline;}
@@ -33,5 +28,6 @@
 .legal-footer nav{display:flex;gap:14px;}
 .legal-footer nav a{color:#8a8f7e;font-size:12px;text-decoration:none;}
 .legal-footer nav a:hover{color:#b6f34c;}
+.legal-disclaimer{max-width:760px;margin:0 auto;padding:0 20px 34px;color:#8a8f7e;font-size:12px;}
 
 @media (max-width:520px){.legal-article{padding:24px 16px 48px;}.legal-nav{padding:14px 16px;}}

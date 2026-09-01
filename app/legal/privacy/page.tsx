@@ -1,14 +1,14 @@
-import LegalShell, { Placeholder, SellerIdentity } from "../LegalShell";
+import LegalShell, { SellerIdentity } from "../LegalShell";
 
 export const metadata = { title: "Privacy · Jonas Fitness" };
 
 export default function PrivacyPage() {
   return (
-    <LegalShell kicker="PRIVACY" title="Privacy" updated="Not yet published to production — DRAFT structure">
+    <LegalShell kicker="PRIVACY" title="Privacy" updated="2026">
       <p>
         This page describes the personal data handled in relation to Jonas Fitness Progress (“Progress”) and the
-        processors we use. It is <strong>DRAFT structure</strong>: it inventories what actually exists in the
-        product today and flags retention periods that are not yet defined, rather than inventing them.
+        processors we use. It inventories what actually exists in the product today and states the applicable
+        retention and legal-basis policy, without inventing periods or features.
       </p>
 
       <section>
@@ -45,14 +45,11 @@ export default function PrivacyPage() {
 
       <section>
         <h2>Retention</h2>
-        <p>
-          Retention periods are <strong>not currently defined</strong> and are flagged here rather than invented:
-        </p>
         <ul>
-          <li>Retention period for account/training data <Placeholder label="RETENTION PERIOD — DATA" /></li>
-          <li>Retention period for purchase/entitlement/validation records <Placeholder label="RETENTION PERIOD — PURCHASE" /></li>
-          <li>Retention period for technical logs <Placeholder label="RETENTION PERIOD — LOGS" /></li>
-          <li>Data deletion / export / portability procedure <Placeholder label="DELETION &amp; EXPORT PROCEDURE" /></li>
+          <li><strong>Account and training data:</strong> retained for as long as your account remains active.</li>
+          <li><strong>Purchase / entitlement / validation records:</strong> retained for as long as needed for the seller’s legal obligations (including tax and accounting) and to verify entitlements.</li>
+          <li><strong>Technical logs:</strong> retained for the limited period needed for security, reliability, and troubleshooting.</li>
+          <li><strong>Deletion / export:</strong> Progress does not currently offer an in-app self-service data export. To request deletion or a copy of your data, contact <a href="mailto:contact@jonascode.com">contact@jonascode.com</a>; requests are processed in accordance with applicable law.</li>
         </ul>
       </section>
 
@@ -60,25 +57,32 @@ export default function PrivacyPage() {
         <h2>Status</h2>
         <p>
           Jonas Fitness is an <strong>additional digital/software activity</strong> of the legal seller’s existing
-          enterprise. Registration of this additional activity with the French Guichet unique / RNE is{" "}
-          <Placeholder label="REGISTRATION PENDING — LAUNCH BLOCKER" />. This document remains{" "}
-          <strong>NOT PRODUCTION READY</strong> until registration and the other outstanding items below are resolved.
+          enterprise. The filing of this additional activity with the French administration (Guichet unique / RNE) is{" "}
+          <strong>pending</strong> — an administrative update in progress, not claimed as completed.
         </p>
       </section>
 
       <section>
         <h2>Legal basis &amp; rights</h2>
-        <p>
-          Where EU/UK data-protection law applies, your rights (access, rectification, erasure, restriction,
-          portability, objection) and the precise legal bases will be set out once this page is completed. The data
-          controller for Progress personal data is the legal seller:
-        </p>
+        <p>The data controller for Progress personal data is the legal seller:</p>
         <SellerIdentity />
+        <p>Where EU/UK data-protection law applies, we rely on the following legal bases:</p>
         <ul>
-          <li>Legal bases for each processing purpose <Placeholder label="LEGAL BASES" /></li>
-          <li>Data-transfer safeguards (e.g. outside EEA) <Placeholder label="TRANSFER SAFEGUARDS" /></li>
-          <li>Contact for privacy requests — use the seller email above.</li>
+          <li>providing the service and storing your training data: performance of the contract with you (Article 6(1)(b) GDPR);</li>
+          <li>purchase / entitlement / validation records: performance of the contract and, for tax- and accounting-related records, compliance with a legal obligation (Article 6(1)(c) GDPR);</li>
+          <li>technical logs and security / anti-fraud measures: our legitimate interest in operating a secure and reliable service (Article 6(1)(f) GDPR).</li>
         </ul>
+        <p>
+          You have the rights of access, rectification, erasure, restriction, portability, and objection where the
+          legal conditions are met. For any privacy request, contact{" "}
+          <a href="mailto:contact@jonascode.com">contact@jonascode.com</a>.
+        </p>
+        <h3>International transfers</h3>
+        <p>
+          Some of our processors (Clerk, Stripe, Vercel, Neon) may process data on infrastructure located outside the
+          EEA. Where transfers outside the EEA occur, we rely on the safeguards offered by the processors concerned,
+          including the European Commission’s standard contractual clauses where applicable.
+        </p>
       </section>
     </LegalShell>
   );

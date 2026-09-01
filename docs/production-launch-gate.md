@@ -10,15 +10,29 @@ that code cannot perform.
 
 ---
 
-## 0. State: `NOT PRODUCTION READY`
+## 0. State: `NOT PRODUCTION READY` — A: technical READY · B: activation OFF · C: compliance gaps open
 
-Live Stripe setup is now largely **complete and verified** (Managed Payments live, €19 live price,
-live webhook, production Vercel env prepared) and the legal seller identity is **verified**
-(Section 4a). Launch is still `NOT PRODUCTION READY` solely because of the remaining legal/product
-blockers: the pending Jonas Fitness Guichet unique / RNE activity registration and the consumer
-mediator — plus deliberate holds (`PROGRESS_PAYWALL_ENABLED=false`, no final deployment, no first
-controlled real €19 purchase). Until those clear, the paywall stays **off** and no live orders are
-possible.
+Readiness is tracked **separately per type** so technical state is never conflated with legal or
+administrative debt, and so unresolved obligations are never disguised as resolved:
+
+**A. TECHNICAL READINESS — ✅ READY.** Production DB migrations/schema, production Clerk,
+verified seller identity, live Stripe Managed Payments, live €19 tax-inclusive price, live webhook
++ live secrets, production URL, `STRIPE_PAYMENT_MODE=managed`, sandbox/live price separation,
+sandbox commerce cleanup, dev bypass `false`, and the validated payment/entitlement test suite are
+all confirmed (Sections 1–3 and 6A). No technical blocker remains.
+
+**B. COMMERCIAL ACTIVATION — ❌ OFF.** Sales are off **solely** because `PROGRESS_PAYWALL_ENABLED=false`
+(deliberate hold: no final deployment of the current build, no first controlled real €19 purchase
+yet). This is a switch decision, not a technical gap.
+
+**C. LEGAL / ADMINISTRATIVE ACTIONS OUTSTANDING — KNOWN COMPLIANCE GAP, ACTION REQUIRED — NOT a
+technical deployment gate.** The Guichet unique / RNE activity-registration filing (ACTION REQUIRED,
+statutory deadline) and the consumer mediator designation (explicitly UNRESOLVED) remain outstanding
+by owner decision (Sections 4b and 6C). They are **not** marked compliant and **not** treated as
+resolved: the business is **not** fully legally compliant while they remain open.
+
+Until **B** is switched on, the paywall gate stays **off** (see Section 2 note on what that means at
+runtime) and no paid-gated sales are enforced.
 
 ---
 
@@ -198,15 +212,20 @@ live price ID. (`config.local`/`.env.local` is unchanged.)
 | `LEAD_HASH_SALT` | production salt (only if lead/signup rate-limit used) | as used |
 | `COACH_EMAILS` | the real coach allowlist | as used |
 
-Production is **refused** (throws before checkout/webhook) if any of these are wrong:
-sandbox/test Stripe keys, a `price_...` that is not configured, missing webhook secret, missing
-payment mode, an unknown payment mode, `managed` unable to operate, a dev-bypass, a disabled
-paywall, a non-https/missing app URL, or Clerk still pointing at development configuration.
+Production **throws a `ConfigValidationError`** (before checkout/webhook/entitlement) if any of
+these are wrong: sandbox/test Stripe keys, a `price_...` that is not configured, missing webhook
+secret, missing payment mode, an unknown payment mode, `managed` unable to operate, a dev-bypass
+leaking to production, a **missing/invalid** `PROGRESS_PAYWALL_ENABLED`, a non-https/missing app
+URL, or Clerk still pointing at development configuration.
 
-> The introduced assumption above (“a disabled paywall is refused in production”) is enforced: with
-> `PROGRESS_PAYWALL_ENABLED` missing/invalid/`false`, production throws **at the earliest server-side
-> config point** rather than silently falling back open. The current `false` in production is therefore
-> an explicit, deliberate hold that keeps the product un-sellable — not an accidental default.
+> Verified against code + tests (`resolvePaywallEnabled` / `payments-config-validation.test.ts`):
+> in production a **missing or invalid** `PROGRESS_PAYWALL_ENABLED` throws at the earliest
+> server-side config read; an **explicit `false` is allowed** and resolves to paywall-off — the
+> deliberate pre-launch hold, never a silent default. The current production `false` is therefore
+> an explicit, reversible switch, not a code barrier. Runtime consequence: while the flag is
+> `false`, any signed-in user may open `/progress` (paywall-off access) and the Founding offer's
+> checkout still works, so “off” controls the gate — it does not make the product technically
+> un-sellable.
 
 ---
 
@@ -248,20 +267,35 @@ Fitness is the **product/brand**; the legal seller/operator is Younis MOHAMMAD, 
 
 The **data controller** for Progress personal data is Younis MOHAMMAD, EI (address above).
 
-### 4b. Remaining P0 legal blockers (still required before live sales)
+### 4b. Legal / administrative actions outstanding (KNOWN COMPLIANCE GAP — ACTION REQUIRED)
 
-- **Jonas Fitness additional digital/software activity registration with the French Guichet
-  unique / RNE is PENDING** (INPI modification not yet submitted/completed). Until finalised, do
-  not claim the Jonas Fitness activity registration is finalized. → BLOCKER
-- **Consumer mediator** not yet selected/contracted. → BLOCKER
-- **VAT number** if not known/applicable — still open.
-- **Publication director** if required — open.
-- **Hosting provider details** — open.
-- **Governing law / competent jurisdiction** — open.
-- **Retention periods** still undefined (privacy page keepers placeholders).
-- **Digital-content withdrawal policy:** decide, and if ever relying on a withdrawal exception,
-  add the explicit checkout consent/acknowledgement (not yet implemented). Until then the
-  conservative refund policy stands.
+These are **not** technical deployment or sales gates and are **not** marked compliant or resolved.
+They are real legal obligations the owner has chosen to track and fulfil outside the technical
+launch gate; do **not** represent them as finalised.
+
+- **Jonas Fitness additional digital/software activity registration (Guichet unique / RNE) —
+  ACTION REQUIRED, filing PENDING.** Under official INPI guidance, a micro-entrepreneur must
+  notify an addition/change of activity through the Guichet unique **within one month** of the
+  change. The INPI modification has not been submitted/completed yet. Do **not** claim the Jonas
+  Fitness activity registration is finalized, and do **not** describe final RNE approval as a
+  technical prerequisite to the first commercial transaction.
+- **Consumer mediator — KNOWN COMPLIANCE GAP, ACTION REQUIRED (explicitly UNRESOLVED).** French
+  B2C consumer-mediation obligations require the professional to designate an appropriate
+  referenced mediator and publish its details. No mediator is designated and no details are
+  published; no mediator is invented in this document. The owner has chosen **not** to make this a
+  technical deployment gate, but it remains an open compliance item.
+- **VAT number/status** — no VAT number is shown to customers; the seller's VAT status is not yet
+  confirmed (customer copy states this honestly). → ACTION REQUIRED
+- **Legal-copy cleanup (2026-09-01):** raw `[REQUIRED]` placeholder markers were removed from the
+  customer-facing pages; resolved facts are now stated directly (publication director = Younis
+  MOHAMMAD; hosting/deployment = Vercel; governing law = French law with mandatory consumer rights
+  preserved; retention/legal-basis policy documented; 14-day customer friendly refund policy).
+  → customer-facing copy no longer contains product-development language
+- **Review by a qualified person** of the customer-facing legal copy before public launch — still
+  recommended (these pages are provided for information, not legal advice). → open
+- **Digital-content withdrawal policy (decided 2026-09-01):** no withdrawal exception is relied on and
+  no express checkout consent exists, so the conservative customer-friendly refund policy applies
+  (14-day window; refund via Stripe to the original payment method).
 
 ---
 
@@ -275,9 +309,10 @@ The **data controller** for Progress personal data is Younis MOHAMMAD, EI (addre
 
 ---
 
-## 6. Deployment gate
+## 6. Deployment gate — A: TECHNICAL READINESS / B: COMMERCIAL ACTIVATION / C: LEGAL & ADMIN OUTSTANDING
 
-### RESOLVED (as of this LIVE Stripe preparation pass)
+### A. TECHNICAL READINESS — ✅ READY (every row verified/RESOLVED; independent of the C items)
+
 | # | Item | Note |
 |---|---|---|
 | 1 | Production DB migrations / schema (0013–0015, tables, indexes) | confirmed (Section 1b) |
@@ -292,19 +327,30 @@ The **data controller** for Progress personal data is Younis MOHAMMAD, EI (addre
 | 10 | **Live price ID configured** | `STRIPE_PROGRESS_FOUNDING_PRICE_ID` (Section 1e) |
 | 11 | **`STRIPE_PAYMENT_MODE=managed`** | configured live |
 | 12 | **Stripe live secret configured** | `STRIPE_SECRET_KEY` as Vercel Sensitive |
-| 13 | **Webhook signing secret configured** | `STRIPE_WEBHOOK_SECRET` as Vercel Sensitive || 14 | **Dev bypass explicitly `false`** | `PROGRESS_DEV_TEST_BYPASS=false` live |
+| 13 | **Webhook signing secret configured** | `STRIPE_WEBHOOK_SECRET` as Vercel Sensitive |
+| 14 | **Dev bypass explicitly `false`** | `PROGRESS_DEV_TEST_BYPASS=false` live |
 | 15 | **Tax-inclusive pricing (“Include tax in prices = Yes”)** | manually confirmed in Stripe Dashboard on 2026-08-31 (Section 1d) |
-### BLOCKING
-| # | Blocker | Status |
-|---|---|---|
-| 1 | Any remaining legal placeholder unsupplied (Section 4b) | **still open** |
-| 2 | Jonas Fitness **INPI / Guichet-unique activity registration** not complete | **still open** |
-| 3 | **Consumer mediator** not selected/contracted | **still open** |
-| 4 | **`PROGRESS_PAYWALL_ENABLED` remains `false`** | intentional hold — keeps product un-sellable until blockers clear |
-| 5 | **No final live deployment performed** | Vercel env prepared, code + env not yet deployed for sales |
-| 6 | **No first controlled real €19 purchase performed** | to be executed only after blockers clear |
+| 16 | **Validated payment/entitlement test suite** | run 2026-08-31: config validation, fulfillment, idempotency, purchase activation, webhook verification, migration-sequence, commerce, mechanics, service — all green |
 
-Only when **every `BLOCKING` row** is clear do you (a) flip `PROGRESS_PAYWALL_ENABLED=true` in the
+### B. COMMERCIAL ACTIVATION — ❌ OFF (BLOCKING while `PROGRESS_PAYWALL_ENABLED=false`)
+
+| # | Item | Status |
+|---|---|---|
+| 1 | **`PROGRESS_PAYWALL_ENABLED` remains `false`** | intentional hold — the sole reason activation is off; flip only inside the activation sequence |
+| 2 | **No final live deployment performed (current build)** | Vercel env prepared; deployment is the next action |
+| 3 | **No first controlled real €19 purchase performed** | to be executed after activation |
+
+### C. LEGAL / ADMINISTRATIVE ACTIONS OUTSTANDING (NOT a technical gate — do NOT mark resolved)
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Any remaining **legal placeholder unsupplied** on customer-facing pages (raw `[REQUIRED]` markers) | **cleared 2026-09-01** — unresolved items (registration, mediator, VAT status) are stated factually, not as placeholders (Section 4b) |
+| 2 | Jonas Fitness **Guichet unique / RNE activity-registration filing** | **ACTION REQUIRED, PENDING** — submit within the statutory one-month deadline (INPI guidance); do not claim finalised; do not treat RNE approval as a technical prerequisite (Section 4b) |
+| 3 | **Consumer mediator** designation + published details | **KNOWN COMPLIANCE GAP — ACTION REQUIRED**, explicitly UNRESOLVED; no mediator invented (Section 4b) |
+| 4 | VAT number, publication director, hosting details, governing law / competent jurisdiction, retention periods, digital-content withdrawal consent | **open** (Section 4b) |
+
+Only when **every `B` row** is clear do you (a) flip `PROGRESS_PAYWALL_ENABLED=true` in the
 production environment, (b) deploy the final build, and (c) perform the first controlled real €19
-purchase — which also validates the live secrets.
-Until then the paywall stays **off** and no live orders are possible.
+purchase — which also validates the live secrets. The **C** items are tracked compliance debt, are
+**not** prerequisites for that sequence, and must **not** be described as resolved until actually
+fulfilled. Until **B** is flipped, the paywall stays **off** and no paid-gated sales are enforced.

@@ -1,14 +1,5 @@
 import Link from "next/link";
 
-/** Placeholder field — one piece of legal identity info we still must confirm. */
-export function Placeholder({ label }: { label: string }) {
-  return (
-    <span className="legal-placeholder">
-      <strong>[{label} — REQUIRED]</strong>
-    </span>
-  );
-}
-
 /**
  * VERIFIED legal seller identity (checked against the existing French EI registration).
  * Jonas Fitness is the product/brand; the legal seller/operator is Younis MOHAMMAD,
@@ -32,10 +23,9 @@ export function SellerIdentity() {
 
 /**
  * Shared shell for the Jonas Fitness legal/document pages (dark + lime brand,
- * consistent with the public Progress offer page). These pages are intentionally
- * DRAFT structure, not production legal documents: every identity/data/legal
- * fact we still need to confirm is rendered as an explicit placeholder so it
- * cannot be mistaken for a real statement. Nothing here is legal advice.
+ * consistent with the public Progress offer page). Each page states an honest
+ * status for any outstanding administrative item — it never claims unresolved
+ * obligations as resolved and never invents facts. Nothing here is legal advice.
  */
 export default function LegalShell({
   kicker,
@@ -63,12 +53,6 @@ export default function LegalShell({
         </nav>
       </header>
 
-      <div className="legal-alert" role="note">
-        DRAFT — These pages are <strong>NOT production-ready legal documents</strong>.
-        Every required legal/seller/data fact that has not yet been confirmed is shown
-        as a marked placeholder. Do not rely on them until reviewed.
-      </div>
-
       <article className="legal-article">
         <p className="legal-kicker"><span />{kicker}</p>
         <h1>{title}</h1>
@@ -85,6 +69,9 @@ export default function LegalShell({
           <Link href="/legal/refunds">Refunds</Link>
         </nav>
       </footer>
+      <p className="legal-disclaimer">
+        These documents are provided for information only and do not constitute legal advice.
+      </p>
     </main>
   );
 }
