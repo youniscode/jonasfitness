@@ -12,11 +12,13 @@ that code cannot perform.
 
 ## 0. State: `NOT PRODUCTION READY`
 
-The repository is prepared and sandbox-validated, but it **must not sell live money yet**. The
-non-negotiable blockers are the pending Jonas Fitness French Guichet unique / RNE activity
-registration and the consumer mediator (Section 4), followed by the live Stripe/Dashboard activation
-steps (Section 3). The legal seller identity itself is now **verified** (Section 4a). Until the
-remaining blockers are cleared the paywall stays **off** and no live orders are possible.
+Live Stripe setup is now largely **complete and verified** (Managed Payments live, €19 live price,
+live webhook, production Vercel env prepared) and the legal seller identity is **verified**
+(Section 4a). Launch is still `NOT PRODUCTION READY` solely because of the remaining legal/product
+blockers: the pending Jonas Fitness Guichet unique / RNE activity registration and the consumer
+mediator — plus deliberate holds (`PROGRESS_PAYWALL_ENABLED=false`, no final deployment, no first
+controlled real €19 purchase). Until those clear, the paywall stays **off** and no live orders are
+possible.
 
 ---
 
@@ -141,55 +143,94 @@ Sections 1a–1g remain the on-going preflight procedure for any future migratio
 - **Non-blocking branding task (owner):** change the Clerk application display name from
   "My Application" to **"Jonas Fitness"** before public launch.
 
+## 1d. Verified LIVE Stripe state
+
+Confirmed against the Stripe LIVE dashboard (no new resources created; already in place):
+
+- **Managed Payments** — live setup completed; dashboard status **"Ready to use"**; product
+  eligibility **eligible**; integration is **prebuilt hosted Checkout**. → RESOLVED
+- **Live product:** *Jonas Fitness Progress - Founding Access*. → RESOLVED
+- **Live price:** **€19.00 EUR one-time**. → RESOLVED
+- **Live webhook:** `https://jonas-fitness.jonascode.com/api/webhooks/stripe` with events
+  `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `charge.refunded`. → RESOLVED
+- **Production Vercel env prepared** (see Section 2): `NEXT_PUBLIC_APP_URL` live, live price ID set,
+  `STRIPE_PAYMENT_MODE=managed`, `PROGRESS_DEV_TEST_BYPASS=false`, Stripe live secret + webhook
+  secret configured as **Vercel Sensitive/Hidden** variables. → RESOLVED (secrets validated only
+  via a controlled production transaction, not by reading plaintext — see Section 3b)
+
+> **RESOLVED — manually confirmed in Stripe Dashboard on 2026-08-31:** “Include tax in prices =
+> Yes”. The €19 price is tax-inclusive (all-in), so the marketing headline stays accurate.
+
+## 1e. Sandbox vs LIVE price separation
+
+- **Sandbox / local price:** `price_1UASYo7rcy02FdKvVeRBGhNj` (test mode — never in production).
+- **Production / live price:** `price_1UAWmS7kjyPO5Tpk7if2FO7a` (live mode — configured in
+  `STRIPE_PROGRESS_FOUNDING_PRICE_ID`).
+
+**Production must never accept the sandbox price ID.** The webhook validates the configured live
+price before granting any entitlement; the two IDs must stay distinct and the sandbox ID must never
+appear in the production environment. `STRIPE_PROGRESS_FOUNDING_PRICE_ID` in production holds only the
+live price ID. (`config.local`/`.env.local` is unchanged.)
+
 ## 2. Production environment checklist
 
-### SAFE IDENTIFIERS (encode the expected values)
-| Variable | Expected production value | Required |
+### SAFE IDENTIFIERS (now configured live)
+| Variable | Production value | Status |
 |---|---|---|
-| `NEXT_PUBLIC_APP_URL` | `https://jonas-fitness.jonascode.com` (https) | yes |
-| `STRIPE_PROGRESS_FOUNDING_PRICE_ID` | a **live** `price_...` for €19 EUR one-time | yes |
-| `STRIPE_PAYMENT_MODE` | `managed` (or deliberate `standard` fallback) | yes |
+| `NEXT_PUBLIC_APP_URL` | `https://jonas-fitness.jonascode.com` (https) | ✅ configured |
+| `STRIPE_PROGRESS_FOUNDING_PRICE_ID` | **live** `price_1UAWmS7kjyPO5Tpk7if2FO7a` (€19 EUR one-time) | ✅ configured (see Section 1e — never the sandbox `price_1UASYo...`) |
+| `STRIPE_PAYMENT_MODE` | `managed` (or deliberate `standard` fallback) | ✅ `managed` |
 
-### SECRETS (never print values — confirm presence only)
-| Variable | Must be set to | Required |
+### App behaviour switches (as currently set in production)
+| Variable | Current prod value | Status |
 |---|---|---|
-| `STRIPE_SECRET_KEY` | **live** `sk_live_...` (test keys are rejected by the app in production) | yes |
-| `STRIPE_WEBHOOK_SECRET` | the **live** webhook signing secret | yes |
-| `CLERK_SECRET_KEY` | Clerk **production** secret key | yes |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk **production** publishable key | yes |
-| `DATABASE_URL` | the **production** Neon connection string | yes |
+| `PROGRESS_PAYWALL_ENABLED` | **`false`** (intentional hold) | 🔒 intentionally off until blockers clear — do not enable yet |
+| `PROGRESS_DEV_TEST_BYPASS` | `false` | ✅ explicit false (ignored in production regardless) |
+
+### SECRETS (Vercel **Sensitive** — never print values; confirm presence only)
+| Variable | Must be | Status |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | **live** `sk_live_...`, Production only, **Sensitive/Hidden** | ✅ configured as Sensitive |
+| `STRIPE_WEBHOOK_SECRET` | **live** webhook signing secret, **Sensitive/Hidden** | ✅ configured as Sensitive |
+| `CLERK_SECRET_KEY` | Clerk **production** secret key | required |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk **production** publishable key | required |
+| `DATABASE_URL` | **production** Neon connection string | required |
 | `LEAD_HASH_SALT` | production salt (only if lead/signup rate-limit used) | as used |
 | `COACH_EMAILS` | the real coach allowlist | as used |
-
-### App behaviour switches (fail-closed by code, but set explicitly)
-| Variable | Expected | Notes |
-|---|---|---|
-| `PROGRESS_PAYWALL_ENABLED` | `true` | production missing/invalid throws (never silently off) |
-| `PROGRESS_DEV_TEST_BYPASS` | `false` | ignored in production regardless |
-| `STRIPE_PAYMENT_MODE` | `managed` | production missing/unknown throws; managed never silently downgraded |
 
 Production is **refused** (throws before checkout/webhook) if any of these are wrong:
 sandbox/test Stripe keys, a `price_...` that is not configured, missing webhook secret, missing
 payment mode, an unknown payment mode, `managed` unable to operate, a dev-bypass, a disabled
 paywall, a non-https/missing app URL, or Clerk still pointing at development configuration.
 
+> The introduced assumption above (“a disabled paywall is refused in production”) is enforced: with
+> `PROGRESS_PAYWALL_ENABLED` missing/invalid/`false`, production throws **at the earliest server-side
+> config point** rather than silently falling back open. The current `false` in production is therefore
+> an explicit, deliberate hold that keeps the product un-sellable — not an accidental default.
+
 ---
 
 ## 3. Live-Stripe pre-launch checklist (owner, in Stripe Dashboard)
 
-- [ ] Live **Jonas-Fitness** account selected (not the sandbox/test account).
-- [ ] **Managed Payments activated in LIVE mode** and its terms accepted.
-- [ ] Digital-product eligibility verified in LIVE mode (add an eligible digital/SaaS tax code if `managed`).
-- [ ] Product classification verified.
-- [ ] Live **€19.00 EUR one-time** product + price created (`tax_behavior` **inclusive** so the €19 headline isn't misleading); record its `price_...` id → `STRIPE_PROGRESS_FOUNDING_PRICE_ID`.
-- [ ] Customer-facing **business/support information** (name, support email/contact) correct.
-- [ ] **Terms URL** added where applicable → `/legal/terms`.
-- [ ] **Privacy URL** added where applicable → `/legal/privacy`.
-- [ ] Live **webhook endpoint** created → `https://jonas-fitness.jonascode.com/api/webhooks/stripe`.
-- [ ] Correct events selected: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `charge.refunded`.
-- [ ] Live **webhook signing secret** stored securely → `STRIPE_WEBHOOK_SECRET`.
-- [ ] Live **`sk_live_...`** secret key stored securely → `STRIPE_SECRET_KEY`.
-- [ ] **No sandbox/test IDs** (keys, price ids, webhook secrets) in the production environment.
+### 3a. DONE — verified live
+- [x] Live **Jonas-Fitness** account selected (not the sandbox/test account).
+- [x] **Managed Payments activated in LIVE mode**, terms accepted, dashboard **“Ready to use”**.
+- [x] Digital-product **eligibility verified** in LIVE mode (eligible digital/SaaS classification).
+- [x] Product classification verified.
+- [x] Live **€19.00 EUR one-time** product + price created → `price_1UAWmS7kjyPO5Tpk7if2FO7a` configured live.
+- [x] **“Include tax in prices = Yes” — RESOLVED** (manually confirmed in Stripe Dashboard on 2026-08-31). €19 is the all-in, tax-inclusive price; the amount shown at checkout matches the marketing headline.
+- [x] Live **webhook endpoint** created → `https://jonas-fitness.jonascode.com/api/webhooks/stripe`.
+- [x] Correct events selected: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `charge.refunded`.
+- [x] **No sandbox/test IDs** (keys, price ids, webhook secrets) in the production environment.
+- [x] Secrets stored as **Vercel Sensitive/Hidden** production vars (Section 2).
+
+### 3b. Secret handling — do not read back plaintext
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are Vercel **Sensitive** variables. Vercel Sensitive
+  variables **cannot be read back via env pull**; redacted/unavailable plaintext is **not** a sign of
+  invalidity.
+- **Do not attempt to validate them by pulling plaintext from Vercel.** Their functional validation
+  will occur **only through a controlled production transaction** after the launch blockers clear.
+- **Never log either value.** Never embed them in source, fixtures, commits, or client bundles.
 
 ## 4. Legal / consumer items (P0 blockers — see README)
 
@@ -234,33 +275,36 @@ The **data controller** for Progress personal data is Younis MOHAMMAD, EI (addre
 
 ---
 
-## 6. Deployment gate — BLOCK launch if ANY are true
+## 6. Deployment gate
 
-## 6. Deployment gate — BLOCK launch if ANY `BLOCKING` row is true
-
+### RESOLVED (as of this LIVE Stripe preparation pass)
+| # | Item | Note |
+|---|---|---|
+| 1 | Production DB migrations / schema (0013–0015, tables, indexes) | confirmed (Section 1b) |
+| 2 | Sandbox commerce pollution | cleaned (all 4 commerce tables at 0) |
+| 3 | Legal seller identity | verified (Section 4a) |
+| 4 | Production Clerk runtime non-“Development mode” | verified (Section 1c); branding task remains |
+| 5 | Migration preflight procedure | documented and read-only (Section 1a–1g) |
+| 6 | **Managed Payments live setup** | verified “Ready to use”, eligible, hosted Checkout (Section 1d) |
+| 7 | **Live €19 product/price creation** | `price_1UAWmS7kjyPO5Tpk7if2FO7a` (Section 1d) |
+| 8 | **Live Stripe webhook creation** | endpoint + events configured (Section 1d) |
+| 9 | **Production public URL configured** | `https://jonas-fitness.jonascode.com` |
+| 10 | **Live price ID configured** | `STRIPE_PROGRESS_FOUNDING_PRICE_ID` (Section 1e) |
+| 11 | **`STRIPE_PAYMENT_MODE=managed`** | configured live |
+| 12 | **Stripe live secret configured** | `STRIPE_SECRET_KEY` as Vercel Sensitive |
+| 13 | **Webhook signing secret configured** | `STRIPE_WEBHOOK_SECRET` as Vercel Sensitive || 14 | **Dev bypass explicitly `false`** | `PROGRESS_DEV_TEST_BYPASS=false` live |
+| 15 | **Tax-inclusive pricing (“Include tax in prices = Yes”)** | manually confirmed in Stripe Dashboard on 2026-08-31 (Section 1d) |
 ### BLOCKING
 | # | Blocker | Status |
 |---|---|---|
 | 1 | Any remaining legal placeholder unsupplied (Section 4b) | **still open** |
-| 2 | Jonas Fitness INPI/Guichet-unique activity registration not complete | **still open** |
-| 3 | Consumer mediator not selected/contracted | **still open** |
-| 4 | Managed Payments not confirmed live | Stripe Dashboard |
-| 5 | No live `price_...` in `STRIPE_PROGRESS_FOUNDING_PRICE_ID` | env — open |
-| 6 | No live webhook endpoint/secret | Stripe Dashboard / env — open |
-| 7 | Test Stripe credentials in production | env |
-| 8 | `PROGRESS_PAYWALL_ENABLED` not `true` in production | env — open |
-| 9 | `PROGRESS_DEV_TEST_BYPASS=true` in production | env |
-| 10 | Wrong `NEXT_PUBLIC_APP_URL` | env — open until set |
-| 11 | `npm test` / `tsc` / `lint` / `build` failing | CI/local |
+| 2 | Jonas Fitness **INPI / Guichet-unique activity registration** not complete | **still open** |
+| 3 | **Consumer mediator** not selected/contracted | **still open** |
+| 4 | **`PROGRESS_PAYWALL_ENABLED` remains `false`** | intentional hold — keeps product un-sellable until blockers clear |
+| 5 | **No final live deployment performed** | Vercel env prepared, code + env not yet deployed for sales |
+| 6 | **No first controlled real €19 purchase performed** | to be executed only after blockers clear |
 
-### RESOLVED
-| # | Item | Note |
-|---|---|---|
-| 1 | Production DB migrations / schema (0013–0015, tables, indexes) | confirmed (Section 1b) |
-| 2 | Sandbox commerce pollution | cleaned (all 4 commerce/tables at 0) |
-| 3 | Legal seller identity | verified (Section 4a) |
-| 4 | Production Clerk runtime non-“Development mode” | verified (Section 1c); branding task remains |
-| 5 | Migration preflight procedure | documented and read-only (Section 1a–1g) |
-
-Only when **every `BLOCKING` row** is clear do you flip `PROGRESS_PAYWALL_ENABLED=true` in the
-production environment and begin selling.
+Only when **every `BLOCKING` row** is clear do you (a) flip `PROGRESS_PAYWALL_ENABLED=true` in the
+production environment, (b) deploy the final build, and (c) perform the first controlled real €19
+purchase — which also validates the live secrets.
+Until then the paywall stays **off** and no live orders are possible.

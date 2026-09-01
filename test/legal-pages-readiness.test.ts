@@ -189,9 +189,9 @@ test("launch gate documentation exists and blocks launch on legal placeholders /
   assert.match(doc, /0014/, "preflight checks 0014 commerce tables");
   assert.match(doc, /0015/, "preflight checks 0015 index cleanup");
   assert.match(doc, /partial/, "preflight detects partial application");
-  assert.match(doc, /legal placeholder unsupplied/i);
-  assert.match(doc, /Managed Payments not confirmed live/i);
-  assert.match(doc, /No live webhook/i);
+  assert.match(doc, /legal placeholder unsupplied/i, "remaining legal placeholders block");
+  assert.match(doc, /consumer mediator/i, "consumer mediator blocker present");
+  assert.match(doc, /INPI|Guichet/i, "INPI/Guichet registration blocker present");
   assert.match(doc, /Clerk[\s\S]{0,80}Development mode|development in production/i, "Clerk dev-mode handling present");
   assert.match(doc, /sk_live/, "requires live Stripe key");
   assert.match(doc, /PROGRESS_PAYWALL_ENABLED/, "paywall gate present");
@@ -234,4 +234,50 @@ test("gate doc shows overall launch still NOT READY with unresolved blocking row
   assert.match(doc, /NOT PRODUCTION READY|must \*\*not\*\* sell live money yet/i, "launch remains blocked");
   assert.match(doc, /BLOCKING/, "blocking gate section present");
   assert.match(doc, /RESOLVED/, "resolved gate section present");
+});
+
+test("live production price ID is documented and managed mode is set", () => {
+  const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
+  assert.match(doc, /price_1UAWmS7kjyPO5Tpk7if2FO7a/, "live price ID documented");
+  assert.match(doc, /STRIPE_PAYMENT_MODE=managed|STRIPE_PAYMENT_MODE` \| `managed|.`managed`/i, "managed mode set");
+  assert.match(doc, /€19\.00 EUR one-time/, "live €19 one-time price documented");
+});
+
+test("sandbox and live price IDs are documented as distinct and sandbox must never be used in production", () => {
+  const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
+  assert.match(doc, /price_1UASYo7rcy02FdKvVeRBGhNj/, "sandbox price ID documented");
+  assert.match(doc, /price_1UAWmS7kjyPO5Tpk7if2FO7a/, "live price ID documented");
+  assert.notEqual(
+    "price_1UASYo7rcy02FdKvVeRBGhNj",
+    "price_1UAWmS7kjyPO5Tpk7if2FO7a",
+    "sandbox and live price IDs must differ",
+  );
+  assert.match(doc, /never accept the sandbox price ID|must never appear in the production environment/i, "sandbox price barred from production");
+  assert.match(doc, /distinct/i, "IDs explicitly distinct");
+});
+
+test("paywall remains intentionally disabled and dev bypass stays false", () => {
+  const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
+  assert.match(doc, /PROGRESS_PAYWALL_ENABLED\s*[^\n]*`false`|`false`.*intentional|intentional hold/i, "paywall false is an intentional hold");
+  assert.match(doc, /PROGRESS_DEV_TEST_BYPASS=[0-9a-zA-Z_]*false\s*\|\s*✅|PROGRESS_DEV_TEST_BYPASS=`false`|explicit false/i, "dev bypass explicitly false");
+});
+
+test("Stripe secrets are described as Sensitive and never embedded in repository text", () => {
+  const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
+  assert.match(doc, /Sensitive/i, "secrets described as Sensitive");
+  assert.match(doc, /never.*log|never print|Never log/i, "secrets never logged");
+  assert.match(doc, /cannot be read back via env pull/i, "Vercel Sensitive cannot be read back");
+  // A full sk_live_... / whsec_... secret must never be pasted literally.
+  assert.doesNotMatch(doc, /sk_live_[A-Za-z0-9]{12,}/, "no full live secret key literal");
+  assert.doesNotMatch(doc, /whsec_[A-Za-z0-9]{12,}/, "no full webhook secret literal");
+});
+
+test("Managed Payments live setup, price creation and webhook are marked RESOLVED in the gate", () => {
+  const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
+  assert.match(doc, /Managed Payments.*RESOLVED|RESOLVED[\s\S]*Managed Payments|Ready to use/i, "Managed Payments live marked resolved");
+  assert.match(doc, /price.*RESOLVED|RESOLVED[\s\S]*price_1UAWmS7kjyPO5Tpk7if2FO7a/i, "price creation marked resolved");
+  assert.match(doc, /webhook/i, "webhook documented");
+  assert.match(doc, /checkout\.session\.completed/, "webhook events listed");
+  assert.match(doc, /charge\.refunded/, "refund event listed");
+  assert.match(doc, /jonas-fitness\.jonascode\.com\/api\/webhooks\/stripe/, "webhook URL documented");
 });
