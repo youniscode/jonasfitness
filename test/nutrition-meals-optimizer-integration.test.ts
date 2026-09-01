@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runMealGeneration, type MealGenerationContext } from "../app/lib/nutrition-meals.ts";
+import type { MealExampleDay, MealExample, MealFood, MealGenerationDiagnostics, MealValidationError } from "../app/lib/nutrition-meals.ts";
 import type { GatewayResult } from "../app/lib/local-ai.ts";
 
 type GenerateFn = (system: string, prompt: string) => Promise<GatewayResult<unknown>>;
@@ -22,11 +23,13 @@ function makeContext(overrides: Partial<MealGenerationContext> = {}): MealGenera
   };
 }
 
+// Fixtures follow the current AI contract: foodId + numeric quantityG (grams).
+// The service computes all nutrition deterministically from the catalogue.
 const lowDay = {
   title: "Training day",
   meals: [
-    { name: "Breakfast", foods: [{ foodId: "oats-dry", quantity: "100 g" }, { foodId: "banana-raw", quantity: "100 g" }] },
-    { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantity: "150 g" }, { foodId: "rice-white-cooked", quantity: "200 g" }] },
+    { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 100 }, { foodId: "banana-raw", quantityG: 100 }] },
+    { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantityG: 150 }, { foodId: "rice-white-cooked", quantityG: 200 }] },
   ],
   notes: ["Adjust portions to the training day."],
 };
@@ -34,8 +37,8 @@ const lowDay = {
 const allergenDay = {
   title: "Training day",
   meals: [
-    { name: "Snack", foods: [{ foodId: "peanut-butter", quantity: "30 g" }] },
-    { name: "Breakfast", foods: [{ foodId: "oats-dry", quantity: "100 g" }] },
+    { name: "Snack", foods: [{ foodId: "peanut-butter", quantityG: 30 }] },
+    { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 100 }] },
   ],
   notes: [],
 };
@@ -43,23 +46,34 @@ const allergenDay = {
 const bannedDay = {
   title: "Training day",
   meals: [
-    { name: "Breakfast", foods: [{ foodId: "oats-dry", quantity: "150 g" }, { foodId: "greek-yogurt-plain", quantity: "250 g" }] },
-    { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantity: "200 g" }, { foodId: "rice-white-cooked", quantity: "300 g" }] },
+    { name: "Breakfast", foods: [{ foodId: "oats-dry", quantityG: 150 }, { foodId: "greek-yogurt-plain", quantityG: 250 }] },
+    { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantityG: 200 }, { foodId: "rice-white-cooked", quantityG: 300 }] },
   ],
   notes: ["Healing meal for inflammation recovery."],
 };
 
-// Helper to extract example day from generation result
-function exampleDay(result: MealGenerationResponse): MealExampleDay | null {
-  return result.example;
-}
-
-// Helper to extract diagnostics from generation result
-function diagnosticsFromResult(result: MealGenerationResponse): { firstAttempt: readonly MealValidationError[]; repairAttempt: readonly MealValidationError[] } | undefined {
-  return result.diagnostics;
-}
+const alternativesFixture = {
+  title: "Breakfast swaps",
+  alternatives: [
+    { meal: "Breakfast", options: [
+      { title: "Oats + yogurt", foods: [{ foodId: "oats-dry", quantityG: 150 }, { foodId: "greek-yogurt-plain", quantityG: 250 }] },
+      { title: "Eggs + toast", foods: [{ foodId: "egg-boiled", quantityG: 150 }, { foodId: "bread-wholemeal-t150", quantityG: 80 }] },
+    ] },
+  ],
+  notes: [],
+};
 
 type MealGenerationResponse = Awaited<ReturnType<typeof runMealGeneration>>;
+
+/** Helper to extract an example day from a generation result (narrowed to the ready/example_day member). */
+function exampleDay(result: MealGenerationResponse): MealExampleDay | null {
+  return result.status === "ready" && result.mode === "example_day" ? result.example : null;
+}
+
+/** Helper to extract failure diagnostics, when present. */
+function diagnosticsFromResult(result: MealGenerationResponse): MealGenerationDiagnostics | undefined {
+  return result.status === "generation_failed" ? result.diagnostics : undefined;
+}
 
 /* ────────────────────────────────────────────────────────────────────── */
 /* 1. Production-like sub-target day → optimizer, no AI repair          */
@@ -72,8 +86,8 @@ test("sub-target first AI day is corrected by the deterministic optimizer withou
   assert.equal(result.status, "ready");
   assert.equal(calls(), 1, "optimizer must fix it before spending the repair call");
   const day = exampleDay(result);
-  assert.ok(day.estimatedTotals.calories >= 3062 && day.estimatedTotals.calories <= 3119,
-    `calories should land in target, got ${day.estimatedTotals.calories}`);
+  assert.ok(day && day.estimatedTotals.calories >= 3062 && day.estimatedTotals.calories <= 3119,
+    `calories should land in target, got ${day?.estimatedTotals.calories}`);
 });
 
 /* ────────────────────────────────────────────────────────────────────── */
@@ -87,7 +101,7 @@ test("a safe but sub-target repair output is also corrected by the optimizer", a
   assert.equal(result.status, "ready", "repair fixed safety, optimizer fixed calories");
   assert.equal(calls(), 2, "exactly one AI repair is used");
   const day = exampleDay(result);
-  assert.ok(day.estimatedTotals.calories >= 3062 && day.estimatedTotals.calories <= 3119);
+  assert.ok(day && day.estimatedTotals.calories >= 3062 && day.estimatedTotals.calories <= 3119);
 });
 
 /* ────────────────────────────────────────────────────────────────────── */
@@ -103,7 +117,7 @@ test("optimizer is not used to rescue an allergen violation", async () => {
   const diags = diagnosticsFromResult(result);
   assert.ok(diags, "diagnostics preserved");
   assert.ok(
-    diags.firstAttempt.some((e: MealValidationError) => e.code === "allergy_violation"),
+    diags!.firstAttempt.some((e: MealValidationError) => e.code === "allergy_violation"),
     "allergen error must remain visible",
   );
 });
@@ -119,7 +133,8 @@ test("optimizer does not fix or bypass banned-language validation", async () => 
   assert.equal(result.status, "generation_failed", "banned language must not be silently optimized away");
   assert.equal(calls(), 2);
   const diags = diagnosticsFromResult(result);
-  assert.ok(diags.firstAttempt.some((e: MealValidationError) => e.code === "banned_language"));
+  assert.ok(diags);
+  assert.ok(diags!.firstAttempt.some((e: MealValidationError) => e.code === "banned_language"));
 });
 
 /* ────────────────────────────────────────────────────────────────────── */
@@ -132,22 +147,23 @@ test("optimizer preserves meal/food structure — only grams change", async () =
   assert.equal(result.status, "ready");
 
   const out = exampleDay(result);
+  assert.ok(out);
   assert.equal(out.meals.length, lowDay.meals.length);
   out.meals.forEach((m: MealExample, mi: number) => {
     assert.equal(m.name, lowDay.meals[mi].name);
     assert.equal(m.foods.length, lowDay.meals[mi].foods.length);
     m.foods.forEach((f: MealFood, fi: number) => {
-      assert.equal(f.foodId, (lowDay.meals[mi].foods as MealFood[])[fi].foodId);
+      assert.equal(f.foodId, lowDay.meals[mi].foods[fi].foodId);
     });
   });
-  // Grams must have moved upward to reach the target.
-  // Parse quantity string "X g" to get the gram value for comparison.
+  // Grams must have moved upward to reach the target. Payload display quantities
+  // are human strings ("X g"); parse them back to numbers for comparison.
   const outTotal = out.meals.reduce(
-    (sum: number, m: MealExample) => sum + m.foods.reduce((s: number, f: MealFood) => s + parseInt(f.quantity), 0),
+    (sum: number, m: MealExample) => sum + m.foods.reduce((s: number, f: MealFood) => s + parseInt(f.quantity, 10), 0),
     0,
   );
   const inTotal = lowDay.meals.reduce(
-    (sum: number, m: MealExample) => sum + m.foods.reduce((s: number, f: MealFood) => s + parseInt(f.quantity), 0),
+    (sum: number, m: { foods: { quantityG: number }[] }) => sum + m.foods.reduce((s: number, f: { quantityG: number }) => s + f.quantityG, 0),
     0,
   );
   assert.ok(outTotal > inTotal, "optimizer increased total grams to reach the target");
@@ -170,17 +186,7 @@ test("same AI output + same target yields identical optimized result", async () 
 /* ────────────────────────────────────────────────────────────────────── */
 
 test("alternatives generation is unchanged by the optimizer integration", async () => {
-  const alternatives = {
-    title: "Breakfast swaps",
-    alternatives: [
-      { meal: "Breakfast", options: [
-        { title: "Oats + yogurt", foods: [{ foodId: "oats-dry", quantity: "150 g" }, { foodId: "greek-yogurt-plain", quantity: "250 g" }] },
-        { title: "Eggs + toast", foods: [{ foodId: "egg-boiled", quantity: "150 g" }, { foodId: "bread-wholemeal-t150", quantity: "80 g" }] },
-      ] },
-    ],
-    notes: [],
-  };
-  const { generate, calls } = fakeGenerate([alternatives]);
+  const { generate, calls } = fakeGenerate([alternativesFixture]);
   const result = await runMealGeneration(makeContext(), "alternatives", generate);
   assert.equal(result.status, "ready");
   assert.equal(calls(), 1, "alternatives have no daily-total optimizer and no repair needed");
