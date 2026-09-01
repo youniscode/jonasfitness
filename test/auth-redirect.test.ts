@@ -48,21 +48,37 @@ test("D. sign-up page preserves /progress on its Sign in link", () => {
   assert.equal(new URL(signInUrl, "http://local").searchParams.get("redirect_url"), "/progress");
 });
 
-// ---------- E. Missing redirect_url keeps the existing fallback ----------
+// ---------- E. Missing redirect_url keeps the default fallback ----------
 
-test("E. missing redirect_url keeps the existing /client fallback", () => {
-  assert.equal(AUTH_FALLBACK_REDIRECT, "/client", "fallback constant is unchanged");
+test("E. missing redirect_url sends a bare sign-up/sign-in to /progress (never /client)", () => {
+  assert.equal(AUTH_FALLBACK_REDIRECT, "/progress", "default post-auth destination is the Progress product");
   for (const missing of [undefined, null, ""]) {
     const { redirectUrl, signUpUrl, signInUrl } = resolveAuthDestination(missing);
     assert.equal(redirectUrl, null, "no override for missing target");
     assert.equal(signUpUrl, "/sign-up", "bare sign-up link");
     assert.equal(signInUrl, "/sign-in", "bare sign-in link");
   }
-  // Both pages still fall back to /client when no safe redirect is present.
+  // Both pages fall back to /progress (via AUTH_FALLBACK_REDIRECT) when no safe
+  // redirect is present - a normal new Progress customer never lands on the
+  // coach-only /client portal by default.
   const signIn = read("app/sign-in/[[...sign-in]]/page.tsx");
   const signUp = read("app/sign-up/[[...sign-up]]/page.tsx");
   assert.match(signIn, /fallbackRedirectUrl=\{AUTH_FALLBACK_REDIRECT\}/);
   assert.match(signUp, /fallbackRedirectUrl=\{AUTH_FALLBACK_REDIRECT\}/);
+  // The global Clerk provider fallbacks match the same default.
+  const layout = read("app/layout.tsx");
+  assert.match(layout, /signInFallbackRedirectUrl=\"\/progress\"/);
+  assert.match(layout, /signUpFallbackRedirectUrl=\"\/progress\"/);
+  assert.doesNotMatch(layout, /sign(?:In|Up)FallbackRedirectUrl=\"\/client\"/);
+});
+
+test("E2. default bare sign-in and sign-up both route to /progress", () => {
+  // Bare sign-in (no redirect) -> Clerk fallback -> AUTH_FALLBACK_REDIRECT.
+  assert.equal(AUTH_FALLBACK_REDIRECT, "/progress");
+  const signIn = read("app/sign-in/[[...sign-in]]/page.tsx");
+  const signUp = read("app/sign-up/[[...sign-up]]/page.tsx");
+  assert.match(signIn, /fallbackRedirectUrl=\{AUTH_FALLBACK_REDIRECT\}/, "sign-in falls back to /progress");
+  assert.match(signUp, /fallbackRedirectUrl=\{AUTH_FALLBACK_REDIRECT\}/, "sign-up falls back to /progress");
 });
 
 // ---------- F. External / malformed targets are rejected ----------
@@ -115,11 +131,43 @@ test("G. authenticated Progress user without entitlement goes to /progress/found
 
 // ---------- H. /client behavior is unchanged ----------
 
-test("H. /client behavior is not changed", () => {
+test("H. /client behavior is not changed (deliberate entry keeps its return path)", () => {
   const client = read("app/client/page.tsx");
   assert.match(client, /redirect\("\/sign-in\?redirect_url=\/client"\)/, "client portal still returns to /client");
-  // The coaching fallback destination is unchanged for users without a redirect.
-  assert.equal(AUTH_FALLBACK_REDIRECT, "/client");
+  // Explicit /client intent survives: coaching clients entering the portal
+  // deliberately still land there after authentication. The default destination
+  // for users WITHOUT that intent is /progress.
+  assert.equal(AUTH_FALLBACK_REDIRECT, "/progress");
+  const { redirectUrl } = resolveAuthDestination("/client");
+  assert.equal(redirectUrl, "/client", "explicit /client redirect preserved");
+});
+
+test("H2. explicit /dashboard and /progress redirect intent is preserved", () => {
+  assert.equal(resolveAuthDestination("/dashboard").redirectUrl, "/dashboard", "/dashboard intent preserved");
+  assert.equal(resolveAuthDestination("/progress").redirectUrl, "/progress", "/progress intent preserved");
+  assert.equal(resolveAuthDestination("/progress/founding").redirectUrl, "/progress/founding", "founding flow intent preserved");
+});
+
+test("H3. homepage public 'My space' CTA points to /progress, not /dashboard", () => {
+  const home = read("app/page.tsx");
+  assert.match(home, /dashboard-link" href="\/progress"/, "public account CTA targets the Progress product");
+  assert.doesNotMatch(home, /dashboard-link" href="\/dashboard"/, "public account CTA never targets the coach-only dashboard");
+  // The coach dashboard stays reachable only through its own surface (explicit
+  // /dashboard visits), never through the public homepage.
+  assert.match(home, /dash:"Mon espace"/, "FR label kept");
+  assert.match(home, /dash:"My space"/, "EN label kept");
+});
+
+test("H4. a normal Progress signup never reaches the 'Profil introuvable' client portal", () => {
+  // No default path sends an authenticated customer to /client: only an explicit
+  // /client redirect_url does, and that is the deliberate coaching-client entry.
+  assert.equal(AUTH_FALLBACK_REDIRECT, "/progress");
+  const layout = read("app/layout.tsx");
+  assert.doesNotMatch(layout, /(?:signIn|signUp)FallbackRedirectUrl=\"\/client\"/, "no /client global fallback");
+  const signIn = read("app/sign-in/[[...sign-in]]/page.tsx");
+  assert.equal(resolveAuthDestination(undefined).signInUrl, "/sign-in", "bare sign-in has no /client target");
+  // If Clerk ever applies its own default, the page-level fallback overrides it.
+  assert.match(signIn, /fallbackRedirectUrl=\{AUTH_FALLBACK_REDIRECT\}/);
 });
 
 // ---------- I. No U+2014 in the changed auth surface ----------

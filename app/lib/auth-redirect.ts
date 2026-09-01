@@ -16,8 +16,14 @@
  * depth, not the only line.
  */
 
-/** Existing fallback destination for coaching users (unchanged behavior). */
-export const AUTH_FALLBACK_REDIRECT = "/client";
+/**
+ * Default post-auth destination for a normal Jonas Progress customer (bare
+ * sign-in / sign-up with no explicit redirect): land on /progress, where the
+ * Progress access guard sends unpaid customers to the founding offer and paid
+ * customers into the product. Coaching clients who deliberately target /client
+ * (or /dashboard) keep their explicit redirect_url and are unaffected.
+ */
+export const AUTH_FALLBACK_REDIRECT = "/progress";
 
 const MAX_REDIRECT_LENGTH = 2048;
 

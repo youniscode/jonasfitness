@@ -48,5 +48,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body className={geistSans.variable + " " + geistMono.variable}><ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" signInFallbackRedirectUrl="/client" signUpFallbackRedirectUrl="/client" afterSignOutUrl="/"><PwaRegister /><AttributionCapture />{children}</ClerkProvider></body></html>;
+  return <html lang="en"><body className={geistSans.variable + " " + geistMono.variable}><ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" signInFallbackRedirectUrl="/progress" signUpFallbackRedirectUrl="/progress" afterSignOutUrl="/"><PwaRegister /><AttributionCapture />{children}</ClerkProvider></body></html>;
 }
