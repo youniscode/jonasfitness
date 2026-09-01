@@ -11,7 +11,7 @@ import { LANGS, persistLang, readStoredLang, type Lang } from "../../lib/lang-st
 const copy = {
   fr: {
     brand: "JONAS FITNESS",
-    tag: "PROGRESS · ACCÈS FONDATEUR",
+    tag: "PROGRESS · ACCÈS UNIQUE",
     kicker: "JONAS FITNESS PROGRESS",
     headline: "Arrête de deviner.",
     headline2: "Bats ton carnet d’entraînement.",
@@ -43,7 +43,7 @@ const copy = {
     whyText: "Construit sur plus de 16 ans d’expérience en musculation. Le but n’est pas que le logiciel s’entraîne à ta place, c’est de rendre tes propres données utiles.",
     offerTitle: "JONAS FITNESS PROGRESS",
     offerPrice: "19 € · en paiement unique",
-    offerBody: "Un accès fondateur unique au produit Progress Jonas Fitness.",
+    offerBody: "Un accès unique à Jonas Fitness Progress.",
     offerFuture: "Des produits ou services futurs, facultatifs, pourront être vendus séparément.",
     notIncluded: [
       "Coaching 1:1",
@@ -64,7 +64,7 @@ const copy = {
       ["Que comprend Jonas Fitness Progress ?", "L’accès au produit Progress actuel. Des produits futurs éventuels sont vendus séparément."],
     ],
     use: "Utilisateur actuel",
-    legalNote: "L’accès fondateur est un achat unique (19 €). C’est un logiciel auto-dirigé : ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
+    legalNote: "L’accès à Progress est un achat unique (19 €). C’est un logiciel auto-dirigé : ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
     signInFirst: "Connecte-toi pour continuer",
     starting: "Redirection vers le paiement…",
     purchaseNotice: "Achat unique : 19 €. Droit de rétractation de 14 jours. Voir la politique de remboursement.",
@@ -73,7 +73,7 @@ const copy = {
   },
   en: {
     brand: "JONAS FITNESS",
-    tag: "PROGRESS · FOUNDING ACCESS",
+    tag: "PROGRESS · ONE-TIME ACCESS",
     kicker: "JONAS FITNESS PROGRESS",
     headline: "Stop guessing.",
     headline2: "Beat the logbook.",
@@ -105,7 +105,7 @@ const copy = {
     whyText: "Built on 16+ years of real bodybuilding experience. The point isn’t to let software train for you; it’s to make your own training data useful.",
     offerTitle: "JONAS FITNESS PROGRESS",
     offerPrice: "€19 · one-time",
-    offerBody: "A one-time Founding Access to the Jonas Fitness Progress product.",
+    offerBody: "One-time access to Jonas Fitness Progress.",
     offerFuture: "Optional future products or services may be sold separately.",
     notIncludedTitle: "WHAT THIS IS NOT",
     notIncluded: [
@@ -126,7 +126,7 @@ const copy = {
       ["What does Jonas Fitness Progress include?", "Access to the current Progress product. Optional future products are sold separately."],
     ],
     use: "current user",
-    legalNote: "Founding Access is a one-time purchase (€19). It is self-directed software: not personalized coaching, not medical or rehabilitation software.",
+    legalNote: "Progress access is a one-time purchase (€19). It is self-directed software: not personalized coaching, not medical or rehabilitation software.",
     signInFirst: "Sign in to continue",
     starting: "Redirecting to checkout…",
     purchaseNotice: "One-time purchase: €19. 14-day withdrawal right. See the refund policy.",
@@ -135,7 +135,7 @@ const copy = {
   },
   ar: {
     brand: "JONAS FITNESS",
-    tag: "PROGRESS · الوصول التأسيسي",
+    tag: "PROGRESS · وصول لمرة واحدة",
     kicker: "JONAS FITNESS PROGRESS",
     headline: "توقّف عن التخمين.",
     headline2: "تفوّق على سجلّك التدريبي.",
@@ -167,7 +167,7 @@ const copy = {
     whyText: "مبني على أكثر من 16 عامًا من خبرة كمال الأجسام الحقيقية. الهدف ليس أن يتدرب البرنامج بدلًا منك، بل أن يجعل بياناتك التدريبية مفيدة.",
     offerTitle: "JONAS FITNESS PROGRESS",
     offerPrice: "19 € · دفعة واحدة",
-    offerBody: "وصول تأسيسي لمرة واحدة إلى منتج Progress من Jonas Fitness.",
+    offerBody: "وصول لمرة واحدة إلى Jonas Fitness Progress.",
     offerFuture: "قد تُباع منتجات أو خدمات مستقبلية اختيارية بشكل منفصل.",
     notIncluded: [
       "تدريب فردي 1:1",
@@ -188,7 +188,7 @@ const copy = {
       ["ماذا يشمل Jonas Fitness Progress؟", "الوصول إلى منتج Progress الحالي. أي منتجات مستقبلية اختيارية تُباع بشكل منفصل."],
     ],
     use: "المستخدم الحالي",
-    legalNote: "الوصول التأسيسي هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه: ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
+    legalNote: "الوصول إلى Progress هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه: ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
     signInFirst: "سجّل الدخول للمتابعة",
     starting: "جارٍ تحويلك إلى الدفع…",
     purchaseNotice: "شراء لمرة واحدة: 19 €. حق الانسحاب خلال 14 يومًا. اطّلع على سياسة الاسترداد.",

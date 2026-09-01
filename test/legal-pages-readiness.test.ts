@@ -185,8 +185,8 @@ test("refunds page keeps a conservative customer-friendly policy and does not cl
   assert.match(refunds, /customer-friendly/i, "conservative customer-friendly policy");
   assert.match(refunds, /14 days/, "conservative 14-day refund window stated");
   assert.match(refunds, /do <strong>not<\/strong> currently (?:rely on|claim|use)|no express checkout consent/i, "withdrawal exception not claimed");
-  assert.match(refunds, /charge\.refunded/, "refund handling (unchanged) documented");
   assert.doesNotMatch(refunds, /REFUND WINDOW|SUPPORT \/ REFUND EMAIL|REFUND PROCESSING TIME|REFUND METHOD/, "no raw refund placeholders");
+  assert.doesNotMatch(refunds, /Technical handling|Traitement technique|التعامل التقني|charge\.refunded|idempoten|legally reviewed before launch/, "no internal implementation details on the public refunds page");
 });
 
 test("founding offer shows a localized pre-purchase notice linking to the refund policy", () => {
@@ -206,6 +206,30 @@ test("legal purchase/refund copy refers to the product as Progress access, not F
   assert.match(src, /Progress access|access to Jonas Fitness Progress/i, "EN refers to Progress access");
   assert.match(src, /accès à Progress/, "FR refers to accès à Progress");
   assert.match(src, /الوصول إلى Progress/, "AR refers to الوصول إلى Progress");
+});
+
+test("founding page has no remaining customer-visible Founding Access wording", () => {
+  const offer = readFileSync(join(ROOT, "app", "progress", "founding", "FoundingOffer.tsx"), "utf8");
+  // New copy (tag, offer body, legal note)
+  assert.ok(offer.includes("PROGRESS · ACCÈS UNIQUE"), "FR tag");
+  assert.ok(offer.includes("PROGRESS · ONE-TIME ACCESS"), "EN tag");
+  assert.ok(offer.includes("PROGRESS · وصول لمرة واحدة"), "AR tag");
+  assert.ok(offer.includes("Un accès unique à Jonas Fitness Progress."), "FR offer body");
+  assert.ok(offer.includes("One-time access to Jonas Fitness Progress."), "EN offer body");
+  assert.ok(offer.includes("وصول لمرة واحدة إلى Jonas Fitness Progress."), "AR offer body");
+  assert.ok(offer.includes("L’accès à Progress est un achat unique (19 €)."), "FR legal note");
+  assert.ok(offer.includes("Progress access is a one-time purchase (€19)."), "EN legal note");
+  assert.ok(offer.includes("الوصول إلى Progress هو شراء لمرة واحدة (19 €)."), "AR legal note");
+  // Old wording gone from the customer-visible copy strings
+  assert.doesNotMatch(offer, /A one-time Founding Access to the Jonas Fitness Progress product/, "EN offer body old");
+  assert.doesNotMatch(offer, /Un accès fondateur unique au produit/, "FR offer body old");
+  assert.doesNotMatch(offer, /وصول تأسيسي لمرة واحدة إلى منتج/, "AR offer body old");
+  assert.doesNotMatch(offer, /PROGRESS · FOUNDING ACCESS/, "EN tag old");
+  assert.doesNotMatch(offer, /PROGRESS · ACCÈS FONDATEUR/, "FR tag old");
+  assert.doesNotMatch(offer, /PROGRESS · الوصول التأسيسي/, "AR tag old");
+  assert.doesNotMatch(offer, /Founding Access is a one-time purchase/, "EN legal note old");
+  assert.doesNotMatch(offer, /L’accès fondateur est un achat unique/, "FR legal note old");
+  assert.doesNotMatch(offer, /الوصول التأسيسي هو شراء لمرة واحدة/, "AR legal note old");
 });
 
 test("digital-content withdrawal wording never cites the wrong article number", () => {

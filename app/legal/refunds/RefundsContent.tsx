@@ -24,8 +24,6 @@ const copy = {
       "<strong>Modalité de remboursement :</strong> vers le moyen de paiement d’origine, via Stripe.",
     ],
     note: "Remarque : lorsque Stripe Managed Payments s’applique, Stripe/Link traitent les transactions de paiement en tant que commerçant de référence. Cela ne prime pas sur notre politique de remboursement déclarée pour le produit Progress.",
-    technical: "Traitement technique (inchangé)",
-    technicalText: "Un remboursement intégral confirmé est détecté côté serveur via le webhook <code>charge.refunded</code> de Stripe et entraîne la révocation du droit d’accès, de manière idempotente. Nous ne modifions pas ce comportement à l’occasion d’un simple changement de politique ; tout libellé de politique est relu juridiquement avant lancement.",
     addressee: "Destinataire du remboursement & statut",
     addresseeLabel: "Les remboursements relèvent de la responsabilité du vendeur légal :",
     statusList: [
@@ -54,8 +52,6 @@ const copy = {
       "<strong>Refund method:</strong> to the original payment method, via Stripe.",
     ],
     note: "Note: where Stripe Managed Payments applies, Stripe/Link process payment transactions as merchant of record. This does not override our stated refund policy for the Progress product.",
-    technical: "Technical handling (unchanged)",
-    technicalText: "A confirmed full refund is detected server-side via Stripe’s <code>charge.refunded</code> webhook and results in entitlement revocation, idempotently. We do not alter this behavior merely as part of a policy change; any policy wording here is legally reviewed before launch.",
     addressee: "Refund addressee & status",
     addresseeLabel: "Refunds are the responsibility of the legal seller:",
     statusList: [
@@ -84,8 +80,6 @@ const copy = {
       "<strong>طريقة الاسترداد:</strong> إلى وسيلة الدفع الأصلية، عبر Stripe.",
     ],
     note: "ملاحظة: عند انطباق Stripe Managed Payments، يعالج Stripe/Link معاملات الدفع كتاجر مسجَّل. لا يتجاوز هذا سياسة الاسترداد المعلنة لدينا لمنتج Progress.",
-    technical: "التعامل التقني (دون تغيير)",
-    technicalText: "يتم اكتشاف الاسترداد الكامل المؤكد من جانب الخادم عبر webhook الخاص بـ <code>charge.refunded</code> من Stripe ويؤدي إلى إلغاء حق الوصول بطريقة حتمية ومكررة. لا نغيّر هذا السلوك لمجرد تغيير سياسة؛ أي صياغة سياسة هنا تخضع للمراجعة القانونية قبل الإطلاق.",
     addressee: "جهة الاسترداد والحالة",
     addresseeLabel: "تقع مسؤولية الاستردادات على البائع القانوني:",
     statusList: [
@@ -123,10 +117,6 @@ function RefundsBody() {
         <p>{t.note}</p>
       </section>
 
-      <section>
-        <h2>{t.technical}</h2>
-        <p dangerouslySetInnerHTML={{ __html: t.technicalText }} />
-      </section>
 
       <section>
         <h2>{t.addressee}</h2>

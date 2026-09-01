@@ -16,8 +16,8 @@ import {
 const copy = {
   fr: {
     kicker: "BIENVENUE · ACCÈS ACTIF",
-    thanks: "Ton accès fondateur est actif.",
-    body: "Ton accès fondateur à Jonas Fitness Progress est actif. Tu peux créer ta première routine et ouvrir ton carnet d’entraînement.",
+    thanks: "Ton accès à Progress est actif.",
+    body: "Ton accès à Jonas Fitness Progress est actif. Tu peux créer ta première routine et ouvrir ton carnet d’entraînement.",
     cta: "Créer ma première routine",
     activate: "Activation de ton accès…",
     activateBody: "Le paiement est confirmé. Nous appliquons l’activation, cela ne prend que quelques secondes.",
@@ -30,8 +30,8 @@ const copy = {
   },
   en: {
     kicker: "WELCOME · ACTIVATED",
-    thanks: "Your Founding Access is active.",
-    body: "Your Founding Access to Jonas Fitness Progress is active. Create your first routine and open your training log.",
+    thanks: "Your Progress access is active.",
+    body: "Your access to Jonas Fitness Progress is active. Create your first routine and open your training log.",
     cta: "Create your first routine",
     activate: "Activating your access…",
     activateBody: "Your payment is confirmed. We’re confirming your access; just a few seconds.",
@@ -44,8 +44,8 @@ const copy = {
   },
   ar: {
     kicker: "مرحبًا · تم التفعيل",
-    thanks: "وصولك التأسيسي نشط.",
-    body: "وصولك التأسيسي إلى Jonas Fitness Progress نشط. يمكنك إنشاء أول روتين لك وفتح سجلّك التدريبي.",
+    thanks: "وصولك إلى Progress نشط.",
+    body: "وصولك إلى Jonas Fitness Progress نشط. يمكنك إنشاء أول روتين لك وفتح سجلّك التدريبي.",
     cta: "أنشئ أول روتين لك",
     activate: "جارٍ تفعيل وصولك…",
     activateBody: "تم تأكيد الدفع. نحن نُكمل التفعيل؛ يستغرق ذلك بضع ثوانٍ فقط.",

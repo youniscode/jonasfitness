@@ -16,11 +16,11 @@ export const dynamic = "force-dynamic";
  */
 export async function POST() {
   const { userId } = await auth();
-  if (!userId) return Response.json({ error: "Sign in to get Founding Access." }, { status: 401 });
+  if (!userId) return Response.json({ error: "Sign in to continue." }, { status: 401 });
 
   // Never grant a second Founding Access to an already-entitled user.
   const existing = await getActiveEntitlement(userId, FOUNDING_ACCESS_PRODUCT_KEY);
-  if (existing) return Response.json({ error: "You already have Founding Access.", status: "entitled" });
+  if (existing) return Response.json({ error: "You already have Progress access.", status: "entitled" });
 
   // The validated config includes a fail-closed, https-required public origin.
   const config = getStripeCommerceConfig();
