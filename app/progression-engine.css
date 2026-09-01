@@ -50,7 +50,7 @@
 @media(max-width:1050px){.progression-grid{grid-template-columns:1fr}.progression-card>.exercise-visual-svg{min-height:230px}.prescription-grid{grid-template-columns:repeat(3,1fr)!important}}
 @media(max-width:620px){.progression-engine{padding:20px}.progression-heading{display:block}.progression-heading button{margin-top:14px}.progression-card{grid-template-columns:95px minmax(0,1fr)}.progression-card>.exercise-visual-svg{min-height:300px}.progression-metrics{grid-template-columns:1fr 1fr}.progression-prescription,.progression-engine>footer{align-items:flex-start;flex-direction:column}.programme-exercise-row{grid-template-columns:82px minmax(0,1fr)!important}.prescription-grid{grid-template-columns:1fr 1fr!important}}
 
-/* Adaptive Coach V1 — deterministic next-session recommendations */
+/* Adaptive Coach V1 - deterministic next-session recommendations */
 .adaptive-coach{margin-top:12px;background:#fff;border:1px solid #e2e1d9;padding:30px;display:grid;gap:14px}
 .adaptive-coach-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
 .adaptive-coach-head p{margin:0;color:#6c7848;font-size:8px;letter-spacing:.18em;font-weight:800}
@@ -106,7 +106,7 @@
 .adaptive-link-button{border:0;background:none;color:#40580c;font-size:9px;font-weight:800;text-decoration:underline;cursor:pointer;padding:0}
 .adaptive-foot{border-top:1px solid #e1e2da;padding-top:12px;color:#8a8e84;font-size:8px;line-height:1.5;margin:0}
 
-/* Adaptive Coach V2 — summary, priority, evidence, collapsed KEEP */
+/* Adaptive Coach V2 - summary, priority, evidence, collapsed KEEP */
 .adaptive-overview{border:1px solid #d9dbd2;background:#f8f8f3;padding:14px 16px;display:grid;gap:4px}
 .adaptive-overview strong{font-size:16px;letter-spacing:-.02em}
 .adaptive-overview span{font-size:9px;color:#62675d}
@@ -132,7 +132,7 @@
 @media(max-width:1050px){.adaptive-decision-list{grid-template-columns:1fr}}
 @media(max-width:620px){.adaptive-coach{padding:20px}.adaptive-coach-head{display:block}.adaptive-coach-actions{margin-top:14px}.adaptive-actions{align-items:stretch;flex-direction:column}.adaptive-actions .dark-button,.adaptive-actions .ghost-button{width:100%}.adaptive-decision{grid-template-columns:26px minmax(0,1fr)}.adaptive-check input{width:20px;height:20px}.adaptive-badges{justify-content:flex-start}}
 
-/* Training Load & Recovery V1 — deterministic coach analytics */
+/* Training Load & Recovery V1 - deterministic coach analytics */
 .training-load{margin-top:12px;background:#fff;border:1px solid #e2e1d9;padding:30px;display:grid;gap:14px}
 .training-load-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
 .training-load-head p{margin:0;color:#6c7848;font-size:8px;letter-spacing:.18em;font-weight:800}

@@ -16,7 +16,7 @@ async function fetchItems(): Promise<Item[]> {
 }
 
 function Chart({ points, locale, t }: { points: Point[]; locale: string; t: { sessions: string } }) {
-  if (points.length < 2) return <div className="progress-chart-empty"><strong>{points.length === 1 ? `${points[0].estimatedOneRepMax} kg` : "—"}</strong><span>Two sessions show your 1RM trend.</span></div>;
+  if (points.length < 2) return <div className="progress-chart-empty"><strong>{points.length === 1 ? `${points[0].estimatedOneRepMax} kg` : "-"}</strong><span>Two sessions show your 1RM trend.</span></div>;
   const values = points.map((p) => p.estimatedOneRepMax);
   const low = Math.min(...values);
   const high = Math.max(...values);

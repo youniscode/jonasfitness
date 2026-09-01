@@ -67,7 +67,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       }).returning();
     } catch (error) {
       // A concurrent request created the same client; resolve it by email rather
-      // than failing. This is a backstop — the email lookup above is primary.
+      // than failing. This is a backstop - the email lookup above is primary.
       if (isUniqueViolation(error)) {
         const [winner] = await db.select().from(clients).where(sql`lower(${clients.email}) = ${email}`).limit(1);
         if (!winner) throw error;
@@ -83,7 +83,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   // Application → client structured prefill: seed a brand-new intake from the
   // lead's structured answers (goal, experience, frequency, format) so the
   // client is not asked to repeat them. Only written when NO intake exists yet
-  // (a completed/edited onboarding is never overwritten — re-conversion and
+  // (a completed/edited onboarding is never overwritten - re-conversion and
   // idempotent retries are no-ops here).
   const [existingIntake] = await db.select({ id: clientIntakes.id }).from(clientIntakes)
     .where(and(eq(clientIntakes.clientId, client.id), eq(clientIntakes.ownerId, ownerId))).limit(1);
@@ -116,7 +116,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         consentAt: new Date(),
       });
     } catch (error) {
-      // A concurrent request seeded the intake first — fine, keep theirs.
+      // A concurrent request seeded the intake first - fine, keep theirs.
       if (!isUniqueViolation(error)) throw error;
     }
   }

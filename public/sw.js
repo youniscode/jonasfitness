@@ -24,7 +24,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   const core = self.JonasSW;
 
-  // Same-origin GET only. /api/* is network-only (authenticated, dynamic —
+  // Same-origin GET only. /api/* is network-only (authenticated, dynamic -
   // never cached); cross-origin (Clerk auth, accounts, CDNs) and non-GET
   // methods pass through untouched.
   if (!core.shouldIntercept(request.method, url.origin, self.location.origin, url.pathname)) return;

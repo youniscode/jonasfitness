@@ -6,8 +6,8 @@ import { useAuth, useClerk } from "@clerk/nextjs";
 import { LANGS, persistLang, readStoredLang, type Lang } from "../../lib/lang-store";
 
 // Trilingual copy for the public Founding Access offer (fr/en/ar). French is
-// the default language (matching the rest of Jonas Fitness). Inline dictionary
-// — no i18n framework, no URL routing, per the app's existing convention.
+// the default language (matching the rest of Jonas Fitness). Inline dictionary;
+// no i18n framework, no URL routing, per the app's existing convention.
 const copy = {
   fr: {
     brand: "JONAS FITNESS",
@@ -39,7 +39,7 @@ const copy = {
       ["Indicateurs transparents", "Des signaux que tu comprends, pas de « score IA »."],
     ],
     why: "POURQUOI JONAS FITNESS",
-    whyText: "Construit sur plus de 16 ans d’expérience en musculation. Le but n’est pas que le logiciel s’entraîne à ta place — c’est de rendre tes propres données utiles.",
+    whyText: "Construit sur plus de 16 ans d’expérience en musculation. Le but n’est pas que le logiciel s’entraîne à ta place, c’est de rendre tes propres données utiles.",
     offerTitle: "ACCÈS FONDATEUR",
     offerPrice: "19 € · en paiement unique",
     offerBody: "Un accès fondateur unique au produit Progress Jonas Fitness.",
@@ -63,7 +63,7 @@ const copy = {
       ["Que comprend l’accès fondateur ?", "L’accès au produit Progress actuel. Des produits futurs éventuels sont vendus séparément."],
     ],
     use: "Utilisateur actuel",
-    legalNote: "L’accès fondateur est un achat unique (19 €). C’est un logiciel auto-dirigé — ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
+    legalNote: "L’accès fondateur est un achat unique (19 €). C’est un logiciel auto-dirigé : ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
     signInFirst: "Connecte-toi pour continuer",
     starting: "Redirection vers le paiement…",
     footer: "© 2026 Jonas Fitness",
@@ -95,10 +95,10 @@ const copy = {
       ["Past performance", "See last session’s numbers beside today’s sets."],
       ["Rep ranges", "Clear targets you can actually hit."],
       ["History", "Your sessions, your bests, your e1RM."],
-      ["Transparent signals", "Signals you understand — not an opaque “AI score”."],
+      ["Transparent signals", "Signals you understand, not an opaque “AI score”."],
     ],
     why: "WHY JONAS FITNESS",
-    whyText: "Built on 16+ years of real bodybuilding experience. The point isn’t to let software train for you — it’s to make your own training data useful.",
+    whyText: "Built on 16+ years of real bodybuilding experience. The point isn’t to let software train for you; it’s to make your own training data useful.",
     offerTitle: "FOUNDING ACCESS",
     offerPrice: "€19 · one-time",
     offerBody: "A one-time Founding Access to the Jonas Fitness Progress product.",
@@ -114,7 +114,7 @@ const copy = {
     faq: "FAQ",
     faqs: [
       ["Is this coaching?", "No. Progress is self-directed training software. It does not provide personalized professional coaching."],
-      ["Is this an AI workout generator?", "No. It doesn’t build your program for you — it helps you record and understand your own training."],
+      ["Is this an AI workout generator?", "No. It doesn’t build your program for you; it helps you record and understand your own training."],
       ["Can I create my own routines?", "Yes. You build your routines, exercises and rep ranges."],
       ["What does it track?", "Weight, reps, RIR, target rep ranges, exercise history and progression signals."],
       ["Is this a subscription?", "No. A one-time €19 Founding Access."],
@@ -122,7 +122,7 @@ const copy = {
       ["What does Founding Access include?", "Access to the current Progress product. Optional future products are sold separately."],
     ],
     use: "current user",
-    legalNote: "Founding Access is a one-time purchase (€19). It is self-directed software — not personalized coaching, not medical or rehabilitation software.",
+    legalNote: "Founding Access is a one-time purchase (€19). It is self-directed software: not personalized coaching, not medical or rehabilitation software.",
     signInFirst: "Sign in to continue",
     starting: "Redirecting to checkout…",
     footer: "© 2026 Jonas Fitness",
@@ -154,10 +154,10 @@ const copy = {
       ["الأداء السابق", "شاهد أرقام آخر حصة بجانب مجموعات اليوم."],
       ["نطاقات التكرار", "أهداف واضحة يمكنك تحقيقها فعلًا."],
       ["السجل", "حصصك وأفضل أرقامك وتقدير 1RM."],
-      ["مؤشرات شفافة", "إشارات تفهمها — لا «درجات ذكاء اصطناعي» مبهمة."],
+      ["مؤشرات شفافة", "إشارات تفهمها، لا «درجات ذكاء اصطناعي» مبهمة."],
     ],
     why: "لماذا JONAS FITNESS",
-    whyText: "مبني على أكثر من 16 عامًا من خبرة كمال الأجسام الحقيقية. الهدف ليس أن يتدرب البرنامج بدلًا منك — بل أن يجعل بياناتك التدريبية مفيدة.",
+    whyText: "مبني على أكثر من 16 عامًا من خبرة كمال الأجسام الحقيقية. الهدف ليس أن يتدرب البرنامج بدلًا منك، بل أن يجعل بياناتك التدريبية مفيدة.",
     offerTitle: "الوصول التأسيسي",
     offerPrice: "19 € · دفعة واحدة",
     offerBody: "وصول تأسيسي لمرة واحدة إلى منتج Progress من Jonas Fitness.",
@@ -181,7 +181,7 @@ const copy = {
       ["ماذا يشمل الوصول التأسيسي؟", "الوصول إلى منتج Progress الحالي. أي منتجات مستقبلية اختيارية تُباع بشكل منفصل."],
     ],
     use: "المستخدم الحالي",
-    legalNote: "الوصول التأسيسي هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه — ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
+    legalNote: "الوصول التأسيسي هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه: ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
     signInFirst: "سجّل الدخول للمتابعة",
     starting: "جارٍ تحويلك إلى الدفع…",
     footer: "© 2026 Jonas Fitness",
@@ -219,7 +219,7 @@ export default function FoundingOffer() {
     // Anonymous visitors go through Clerk first (the project's sign-in flow),
     // preserving the return path so they land back here authenticated and can
     // then proceed to checkout. When paywall is disabled in dev, a signed-in
-    // anonymous user already sees Progress — the offer buy is still shown.
+    // anonymous user already sees Progress, so the offer buy is still shown.
     if (!isSignedIn) {
       setState("signing");
       await redirectToSignIn({ redirectUrl: "/progress/founding" });

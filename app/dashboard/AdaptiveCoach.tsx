@@ -224,7 +224,7 @@ export default function AdaptiveCoach({ client }: { client: Client }) {
                   {decision.concerns.map((concern) => <li key={concern} className="concern">⚠ {concern}</li>)}
                   {decision.evidence.rirSamples.length > 0 && <li>RIR samples (recent → older): {decision.evidence.rirSamples.join(" · ")}</li>}
                   {decision.evidence.repPerformance.averageReps !== null && <li>Reps: avg {decision.evidence.repPerformance.averageReps}, min {decision.evidence.repPerformance.minReps} (target {decision.evidence.repPerformance.repRange})</li>}
-                  {decision.evidence.progressionRecommendation && <li>Progression engine: {decision.evidence.progressionRecommendation.action} → {decision.evidence.progressionRecommendation.proposedWeight ?? "—"} kg</li>}
+                  {decision.evidence.progressionRecommendation && <li>Progression engine: {decision.evidence.progressionRecommendation.action} → {decision.evidence.progressionRecommendation.proposedWeight ?? "-"} kg</li>}
                   {decision.evidence.coachPreference && <li>Coach preference: {decision.evidence.coachPreference}</li>}
                   {decision.evidence.clientPreference && <li>Client feedback: {decision.evidence.clientPreference}</li>}
                   {decision.evidence.onboardingPreference && <li>Onboarding preference: {decision.evidence.onboardingPreference}</li>}
@@ -266,9 +266,9 @@ export default function AdaptiveCoach({ client }: { client: Client }) {
         <button type="button" className="dark-button" disabled={selected.size === 0 || applying} onClick={() => void applyChanges()}>{applying ? "Applying…" : `Apply selected changes (${selected.size})`}</button>
         {actionableHighPriority.length > 0 && <button type="button" className="ghost-button" onClick={selectAllHighPriority}>Select all high-priority ({actionableHighPriority.length})</button>}
         <button type="button" className="ghost-button" onClick={() => document.querySelector("#programmes")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Review in Programme Builder</button>
-        {changesCount > 0 && <span className="adaptive-hint">Changes are unchecked by default — select what to apply.</span>}
+        {changesCount > 0 && <span className="adaptive-hint">Changes are unchecked by default - select what to apply.</span>}
       </div>
     </>}
-    <footer className="adaptive-foot">Adaptive Coach is deterministic and advisory — it never publishes to the client. Applied changes become a draft in the Programme Builder for your review.</footer>
+    <footer className="adaptive-foot">Adaptive Coach is deterministic and advisory - it never publishes to the client. Applied changes become a draft in the Programme Builder for your review.</footer>
   </section>;
 }

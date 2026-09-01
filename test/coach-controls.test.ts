@@ -47,7 +47,7 @@ test("manual change 60 → 30 remains 30 after a generation response", () => {
 });
 
 test("equipment changes do not affect the duration control", () => {
-  // The duration helpers have no equipment input — equipment selection is a
+  // The duration helpers have no equipment input - equipment selection is a
   // separate control and can never write to the duration state.
   assert.equal(sessionDurationAfterGeneration("60", 60, 60), "60");
 });
@@ -71,12 +71,12 @@ test("openAdjustmentContext switches to adjust mode and remembers the previous m
   const draft = { title: "3-Day Full Body", sessions: [] };
   assert.deepEqual(openAdjustmentContext("first", draft), { mode: "adjust", previousMode: "first", instruction: "", baseDraft: draft });
   assert.deepEqual(openAdjustmentContext("adapt", draft), { mode: "adjust", previousMode: "adapt", instruction: "", baseDraft: draft });
-  // Opening adjustment from adjustment never self-references — falls back to first.
+  // Opening adjustment from adjustment never self-references - falls back to first.
   assert.deepEqual(openAdjustmentContext("adjust", draft), { mode: "adjust", previousMode: "first", instruction: "", baseDraft: draft });
 });
 
 test("openAdjustmentContext never changes duration, equipment or client", () => {
-  // The helper only snapshots the adjustment context — the target duration,
+  // The helper only snapshots the adjustment context - the target duration,
   // equipment, avoid constraint and selected client all stay in the component.
   assert.deepEqual(Object.keys(openAdjustmentContext("first", null)).sort(), ["baseDraft", "instruction", "mode", "previousMode"]);
 });
@@ -214,7 +214,7 @@ test("coachRequestBody sends secondary goals alongside the primary goal", () => 
 });
 
 test("coachRequestBody with no secondary goals sends an explicit empty array", () => {
-  // An explicit [] means "coach cleared all secondaries for this draft" — the
+  // An explicit [] means "coach cleared all secondaries for this draft" - the
   // route distinguishes it from a legacy caller that sends no field at all.
   const body = coachRequestBody({ mode: "first", adjustInstruction: "", previousDraft: null, ...RETRY_CONTEXT });
   assert.deepEqual(body.secondaryGoals, []);
@@ -257,7 +257,7 @@ test("full adjustment lifecycle keeps avoid untouched and stays in adjust after 
   assert.equal(context.mode, "adjust");
   // 2. Coach types the instruction.
   context = withAdjustmentInstruction(context, REPLACE_INSTRUCTION);
-  // 3. The request maps the two fields separately — avoid is untouched.
+  // 3. The request maps the two fields separately - avoid is untouched.
   const body = coachRequestBody({ ...RETRY_CONTEXT, mode: context.mode, adjustInstruction: context.instruction, previousDraft: context.baseDraft, avoid });
   assert.equal(body.avoid, avoid);
   assert.equal(body.instruction, REPLACE_INSTRUCTION);
@@ -324,7 +324,7 @@ test("production regression: Cancel clears the instruction without touching avoi
   const cancelled = cancelAdjustmentContext(context);
   assert.equal(cancelled.instruction, "");
   assert.equal(cancelled.mode, "first");
-  // avoid lives outside the context — the context has no avoid key at all.
+  // avoid lives outside the context - the context has no avoid key at all.
   assert.deepEqual(Object.keys(cancelled).sort(), ["baseDraft", "instruction", "mode", "previousMode"]);
 });
 
@@ -332,7 +332,7 @@ test("production regression: switching clients cannot leak the instruction", () 
   let context = openAdjustmentContext("first", PREVIOUS_DRAFT);
   context = withAdjustmentInstruction(context, PRODUCTION_INSTRUCTION);
   // Client switch re-initializes the adjustment context; the component also
-  // resets avoid independently — the two channels reset separately.
+  // resets avoid independently - the two channels reset separately.
   context = INITIAL_ADJUSTMENT_CONTEXT;
   assert.equal(context.instruction, "");
   assert.equal(context.mode, "first");

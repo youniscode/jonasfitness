@@ -110,7 +110,7 @@ test("custom exercise keeps its own authoritative image", () => {
 
 test("no fuzzy resolution: an unknown non-English legacy name keeps the placeholder", () => {
   // Legacy entry with a French name that does not exactly match the English
-  // catalogue — the canonical lookup must not fuzzy-match it to a built-in.
+  // catalogue - the canonical lookup must not fuzzy-match it to a built-in.
   const programme = { libraryId: "legacy", name: "Développé couché machine" };
   const workout = { libraryId: "legacy", name: "Développé couché machine", imageUrl: "" };
   const suggestion = suggestionFor(programme, workout);

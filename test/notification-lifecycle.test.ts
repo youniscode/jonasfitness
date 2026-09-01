@@ -77,7 +77,7 @@ test("a stale daily briefing is resolved but today's is kept", () => {
 test("resolution never fabricates ids and leaves dismissed rows alone", () => {
   // Dismissed rows are excluded upstream (the service only fetches
   // dismissedAt IS NULL). resolveNotificationIds is a pure function of its
-  // input, so it can only return ids it was given — never touch other rows.
+  // input, so it can only return ids it was given - never touch other rows.
   const active: ActiveNotificationRow[] = [
     { id: 1, kind: "client_workout", dedupeKey: "client-workout:7" },
   ];

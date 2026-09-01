@@ -133,7 +133,7 @@ export function buildProgressionSuggestions(contentValue: string | Record<string
     // and an empty imageUrl lets ExerciseVisual keep its placeholder.
     const imageUrl = builtInExerciseFor(latest.exercise.libraryId, latest.exercise.name)?.imageUrl ?? latest.exercise.imageUrl;
     const completedAt = latest.workout.completedAt ? new Date(latest.workout.completedAt).toISOString() : new Date().toISOString();
-    // V2.1: client feedback is an additional, advisory signal — it never changes
+    // V2.1: client feedback is an additional, advisory signal - it never changes
     // the load by itself (reps/RIR/completion still drive the engine) but it may
     // add a caution/context note to the suggestion.
     const feedbackNote = progressionFeedbackNote(feedbackContext?.profile?.[exercise.libraryId]);

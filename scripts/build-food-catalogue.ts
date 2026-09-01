@@ -1,5 +1,5 @@
 /**
- * Food Nutrition Foundation V1 — CIQUAL → canonical catalogue build script.
+ * Food Nutrition Foundation V1 - CIQUAL → canonical catalogue build script.
  *
  * DETERMINISTIC IMPORT/CONVERSION STEP. The runtime app NEVER parses the raw
  * ANSES-CIQUAL dataset; it only reads the versioned output
@@ -31,7 +31,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
-// Curated selection — explicit, reviewed CIQUAL codes (stable identifiers).
+// Curated selection - explicit, reviewed CIQUAL codes (stable identifiers).
 // Raw vs cooked are SEPARATE canonical items; never converted silently.
 // ---------------------------------------------------------------------------
 type Curated = {
@@ -44,7 +44,7 @@ type Curated = {
 };
 
 const CURATED: Curated[] = [
-  // Proteins — meat/fish/eggs (CIQUAL distinguishes raw and cooked states)
+  // Proteins - meat/fish/eggs (CIQUAL distinguishes raw and cooked states)
   { id: "chicken-breast-raw", code: "36017", category: "protein", aliases: ["raw chicken breast", "chicken fillet raw", "poulet filet cru"] },
   { id: "chicken-breast-cooked", code: "36018", category: "protein", aliases: ["grilled chicken breast", "cooked chicken breast", "pan-fried chicken breast", "poulet grille"] },
   { id: "chicken-thigh-roasted", code: "36006", category: "protein", aliases: ["roasted chicken thigh", "chicken thigh cooked"], vegetarian: false },
@@ -166,7 +166,7 @@ function tag(block: string, name: string): string {
  *
  * Energy policy: when CIQUAL publishes no kcal value ("-"/absent) but DOES
  * publish protein, carbohydrate and fat, energy is DERIVED with the standard
- * Atwater factors (4/4/9 kcal per g) — the same convention CIQUAL itself uses
+ * Atwater factors (4/4/9 kcal per g) - the same convention CIQUAL itself uses
  * for its computed energy columns. Such items carry
  * source.energyDerivation = "atwater-4-4-9" so the runtime can distinguish
  * measured vs derived energy. No other field is ever synthesized.
@@ -271,7 +271,7 @@ function main(): void {
   }
 
   if (failures.length > 0 || foods.length !== CURATED.length) {
-    console.error("BUILD FAILED — items missing authoritative values:");
+    console.error("BUILD FAILED - items missing authoritative values:");
     for (const f of failures) console.error(" - " + f);
     console.error("No output written.");
     process.exit(2);

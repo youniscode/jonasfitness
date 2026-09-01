@@ -70,7 +70,7 @@ export async function evaluateCoachNotifications(ownerId: string, options: { ori
       .where(and(eq(workoutSessions.ownerId, ownerId), eq(workoutSessions.startedBy, "client"), eq(workoutSessions.status, "completed"), isNull(workoutSessions.reviewedAt)))
       .orderBy(desc(workoutSessions.completedAt)).limit(30),
     db.select().from(communicationLogs).where(eq(communicationLogs.ownerId, ownerId)).orderBy(desc(communicationLogs.createdAt)).limit(120),
-    // Clients being actively coached — the only candidates for inactivity. A
+    // Clients being actively coached - the only candidates for inactivity. A
     // client with no "active" status (archived/paused/churned, none of which
     // currently exist) is excluded.
     db.select({ id: clients.id, name: clients.name }).from(clients)
@@ -125,7 +125,7 @@ export async function evaluateCoachNotifications(ownerId: string, options: { ori
   // Auto-resolve only those active notifications whose underlying condition has
   // been positively verified as no longer true. Resolution is driven by the
   // existing notification rows plus unbounded lookups of their referenced source
-  // ids — never by absence from the bounded candidate list — so a valid alert
+  // ids - never by absence from the bounded candidate list - so a valid alert
   // cannot be cleared just because its candidate fell outside a query limit.
   const activeRows = await db.select({ id: coachNotifications.id, kind: coachNotifications.kind, dedupeKey: coachNotifications.dedupeKey })
     .from(coachNotifications)
@@ -282,7 +282,7 @@ async function computeResolvedNotificationIds(
 
 // Hard-delete dismissed/resolved notifications that are past the retention
 // window, while preserving dedupe safety: active rows and unclosed inactivity
-// episodes are never removed. Idempotent — a repeat run is a no-op once the
+// episodes are never removed. Idempotent - a repeat run is a no-op once the
 // eligible rows are gone. Intended to run with the daily cron (not on every
 // dashboard poll).
 export async function cleanupCoachNotifications(ownerId: string) {

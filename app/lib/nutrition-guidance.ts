@@ -1,13 +1,13 @@
 /**
- * Nutrition Foundations V1 / Phase 2C — server-side guidance resolution + DTO.
+ * Nutrition Foundations V1 / Phase 2C - server-side guidance resolution + DTO.
  *
  * This module is PURE: no DB access, no network, no Clerk, no fetch, no
  * Date.now(), no randomness. It owns the two responsibilities the coach-facing
  * API needs beyond the engine itself:
  *
- *   1. Canonical current-weight resolution (Phase 1B policy) — latest
+ *   1. Canonical current-weight resolution (Phase 1B policy) - latest
  *      weight-bearing client_body_measurements row, then clients.currentWeight,
- *      then the onboarding snapshot — reported with the source actually used.
+ *      then the onboarding snapshot - reported with the source actually used.
  *   2. Engine-context assembly from a structured profile (+ legacy goal
  *      fallback) and the public, leak-free response DTO.
  *
@@ -44,7 +44,7 @@ export type NutritionWeightRow = {
  *
  * Priority (identical to Phase 1B `latestWeightForSync` semantics):
  *   1. chronologically latest weight-bearing measurement row
- *      (ascending measuredAt, ties broken by ascending id — input order never
+ *      (ascending measuredAt, ties broken by ascending id - input order never
  *      matters, so a backdated insert can never overwrite a newer weigh-in);
  *   2. clients.currentWeight (the denormalized roster cache);
  *   3. onboarding profile.measurements.weightKg (historical snapshot).
@@ -113,7 +113,7 @@ export function buildNutritionContext(
 
 // ---------- Public DTO ----------
 
-/** Coach-facing input basis — resolved scalars only, never raw profile/DB rows. */
+/** Coach-facing input basis - resolved scalars only, never raw profile/DB rows. */
 export type NutritionGuidanceInputSummary = {
   ageYears: number | null;
   sex: string;
@@ -136,7 +136,7 @@ export type NutritionGuidanceResponse =
  * Resolve inputs, run the engine, and return the public DTO.
  *
  * Safety is enforced by the engine SERVER-SIDE: when it returns `blocked`, no
- * `guidance` (BMR/TDEE/calories/macros) is present in this response — the UI
+ * `guidance` (BMR/TDEE/calories/macros) is present in this response - the UI
  * never receives numbers to merely hide. `insufficient_data` carries only
  * deterministic missing codes. The DTO carries no ownerId, clientId, or raw
  * `client_intakes.profile`.

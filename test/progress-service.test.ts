@@ -38,7 +38,7 @@ const b = (store: Store, ownerId: string): OwnerStore => {
 };
 const toSession = (row: SessionRow): PublicSession => ({ id: row.id, routineId: row.routineId, title: row.title, exercises: parseExercises(row.exercisesJson), weightUnit: row.weightUnit as "kg", notes: row.notes, status: row.status, startedAt: NOW, completedAt: row.completedAt });
 
-// ——— Service mirrors (each operation scoped by the authenticated ownerId) ———
+// --- Service mirrors (each operation scoped by the authenticated ownerId) ---
 
 const createRoutine = (store: Store, ownerId: string, name: string): RoutineRow => {
   const owner = b(store, ownerId);
@@ -105,7 +105,7 @@ const saveWorkout = (store: Store, ownerId: string, sessionId: number, exercises
 const historyRows = (store: Store, ownerId: string): SessionRow[] => b(store, ownerId).sessions.filter((s) => s.status === "completed");
 const hasCompletedSets = (exercises: WorkoutExercise[]) => exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s, weight: 40, reps: 10, status: "completed" as const })) }));
 
-// ——— 1 / 2. Owner isolation ———
+// --- 1 / 2. Owner isolation ---
 
 test("User A cannot read User B's routine", () => {
   const store: Store = {};
@@ -132,7 +132,7 @@ test("mutations are rejected when the routine belongs to another user", () => {
   assert.equal(reorder(store, "athlete-b", aRoutine.id, [1]), null);
 });
 
-// ——— 3. Routine creation ———
+// --- 3. Routine creation ---
 
 test("routine creation works and is owner-scoped", () => {
   const store: Store = {};
@@ -141,7 +141,7 @@ test("routine creation works and is owner-scoped", () => {
   assert.equal(b(store, "athlete-b").routines.length, 0, "B's store stays empty");
 });
 
-// ——— 4. Exercise ordering ———
+// --- 4. Exercise ordering ---
 
 test("exercise ordering is preserved and reorder is stable", () => {
   const store: Store = {};
@@ -153,7 +153,7 @@ test("exercise ordering is preserved and reorder is stable", () => {
   assert.deepEqual(getRoutine(store, "athlete-a", routine.id)!.exercises.map((e) => e.id), [row.id, chest.id]);
 });
 
-// ——— 5. Starting a workout ———
+// --- 5. Starting a workout ---
 
 test("starting a workout creates an active snapshot session", () => {
   const store: Store = {};
@@ -174,7 +174,7 @@ test("only one active workout can exist per athlete at a time", () => {
   assert.equal(startWorkout(store, "athlete-a", routine.id), null);
 });
 
-// ——— 6 / 7. Logging sets + completion ———
+// --- 6 / 7. Logging sets + completion ---
 
 test("logging sets works for an active session", () => {
   const store: Store = {};
@@ -203,7 +203,7 @@ test("completing a workout works and freezes the session", () => {
   assert.equal(saveWorkout(store, "athlete-a", current.id, hasCompletedSets(current.exercises), "completed").status, 404, "closed session is immutable");
 });
 
-// ——— 8. Historical data survives later routine edits ———
+// --- 8. Historical data survives later routine edits ---
 
 test("deleting a routine preserves the logged workout history", () => {
   const store: Store = {};
@@ -229,7 +229,7 @@ test("routine template edits never rewrite previously logged history", () => {
   assert.equal(logged.sets.length, 3, "immutable snapshot unaffected by template edit");
 });
 
-// ——— 9. Previous performance lookup across sessions ———
+// --- 9. Previous performance lookup across sessions ---
 
 test("new-session previous performance points at the last completed session", () => {
   const store: Store = {};

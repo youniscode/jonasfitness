@@ -50,7 +50,7 @@ const copy = {
     confident: "Confiant(e)",
     not_confident: "Peu confiant(e)",
     comment: "Un mot pour votre coach ?",
-    commentHint: "Facultatif — vos mots restent visibles par votre coach uniquement.",
+    commentHint: "Facultatif - vos mots restent visibles par votre coach uniquement.",
     more: "Plus d’options",
     less: "Moins d’options",
     save: "Enregistrer",
@@ -80,7 +80,7 @@ const copy = {
     confident: "Confident",
     not_confident: "Not confident",
     comment: "Anything for your coach?",
-    commentHint: "Optional — visible to your coach only.",
+    commentHint: "Optional - visible to your coach only.",
     more: "More options",
     less: "Fewer options",
     save: "Save",
@@ -110,7 +110,7 @@ const copy = {
     confident: "واثق",
     not_confident: "غير واثق",
     comment: "رسالة لمدربك؟",
-    commentHint: "اختياري — تظهر لمدربك فقط.",
+    commentHint: "اختياري - تظهر لمدربك فقط.",
     more: "خيارات إضافية",
     less: "خيارات أقل",
     save: "حفظ",
@@ -192,7 +192,7 @@ function FeedbackCard({ lang, workoutId, exercise }: { lang: Lang; workoutId: nu
         <strong>{exerciseDisplayName(exercise, lang)}</strong>
         <span>{saveState === "saved" ? `✓ ${t.saved}` : t.prompt}</span>
       </header>
-      <div className="client-feedback-chips" role="group" aria-label={`${t.sentiment} — ${exerciseDisplayName(exercise, lang)}`}>
+      <div className="client-feedback-chips" role="group" aria-label={`${t.sentiment} - ${exerciseDisplayName(exercise, lang)}`}>
         {(["liked", "neutral", "disliked"] as Sentiment[]).map((value) => (
           <button key={value} type="button" className={draft.sentiment === value ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, sentiment: value }))}>{t[value]}</button>
         ))}

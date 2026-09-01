@@ -104,7 +104,7 @@ test("gateway auth failure → safe fallback with observable reason", async () =
   assert.equal(result.source, "fallback");
   assert.equal(result.draftValid, true);
   assert.equal(result.sessions, 3);
-  assert.equal(result.reason, "auth"); // safe code — never the raw error
+  assert.equal(result.reason, "auth"); // safe code - never the raw error
 });
 
 test("gateway malformed JSON / unusable response → fallback with reason", async () => {
@@ -131,7 +131,7 @@ test("gateway output with unknown library IDs → validation failure (never trus
   assert.equal(result.source, "ai"); // parsed as model output…
   assert.equal(result.draftValid, false); // …but rejected by validation
   // The route's response keeps the rejected draft visible with a validation
-  // error and offers Retry — the deterministic fallback is a separate path.
+  // error and offers Retry - the deterministic fallback is a separate path.
 });
 
 test("Ollama failure in development → same safe fallback", async () => {

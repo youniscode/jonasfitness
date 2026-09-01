@@ -271,7 +271,7 @@ export async function POST(request: Request) {
   });
 
   const db = getDb();
-  const title = `${context.programme.title} — adaptive review`;
+  const title = `${context.programme.title} - adaptive review`;
   const [saved] = await db.insert(programmes).values({
     clientId,
     ownerId,
@@ -288,6 +288,6 @@ export async function POST(request: Request) {
     applied: result.applied,
     validation,
     quality,
-    message: `Adaptive draft created — review it in the Programme Builder before approving. Nothing has been published.`,
+    message: `Adaptive draft created - review it in the Programme Builder before approving. Nothing has been published.`,
   });
 }

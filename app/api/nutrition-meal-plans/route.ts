@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Ownership/target/restriction/snapshot preparation — pure service call.
+  // Ownership/target/restriction/snapshot preparation - pure service call.
   const store = await loadStore(clientId, ownerId);
   const prepared = prepareDraft(store, ownerId, clientId, body.title, body.meals, { plan: existingPlan, latest: latestVersion });
   if (!prepared.ok) return Response.json({ error: prepared.error }, { status: prepared.status });
@@ -187,8 +187,8 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "DRAFT_NO_LONGER_EDITABLE") {
-      return Response.json({ error: "This draft was just approved or changed — reload the plan." }, { status: 409 });
+      return Response.json({ error: "This draft was just approved or changed - reload the plan." }, { status: 409 });
     }
-    return Response.json({ error: "Could not save the draft — try again." }, { status: 500 });
+    return Response.json({ error: "Could not save the draft - try again." }, { status: 500 });
   }
 }

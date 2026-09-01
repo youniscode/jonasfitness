@@ -107,7 +107,7 @@ function simulatePost(store: Store, body: Record<string, unknown>, ownerId: stri
   if (guidanceResult.status === 404) return { status: 404, error: guidanceResult.body.error };
   const guidance = guidanceResult.body;
   if (guidance.status === "blocked") return { status: 409, error: "Nutrition targets require professional review and cannot be approved." };
-  if (guidance.status === "insufficient_data") return { status: 409, error: "Missing nutrition inputs — approval requires a complete profile." };
+  if (guidance.status === "insufficient_data") return { status: 409, error: "Missing nutrition inputs - approval requires a complete profile." };
 
   const validation = validateNutritionTargets(input);
   if (!validation.ok) return { status: 400, error: validation.errors.map((e) => e.message).join(" ") };
@@ -196,7 +196,7 @@ test("POST denies approving targets for another coach's client and writes nothin
   assert.equal(store.targets.length, 0, "no row may be inserted for a foreign client");
 });
 
-test("ownerId supplied in the request body is ignored — the authenticated coach wins", () => {
+test("ownerId supplied in the request body is ignored - the authenticated coach wins", () => {
   const store = makeStore();
   addReadyIntake(store);
   const result = expect201(simulatePost(store, { ...approvalBody(), ownerId: "coach-b" }, "coach-a", NOW));
@@ -232,7 +232,7 @@ test("an adjusted approval is accepted and never relabelled as the engine output
   assert.equal(result.target.sourceCalorieMaxKcal, 3084);
 });
 
-test("provenance is recomputed server-side — a client cannot forge BMR/TDEE/weight/goal provenance", () => {
+test("provenance is recomputed server-side - a client cannot forge BMR/TDEE/weight/goal provenance", () => {
   const store = makeStore();
   addReadyIntake(store);
   const result = expect201(simulatePost(store, approvalBody({

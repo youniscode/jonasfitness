@@ -1,6 +1,6 @@
 /**
  * Library expansion final batch (98 → 106 built-ins): the closing batch that
- * targets the previously-identified weak replacement pools — belt squat
+ * targets the previously-identified weak replacement pools - belt squat
  * (spine-unloaded knee machine), kneeling single-arm pulldown (first unilateral
  * vertical pull), smith incline press (stable guided incline), unilateral leg
  * curl / leg extension (breaking the seated/lying curl loop and giving real
@@ -393,7 +393,7 @@ test("Adaptive Coach surfaces belt squat as a spine-unloaded knee option", () =>
 
 // ---------- Beginner fallback safety ----------
 
-test("beginner fallback stays conservative — the batch-5 Tier 1/2 machines are fine but Tier 3 lifts never appear", () => {
+test("beginner fallback stays conservative - the batch-5 Tier 1/2 machines are fine but Tier 3 lifts never appear", () => {
   const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
   const ids = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId));
   // All 8 batch-5 additions are Tier 1/2 (no new Tier 3 hazard introduced).
@@ -405,7 +405,7 @@ test("beginner fallback stays conservative — the batch-5 Tier 1/2 machines are
   for (const tier3 of ["builtin-ab-wheel-rollout", "builtin-incline-barbell-press", "builtin-chin-up", "builtin-conventional-deadlift", "builtin-sumo-deadlift", "builtin-single-leg-romanian-deadlift"]) {
     assert.ok(!ids.includes(tier3), `no Tier 3 ${tier3} for a beginner`);
   }
-  // Unilateral machine isolations are Tier 1 — appropriate if selected.
+  // Unilateral machine isolations are Tier 1 - appropriate if selected.
   assert.equal(difficultyTierFor({ libraryId: "builtin-single-leg-leg-curl" }), 1);
   assert.equal(difficultyTierFor({ libraryId: "builtin-single-leg-leg-extension" }), 1);
 });

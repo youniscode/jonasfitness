@@ -181,8 +181,8 @@ export async function DELETE(request: Request) {
     return Response.json({ error: "Choose a valid session to cancel." }, { status: 400 });
   }
 
-  // Cancel keeps the historical row (never deletes), frees the slot, and — by
-  // credit policy — consumes nothing. Only a scheduled session can be cancelled.
+  // Cancel keeps the historical row (never deletes), frees the slot, and - by
+  // credit policy - consumes nothing. Only a scheduled session can be cancelled.
   const [cancelled] = await getDb()
     .update(sessions)
     .set({ status: "cancelled" })

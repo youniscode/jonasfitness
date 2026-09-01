@@ -7,7 +7,7 @@ import { decideUnassign, type AssignmentRow, type PlanRow, type VersionRow } fro
 // POST /api/nutrition-meal-plans/:id/versions/:versionId/unassign
 //
 // Revokes the client's view access to THIS version by deactivating its active
-// assignment. Assignment history rows are never deleted — the audit trail of
+// assignment. Assignment history rows are never deleted - the audit trail of
 // what was visible when stays permanent.
 
 export async function POST(_request: Request, ctx: { params: Promise<{ id: string; versionId: string }> }) {

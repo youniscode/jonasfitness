@@ -1,11 +1,11 @@
 /**
- * Training Load + Recovery Intelligence V1.1 — regression coverage for the
+ * Training Load + Recovery Intelligence V1.1 - regression coverage for the
  * three V1.1 changes:
  *   1. Adherence semantics (future pending vs past unresolved, confirmed attendance)
  *   2. Never-trained programmed muscle gaps (conservative REVIEW gate)
  *   3. Signal deduplication (secondary-muscle volume echo + region discomfort)
  *
- * Pure-domain tests against buildTrainingLoadReport(...) — no DB, no network.
+ * Pure-domain tests against buildTrainingLoadReport(...) - no DB, no network.
  */
 
 import { test } from "node:test";

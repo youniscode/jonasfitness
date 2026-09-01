@@ -1,6 +1,6 @@
 // Pure, dependency-free retention rules for the coach notification store. Kept
 // free of runtime imports so Node's built-in test runner can load it without
-// resolving the Next.js/drizzle module graph — the same convention as
+// resolving the Next.js/drizzle module graph - the same convention as
 // client-ownership, client-dto, client-email and notification-evaluation.
 
 // Dismissed/resolved notifications are hard-deleted once they are strictly
@@ -16,7 +16,7 @@ export type CleanupNotificationRow = {
   createdAt: Date;
 };
 
-// `client-inactive:{clientId}:{YYYY-MM-DD}` — the date part is the Paris
+// `client-inactive:{clientId}:{YYYY-MM-DD}` - the date part is the Paris
 // calendar date of the client's most recent completed workout for that episode.
 const CLIENT_INACTIVE_KEY = /^client-inactive:\d+:(\d{4}-\d{2}-\d{2})$/;
 
@@ -27,7 +27,7 @@ export function clientInactiveKeyDate(dedupeKey: string): string | null {
   return match ? match[1] : null;
 }
 
-// A client_inactive episode is "closed" once the client has trained again — i.e.
+// A client_inactive episode is "closed" once the client has trained again - i.e.
 // their current latest-workout Paris date is after the episode's anchor date. A
 // row whose episode is NOT closed must never be deleted: if the client is still
 // on the same anchor date, removing the row would let the still-active inactivity
@@ -44,7 +44,7 @@ export function isClientInactiveEpisodeClosed(dedupeKey: string, lastCompletedPa
 // window. client_inactive rows are additionally protected: their episode must
 // be closed (client retrained) before deletion, so deleting an old row can
 // never cause an ancient inactivity episode to regenerate. Deterministic and
-// idempotent — running it twice over the same input yields the same result, and
+// idempotent - running it twice over the same input yields the same result, and
 // after the eligible rows are gone a repeat run returns an empty list.
 // `lastCompletedByClient` maps clientId to the Paris calendar date
 // (YYYY-MM-DD) of that client's most recent completed workout. Callers derive

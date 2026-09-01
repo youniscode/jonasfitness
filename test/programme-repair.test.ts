@@ -41,7 +41,7 @@ function draftFixture(sessions: RawSession[], sessionsPerWeek = sessions.length)
 
 const ex = (libraryId: string, name: string, sets = 3, reps = "8-10", rir = 2, restSeconds = 120): RawExercise => ({ libraryId, name, sets, reps, rir, restSeconds });
 
-// A realistic full-body hypertrophy draft (~45-47 min/session at 60-min target —
+// A realistic full-body hypertrophy draft (~45-47 min/session at 60-min target -
 // UNDER the 51-min lower band edge, so duration repair is required).
 const squat = ex("builtin-back-squat", "Barbell back squat");
 const bench = ex("builtin-barbell-bench-press", "Barbell bench press");
@@ -233,7 +233,7 @@ test("apply changes ONLY the listed actions (sets match action.afterValue, nothi
     }
   }
   // Unchanged sessions/exercises keep their original prescription. Newly
-  // added exercises (add_exercise) have no original entry — they are excluded.
+  // added exercises (add_exercise) have no original entry - they are excluded.
   const originalSets = new Map<string, number>();
   draft.sessions.forEach((session) => session.exercises.forEach((exercise) => originalSets.set(`${session.name}:${exercise.libraryId}`, exercise.sets)));
   const touched = new Set(plan.durationRepair.actions.filter((action) => action.type === "add_set" || action.type === "remove_set").map((action) => `${applied.draft.sessions[action.sessionIndex].name}:${action.exerciseId}`));
@@ -273,7 +273,7 @@ test("no filler-only action: every action adds real volume, never invented time"
     }
   }
   // The plan as a whole moves the authoritative estimate toward the target
-  // (per-action rounded deltas can be 0 — the average rounds per minute).
+  // (per-action rounded deltas can be 0 - the average rounds per minute).
   if (plan.durationRepair.direction === "under") {
     assert.ok(plan.durationRepair.estimatedAfterMinutes >= plan.durationRepair.currentMinutes);
   }
@@ -293,7 +293,7 @@ test("shoulder context identifies MULTIPLE shoulder-relevant exercises (not just
   for (const expected of ["builtin-machine-chest-press", "builtin-machine-shoulder-press", "builtin-lateral-raise"]) {
     assert.ok(ids.includes(expected), `${expected} should be flagged for shoulder review`);
   }
-  // Lat pulldown has no shoulder metadata — it must NOT be flagged.
+  // Lat pulldown has no shoulder metadata - it must NOT be flagged.
   assert.ok(!ids.includes("builtin-lat-pulldown"));
 });
 
@@ -324,7 +324,7 @@ test("lower-back context identifies hinge/axial-loading exercises", () => {
   assert.ok(ids.includes("builtin-cable-crunch"));
 });
 
-test("coach-reviewed limitation remains advisory — items still surface", () => {
+test("coach-reviewed limitation remains advisory - items still surface", () => {
   const draft = draftFixture([{ name: "Day 1", focus: "Upper", exercises: [machinePress, pulldown] }]);
   const review = reviewProgrammeForLimitations(draft, baseOptions({ limitationAreas: ["Shoulder"], limitationsReviewed: true }));
   assert.ok(review);
@@ -417,7 +417,7 @@ test("duration repair avoids limitation-sensitive exercises when alternatives ex
     assert.ok(intel);
     const level = limitationRelevanceFor("shoulder", intel).level;
     // No MODERATE/HIGH shoulder-relevant exercise may receive extra volume.
-    assert.ok(level === null || level === "LOW", `${action.exerciseId} is shoulder-relevant (${level}) — must not get extra volume`);
+    assert.ok(level === null || level === "LOW", `${action.exerciseId} is shoulder-relevant (${level}) - must not get extra volume`);
   }
 });
 

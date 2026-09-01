@@ -12,7 +12,7 @@
 
 export const DEFAULT_SESSION_DURATION = "60";
 
-// Result of a generation response (AI, fallback or retry — all share the same
+// Result of a generation response (AI, fallback or retry - all share the same
 // shape). The current (possibly manual) value is preserved unless the field is
 // empty AND the server reported no target; only then is a default adopted.
 export function sessionDurationAfterGeneration(
@@ -36,7 +36,7 @@ export function sessionDurationForClientChange(): string {
 export type CoachMode = "first" | "adapt" | "adjust";
 
 // The targeted-adjustment UI context. `avoid` (the persistent avoid-exercises
-// constraint) is deliberately NOT part of this type — the adjustment flow
+// constraint) is deliberately NOT part of this type - the adjustment flow
 // never reads or writes it, so an adjustment instruction can never leak into
 // the avoid field (or vice-versa).
 export type AdjustmentContext = {
@@ -57,7 +57,7 @@ export const INITIAL_ADJUSTMENT_CONTEXT: AdjustmentContext = {
 
 // Opening the targeted-adjustment UI. The coach stays in Jonas Coach on the
 // same client with the current draft preserved. The current draft is snapshotted
-// as baseDraft so Retry re-sends THIS draft as previousDraft — never the
+// as baseDraft so Retry re-sends THIS draft as previousDraft - never the
 // fallback draft that replaces payload.draft after a failed adjustment. Any
 // prior instruction is cleared so a new adjustment starts clean.
 export function openAdjustmentContext(
@@ -91,7 +91,7 @@ export function modeSelectionContext(next: CoachMode): AdjustmentContext {
 }
 
 // Updating the adjustment instruction text (typed input). Only the instruction
-// changes — mode, previousMode and baseDraft are preserved verbatim.
+// changes - mode, previousMode and baseDraft are preserved verbatim.
 export function withAdjustmentInstruction(context: AdjustmentContext, instruction: string): AdjustmentContext {
   return { ...context, instruction };
 }
@@ -104,15 +104,15 @@ export function adjustmentInstructionError(instruction: string | null | undefine
 
 // Builds the exact POST body for a Jonas Coach generation request. This is the
 // Retry contract: a Retry must reproduce THE SAME request context as the
-// failed attempt — mode, previousDraft, adjustment instruction, target
-// duration, equipment, goal, sessions/week, avoid — and must never silently
+// failed attempt - mode, previousDraft, adjustment instruction, target
+// duration, equipment, goal, sessions/week, avoid - and must never silently
 // convert a targeted adjustment into first-programme generation. Pure so the
 // mode-preservation invariants are unit-testable.
 export function coachRequestBody(opts: {
   clientId: number;
   mode: CoachMode;
   goal: string;
-  /** Secondary objectives for this draft — supporting context, bounded below. */
+  /** Secondary objectives for this draft - supporting context, bounded below. */
   secondaryGoals?: string[];
   sessionsPerWeek: number;
   sessionDurationMinutes: number | null;
@@ -126,7 +126,7 @@ export function coachRequestBody(opts: {
     mode: opts.mode,
     goal: opts.goal,
     // Always sent (possibly empty): an explicit [] means the coach cleared all
-    // secondaries for this draft — the route distinguishes "cleared" from
+    // secondaries for this draft - the route distinguishes "cleared" from
     // "legacy caller didn't send secondary goals" via Array.isArray.
     secondaryGoals: boundedSecondaryGoals(opts.secondaryGoals),
     sessionsPerWeek: opts.sessionsPerWeek,
@@ -146,7 +146,7 @@ export const GOAL_MAX_SECONDARIES = 5;
 
 // Normalizes raw secondary-goal input (UI selection, request body or the
 // onboarding profile): trimmed, deduped, empty entries dropped, capped at
-// GOAL_MAX_SECONDARIES. Deterministic priority is the input order — the
+// GOAL_MAX_SECONDARIES. Deterministic priority is the input order - the
 // coach's explicit selection order, or the onboarding order when not
 // overridden.
 export function boundedSecondaryGoals(value: unknown): string[] {
@@ -177,7 +177,7 @@ export function toggleSecondaryGoal(primary: string, secondary: string[], goal: 
   return secondary.includes(goal) ? secondary.filter((entry) => entry !== goal) : [...secondary, goal];
 }
 
-// True when the draft's goal selection differs from the onboarding baseline —
+// True when the draft's goal selection differs from the onboarding baseline -
 // drives the "Adjusted for this draft" label and the Reset-to-onboarding
 // control. Never mutates the onboarding profile itself.
 export function draftGoalsAdjusted(primary: string, onboardingPrimary: string, secondary: string[], onboardingSecondary: string[]): boolean {

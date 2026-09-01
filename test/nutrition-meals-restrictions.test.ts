@@ -11,7 +11,7 @@ import {
 } from "../app/lib/nutrition-meals.ts";
 import { getCatalogueFoods, getFoodById } from "../app/lib/food-catalogue.ts";
 
-// Food Nutrition Foundation V1 — restriction-aware food catalogue tests.
+// Food Nutrition Foundation V1 - restriction-aware food catalogue tests.
 // Pre-generation filtering removes hard-restricted foods BEFORE the AI prompt.
 // Post-generation validation remains as defense-in-depth.
 
@@ -136,7 +136,7 @@ test("repair prompt excludes forbidden food IDs for nuts + Lactose", () => {
 
 test("post-validation catches forbidden food even if AI invents it", () => {
   const context = makeContext({ allergies: ["nuts"] });
-  // Simulate AI returning a forbidden food — validation should catch it
+  // Simulate AI returning a forbidden food - validation should catch it
   const dayWithForbidden = {
     title: "Test day",
     meals: [

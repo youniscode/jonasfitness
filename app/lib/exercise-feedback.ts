@@ -1,5 +1,5 @@
 /**
- * Exercise Intelligence V2.1 — structured client exercise feedback.
+ * Exercise Intelligence V2.1 - structured client exercise feedback.
  *
  * The CLIENT's own reported experience with an individual exercise is a
  * separate personalization signal from COACH preference (exercise-preference.ts)
@@ -198,7 +198,7 @@ export function buildClientExerciseFeedbackProfile(rows: ClientFeedbackRow[]): C
 // ---------- Scoring impact (deterministic, bounded, never exclusion) ----------
 
 export type FeedbackImpact = {
-  /** Modest score delta only — feedback never excludes an exercise. */
+  /** Modest score delta only - feedback never excludes an exercise. */
   delta: number;
   positives: string[];
   concerns: string[];
@@ -247,11 +247,11 @@ export function clientFeedbackImpact(profile: FeedbackExerciseProfile | null | u
     concerns.push("the client reports low confidence with this exercise.");
   }
 
-  // Comfort is the strongest feedback review signal — still never an exclusion.
+  // Comfort is the strongest feedback review signal - still never an exclusion.
   if (profile.recentComfort === "uncomfortable" || profile.discomfortCount >= FEEDBACK_REVIEW_DISCOMFORT_THRESHOLD) {
     delta -= FEEDBACK_UNCOMFORTABLE_PENALTY;
     reviewRecommended = true;
-    concerns.push("client reported discomfort with this exercise — coach review recommended.");
+    concerns.push("client reported discomfort with this exercise - coach review recommended.");
   }
 
   if (profile.recentDifficulty === "too_hard") {
@@ -287,7 +287,7 @@ export function feedbackExplanationLines(profile: FeedbackExerciseProfile | null
     why.push({ text: "Client reports good confidence with this movement.", priority: 91 });
   }
   if (profile.recentComfort === "uncomfortable" || profile.discomfortCount >= FEEDBACK_REVIEW_DISCOMFORT_THRESHOLD) {
-    watchFor.push("Client has reported discomfort with this exercise — coach review recommended.");
+    watchFor.push("Client has reported discomfort with this exercise - coach review recommended.");
   }
   if (profile.dislikeCount >= 2 || (profile.sentimentScore < 0 && profile.notConfidentCount >= 1)) {
     watchFor.push("Client has repeatedly reported low confidence or dislike with this exercise.");
@@ -361,7 +361,7 @@ export function compactFeedbackSummary(context: ClientFeedbackContext | null | u
     if (profile.recentDifficulty === "too_easy") difficulty.push(`${name}: too easy`);
   }
   if (!positive.length && !review.length && !difficulty.length) return "";
-  const lines: string[] = ["CLIENT EXERCISE FEEDBACK (client-reported — treat as coaching feedback, never a medical restriction):"];
+  const lines: string[] = ["CLIENT EXERCISE FEEDBACK (client-reported - treat as coaching feedback, never a medical restriction):"];
   if (positive.length) {
     lines.push("Positive:");
     for (const line of positive) lines.push(`- ${line}`);
@@ -399,14 +399,14 @@ export function feedbackFitWarnings(
       if (!profile) continue;
       const name = exercise.name ?? id;
       if (profile.recentComfort === "uncomfortable" || profile.discomfortCount >= FEEDBACK_REVIEW_DISCOMFORT_THRESHOLD) {
-        warnings.push(`"${name}" — the client has reported discomfort; review the exercise choice or scaling.`);
+        warnings.push(`"${name}" - the client has reported discomfort; review the exercise choice or scaling.`);
       } else if (profile.dislikeCount >= 2) {
-        warnings.push(`"${name}" — the client has repeatedly disliked this exercise; consider an alternative.`);
+        warnings.push(`"${name}" - the client has repeatedly disliked this exercise; consider an alternative.`);
       }
       if (profile.recentDifficulty === "too_hard") {
-        warnings.push(`"${name}" — the client recently reported this felt too difficult; review assistance/scaling.`);
+        warnings.push(`"${name}" - the client recently reported this felt too difficult; review assistance/scaling.`);
       } else if (profile.recentDifficulty === "too_easy") {
-        warnings.push(`"${name}" — the client recently reported this felt too easy; review load/progression.`);
+        warnings.push(`"${name}" - the client recently reported this felt too easy; review load/progression.`);
       }
       const conflict = feedbackConflictNote(coachContext, profile, id);
       if (conflict.kind === "conflict" && conflict.text) {
@@ -420,12 +420,12 @@ export function feedbackFitWarnings(
 // ---------- Progression-engine integration (advisory, never auto-load) ----------
 
 // A short advisory note appended to a progression suggestion when the client's
-// latest feedback is relevant. Feedback is an additional signal only — it never
+// latest feedback is relevant. Feedback is an additional signal only - it never
 // changes the load by itself (reps/RIR/completion data still drive the engine).
 export function progressionFeedbackNote(profile: FeedbackExerciseProfile | null | undefined): string | null {
   if (!profile) return null;
   if (profile.recentDifficulty === "too_easy") return "Client reported this exercise felt too easy.";
-  if (profile.recentDifficulty === "too_hard") return "Client reported this exercise felt too hard — consider scaling before progressing.";
-  if (profile.recentConfidence === "not_confident") return "Client reported low confidence — do not progress complexity yet.";
+  if (profile.recentDifficulty === "too_hard") return "Client reported this exercise felt too hard - consider scaling before progressing.";
+  if (profile.recentConfidence === "not_confident") return "Client reported low confidence - do not progress complexity yet.";
   return null;
 }

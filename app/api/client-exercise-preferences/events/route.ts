@@ -6,7 +6,7 @@ import { preferenceEventFrom } from "../../../lib/exercise-preference";
 
 // Coach-only, owner-scoped learning endpoint. Records ONE coach action for a
 // client: a replacement (source -> destination), a removal, a manual add, or
-// an approval. A replacement counts as exactly ONE event — never remove + add
+// an approval. A replacement counts as exactly ONE event - never remove + add
 // + replacement. Every event carries an operationKey; the dedupe ledger
 // (client_exercise_events, unique per owner+key) guarantees a retried request
 // can never double-count, even when the UI retries after a lost response.

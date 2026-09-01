@@ -158,7 +158,7 @@ test("malformed/empty programme rejected", () => {
 
 // ---------- Reps contract (strict, unchanged validation) ----------
 
-test("prose rep prescriptions are rejected — never accommodated", () => {
+test("prose rep prescriptions are rejected - never accommodated", () => {
   for (const badReps of ["30 sec", "30 sec walk", "8-10 each leg", "10 per side", "AMRAP", "to failure", "45 seconds"]) {
     const draft = validDraft({
       sessions: [
@@ -230,7 +230,7 @@ test("AI_DRAFT_CONTRACT demands a pure JSON object and strict reps", () => {
   assert.match(AI_DRAFT_CONTRACT, /exact requested session count/);
   assert.match(AI_DRAFT_CONTRACT, /no duplicate exercise inside a session/);
   assert.match(AI_DRAFT_CONTRACT, /no timed\/distance prescription/);
-  // The example must use a real library id — never a fake one.
+  // The example must use a real library id - never a fake one.
   assert.match(AI_DRAFT_CONTRACT, /builtin-barbell-bench-press/);
   // The example teaches that an id may NOT resemble its name (the production
   // failure: "Barbell back squat" ↔ builtin-back-squat, no "barbell").
@@ -378,7 +378,7 @@ test("buildFallbackDraft with no equipment stays bodyweight/dumbbell compatible"
 // real structured control: when AI fails (truncated/malformed/provider error)
 // against a 30-min target it must NOT silently return the default ~48-min
 // plan. It repairs toward the target band (target ± 15%) with the same
-// deterministic shortening used by the adjustment fallback — fewer high-value
+// deterministic shortening used by the adjustment fallback - fewer high-value
 // exercises first, never artificial rest compression.
 
 test("fallback honors a 30-min target (the production failure case)", () => {

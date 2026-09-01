@@ -43,7 +43,7 @@ function soloBeginnerProfile(overrides?: Partial<{ experience: string; confidenc
 
 // ---------- Metadata coverage ----------
 
-describe("SoloBeginnerLevel — metadata coverage", () => {
+describe("SoloBeginnerLevel - metadata coverage", () => {
   it("every built-in exercise has a soloBeginnerLevel", () => {
     const missing: string[] = [];
     for (const exercise of builtInExercises) {
@@ -98,7 +98,7 @@ describe("SoloBeginnerLevel — metadata coverage", () => {
 
 // ---------- isSoloBeginner ----------
 
-describe("isSoloBeginner — detection logic", () => {
+describe("isSoloBeginner - detection logic", () => {
   it("trainingSupervision=alone + beginner → solo beginner (primary signal)", () => {
     assert.equal(isSoloBeginner(soloBeginnerProfile({ experience: "Beginner", trainingSupervision: "alone" })), true);
   });
@@ -152,9 +152,9 @@ describe("isSoloBeginner — detection logic", () => {
   });
 });
 
-// ---------- Programme generation — solo beginner ----------
+// ---------- Programme generation - solo beginner ----------
 
-describe("buildFallbackDraft — solo beginner filtering", () => {
+describe("buildFallbackDraft - solo beginner filtering", () => {
   it("solo beginner draft contains zero Level 3 exercises", () => {
     const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner", undefined, undefined, true);
     const level3Exercises: string[] = [];
@@ -209,9 +209,9 @@ describe("buildFallbackDraft — solo beginner filtering", () => {
   });
 });
 
-// ---------- Quality engine — solo-beginner checks ----------
+// ---------- Quality engine - solo-beginner checks ----------
 
-describe("soloBeginnerChecks — quality engine integration", () => {
+describe("soloBeginnerChecks - quality engine integration", () => {
   it("Level 3 exercise in solo-beginner draft produces error (not warning)", () => {
     const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
     draft.sessions[0].exercises.push({
@@ -295,7 +295,7 @@ describe("soloBeginnerChecks — quality engine integration", () => {
     assert.ok(report.warnings.some((w) => w.includes("Level 3")), "Warnings should mention Level 3");
   });
 
-  it("excess Level 2 is advisory — soloBeginner check still passes, warning surfaces", () => {
+  it("excess Level 2 is advisory - soloBeginner check still passes, warning surfaces", () => {
     const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
     // Inject two Level 2 exercises into one session to exceed the 1/session budget
     draft.sessions[0].exercises.push(
@@ -311,14 +311,14 @@ describe("soloBeginnerChecks — quality engine integration", () => {
     const report = analyseProgrammeQuality(draft, options);
     const soloCheck = report.checks.find((c) => c.key === "soloBeginner");
     assert.ok(soloCheck, "Quality report should include soloBeginner check");
-    assert.equal(soloCheck.ok, true, "Excess Level 2 must remain advisory — check should still pass");
+    assert.equal(soloCheck.ok, true, "Excess Level 2 must remain advisory - check should still pass");
     assert.ok(report.warnings.some((w) => w.includes("Level 2")), "Excess Level 2 should surface as an advisory warning");
   });
 });
 
 // ---------- Regression: non-solo beginner draft unchanged ----------
 
-describe("Regression — non-solo beginner draft unchanged", () => {
+describe("Regression - non-solo beginner draft unchanged", () => {
   it("non-solo beginner draft still passes quality checks", () => {
     const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
     const options: QualityOptions = {
@@ -348,7 +348,7 @@ describe("Regression — non-solo beginner draft unchanged", () => {
 
 // ---------- Friend-like programme: gym buddy scenario ----------
 
-describe("Friend-like programme — gym buddy scenario", () => {
+describe("Friend-like programme - gym buddy scenario", () => {
   it("3-day full body gym programme for a solo beginner uses mostly Level 1", () => {
     const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner", undefined, undefined, true);
     assert.equal(draft.sessions.length, 3, "Should have 3 sessions");
@@ -407,7 +407,7 @@ describe("Mixed supervision & coached beginner", () => {
 
 // ---------- Hallucination defense ----------
 
-describe("Hallucination defense — Level 3 detection", () => {
+describe("Hallucination defense - Level 3 detection", () => {
   it("detects Level 3 exercises in a mixed draft", () => {
     const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
     draft.sessions[0].exercises.push(
@@ -457,11 +457,11 @@ describe("Hallucination defense — Level 3 detection", () => {
 
 // ---------- Stored values + display labels (UX polish, display-only) ----------
 
-describe("trainingSupervision — stored values stay canonical; labels are display-only", () => {
+describe("trainingSupervision - stored values stay canonical; labels are display-only", () => {
   const CANONICAL = ["alone", "coach", "mixed"] as const;
 
   it("sanitizeProfile accepts only the canonical stored tokens (never localized labels)", () => {
-    // A localized label is NOT a valid stored value — the sanitizer drops it.
+    // A localized label is NOT a valid stored value - the sanitizer drops it.
     const localized = sanitizeProfile({ ...soloBeginnerProfile(), trainingSupervision: "By myself" });
     assert.equal(localized.trainingSupervision, "");
     for (const value of CANONICAL) {
@@ -525,7 +525,7 @@ describe("trainingSupervision — stored values stay canonical; labels are displ
 
 // ---------- Coach onboarding modal: trainingSupervision edit + merge safety ----------
 
-describe("Coach onboarding modal — trainingSupervision edit", () => {
+describe("Coach onboarding modal - trainingSupervision edit", () => {
   // A structured profile as the client survey would produce it, with a rich set
   // of fields the "Complete the coaching foundations" modal does NOT display.
   function fullProfile(): OnboardingProfile {
@@ -553,7 +553,7 @@ describe("Coach onboarding modal — trainingSupervision edit", () => {
     p.recovery.sleepHours = "6–7h";
     p.recovery.sleepQuality = 4;
     p.motivation.drivers = ["Health"];
-    p.coaching.accountability = "High — keep me accountable";
+    p.coaching.accountability = "High - keep me accountable";
     p.coaching.feedback = "Direct and concise";
     p.coaching.coachingFormat = "Online";
     p.nutrition.tracking = "Roughly";
@@ -583,7 +583,7 @@ describe("Coach onboarding modal — trainingSupervision edit", () => {
   });
 
   it("4: a missing value stays empty (never fabricated from confidence.alone)", () => {
-    // The profile has confidence.alone set, but no supervision — it must stay empty.
+    // The profile has confidence.alone set, but no supervision - it must stay empty.
     const merged = applyTrainingSupervision(fullProfile(), "");
     assert.ok(merged, "merge of an existing structured profile is not dropped");
     assert.equal(merged.trainingSupervision, "", "empty supervision stays empty");

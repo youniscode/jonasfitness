@@ -127,7 +127,7 @@ const USE_LABEL: Record<string, string> = {
   core: "Core",
 };
 
-// Small expandable "Why this exercise?" panel — coaching reasons for THIS
+// Small expandable "Why this exercise?" panel - coaching reasons for THIS
 // client in THIS session, watch-for guidance and canonical alternatives.
 // Advisory only: it never makes a medical claim.
 function WhyThisExercise({ explanation }: { explanation: ExerciseExplanation }) {
@@ -139,7 +139,7 @@ function WhyThisExercise({ explanation }: { explanation: ExerciseExplanation }) 
   </div>;
 }
 
-// Compact essentials block for a library exercise card — structured metadata
+// Compact essentials block for a library exercise card - structured metadata
 // in a scannable two-column grid. Verbose coaching content (cues, mistakes,
 // alternatives) sits behind a "More details" toggle so the default card stays
 // compact; nothing is truncated or removed.
@@ -194,15 +194,15 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
   const [libraryNotice, setLibraryNotice] = useState("");
   // Which exercise row has its "Why this exercise?" panel open (by exercise id).
   const [whyOpen, setWhyOpen] = useState<string | null>(null);
-  // Exercise Intelligence V2 — client preference memory for the selected client.
+  // Exercise Intelligence V2 - client preference memory for the selected client.
   // Explicit = manually set by the coach; learned = inferred from prior coach
-  // actions (replace/remove/add/approve). PREFERENCES only — never restrictions.
+  // actions (replace/remove/add/approve). PREFERENCES only - never restrictions.
   type PreferenceRow = { exerciseId: string; explicitState: "preferred" | "neutral" | "avoid"; replacementInCount: number; replacementOutCount: number; manualAddCount: number; manualRemoveCount: number; approvedCount: number };
   type ReplacementRow = { fromExerciseId: string; toExerciseId: string; count: number };
   const [preferenceRows, setPreferenceRows] = useState<PreferenceRow[]>([]);
   const [replacementRows, setReplacementRows] = useState<ReplacementRow[]>([]);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
-  // Exercise Intelligence V2.1 — the client's own structured exercise feedback
+  // Exercise Intelligence V2.1 - the client's own structured exercise feedback
   // (liked/disliked, comfort, difficulty, confidence). Kept visually separate
   // from coach preferences; comments stay coach-facing only.
   const [feedbackProfile, setFeedbackProfile] = useState<Record<string, FeedbackExerciseProfile>>({});
@@ -229,7 +229,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
 
   // Records ONE coach action for the selected client (replace/remove/add/
   // approve) with a fresh operationKey so a retried request can never
-  // double-count. Soft signals: failures are ignored — learning never blocks
+  // double-count. Soft signals: failures are ignored - learning never blocks
   // normal programme editing.
   async function recordPreferenceEvent(body: Record<string, unknown>) {
     if (client.id < 1) return;
@@ -343,7 +343,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
 
   const selected = useMemo(() => programmes.find((programme) => programme.id === selectedId) ?? null, [programmes, selectedId]);
   // Actual training-day count vs the client's preferred weekly sessions. Only a
-  // real mismatch (both values known) surfaces a warning — never a hard block.
+  // real mismatch (both values known) surfaces a warning - never a hard block.
   const frequency = selected ? compareProgrammeFrequency(selected.content, client.sessionsPerWeek) : null;
   const filteredLibrary = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -480,9 +480,9 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     window.dispatchEvent(new CustomEvent("jonas-programme-saved", { detail: { clientId: client.id } }));
     // V2 approval learning: a small positive usage signal for every exercise
     // kept in the approved programme (weaker than explicit preferred and
-    // repeated manual add — see the deterministic weight policy).
+    // repeated manual add - see the deterministic weight policy).
     // Stable ids only: canonical built-ins (builtin-*) and owner-scoped custom
-    // exercises (custom-<n>). "legacy" / "custom" are unstable fallbacks —
+    // exercises (custom-<n>). "legacy" / "custom" are unstable fallbacks -
     // never learned from.
     const libraryIds = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId))
       .filter((id) => id && id !== "legacy" && id !== "custom");
@@ -583,10 +583,10 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
       return <div className="preference-summary">
         <button type="button" className="preference-summary-toggle" onClick={() => setPreferencesOpen((value) => !value)} aria-expanded={preferencesOpen}><span>EXERCISE PREFERENCES</span><em>{hasSignals ? `${preferred.length + avoided.length} explicit · ${replacementRows.length + learned.length} learned` : "No preferences yet"}</em><b>{preferencesOpen ? "−" : "+"}</b></button>
         {preferencesOpen && <div className="preference-summary-body">
-          <p className="preference-summary-note"><b>Explicit</b> = you set it manually. <b>Learned</b> = inferred from your coaching actions (replace, remove, add, approve). Preferences never restrict the coach — they only inform future drafts.</p>
+          <p className="preference-summary-note"><b>Explicit</b> = you set it manually. <b>Learned</b> = inferred from your coaching actions (replace, remove, add, approve). Preferences never restrict the coach - they only inform future drafts.</p>
           <div className="preference-summary-columns">
-            <div className="preference-summary-list"><h4>Explicit — Preferred</h4>{preferred.length === 0 ? <span className="preference-empty">None set.</span> : preferred.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
-            <div className="preference-summary-list"><h4>Explicit — Avoid</h4>{avoided.length === 0 ? <span className="preference-empty">None set.</span> : avoided.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Explicit - Preferred</h4>{preferred.length === 0 ? <span className="preference-empty">None set.</span> : preferred.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
+            <div className="preference-summary-list"><h4>Explicit - Avoid</h4>{avoided.length === 0 ? <span className="preference-empty">None set.</span> : avoided.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)}</span><button type="button" onClick={() => void resetPreference("reset-explicit", row.exerciseId)}>Clear</button></div>)}</div>
             <div className="preference-summary-list"><h4>Learned patterns</h4>{replacementRows.length === 0 ? <span className="preference-empty">None yet.</span> : replacementRows.map((row) => <div key={`${row.fromExerciseId}->${row.toExerciseId}`}><span>{preferenceName(row.fromExerciseId)} → {preferenceName(row.toExerciseId)} <b>×{row.count}</b></span><button type="button" onClick={() => void resetReplacementPattern(row.fromExerciseId, row.toExerciseId)}>Reset</button></div>)}</div>
             <div className="preference-summary-list"><h4>Learned signals</h4>{learned.length === 0 ? <span className="preference-empty">None yet.</span> : learned.map((row) => <div key={row.exerciseId}><span>{preferenceName(row.exerciseId)} <small>{[row.approvedCount ? `approved ×${row.approvedCount}` : "", row.manualAddCount ? `added ×${row.manualAddCount}` : "", row.manualRemoveCount ? `removed ×${row.manualRemoveCount}` : "", row.replacementOutCount ? `replaced ×${row.replacementOutCount}` : "", row.replacementInCount ? `kept as replacement ×${row.replacementInCount}` : ""].filter(Boolean).join(" · ")}</small></span><button type="button" onClick={() => void resetPreference("reset-learned", row.exerciseId)}>Reset</button></div>)}</div>
           </div>
@@ -603,7 +603,7 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
       return <div className="feedback-summary">
         <button type="button" className="preference-summary-toggle" onClick={() => setFeedbackOpen((value) => !value)} aria-expanded={feedbackOpen}><span>CLIENT EXERCISE FEEDBACK</span><em>{entries.length ? `${entries.length} exercise${entries.length === 1 ? "" : "s"} with feedback` : "No feedback yet"}</em><b>{feedbackOpen ? "−" : "+"}</b></button>
         {feedbackOpen && <div className="preference-summary-body">
-          <p className="preference-summary-note">The <b>client’s own</b> reports — kept separate from coach preferences. Comments are coach-facing only and never sent to the AI. Feedback never restricts the coach.</p>
+          <p className="preference-summary-note">The <b>client’s own</b> reports - kept separate from coach preferences. Comments are coach-facing only and never sent to the AI. Feedback never restricts the coach.</p>
           <div className="preference-summary-columns">
             <div className="preference-summary-list"><h4>Positive</h4>{positive.length === 0 ? <span className="preference-empty">None yet.</span> : positive.map(([exerciseId, profile]) => <div key={exerciseId}><span>{preferenceName(exerciseId)} <small>{signalLabel(profile)}</small></span><button type="button" onClick={() => void resetFeedback("reset-exercise", exerciseId)}>Reset</button></div>)}</div>
             <div className="preference-summary-list"><h4>Review</h4>{review.length === 0 ? <span className="preference-empty">None yet.</span> : review.map(([exerciseId, profile]) => <div key={exerciseId}><span>{preferenceName(exerciseId)} <small>{signalLabel(profile)}</small></span><button type="button" onClick={() => void resetFeedback("reset-exercise", exerciseId)}>Reset</button></div>)}</div>
@@ -616,8 +616,8 @@ export default function ProgrammeLibrary({ client }: { client: Client }) {
     {!selected || !draft ? <div className="programme-empty"><strong>No saved programmes yet.</strong><span>Generate a programme in Coach Studio, approve it, then refine every exercise here.</span></div> : <div className="programme-layout">
       <aside className="programme-list"><p>SAVED PROGRAMMES · {programmes.length}</p>{programmes.map((programme) => <button type="button" key={programme.id} className={programme.id === selected.id ? "active" : ""} onClick={() => chooseProgramme(programme)}><strong>{programme.title}</strong>{programme.status !== "approved" && <em className="programme-draft-badge">DRAFT</em>}<span>{programme.goal} · {programme.sessionsPerWeek} sessions/wk</span><small>{new Date(programme.createdAt).toLocaleDateString()}</small></button>)}</aside>
       <article className="programme-detail">
-        <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : selected.status !== "approved" ? "PROGRAMME DRAFT — NOT PUBLISHED" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <>{selected.status !== "approved" && <button type="button" className="dark-button" onClick={() => void approveDraft()}>Approve programme ✓</button>}<button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button><button type="button" className="programme-delete-button" onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}>Delete programme</button></>}</div></div>
-        {selected.status !== "approved" && !editing && <p className="programme-draft-note">This is an unapproved draft — the client portal does not show it yet. Review it, then approve to publish.</p>}
+        <div className="programme-detail-head"><div><p>{editing ? "EDITING PROGRAMME" : selected.status !== "approved" ? "PROGRAMME DRAFT - NOT PUBLISHED" : "APPROVED PROGRAMME"}</p>{editing ? <input aria-label="Programme title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /> : <h3>{draft.title}</h3>}</div><div>{editing ? <><button type="button" className="ghost-button" onClick={() => { setDraft(programmeDraft(selected)); setEditing(false); setNotice(""); }}>Cancel</button><button type="button" className="dark-button" onClick={() => void saveChanges()}>Save changes</button></> : <>{selected.status !== "approved" && <button type="button" className="dark-button" onClick={() => void approveDraft()}>Approve programme ✓</button>}<button type="button" className="dark-button" onClick={() => setEditing(true)}>Edit programme</button><button type="button" className="programme-delete-button" onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}>Delete programme</button></>}</div></div>
+        {selected.status !== "approved" && !editing && <p className="programme-draft-note">This is an unapproved draft - the client portal does not show it yet. Review it, then approve to publish.</p>}
         {editing ? <div className="programme-meta-edit"><label>Goal<select value={draft.goal} onChange={(event) => setDraft({ ...draft, goal: event.target.value })}><option>Build muscle</option><option>Build strength</option><option>Fat loss</option><option>General fitness</option></select></label><label>Sessions per week<select value={draft.sessions.length} onChange={(event) => resizeSessions(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6, 7].map((value) => <option key={value}>{value}</option>)}</select></label></div> : <p className="programme-meta">{draft.goal} · {draft.sessionsPerWeek} sessions per week · Saved {new Date(selected.createdAt).toLocaleDateString()}</p>}
         {!editing && frequency && !frequency.matches && <div className="programme-frequency-warning" role="note"><p>⚠ TRAINING FREQUENCY MISMATCH</p><span>Client preference <b>{frequency.clientSessions} sessions/week</b></span><span>Programme <b>{frequency.programmeSessions} sessions/week</b></span><em>Review before assigning. You can still assign this programme.</em></div>}
         <div className="programme-translation"><div><p>CLIENT LANGUAGE VERSION</p><span>Translate a separate client copy while preserving sets, reps, rest and RIR.</span></div><div><select aria-label="Programme translation language" value={translationTarget} onChange={(event) => setTranslationTarget(event.target.value as ProgrammeLanguage)}><option value="fr">French</option><option value="en">English</option><option value="ar">Arabic</option></select><button type="button" className="ghost-button" disabled={translating} onClick={() => void translateForClient()}>{translating ? "Translating…" : "Translate live"}</button></div></div>

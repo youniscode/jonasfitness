@@ -30,7 +30,7 @@ async function progressionContext(ownerId: string, clientId: number) {
     eq(workoutSessions.status, "completed"),
   )).orderBy(desc(workoutSessions.completedAt)).limit(60);
   const workouts = rows.map((workout) => ({ ...workout, exercises: parseExercises(workout.exercises) }));
-  // V2.1: client exercise feedback is an advisory note on progression — loaded
+  // V2.1: client exercise feedback is an advisory note on progression - loaded
   // once per client (never per exercise) and aggregated in memory.
   const feedbackRows = await db.select().from(clientExerciseFeedback).where(and(
     eq(clientExerciseFeedback.ownerId, ownerId),

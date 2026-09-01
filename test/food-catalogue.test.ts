@@ -8,7 +8,7 @@ import {
   findFoodByAlias,
 } from "../app/lib/food-catalogue.ts";
 
-// Food Nutrition Foundation V1 — catalogue integrity and lookup tests.
+// Food Nutrition Foundation V1 - catalogue integrity and lookup tests.
 // The catalogue is the single authoritative source of food data (CIQUAL 2020).
 // Every runtime lookup must go through this module; AI never supplies nutrient values.
 

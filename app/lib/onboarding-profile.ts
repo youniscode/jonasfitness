@@ -6,20 +6,20 @@
  * free-text notes kept OPTIONAL. This module owns:
  *
  *   - the canonical profile shape and every allowed option value (strict sets,
- *     never free-form — the API sanitizes incoming surveys against these),
+ *     never free-form - the API sanitizes incoming surveys against these),
  *   - the derived "critical" flat fields (trainingExperience, availability,
  *     equipment, goalsDetail, trainingConsiderations) that downstream systems
  *     (onboarding checks, coach profile, readiness gate, Jonas Coach) already
- *     consume — so one JSON profile keeps every existing consumer working,
+ *     consume - so one JSON profile keeps every existing consumer working,
  *   - backward-compatible synthesis of a profile from legacy flat intake rows,
  *   - the "required minimum" gate for the client's final submit,
  *   - a compact coach-facing summary (not a dump of raw answers), and
  *   - the initial client exercise preferences (onboarding likes/dislikes) as a
- *     CLIENT-originated signal — kept strictly separate from coach preference
+ *     CLIENT-originated signal - kept strictly separate from coach preference
  *     and post-workout feedback, never written to the coach preference tables.
  *
  * Pure on purpose: only static catalogue imports, unit-testable with Node's
- * test runner. This is client-reported coaching context — never a medical
+ * test runner. This is client-reported coaching context - never a medical
  * record.
  */
 
@@ -33,12 +33,12 @@ export const SECONDARY_GOALS = ["Confidence", "Energy", "Routine", "Mobility", "
 export const APP_GOALS = ["Build muscle", "Lose body fat", "Get stronger", "Improve fitness", "Return to training", "Improve general health", "Other"] as const;
 // Persisted values allowed for profile.goals.secondary: the onboarding survey's
 // lifestyle secondary goals PLUS the objective goals (a multi-goal application
-// carries extra objectives — e.g. "Get stronger" — as secondary goals). The
+// carries extra objectives - e.g. "Get stronger" - as secondary goals). The
 // survey chip list stays SECONDARY_GOALS; this broader set only widens what the
 // profile may store and display.
 export const SECONDARY_GOAL_VALUES = [...new Set([...SECONDARY_GOALS, ...PRIMARY_GOALS])];
 // Legacy application values (stored before the canonical vocabulary was adopted)
-// mapped onto canonical APP_GOALS values — never a duplicate vocabulary.
+// mapped onto canonical APP_GOALS values - never a duplicate vocabulary.
 const APP_GOAL_ALIASES: Record<string, string> = {
   "Build strength": "Get stronger",
   "Fat loss": "Lose body fat",
@@ -70,19 +70,19 @@ export const SLEEP_HOURS = ["Under 5h", "5–6h", "6–7h", "7–8h", "8h+"] as 
 export const RECOVERY_LEVELS = ["Poor", "Okay", "Good", "Very good"] as const;
 export const MOTIVATION_DRIVERS = ["Looking better", "Feeling more confident", "Health", "Strength", "Performance", "Energy", "Stress relief", "Discipline/routine", "Upcoming holiday/event", "Other"] as const;
 export const CONSISTENCY_BARRIERS = ["Lack of time", "Motivation", "Not knowing what to do", "Work", "Family", "Fatigue", "Gym anxiety", "Travel", "Previous pain/discomfort", "Boredom", "Nothing in particular", "Other"] as const;
-export const ACCOUNTABILITY_LEVELS = ["Low — give me the plan", "Moderate — regular guidance", "High — keep me accountable"] as const;
+export const ACCOUNTABILITY_LEVELS = ["Low - give me the plan", "Moderate - regular guidance", "High - keep me accountable"] as const;
 export const FEEDBACK_STYLES = ["Direct and concise", "Detailed explanations", "Encouraging", "Data/progress focused", "Mix of everything"] as const;
 export const COACH_FOCUS = ["Technique", "Progression", "Consistency", "Motivation", "Nutrition", "Habits", "Accountability"] as const;
 export const NUTRITION_TRACKING = ["No", "Roughly", "Calories", "Calories + macros", "I used to", "I don't want to track"] as const;
 export const EATING_PATTERNS = ["No particular pattern", "Vegetarian", "Vegan", "Halal", "Other"] as const;
-// Nutrition Foundations V1 / Phase 2A — canonical input vocabulary. Stored tokens
+// Nutrition Foundations V1 / Phase 2A - canonical input vocabulary. Stored tokens
 // are language-independent (only DISPLAYED labels are localized in the UI); the
 // future Nutrition Engine may require male/female for Mifflin-St Jeor, so
 // "prefer_not_to_say" must resolve to insufficient_data, never a guess.
 export const SEX_VALUES = ["male", "female", "prefer_not_to_say"] as const;
 export type SexValue = (typeof SEX_VALUES)[number];
 // Explicit nutrition safety gates. These flags NEVER trigger medical
-// calculations — they only gate future automatic Nutrition Guidance pending
+// calculations - they only gate future automatic Nutrition Guidance pending
 // coach/professional review (see `nutritionGuidanceBlocked`).
 export const NUTRITION_SAFETY_FLAGS = [
   "minor",
@@ -98,7 +98,7 @@ export type NutritionSafetyFlag = (typeof NUTRITION_SAFETY_FLAGS)[number];
 // labels live inline in the client onboarding UI's translation table; these are
 // the English fallbacks so raw snake_case tokens (e.g. "eating_disorder_history"
 // or "prefer_not_to_say") never surface to an English-speaking client. The
-// canonical stored tokens NEVER change — this map only renders human labels.
+// canonical stored tokens NEVER change - this map only renders human labels.
 export const NUTRITION_EN_LABELS: Record<string, string> = {
   // demographics (sex)
   male: "Male",
@@ -132,7 +132,7 @@ export type TrainingSupervision = typeof TRAINING_SUPERVISIONS[number];
 
 // ---------- training-supervision display labels ----------
 // Display-only localization for the explicit supervision question. The stored
-// canonical values ("alone" | "coach" | "mixed") NEVER change — these maps only
+// canonical values ("alone" | "coach" | "mixed") NEVER change - these maps only
 // render human labels for the onboarding UI and coach-facing summaries, so
 // persistence, sanitization and the solo-beginner logic stay byte-identical.
 export const SUPERVISION_LANGS = ["en", "fr", "ar"] as const;
@@ -188,7 +188,7 @@ export type OnboardingProfile = {
     tracking: string;
     pattern: string;
     note: string;
-    // Nutrition Foundations V1 / Phase 2A — explicit inputs only, never
+    // Nutrition Foundations V1 / Phase 2A - explicit inputs only, never
     // inferred from free text. Bounded string lists (allergies / intolerances /
     // disliked foods) and a meals-per-day count for normal coaching use.
     allergies: string[];
@@ -202,7 +202,7 @@ export type OnboardingProfile = {
   // inputs. Never inferred from anything else.
   demographics: { ageYears: number | null; sex: string };
   // Explicit safety gates (see NUTRITION_SAFETY_FLAGS). They only gate future
-  // automatic nutrition guidance — they are NOT medical calculations.
+  // automatic nutrition guidance - they are NOT medical calculations.
   nutritionSafety: { flags: string[]; note: string };
 };
 
@@ -278,7 +278,7 @@ export function isProfileEmpty(profile: OnboardingProfile): boolean {
 /**
  * Strict sanitizer: only known keys survive, every option is validated against
  * its canonical set, strings are trimmed and length-limited, arrays capped.
- * Anything else is dropped — free text is never accepted where a chip is expected.
+ * Anything else is dropped - free text is never accepted where a chip is expected.
  */
 export function sanitizeProfile(input: unknown): OnboardingProfile {
   const source = record(input);
@@ -348,7 +348,7 @@ export function sanitizeProfile(input: unknown): OnboardingProfile {
   profile.nutrition.tracking = oneOf(nutrition.tracking, NUTRITION_TRACKING);
   profile.nutrition.pattern = oneOf(nutrition.pattern, EATING_PATTERNS);
   profile.nutrition.note = text(nutrition.note, 500);
-  // Nutrition Foundations V1 / Phase 2A — strict, explicit, bounded. Unknown
+  // Nutrition Foundations V1 / Phase 2A - strict, explicit, bounded. Unknown
   // safety flags are dropped (same convention as every other canonical set).
   profile.nutrition.allergies = foodList(nutrition.allergies);
   profile.nutrition.intolerances = foodList(nutrition.intolerances);
@@ -400,7 +400,7 @@ export function applyTrainingSupervision(
   const base = current ?? emptyProfile();
   // Field-scoped clone: only trainingSupervision is rewritten. The rest of the
   // profile (preferences, limitations, schedule, recovery, notes, …) is carried
-  // over verbatim — a re-sanitization here would silently re-filter fields that
+  // over verbatim - a re-sanitization here would silently re-filter fields that
   // the coach modal does not even display, which is exactly what we must avoid.
   const merged: OnboardingProfile = { ...base, trainingSupervision: canonical };
   return isProfileEmpty(merged) ? null : merged;
@@ -484,7 +484,7 @@ export function deriveIntakeFields(profile: OnboardingProfile): DerivedIntakeFie
   const supervision = profile.trainingSupervision ? ` · supervision: ${supervisionCoachLabel(profile.trainingSupervision)}` : "";
   const goalsDetail = (profile.goals.primary + secondary + goalNote + format + supervision).trim();
   const areaLines = profile.limitations.status === "areas"
-    ? profile.limitations.areas.map((area) => `${area} — ${profile.limitations.areaKinds[area] || "Not sure"}`).join("; ")
+    ? profile.limitations.areas.map((area) => `${area} - ${profile.limitations.areaKinds[area] || "Not sure"}`).join("; ")
     : "";
   const limitationNote = profile.limitations.status === "areas"
     ? [areaLines, profile.limitations.note].filter(Boolean).join(". ")
@@ -559,16 +559,16 @@ export function profileMinimum(profile: OnboardingProfile): { complete: boolean;
 //      confidence.alone being "Not confident" or "A little confident"
 //
 // trainingSupervision is the PRIMARY signal: it answers "Do you train alone,
-// with a coach, or both?" — a direct supervision question.
+// with a coach, or both?" - a direct supervision question.
 //   - "alone"  → solo beginner (trains entirely independently)
 //   - "mixed"  → solo beginner (some sessions happen independently)
 //   - "coach"  → NOT a solo beginner (consistent external supervision)
 // confidence.alone is a SECONDARY/legacy fallback: it answers "How confident
-// are you training alone?" — it measures confidence, not supervision status.
+// are you training alone?" - it measures confidence, not supervision status.
 // A confident solo trainee is still a solo beginner; an unconfident trainee
 // with a coach is NOT a solo beginner.
 //
-// This is execution-complexity context only — NOT medical safety, NOT injury
+// This is execution-complexity context only - NOT medical safety, NOT injury
 // prediction, NOT contraindication. Used to filter technically demanding
 // exercises for a TRUE beginner with limited coaching access.
 export function isSoloBeginner(profile: OnboardingProfile): boolean {
@@ -580,15 +580,15 @@ export function isSoloBeginner(profile: OnboardingProfile): boolean {
   if (profile.trainingSupervision === "alone" || profile.trainingSupervision === "mixed") return true;
   if (profile.trainingSupervision === "coach") return false;
 
-  // Legacy fallback: trainingSupervision not yet answered — use confidence.alone
+  // Legacy fallback: trainingSupervision not yet answered - use confidence.alone
   const alone = profile.confidence.alone;
   return alone === "Not confident" || alone === "A little confident";
 }
 
-// ---------- Nutrition Foundations V1 / Phase 2A — pure gates ----------
+// ---------- Nutrition Foundations V1 / Phase 2A - pure gates ----------
 //
 // These helpers only GATE future automatic Nutrition Guidance. They never
-// calculate, diagnose or recommend treatment — a flagged client simply requires
+// calculate, diagnose or recommend treatment - a flagged client simply requires
 // coach/professional review before any automated nutrition-target generation
 // (which does not exist yet; Phase 2B will consume these).
 
@@ -681,7 +681,7 @@ export function profileSummary(profile: OnboardingProfile): ProfileSummaryBlock[
   const limitations = profile.limitations.status === "none"
     ? ["None reported"]
     : profile.limitations.status === "areas"
-      ? [profile.limitations.areas.map((area) => `${area}${profile.limitations.areaKinds[area] ? ` — ${profile.limitations.areaKinds[area]}` : ""}`).join("; ")]
+      ? [profile.limitations.areas.map((area) => `${area}${profile.limitations.areaKinds[area] ? ` - ${profile.limitations.areaKinds[area]}` : ""}`).join("; ")]
       : [];
   if (limitations.length) blocks.push({ section: "Limitations", lines: limitations });
   const recovery = [profile.recovery.sleepHours, profile.recovery.sleepQuality ? `Sleep quality ${profile.recovery.sleepQuality}/5` : "", profile.recovery.stress ? `Stress ${profile.recovery.stress}/5` : "", profile.recovery.recovery].filter(Boolean);
@@ -702,7 +702,7 @@ export function profileSummary(profile: OnboardingProfile): ProfileSummaryBlock[
     profile.demographics.sex ? `Sex: ${sexCoachLabel(profile.demographics.sex)}` : "",
   ].filter(Boolean);
   if (demographics.length) blocks.push({ section: "Demographics", lines: demographics });
-  // Coach-facing safety status only — no medical inference. Absent when clear.
+  // Coach-facing safety status only - no medical inference. Absent when clear.
   const safetyBlock = nutritionGuidanceBlocked(profile);
   if (safetyBlock.blocked) {
     blocks.push({ section: "Nutrition safety", lines: [`Review required (${safetyBlock.reasons.join(", ")})`] });
@@ -790,10 +790,10 @@ export function parseLeadSecondaryGoals(value: unknown, primaryGoal = ""): strin
  *   - lead goal        → goals.primary   (only when it is a canonical goal)
  *   - lead experience  → experience.level (via the vocabulary mapping above)
  *   - lead frequency   → schedule.daysPerWeek
- *   - lead format      → coaching.coachingFormat (coaching context — NEVER
+ *   - lead format      → coaching.coachingFormat (coaching context - NEVER
  *                       conflated with venue/equipment: "Online" is not "home gym")
  * Unknown values are left unanswered for the client. Callers must only write
- * this into a brand-new intake — a completed onboarding is never overwritten.
+ * this into a brand-new intake - a completed onboarding is never overwritten.
  */
 export function profileFromLead(lead: LeadPrefill): OnboardingProfile {
   const profile = emptyProfile();
@@ -836,7 +836,7 @@ export function profileFromLead(lead: LeadPrefill): OnboardingProfile {
 // ---------- representative exercise selection (onboarding picker) ----------
 
 // Curated canonical pool of common, recognizable movements (machine/cable/
-// dumbbell/bodyweight staples). Every id is a real canonical built-in id — the
+// dumbbell/bodyweight staples). Every id is a real canonical built-in id - the
 // picker never invents or fuzzy-matches.
 const REPRESENTATIVE_POOL = [
   "builtin-leg-press",
@@ -939,7 +939,7 @@ function exerciseNameFor(id: string): string {
 
 const CANONICAL_ID_RE = /^[a-z0-9-]+$/i;
 
-// Canonical library ids only — never fuzzy identities. Dislike wins
+// Canonical library ids only - never fuzzy identities. Dislike wins
 // deterministically when the same exercise is both liked and disliked (the
 // conservative interpretation); "Not sure" produces no signal at all.
 export function initialPreferenceContextFrom(profile: OnboardingProfile): InitialPreferenceContext {
@@ -962,7 +962,7 @@ export function initialPreferenceContextFrom(profile: OnboardingProfile): Initia
 // Advisory conflict notes between the coach's EXPLICIT preference and the
 // client's onboarding reaction. Factual only: a conflict is surfaced, never
 // resolved by the system. Coach "avoid" remains an authoritative exclusion;
-// coach "preferred" never overwrites a client dislike — both stay visible.
+// coach "preferred" never overwrites a client dislike - both stay visible.
 export function onboardingPreferenceConflictNotes(
   profile: OnboardingProfile,
   coachExplicit: Record<string, "preferred" | "neutral" | "avoid"> | null | undefined,
@@ -972,7 +972,7 @@ export function onboardingPreferenceConflictNotes(
   const notes: string[] = [];
   for (const id of snapshot.disliked) {
     if (coachExplicit[id] === "preferred") {
-      notes.push(`Coach prefers ${exerciseNameFor(id)}, but the client indicated during onboarding they would prefer another exercise — review before including it.`);
+      notes.push(`Coach prefers ${exerciseNameFor(id)}, but the client indicated during onboarding they would prefer another exercise - review before including it.`);
     }
   }
   for (const id of snapshot.liked) {
@@ -984,13 +984,13 @@ export function onboardingPreferenceConflictNotes(
 }
 
 // PII-free block for Jonas Coach and the coach UI: exercise names only,
-// labelled as client-reported onboarding preference — never coach preference,
+// labelled as client-reported onboarding preference - never coach preference,
 // never a restriction. Empty when the client reported no likes/dislikes/unsure.
 export function compactInitialPreferenceSummary(profile: OnboardingProfile): string {
   const snapshot = initialPreferenceContextFrom(profile);
   const hasAny = snapshot.liked.length > 0 || snapshot.disliked.length > 0 || snapshot.unsure.length > 0;
   if (!hasAny) return "";
-  const lines = ["INITIAL CLIENT EXERCISE PREFERENCES (client-reported during onboarding — not coach preference, never a restriction):"];
+  const lines = ["INITIAL CLIENT EXERCISE PREFERENCES (client-reported during onboarding - not coach preference, never a restriction):"];
   if (snapshot.liked.length) {
     lines.push("Likes:");
     for (const id of snapshot.liked) lines.push(`- ${exerciseNameFor(id)}`);

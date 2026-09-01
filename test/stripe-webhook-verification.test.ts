@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import Stripe from "stripe";
 
-// Test modes: use a throwaway test key — constructEvent only checks the
+// Test modes: use a throwaway test key - constructEvent only checks the
 // signature against the webhook secret, no network call is made.
 const stripe = new Stripe("sk_test_51_NONEXISTENT", { apiVersion: "2026-08-26.dahlia" });
 const WEBHOOK_SECRET = "whsec_test_abcdef1234567890";

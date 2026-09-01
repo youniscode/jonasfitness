@@ -1,5 +1,5 @@
 /**
- * Training Load + Recovery Intelligence V1 — controlled real-world validation.
+ * Training Load + Recovery Intelligence V1 - controlled real-world validation.
  *
  * These are PURE-domain scenario tests against buildTrainingLoadReport(...).
  * They never touch the production DB and never assert on live data. The point
@@ -103,7 +103,7 @@ function show(name: string, report: TrainingLoadReport) {
   return counts;
 }
 
-// ---------- Scenario A — zero history ----------
+// ---------- Scenario A - zero history ----------
 
 test("A: zero history → empty zero-data state, no fabricated signals", () => {
   const report = buildTrainingLoadReport(ctx({ programme: { id: 1, title: "Active", content: programmeContent([{ libraryId: "builtin-machine-chest-press", name: "Machine chest press" }]) } }));
@@ -120,7 +120,7 @@ test("A: zero history → empty zero-data state, no fabricated signals", () => {
   assert.ok(report.muscleGroups.every((m) => !m.trained && m.lastTrainedDaysAgo === null));
 });
 
-// ---------- Scenario B — one normal workout ----------
+// ---------- Scenario B - one normal workout ----------
 
 test("B: one normal workout → factual summary, insufficient trend, no warnings", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -140,7 +140,7 @@ test("B: one normal workout → factual summary, insufficient trend, no warnings
   assert.equal(report.signals.length, 0, "no trend/attention/recovery signals from a single workout");
 });
 
-// ---------- Scenario C — normal established training (4 weeks) ----------
+// ---------- Scenario C - normal established training (4 weeks) ----------
 
 function establishedTraining(): TrainingLoadContext {
   const push = () => [
@@ -208,7 +208,7 @@ test("C: normal established training → stable volume, no attention/review nois
   assert.ok(report.muscleGroups.every((m) => m.trend !== "increasing" && m.trend !== "decreasing"));
 });
 
-// ---------- Scenario D — high-volume week ----------
+// ---------- Scenario D - high-volume week ----------
 
 test("D: high-volume week → proportional volume signals, no overtraining language, tiny changes silent", () => {
   const programme = programmeContent([
@@ -260,7 +260,7 @@ test("D: high-volume week → proportional volume signals, no overtraining langu
   assert.ok(counts.total <= 5, `expected ≤5 signals, got ${counts.total}`);
 });
 
-// ---------- Scenario E — tiny baseline spike ----------
+// ---------- Scenario E - tiny baseline spike ----------
 
 test("E: tiny-baseline spike (1→2 and 2→4) never over-alerts", () => {
   const oneToTwo = buildTrainingLoadReport(ctx({
@@ -283,7 +283,7 @@ test("E: tiny-baseline spike (1→2 and 2→4) never over-alerts", () => {
   show("E tiny-baseline spike", twoToFour);
 });
 
-// ---------- Scenario F — repeated low RIR ----------
+// ---------- Scenario F - repeated low RIR ----------
 
 test("F1: ~65% RIR 0–1 over ≥12 samples → attention low-RIR signal", () => {
   const rirs = [...Array(13).fill("0"), ...Array(7).fill("2")]; // 13/20 = 65%
@@ -311,7 +311,7 @@ test("F3: 8 samples all RIR 0 → no low-RIR alert (insufficient sample count)",
   assert.equal(report.signals.find((s) => s.type === "low_rir"), undefined, "8 samples never trigger low-RIR");
 });
 
-// ---------- Scenario G — high effort but normal ----------
+// ---------- Scenario G - high effort but normal ----------
 
 test("G: ~30–35% RIR 0–1 over 20 sets → no low-RIR review/attention", () => {
   const rirs = [...Array(3).fill("0"), ...Array(4).fill("1"), ...Array(13).fill("2")]; // 7/20 = 35%
@@ -321,7 +321,7 @@ test("G: ~30–35% RIR 0–1 over 20 sets → no low-RIR review/attention", () =
   assert.equal(report.signals.find((s) => s.type === "low_rir"), undefined, "normal bodybuilding effort does not trigger a low-RIR warning");
 });
 
-// ---------- Scenario H — missed sessions ----------
+// ---------- Scenario H - missed sessions ----------
 
 test("H1: 4 planned / 2 completed / 2 no_show → 50% adherence, 2 missed, review", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -361,7 +361,7 @@ test("H2: future scheduled session → upcoming, not missed, not in confirmed de
   assert.equal(report.signals.find((s) => s.type === "adherence"), undefined);
 });
 
-// ---------- Scenario I — past scheduled session ----------
+// ---------- Scenario I - past scheduled session ----------
 
 test("I: past scheduled session → past unresolved, not missed, never distorts adherence", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -381,7 +381,7 @@ test("I: past scheduled session → past unresolved, not missed, never distorts 
   assert.ok(!/missed/i.test(`${signal.title} ${signal.explanation}`), "never called missed");
 });
 
-// ---------- Scenario J — programmed muscle inactivity ----------
+// ---------- Scenario J - programmed muscle inactivity ----------
 
 test("J: programmed hamstring gap → review at 11 days, attention at 19 days", () => {
   const programme = programmeContent([
@@ -415,7 +415,7 @@ test("J: programmed hamstring gap → review at 11 days, attention at 19 days", 
   show("J hamstring inactivity (19d)", at19);
 });
 
-// ---------- Scenario K — unprogrammed muscle ----------
+// ---------- Scenario K - unprogrammed muscle ----------
 
 test("K: unprogrammed calf with 30-day gap → no inactivity warning", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -430,7 +430,7 @@ test("K: unprogrammed calf with 30-day gap → no inactivity warning", () => {
   assert.equal(muscleFor(report, "calves")?.lastTrainedDaysAgo, 30, "exposure recorded, but not programmed → no alert");
 });
 
-// ---------- Scenario L — never-trained programmed muscle ----------
+// ---------- Scenario L - never-trained programmed muscle ----------
 
 test("L: never-trained programmed muscle = 'no history', not inactivity", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -445,7 +445,7 @@ test("L: never-trained programmed muscle = 'no history', not inactivity", () => 
   assert.equal(report.signals.find((s) => s.type === "muscle_inactivity" && s.muscleGroup === "biceps"), undefined, "current limitation: never-trained = no history, not inactivity");
 });
 
-// ---------- Scenario M / N / O — discomfort ----------
+// ---------- Scenario M / N / O - discomfort ----------
 
 test("M: single discomfort → INFO only, no strong warning or diagnosis", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -490,7 +490,7 @@ test("O: same-region multi-exercise discomfort → region review from canonical 
 
 test("O-literal: machine shoulder press + incline press do NOT form one region", () => {
   // The scenario's literal pair maps to different primary muscles (shoulders vs
-  // chest), so no region signal is expected — confirmed here for the record.
+  // chest), so no region signal is expected - confirmed here for the record.
   const report = buildTrainingLoadReport(ctx({
     feedback: [
       { exerciseId: "builtin-machine-shoulder-press", comfort: "uncomfortable", createdAt: isoAt(2) },
@@ -501,7 +501,7 @@ test("O-literal: machine shoulder press + incline press do NOT form one region",
   assert.equal(report.signals.find((s) => s.type === "repeated_discomfort" && s.id.includes("region")), undefined);
 });
 
-// ---------- Scenario P / Q — readiness ----------
+// ---------- Scenario P / Q - readiness ----------
 
 test("P: a single low readiness response never flags", () => {
   const report = buildTrainingLoadReport(ctx({
@@ -529,7 +529,7 @@ test("Q: 3 of last 4 low readiness → review, no medical language", () => {
   assert.ok(!/medical|overtrain|diagnos|injur/i.test(`${signal.title} ${signal.explanation}`));
 });
 
-// ---------- Scenario R — mixed complex client ----------
+// ---------- Scenario R - mixed complex client ----------
 
 test("R: complex client → ranked, understandable, non-exploding output", () => {
   const programme = programmeContent([

@@ -182,7 +182,7 @@ function normalLegPress(id: number) {
 }
 
 // ======================================================================
-// SCENARIO A — NORMAL PROGRESSION / NORMAL CONTEXT
+// SCENARIO A - NORMAL PROGRESSION / NORMAL CONTEXT
 // ======================================================================
 
 test("Scenario A: normal progression + normal context = CLEAN, no context interference", () => {
@@ -201,7 +201,7 @@ test("Scenario A: normal progression + normal context = CLEAN, no context interf
 });
 
 // ======================================================================
-// SCENARIO B — STRONG PROGRESSION + SAME-MUSCLE HIGH VOLUME
+// SCENARIO B - STRONG PROGRESSION + SAME-MUSCLE HIGH VOLUME
 // ======================================================================
 
 test("Scenario B: progression + same-muscle high volume → priority drops exactly 1, context reason added, weight unchanged", () => {
@@ -222,7 +222,7 @@ test("Scenario B: progression + same-muscle high volume → priority drops exact
 });
 
 // ======================================================================
-// SCENARIO C — STRONG PROGRESSION + UNRELATED HIGH VOLUME
+// SCENARIO C - STRONG PROGRESSION + UNRELATED HIGH VOLUME
 // ======================================================================
 
 test("Scenario C: unrelated muscle volume → no context leakage to chest recommendation", () => {
@@ -240,7 +240,7 @@ test("Scenario C: unrelated muscle volume → no context leakage to chest recomm
 });
 
 // ======================================================================
-// SCENARIO D — LOW-RIR EXERCISE + GLOBAL LOW-RIR
+// SCENARIO D - LOW-RIR EXERCISE + GLOBAL LOW-RIR
 // ======================================================================
 
 test("Scenario D: repeated low-RIR exercise + global low-RIR → context reason added, weight unchanged, V3 priority == V2 priority (no shift from lowRir)", () => {
@@ -268,7 +268,7 @@ test("Scenario D: repeated low-RIR exercise + global low-RIR → context reason 
 });
 
 // ======================================================================
-// SCENARIO E — GLOBAL LOW-RIR ONLY (NO EXERCISE-LEVEL SIGNAL)
+// SCENARIO E - GLOBAL LOW-RIR ONLY (NO EXERCISE-LEVEL SIGNAL)
 // ======================================================================
 
 test("Scenario E: global low-RIR only with normal chest performance → no reduce_load created, no priority change", () => {
@@ -286,7 +286,7 @@ test("Scenario E: global low-RIR only with normal chest performance → no reduc
 });
 
 // ======================================================================
-// SCENARIO F — SINGLE LOW-RIR EXPOSURE + GLOBAL LOW-RIR
+// SCENARIO F - SINGLE LOW-RIR EXPOSURE + GLOBAL LOW-RIR
 // ======================================================================
 
 test("Scenario F: single low-RIR exposure + global low-RIR → single-exposure protection preserved", () => {
@@ -304,7 +304,7 @@ test("Scenario F: single low-RIR exposure + global low-RIR → single-exposure p
 });
 
 // ======================================================================
-// SCENARIO G — STRONG PROGRESSION + REPEATED LOW READINESS
+// SCENARIO G - STRONG PROGRESSION + REPEATED LOW READINESS
 // ======================================================================
 
 test("Scenario G: strong progression + repeated low readiness → priority reduces one step, readiness reason added", () => {
@@ -325,7 +325,7 @@ test("Scenario G: strong progression + repeated low readiness → priority reduc
 });
 
 // ======================================================================
-// SCENARIO H — SINGLE LOW READINESS
+// SCENARIO H - SINGLE LOW READINESS
 // ======================================================================
 
 test("Scenario H: single low readiness (info severity) → no readiness modifier, V2 result preserved", () => {
@@ -345,7 +345,7 @@ test("Scenario H: single low readiness (info severity) → no readiness modifier
 });
 
 // ======================================================================
-// SCENARIO I — ADD_SET + POOR ADHERENCE
+// SCENARIO I - ADD_SET + POOR ADHERENCE
 // ======================================================================
 
 test("Scenario I: add_set + declining adherence → context surfaces, priority may drop one step, no remove_set created", () => {
@@ -370,7 +370,7 @@ test("Scenario I: add_set + declining adherence → context surfaces, priority m
 });
 
 // ======================================================================
-// SCENARIO J — PAST UNRESOLVED ATTENDANCE ONLY
+// SCENARIO J - PAST UNRESOLVED ATTENDANCE ONLY
 // ======================================================================
 
 test("Scenario J: past unresolved sessions ≥ 2 → summary-level only, no per-exercise context, no priority change", () => {
@@ -395,7 +395,7 @@ test("Scenario J: past unresolved sessions ≥ 2 → summary-level only, no per-
 });
 
 // ======================================================================
-// SCENARIO K — REPEATED EXERCISE DISCOMFORT + REGION CONTEXT
+// SCENARIO K - REPEATED EXERCISE DISCOMFORT + REGION CONTEXT
 // ======================================================================
 
 test("Scenario K: exercise discomfort + regional discomfort → context reason surfaces, discomfortCount unchanged, no double counting", () => {
@@ -425,7 +425,7 @@ test("Scenario K: exercise discomfort + regional discomfort → context reason s
 });
 
 // ======================================================================
-// SCENARIO L — UNRELATED REGION DISCOMFORT
+// SCENARIO L - UNRELATED REGION DISCOMFORT
 // ======================================================================
 
 test("Scenario L: unrelated shoulder discomfort → no chest modifier, no replace, no context reason", () => {
@@ -446,7 +446,7 @@ test("Scenario L: unrelated shoulder discomfort → no chest modifier, no replac
 });
 
 // ======================================================================
-// SCENARIO M — NEVER-TRAINED PROGRAMMED MUSCLE
+// SCENARIO M - NEVER-TRAINED PROGRAMMED MUSCLE
 // ======================================================================
 
 test("Scenario M: never-trained biceps muscle → review context in summary, no exercise action created from it", () => {
@@ -465,7 +465,7 @@ test("Scenario M: never-trained biceps muscle → review context in summary, no 
 });
 
 // ======================================================================
-// SCENARIO N — MUSCLE INACTIVITY
+// SCENARIO N - MUSCLE INACTIVITY
 // ======================================================================
 
 test("Scenario N1: muscle inactivity + no V2 action for that muscle → review context only, no mutation created", () => {
@@ -511,7 +511,7 @@ test("Scenario N2: muscle inactivity + V2 independently proposes action → cont
 });
 
 // ======================================================================
-// SCENARIO O — MULTIPLE CONTEXT SIGNALS
+// SCENARIO O - MULTIPLE CONTEXT SIGNALS
 // ======================================================================
 
 test("Scenario O: multiple context signals → priority shift capped at max 1 from V2, summary capped at 3 items", () => {
@@ -548,7 +548,7 @@ test("Scenario O: multiple context signals → priority shift capped at max 1 fr
 });
 
 // ======================================================================
-// SCENARIO P — CONFLICTING CONTEXT
+// SCENARIO P - CONFLICTING CONTEXT
 // ======================================================================
 
 test("Scenario P: conflicting context (increase + high volume + unrelated lowRir) → no contradictory regression", () => {
@@ -570,7 +570,7 @@ test("Scenario P: conflicting context (increase + high volume + unrelated lowRir
 });
 
 // ======================================================================
-// SCENARIO Q — COACH AVOID AUTHORITY
+// SCENARIO Q - COACH AVOID AUTHORITY
 // ======================================================================
 
 test("Scenario Q: coach-avoid → HIGH priority authoritative, context cannot downgrade", () => {
@@ -588,7 +588,7 @@ test("Scenario Q: coach-avoid → HIGH priority authoritative, context cannot do
   const d = decisionFor(plan, "builtin-machine-chest-press");
   assert.ok(d);
   assert.equal(d.action, "replace", "coach-avoid triggers replace");
-  assert.equal(d.priority, "high", "HIGH priority preserved — context never downgrades HIGH");
+  assert.equal(d.priority, "high", "HIGH priority preserved - context never downgrades HIGH");
   assert.equal(d.evidence.coachPreference, "avoid");
   const candidates = d.replacementCandidates ?? [];
   assert.ok(candidates.length > 0, "replacement candidates present");
@@ -596,7 +596,7 @@ test("Scenario Q: coach-avoid → HIGH priority authoritative, context cannot do
 });
 
 // ======================================================================
-// SCENARIO R — LOW-DATA CLIENT
+// SCENARIO R - LOW-DATA CLIENT
 // ======================================================================
 
 test("Scenario R1: 0 workouts → no context-driven recommendation, compact no-data behavior", () => {
@@ -627,7 +627,7 @@ test("Scenario R2: 1 workout → no HIGH major change from aggregate context", (
 });
 
 // ======================================================================
-// SCENARIO S — COMPLEX REALISTIC CLIENT
+// SCENARIO S - COMPLEX REALISTIC CLIENT
 // ======================================================================
 
 test("Scenario S: complex realistic 3-week client → coach should not see context attached to everything", () => {
@@ -691,7 +691,7 @@ test("Scenario S: complex realistic 3-week client → coach should not see conte
 });
 
 // ======================================================================
-// SCENARIO T — HIGH-NOISE STRESS TEST
+// SCENARIO T - HIGH-NOISE STRESS TEST
 // ======================================================================
 
 test("Scenario T: high-noise stress test → context only attaches where relevant, unrelated exercises untouched, summary capped", () => {
@@ -763,10 +763,10 @@ test("Scenario T: high-noise stress test → context only attaches where relevan
 });
 
 // ======================================================================
-// PHASE 4 — DOUBLE-COUNT AUDIT (RIR + Discomfort)
+// PHASE 4 - DOUBLE-COUNT AUDIT (RIR + Discomfort)
 // ======================================================================
 
-test("Phase 4: RIR double-count audit — context does NOT alter completedExposures, rirSamples, averageRir, or confidence", () => {
+test("Phase 4: RIR double-count audit - context does NOT alter completedExposures, rirSamples, averageRir, or confidence", () => {
   const ctx: AdaptiveTrainingContext = { lowRir: { severity: "attention", percent: 70, sampleCount: 20 } };
   const decision: AdaptiveExerciseDecision = {
     decisionId: "test", libraryId: "builtin-machine-chest-press", exerciseName: "Machine chest press",
@@ -789,7 +789,7 @@ test("Phase 4: RIR double-count audit — context does NOT alter completedExposu
   assert.equal(decision.confidence, "medium", "confidence unchanged");
 });
 
-test("Phase 4: discomfort double-count audit — context does NOT alter discomfortCount, recentDiscomfort, or confidence", () => {
+test("Phase 4: discomfort double-count audit - context does NOT alter discomfortCount, recentDiscomfort, or confidence", () => {
   const ctx: AdaptiveTrainingContext = { discomfort: { repeatedExerciseIds: [], affectedPrimaryMuscles: ["shoulders" as MuscleGroupId] } };
   const decision: AdaptiveExerciseDecision = {
     decisionId: "test", libraryId: "builtin-machine-shoulder-press", exerciseName: "Machine shoulder press",
@@ -813,7 +813,7 @@ test("Phase 4: discomfort double-count audit — context does NOT alter discomfo
 });
 
 // ======================================================================
-// PHASE 5 — NUMERIC LOAD AUTHORITY
+// PHASE 5 - NUMERIC LOAD AUTHORITY
 // ======================================================================
 
 test("Phase 5: for every increase_load/reduce_load, V3 targetWeight === progression engine proposedWeight", () => {
@@ -850,7 +850,7 @@ test("Phase 5: for every increase_load/reduce_load, V3 targetWeight === progress
 });
 
 // ======================================================================
-// PHASE 6 — CONTEXT WORDING AUDIT
+// PHASE 6 - CONTEXT WORDING AUDIT
 // ======================================================================
 
 test("Phase 6: all V3 context reasons contain no forbidden medical/alarming wording", () => {
@@ -896,17 +896,17 @@ test("Phase 6: all V3 context reasons contain no forbidden medical/alarming word
 });
 
 // ======================================================================
-// PHASE 7 — SIGNAL / CONTEXT NOISE AUDIT
+// PHASE 7 - SIGNAL / CONTEXT NOISE AUDIT
 // ======================================================================
 
-test("Phase 7: signal/context noise audit — classify each major scenario", () => {
+test("Phase 7: signal/context noise audit - classify each major scenario", () => {
   // Scenario A: normal → expect CLEAN
   const wA1 = buildWorkout(1, "Full Body A", "2026-08-12T10:00:00.000Z", [goodChest(1)]);
   const wA2 = buildWorkout(2, "Full Body A", "2026-08-19T10:00:00.000Z", [goodChest(2)]);
   const planA = buildAdaptiveCoachPlan(baseContext({ workouts: [wA2, wA1] }));
   const chestA = decisionFor(planA, "builtin-machine-chest-press");
   assert.ok(chestA);
-  assert.equal(chestA.contextReasons, undefined, "Scenario A: CLEAN — no context reasons");
+  assert.equal(chestA.contextReasons, undefined, "Scenario A: CLEAN - no context reasons");
 
   // Scenario D: low-RIR overlap → expect ACCEPTABLE
   const wD1 = buildWorkout(3, "Full Body A", "2026-08-12T10:00:00.000Z", [lowRirChest(3)]);
@@ -918,7 +918,7 @@ test("Phase 7: signal/context noise audit — classify each major scenario", () 
   const chestD = decisionFor(planD, "builtin-machine-chest-press");
   assert.ok(chestD);
   // 1 reason from lowRir = acceptable
-  assert.equal(chestD.contextReasons!.length, 1, "Scenario D: ACCEPTABLE — 1 context reason");
+  assert.equal(chestD.contextReasons!.length, 1, "Scenario D: ACCEPTABLE - 1 context reason");
 
   // Scenario O: multiple signals → expect ACCEPTABLE
   const wO1 = buildWorkout(5, "Full Body A", "2026-08-12T10:00:00.000Z", [goodChest(5)]);
@@ -935,12 +935,12 @@ test("Phase 7: signal/context noise audit — classify each major scenario", () 
   const chestO = decisionFor(planO, "builtin-machine-chest-press");
   assert.ok(chestO);
   // Multiple reasons = acceptable but bounded
-  assert.ok(chestO.contextReasons!.length <= 4, "Scenario O: ACCEPTABLE — bounded context reasons");
+  assert.ok(chestO.contextReasons!.length <= 4, "Scenario O: ACCEPTABLE - bounded context reasons");
   assert.ok(planO.trainingContextSummary!.items.length <= 3, "Scenario O: summary capped");
 });
 
 // ======================================================================
-// PHASE 8 — PRIORITY MODIFIER ASSESSMENT
+// PHASE 8 - PRIORITY MODIFIER ASSESSMENT
 // ======================================================================
 
 test("Phase 8: LOW-RIR context → informational (reason only, no priority shift for reduce_load)", () => {
@@ -960,7 +960,7 @@ test("Phase 8: LOW-RIR context → informational (reason only, no priority shift
   const result = applyTrainingContextToDecision(decision, exerciseIntelligenceFor({ libraryId: "builtin-machine-chest-press" }), {
     lowRir: { severity: "attention", percent: 70, sampleCount: 20 },
   });
-  assert.equal(result.priorityShift, 0, "LOW-RIR: KEEP — reason added but no priority shift");
+  assert.equal(result.priorityShift, 0, "LOW-RIR: KEEP - reason added but no priority shift");
   assert.ok(result.contextReasons.length > 0, "LOW-RIR: reason present");
 });
 
@@ -981,7 +981,7 @@ test("Phase 8: VOLUME context → priority modifier for increase_load and add_se
   const result = applyTrainingContextToDecision(increaseDecision, exerciseIntelligenceFor({ libraryId: "builtin-machine-chest-press" }), {
     muscleVolume: { chest: { currentSets: 18, previousSets: 12, trend: "increasing", severity: "attention" } },
   });
-  assert.equal(result.priorityShift, 1, "VOLUME: KEEP — priority shifts +1 for increase_load");
+  assert.equal(result.priorityShift, 1, "VOLUME: KEEP - priority shifts +1 for increase_load");
   assert.ok(result.contextReasons.some((r) => r.includes("volume") || r.includes("Volume")), "VOLUME: reason present");
 });
 
@@ -1002,7 +1002,7 @@ test("Phase 8: ADHERENCE context → priority modifier for increase_load and add
   const result = applyTrainingContextToDecision(decision, exerciseIntelligenceFor({ libraryId: "builtin-machine-chest-press" }), {
     adherence: { percent: 40, missedSessions: 3, declining: true },
   });
-  assert.equal(result.priorityShift, 1, "ADHERENCE: KEEP — priority shifts +1 for increase_load");
+  assert.equal(result.priorityShift, 1, "ADHERENCE: KEEP - priority shifts +1 for increase_load");
   assert.ok(result.contextReasons.some((r) => r.toLowerCase().includes("consistency")), "ADHERENCE: reason present");
 });
 
@@ -1023,7 +1023,7 @@ test("Phase 8: READINESS context → priority modifier for increase_load and add
   const result = applyTrainingContextToDecision(decision, exerciseIntelligenceFor({ libraryId: "builtin-machine-chest-press" }), {
     readiness: { repeatedLowReadiness: true },
   });
-  assert.equal(result.priorityShift, 1, "READINESS: KEEP — priority shifts +1 for increase_load");
+  assert.equal(result.priorityShift, 1, "READINESS: KEEP - priority shifts +1 for increase_load");
   assert.ok(result.contextReasons.some((r) => r.toLowerCase().includes("readiness")), "READINESS: reason present");
 });
 
@@ -1112,10 +1112,10 @@ test("Phase 8: PAST UNRESOLVED context → no per-exercise reason, never changes
 });
 
 // ======================================================================
-// PHASE 9 — POST / STALE SAFETY (code analysis only, no DB writes)
+// PHASE 9 - POST / STALE SAFETY (code analysis only, no DB writes)
 // ======================================================================
 
-test("Phase 9: POST handler recomputes plan server-side — stale client decision IDs rejected", () => {
+test("Phase 9: POST handler recomputes plan server-side - stale client decision IDs rejected", () => {
   // Simulate: two plans with different workout data produce different decisionIds
   const w1 = buildWorkout(1, "Full Body A", "2026-08-12T10:00:00.000Z", [goodChest(1)]);
   const w2 = buildWorkout(2, "Full Body A", "2026-08-19T10:00:00.000Z", [goodChest(2)]);
@@ -1127,7 +1127,7 @@ test("Phase 9: POST handler recomputes plan server-side — stale client decisio
   const staleIds = planStale.exerciseDecisions.map((d) => d.decisionId);
 
   // If content structure is the same, IDs are the same (s:0:e:0:libraryId format)
-  // But the action/priority may differ — let's verify the stale-safe flow
+  // But the action/priority may differ - let's verify the stale-safe flow
   // by checking that applyAdaptiveDecisions rejects IDs not in the fresh plan
   const result = applyAdaptiveDecisions(threeDayContent(), planFresh, staleIds);
   // staleIds may or may not match freshIds depending on programme structure
@@ -1139,7 +1139,7 @@ test("Phase 9: POST handler recomputes plan server-side — stale client decisio
 });
 
 // ======================================================================
-// PHASE 10 — QUERY BEHAVIOR (code analysis, no DB)
+// PHASE 10 - QUERY BEHAVIOR (code analysis, no DB)
 // ======================================================================
 
 test("Phase 10: buildTrainingContextFromReport is pure (no DB, no side effects)", () => {
@@ -1174,7 +1174,7 @@ test("Phase 10: applyTrainingContextToDecision is pure (no DB, no side effects)"
 });
 
 // ======================================================================
-// PHASE 11 — UI / RESPONSIVENESS (code analysis)
+// PHASE 11 - UI / RESPONSIVENESS (code analysis)
 // ======================================================================
 
 test("Phase 11: trainingContextSummary is never empty array (must be non-empty when present)", () => {

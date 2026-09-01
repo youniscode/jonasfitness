@@ -130,7 +130,7 @@ test("multiple ambiguous JSON objects are rejected, never guessed", () => {
   assert.deepEqual(parseGatewayJsonText('{"a":1}{"b":2}'), { ok: false, reason: "malformed_json" });
 });
 
-test("large prose is not a candidate — no extraction from long chatter", () => {
+test("large prose is not a candidate - no extraction from long chatter", () => {
   const padding = "explanation ".repeat(40); // 40 * 12 = 480 chars of leading chatter
   const longChatter = `${padding}{"a":1}`;
   assert.ok(padding.length > 400, "fixture leading chatter must exceed the budget");

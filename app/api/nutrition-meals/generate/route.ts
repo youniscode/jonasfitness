@@ -21,7 +21,7 @@ import {
 // Phase 3). The ACTIVE coach-approved nutrition target is the ONLY numeric
 // authority; the AI never calculates or changes targets. The server assembles
 // all trusted data itself (profile, safety gate, approved target, dietary
-// preferences) — the browser sends only { clientId, mode }. ownerId, targets,
+// preferences) - the browser sends only { clientId, mode }. ownerId, targets,
 // allergies, profile and provenance are never read from the body. Generation
 // runs only on explicit coach action, is coach-facing only, and is never
 // persisted (no migration in this phase).

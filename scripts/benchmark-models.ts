@@ -1,5 +1,5 @@
 /**
- * DEV/TEST-ONLY model benchmark harness — NOT a production endpoint.
+ * DEV/TEST-ONLY model benchmark harness - NOT a production endpoint.
  *
  * Benchmarks candidate FREE OpenRouter models for Jonas Coach through the
  * EXACT production pipeline (SAFETY_SYSTEM, AI_DRAFT_CONTRACT, exercise
@@ -14,8 +14,8 @@
  *
  * Environment:
  *   OPENROUTER_API_KEY     required
- *   BENCH_ATTEMPTS         attempts per (model, scenario) — default 3, max 5
- *   BENCH_MODELS           comma-separated model ids — default the 3 candidates
+ *   BENCH_ATTEMPTS         attempts per (model, scenario) - default 3, max 5
+ *   BENCH_MODELS           comma-separated model ids - default the 3 candidates
  *
  * Output: per-request JSON lines plus an aggregated comparison table. Never
  * logs the key, prompts, client data or raw model output.
@@ -70,7 +70,7 @@ import {
 import { canonicalBuiltInFor } from "../app/lib/exercise-catalogue.ts";
 import { analyseProgrammeQuality } from "../app/lib/programme-quality.ts";
 
-const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury — flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
+const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury - flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
 
 // ---- Candidate models ----
 const CANDIDATES = [
@@ -92,8 +92,8 @@ function contextFixture(equipment: string, target: number | null): string {
     "Current weight: 78 kg",
     "Limitations: none reported",
     "Private coach notes: none",
-    "Recent training: none completed — insufficient data for progression-based adaptation",
-    "Progress: 0 check-ins, latest weight — kg, adherence 0%",
+    "Recent training: none completed - insufficient data for progression-based adaptation",
+    "Progress: 0 check-ins, latest weight - kg, adherence 0%",
   ];
   return lines.join("\n");
 }
@@ -106,7 +106,7 @@ function buildPrompt(scenario: { name: string; equipment: string; target: number
   const design = designRecommendation(goal, requestedSessions, "Beginner", equipment || "Commercial gym", "", "Mon / Wed / Fri evenings", target);
   const expectedSessionNames = mode === "first" ? design.sessionBlueprint.map((day) => day.name) : [];
   const blueprintBlock = expectedSessionNames.length
-    ? [`SESSION STRUCTURE (design contract — your session names must match these exactly):`, ...design.sessionBlueprint.map((day) => `${day.name} — ${day.focus}`)].join("\n")
+    ? [`SESSION STRUCTURE (design contract - your session names must match these exactly):`, ...design.sessionBlueprint.map((day) => `${day.name} - ${day.focus}`)].join("\n")
     : "";
   const catalogue = compactCatalogue(equipment || "Commercial gym");
   const context = contextFixture(equipment, target);
@@ -118,17 +118,17 @@ function buildPrompt(scenario: { name: string; equipment: string; target: number
         const estimated = draft ? estimateProgrammeDurationMinutes(draft) : 0;
         return [
           `This is a targeted adjustment of a draft the coach is reviewing. Apply ONLY this instruction and keep the rest of the draft intact: "${scenario.instruction || "Make a sensible targeted improvement"}".`,
-          draft ? `\nCURRENT DRAFT (adjust THIS draft — do not create an unrelated programme):\n${lines.join("\n")}\nEstimated session duration: ~${estimated} minutes.` : "",
+          draft ? `\nCURRENT DRAFT (adjust THIS draft - do not create an unrelated programme):\n${lines.join("\n")}\nEstimated session duration: ~${estimated} minutes.` : "",
           "For targeted adjustments, the returned draft must materially implement the coach's requested change. Do not return an unchanged draft when the instruction requires measurable changes such as shorter duration, fewer exercises, or a named exercise replacement.",
         ].join(" ");
       })()
-    : "This is the client's FIRST programme — build it from their onboarding profile.";
+    : "This is the client's FIRST programme - build it from their onboarding profile.";
 
   const user = [
     context,
     "",
     `Requested programme: ${requestedSessions} sessions per week, goal "${goal}", target session duration ${target ? `~${target} minutes` : "as designed"}.`,
-    equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
+    equipment ? `Equipment available: ${equipment}.` : "Equipment not specified - the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
     modePrompt,
     "",
     blueprintBlock,
@@ -181,7 +181,7 @@ function draftFromRaw(value: unknown, requestedSessions: number): ProgrammeDraft
 
 // ---- Model-parameterized OpenRouter call (production request shape) ----
 // Mirrors askOpenRouterJson but allows a model argument. The production route
-// stays untouched — this copy lives only in the dev/test harness. Measures the
+// stays untouched - this copy lives only in the dev/test harness. Measures the
 // FULL end-to-end wall clock (request start → headers/TTFB → body → parse),
 // never just time-to-first-byte, so a fast headers response cannot hide the
 // provider's actual token-generation wait.
@@ -417,8 +417,8 @@ function summarize(attempts: Attempt[]): void {
       (median(e2e) / 1000).toFixed(1),
       (e2e.reduce((a, b) => a + b, 0) / e2e.length / 1000).toFixed(1),
       `${(Math.min(...e2e) / 1000).toFixed(1)}/${(Math.max(...e2e) / 1000).toFixed(1)}`,
-      reason.length ? median(reason) : "—",
-      compl.length ? median(compl) : "—",
+      reason.length ? median(reason) : "-",
+      compl.length ? median(compl) : "-",
       `${pct(timeouts, rows.length)}%`,
       `${pct(parseOk, rows.length)}%`,
       `${pct(valid, rows.length)}%`,
@@ -457,7 +457,7 @@ console.log("Models:", models.join(", "));
 console.log("Variants:", variants.map((v) => v.label).join(", "));
 const key = PROVIDER === "deepseek" ? process.env.DEEPSEEK_API_KEY : process.env.OPENROUTER_API_KEY;
 if (!key || key.includes("SENSITIVE")) {
-  console.error(`ERROR: ${PROVIDER === "deepseek" ? "DEEPSEEK_API_KEY" : "OPENROUTER_API_KEY"} missing or masked — cannot run the benchmark.`);
+  console.error(`ERROR: ${PROVIDER === "deepseek" ? "DEEPSEEK_API_KEY" : "OPENROUTER_API_KEY"} missing or masked - cannot run the benchmark.`);
   process.exit(2);
 }
 

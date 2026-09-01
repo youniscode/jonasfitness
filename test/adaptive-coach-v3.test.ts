@@ -321,7 +321,7 @@ test("V3: zero pastUnresolvedSessions → pastUnresolvedSessions not set", () =>
 });
 
 // ======================================================================
-// SECTION 3: applyTrainingContextToDecision — priority bounds
+// SECTION 3: applyTrainingContextToDecision - priority bounds
 // ======================================================================
 
 test("V3: empty context → no shift, no reasons", () => {
@@ -697,7 +697,7 @@ test("V3: training context never alters suggestedPrescription weight (progressio
 });
 
 // ======================================================================
-// SECTION 12: buildAdaptiveCoachPlan integration — contextReasons wired in
+// SECTION 12: buildAdaptiveCoachPlan integration - contextReasons wired in
 // ======================================================================
 
 test("V3: buildAdaptiveCoachPlan wires contextReasons into decisions when trainingContext provided", () => {
@@ -783,7 +783,7 @@ test("V3: applyAdaptiveDecisions returns draft content, never mutates live progr
 });
 
 // ======================================================================
-// SECTION 15: Stale context — exercise-level evidence remains authoritative
+// SECTION 15: Stale context - exercise-level evidence remains authoritative
 // ======================================================================
 
 test("V3: exercise-level RIR is primary; training context lowRir is supplementary only", () => {
@@ -801,7 +801,7 @@ test("V3: exercise-level RIR is primary; training context lowRir is supplementar
 });
 
 // ======================================================================
-// SECTION 16: Keep context tests — never-trained muscle does not change action
+// SECTION 16: Keep context tests - never-trained muscle does not change action
 // ======================================================================
 
 test("V3: never-trained muscle context reason surfaces but does not change action from keep", () => {
@@ -874,7 +874,7 @@ test("V3: contextReasons never contain medical or diagnostic language", () => {
 });
 
 // ======================================================================
-// SECTION 19: Empty context object — no side effects
+// SECTION 19: Empty context object - no side effects
 // ======================================================================
 
 test("V3: empty AdaptiveTrainingContext object has no effect on decisions", () => {
@@ -944,7 +944,7 @@ test("V3: stable muscle volume does NOT trigger context for increase_load or add
 // SECTION 22: Combined context signals
 // ======================================================================
 
-test("V3: combined lowRir + readiness context — both reasons surfaced, shift still ≤ 1", () => {
+test("V3: combined lowRir + readiness context - both reasons surfaced, shift still ≤ 1", () => {
   const workout1 = lowRirWorkout(1, "2026-08-12T10:00:00.000Z");
   const workout2 = lowRirWorkout(2, "2026-08-19T10:00:00.000Z");
   const ctx = baseContext({
@@ -1006,7 +1006,7 @@ test("V3: muscleVolume without severity does not trigger context for increase_lo
 });
 
 // ======================================================================
-// SECTION 25: Decreasing muscle volume — no context effect
+// SECTION 25: Decreasing muscle volume - no context effect
 // ======================================================================
 
 test("V3: decreasing muscle volume does not trigger context for increase_load", () => {
@@ -1048,7 +1048,7 @@ test("V3: exercise-level over-performance (good reps) drives increase_load regar
 });
 
 // ======================================================================
-// SECTION 27: buildTrainingContextFromReport — multiple muscle groups
+// SECTION 27: buildTrainingContextFromReport - multiple muscle groups
 // ======================================================================
 
 test("V3: buildTrainingContextFromReport handles multiple muscle groups and signals", () => {

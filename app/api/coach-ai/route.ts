@@ -45,10 +45,10 @@ type Mode = "first" | "adapt" | "adjust";
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
-const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury — flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
+const SAFETY_SYSTEM = "You are Jonas Coach AI, a private assistant for an experienced bodybuilding coach. Be conservative, practical and evidence-aware. Never diagnose, prescribe medication, or replace a doctor or registered dietitian. You do NOT clear a client medically and never claim an exercise is safe for a specific injury - flag anything health-related for the coach. All output is a coach draft and must be returned as valid JSON only.";
 
 // Compact structured-survey signals (V2 onboarding): only the coaching-relevant
-// fields, only when answered. PII-free — never raw survey labels verbatim.
+// fields, only when answered. PII-free - never raw survey labels verbatim.
 function surveyContext(profile: ReturnType<typeof buildClientCoachingProfile>): string[] {
   const survey = profile.survey;
   const lines: string[] = [];
@@ -57,7 +57,7 @@ function surveyContext(profile: ReturnType<typeof buildClientCoachingProfile>): 
   if (survey.schedule.time) lines.push(`Preferred training time: ${survey.schedule.time}`);
   if (survey.schedule.days.length) lines.push(`Available days: ${survey.schedule.days.join(", ")}`);
   if (survey.location.venue) lines.push(`Training venue: ${survey.location.venue}`);
-  if (survey.location.unsure) lines.push("Equipment: client is unsure — coach should choose");
+  if (survey.location.unsure) lines.push("Equipment: client is unsure - coach should choose");
   if (survey.experience.years) lines.push(`Training history: ${survey.experience.years}`);
   if (survey.experience.used.length) lines.push(`Previously used: ${survey.experience.used.join(", ")}`);
   if (survey.confidence.alone) lines.push(`Confidence training alone: ${survey.confidence.alone}`);
@@ -69,15 +69,15 @@ function surveyContext(profile: ReturnType<typeof buildClientCoachingProfile>): 
 }
 
 // Compact, PII-free context: goals, training, body, readiness and a trimmed
-// history summary. No email, phone, acquisition, billing or credit data — and
+// history summary. No email, phone, acquisition, billing or credit data - and
 // deliberately no client display name (it is not needed for coaching logic).
 function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): string {
   const lines = [
     `Preferred language: ${profile.client.preferredLanguage ?? "not set"}`,
     `Primary goal: ${profile.goals.primary}`,
-    // Secondary objectives are softer context only — they must never override
+    // Secondary objectives are softer context only - they must never override
     // the primary goal, which remains the programme-design driver.
-    ...(profile.goals.secondary.length ? [`Secondary goals: ${profile.goals.secondary.join(", ")} (supporting context only — primary goal stays the design priority)`] : []),
+    ...(profile.goals.secondary.length ? [`Secondary goals: ${profile.goals.secondary.join(", ")} (supporting context only - primary goal stays the design priority)`] : []),
     `Goal detail: ${profile.goals.detail || "not provided"}`,
     `Experience: ${profile.training.experience || "not provided"}`,
     `Sessions per week: ${profile.training.sessionsPerWeek}`,
@@ -96,22 +96,22 @@ function contextFor(profile: ReturnType<typeof buildClientCoachingProfile>): str
     try {
       const parsed = JSON.parse(current.content) as { title?: string; sessions?: unknown[] };
       lines.push(`Current programme structure: ${parsed.title ?? current.title} with ${Array.isArray(parsed.sessions) ? parsed.sessions.length : 0} sessions`);
-    } catch { /* Legacy content — the programme builder handles it. */ }
+    } catch { /* Legacy content - the programme builder handles it. */ }
   }
   if (profile.recentTraining.completedWorkouts > 0) {
     lines.push(`Recent training: ${profile.recentTraining.completedWorkouts} completed workout${profile.recentTraining.completedWorkouts === 1 ? "" : "s"}${profile.recentTraining.latestCompletedAt ? `, latest ${new Date(profile.recentTraining.latestCompletedAt).toLocaleDateString("en-CA")}` : ""}${profile.recentTraining.skippedWorkouts ? `, ${profile.recentTraining.skippedWorkouts} skipped` : ""}`);
     if (profile.recentTraining.exposedMuscles.length) {
-      lines.push(`Recent muscle exposure: ${profile.recentTraining.exposedMuscles.join(", ")} (from the most recent completed session — prioritise other muscle groups unless the coach explicitly requests these)`);
+      lines.push(`Recent muscle exposure: ${profile.recentTraining.exposedMuscles.join(", ")} (from the most recent completed session - prioritise other muscle groups unless the coach explicitly requests these)`);
     }
   } else {
-    lines.push("Recent training: none completed — insufficient data for progression-based adaptation");
+    lines.push("Recent training: none completed - insufficient data for progression-based adaptation");
   }
-  lines.push(`Progress: ${profile.progressSignals.recentCheckIns} check-in${profile.progressSignals.recentCheckIns === 1 ? "" : "s"}, latest weight ${profile.progressSignals.latestWeight ?? "—"} kg, adherence ${profile.progressSignals.adherence}%`);
+  lines.push(`Progress: ${profile.progressSignals.recentCheckIns} check-in${profile.progressSignals.recentCheckIns === 1 ? "" : "s"}, latest weight ${profile.progressSignals.latestWeight ?? "-"} kg, adherence ${profile.progressSignals.adherence}%`);
   return lines.join("\n");
 }
 
 // Normalizes a client-sent draft (or a stored programme payload) into a
-// ProgrammeDraft with safe bounds — used for the adjust prompt summary, the
+// ProgrammeDraft with safe bounds - used for the adjust prompt summary, the
 // previous-draft-aware fallback and the truthful change diff.
 function normaliseProgrammeRecord(value: unknown, goal: string, sessionsPerWeek: number): ProgrammeDraft | null {
   const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -154,11 +154,11 @@ function normaliseProgrammeRecord(value: unknown, goal: string, sessionsPerWeek:
 function adjustDraftSummary(draft: ProgrammeDraft): string {
   const lines = draft.sessions.map((session) => `- ${session.name}: ${(session.exercises ?? []).map((exercise) => exercise.name).join(", ")}`);
   const estimated = estimateProgrammeDurationMinutes(draft);
-  return `CURRENT DRAFT (adjust THIS draft — do not create an unrelated programme):\n${lines.join("\n")}\nEstimated session duration: ~${estimated} minutes.`;
+  return `CURRENT DRAFT (adjust THIS draft - do not create an unrelated programme):\n${lines.join("\n")}\nEstimated session duration: ~${estimated} minutes.`;
 }
 
 // Normalizes raw model output into a ProgrammeDraft (same conservative bounds
-// and canonicalization used before validation — invented ids that exactly name
+// and canonicalization used before validation - invented ids that exactly name
 // a library exercise are canonicalized, everything else still fails validation).
 function draftFromRaw(value: unknown, goal: string, requestedSessions: number, fallbackTitle: string, fallbackProgression: string): ProgrammeDraft {
   const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -183,7 +183,7 @@ function draftFromRaw(value: unknown, goal: string, requestedSessions: number, f
           // Conservative grounding BEFORE validation: an invented id that names
           // a real library exercise exactly (e.g. "builtin-barbell-back-squat"
           // for "Barbell back squat") is canonicalized to the real id. Nothing
-          // else changes — unknown ids/names still fail validateDraft below.
+          // else changes - unknown ids/names still fail validateDraft below.
           const canonical = canonicalBuiltInFor(rawLibraryId, rawName);
           return {
             libraryId: canonical ? canonical.id : rawLibraryId,
@@ -318,7 +318,7 @@ export async function POST(request: Request) {
           if (!current?.content) return null;
           try {
             return normaliseProgrammeRecord(JSON.parse(current.content), goal, requestedSessions);
-          } catch { return null; /* Legacy content — the builder handles it. */ }
+          } catch { return null; /* Legacy content - the builder handles it. */ }
         })()
       : null;
   // The recommended split is a design contract: for a first programme the AI
@@ -327,8 +327,8 @@ export async function POST(request: Request) {
   // claim while the draft implements Push & Squat / Pull & Hinge / Arms).
   const expectedSessionNames = mode === "first" ? design.sessionBlueprint.map((day) => day.name) : [];
   const blueprintBlock = expectedSessionNames.length
-    ? [`SESSION STRUCTURE (design contract — your session names must match these exactly):`,
-      ...design.sessionBlueprint.map((day) => `${day.name} — ${day.focus}`)].join("\n")
+    ? [`SESSION STRUCTURE (design contract - your session names must match these exactly):`,
+      ...design.sessionBlueprint.map((day) => `${day.name} - ${day.focus}`)].join("\n")
     : "";
   const catalogue = compactCatalogue(equipment ?? profile.training.equipment);
 
@@ -357,11 +357,11 @@ export async function POST(request: Request) {
         "For targeted adjustments, the returned draft must materially implement the coach's requested change. Do not return an unchanged draft when the instruction requires measurable changes such as shorter duration, fewer exercises, or a named exercise replacement.",
       ].join(" ");
     }
-    return "This is the client's FIRST programme — build it from their onboarding profile.";
+    return "This is the client's FIRST programme - build it from their onboarding profile.";
   })();
 
   // V2: compact preference context (explicit preferred/avoid + learned
-  // replacement patterns). Exercise names and counts only — PII-free, and the
+  // replacement patterns). Exercise names and counts only - PII-free, and the
   // raw event history is never sent. The AI treats this as coach preference
   // context; it cannot create preference records (none of its output is ever
   // written to the preference tables) and the deterministic scoring/quality
@@ -393,7 +393,7 @@ export async function POST(request: Request) {
 
   // V2.1: compact client feedback context (exercise names + counts only). Raw
   // comment text is never sent; comments stay coach-facing. The AI treats this
-  // as client-reported coaching feedback — never a medical restriction.
+  // as client-reported coaching feedback - never a medical restriction.
   const feedbackRowsMapped = feedbackRows.map((row): ClientFeedbackRow => ({
     id: row.id,
     clientId: row.clientId,
@@ -429,12 +429,12 @@ export async function POST(request: Request) {
     `PRIMARY OBJECTIVE: ${goal}`,
     `SECONDARY OBJECTIVES: ${secondaryGoals.length ? secondaryGoals.join(", ") : "none"}`,
     "RULE: The primary objective is the programme-design priority. Secondary objectives are supporting constraints/preferences that may influence programme details (exercise density, rest periods, conditioning/accessory choices, movement variety, session structure, sustainable workload) ONLY when compatible with the primary objective. Never treat all goals as equal, never satisfy secondary goals at the expense of the primary objective, and never draw medical or nutritional conclusions from any goal.",
-    equipment ? `Equipment available: ${equipment}.` : "Equipment not specified — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
+    equipment ? `Equipment available: ${equipment}.` : "Equipment not specified - the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.",
     avoid ? `Avoid these exercises/movements: ${avoid}.` : "",
     preferenceSummary,
     feedbackSummary,
     initialPreferenceSummary,
-    soloBeginner ? "SOLO-BEGINNER CONSTRAINT: This client trains alone/mixed and is a true beginner — do not select Level 3 technically demanding exercises (e.g. barbell squats, deadlifts, Bulgarian split squats, barbell rows/bench presses). Prefer stable Level 1 machines and simple movements, and keep at most one Level 2 exercise per session. This is execution-complexity guidance, not a medical constraint." : "",
+    soloBeginner ? "SOLO-BEGINNER CONSTRAINT: This client trains alone/mixed and is a true beginner - do not select Level 3 technically demanding exercises (e.g. barbell squats, deadlifts, Bulgarian split squats, barbell rows/bench presses). Prefer stable Level 1 machines and simple movements, and keep at most one Level 2 exercise per session. This is execution-complexity guidance, not a medical constraint." : "",
     initialConflictNotes.length ? `PREFERENCE CONFLICTS TO REVIEW:\n${initialConflictNotes.join("\n")}` : "",
     modePrompt,
     "",
@@ -447,9 +447,9 @@ export async function POST(request: Request) {
 
   // Try the model; fall back to a deterministic library-grounded draft.
   // Provider routing: COACH_AI_PROVIDER (deepseek|openrouter|ollama) or, when
-  // unset, the default — local Ollama in development, DeepSeek in
+  // unset, the default - local Ollama in development, DeepSeek in
   // production/preview (OpenRouter via COACH_AI_PROVIDER=openrouter). The
-  // fallback is a reliability mechanism only — it is
+  // fallback is a reliability mechanism only - it is
   // never presented as model output (see `generation`).
   let raw: unknown = null;
   let generation: { source: "ai" | "fallback"; provider: string; model: string | null; fallbackReason?: string; adjustmentApplied?: boolean } = {
@@ -479,7 +479,7 @@ export async function POST(request: Request) {
         model,
         fallbackReason: result.reason,
       };
-      console.error(`[coach-ai] ${provider} ${result.reason} for client ${clientId} (mode ${mode}) — deterministic fallback used`);
+      console.error(`[coach-ai] ${provider} ${result.reason} for client ${clientId} (mode ${mode}) - deterministic fallback used`);
     }
   }
 
@@ -511,7 +511,7 @@ export async function POST(request: Request) {
   // applied upstream. This post-generation scan catches any leaked Level 3 and
   // replaces the AI draft with the deterministic fallback (which already
   // excludes Level 3). Quality warnings alone are insufficient for hard
-  // exclusion — a solo beginner must never see a Level 3 exercise in their
+  // exclusion - a solo beginner must never see a Level 3 exercise in their
   // programme.
   let aiDraftReplacedForSoloBeginner = false;
   if (soloBeginner && rawOk) {
@@ -527,18 +527,18 @@ export async function POST(request: Request) {
       Object.assign(base, fallbackDraft);
       aiDraftReplacedForSoloBeginner = true;
       generation = { source: "fallback", provider: generation.provider, model: generation.model, fallbackReason: "solo_beginner_level3_leak" };
-      console.error(`[coach-ai] AI draft contained Level 3 exercises for solo beginner — deterministic fallback used`);
+      console.error(`[coach-ai] AI draft contained Level 3 exercises for solo beginner - deterministic fallback used`);
     }
   }
 
   // Validate, rehydrate and score against the library (deterministic pipeline).
   // Deterministic client-fit context for the quality engine: goal, experience,
   // equipment, target duration, reported limitations, the coach's avoid list
-  // and the most recent muscle exposure. Advisory only — REVIEW RECOMMENDED,
+  // and the most recent muscle exposure. Advisory only - REVIEW RECOMMENDED,
   // never a block.
   const clientFitContext: ClientFitContext = {
     goal,
-    // Supporting context only — the deterministic scoring keeps the primary
+    // Supporting context only - the deterministic scoring keeps the primary
     // goal authoritative (secondary goals never equal or override it).
     secondaryGoals,
     experience: profile.training.experience,
@@ -563,7 +563,7 @@ export async function POST(request: Request) {
     clientFitContext,
     soloBeginner,
   };
-  // Smart Draft Repair V1 — deterministic repair context. Structured limitation
+  // Smart Draft Repair V1 - deterministic repair context. Structured limitation
   // areas come from the onboarding profile when available; legacy clients fall
   // back to the free-text considerations (regex-derived). Never a second AI
   // call and never a schema/medical conclusion.
@@ -600,7 +600,7 @@ export async function POST(request: Request) {
     if (body.apply === "duration") {
       actions = plan.durationRepair?.actions ?? [];
       if (!actions.length) {
-        return Response.json({ error: "No safe automatic duration repair is available — review the draft manually." }, { status: 422 });
+        return Response.json({ error: "No safe automatic duration repair is available - review the draft manually." }, { status: 422 });
       }
     } else if (body.apply === "replace") {
       const replacement = record(body.replacement);
@@ -608,7 +608,7 @@ export async function POST(request: Request) {
       const exerciseId = String(replacement.exerciseId ?? "").trim();
       const alternativeId = String(replacement.alternativeId ?? "").trim();
       // Resolve the alternative against the server-computed limitation review
-      // (canonical ids only — a client-supplied id is never trusted blindly).
+      // (canonical ids only - a client-supplied id is never trusted blindly).
       const item = plan.limitationReview
         ?.flatMap((group) => group.items)
         .find((candidate) => candidate.sessionIndex === sessionIndex && candidate.exerciseId === exerciseId);
@@ -625,14 +625,14 @@ export async function POST(request: Request) {
         exerciseName: exercise?.name ?? item.exerciseName,
         alternativeId: alternative.id,
         alternativeName: alternative.name,
-        reason: `Replace ${item.exerciseName} with ${alternative.name} — canonical alternative with equal or lower relevance to the ${areaGroup?.label ?? "reported area"} concern.`,
+        reason: `Replace ${item.exerciseName} with ${alternative.name} - canonical alternative with equal or lower relevance to the ${areaGroup?.label ?? "reported area"} concern.`,
       }];
     } else {
       return Response.json({ error: "Unknown repair action." }, { status: 400 });
     }
     const applied = applyRepairActions(baseDraft, actions);
     if (!applied.applied || applied.error) {
-      return Response.json({ error: applied.error ?? "Repair could not be applied — review manually." }, { status: 422 });
+      return Response.json({ error: applied.error ?? "Repair could not be applied - review manually." }, { status: 422 });
     }
     const repairedResult = finalizeDraft(applied.draft, finalizeOptions);
     return Response.json({
@@ -645,7 +645,7 @@ export async function POST(request: Request) {
       context: profile,
       generation: { source: "fallback", provider: "deterministic", model: null, fallbackReason: "smart_repair", adjustmentApplied: true },
       notice: "Smart Draft Repair applied a deterministic repair to the draft. Review the changes before approval. Nothing has been published.",
-      equipmentNote: equipment ? null : "Equipment not specified — this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.",
+      equipmentNote: equipment ? null : "Equipment not specified - this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.",
       quality: repairedResult.quality,
       repair: planProgrammeRepair(repairedResult.rehydrated, repairOptions),
       published: false,
@@ -657,11 +657,11 @@ export async function POST(request: Request) {
   // ---- Objective compliance gate (deterministic, NO second AI call) ----
   // A draft that parses and passes schema validation may STILL be rejected for
   // two deterministic reasons:
-  //   1. duration_miss — its estimated duration is materially outside the
+  //   1. duration_miss - its estimated duration is materially outside the
   //      target band (±15%);
-  //   2. material_miss (targeted adjustments only) — an explicitly interpreted
+  //   2. material_miss (targeted adjustments only) - an explicitly interpreted
   //      named replacement/removal/exercise-count was not actually performed.
-  // Both correct deterministically — targeted adjustments re-run from the
+  // Both correct deterministically - targeted adjustments re-run from the
   // coach's draft, first/adapt drafts are repaired toward the target.
   const adjustIntent = mode === "adjust" && previousDraft
     ? interpretAdjustmentInstruction(instruction, previousDraft)
@@ -676,7 +676,7 @@ export async function POST(request: Request) {
       materialMiss = materialFailed && !durationFailed;
       console.error(`[coach-ai] objective check ${JSON.stringify({ mode, targetDuration, estimatedDuration: result.estimated, tolerance: DURATION_TOLERANCE, result: objectiveMiss ? "duration_miss" : "material_miss" })}`);
       if (mode === "adjust" && previousDraft) {
-        // The AI's draft missed the requested adjustment — redo it
+        // The AI's draft missed the requested adjustment - redo it
         // deterministically from the coach's draft.
         adjustmentFallback = buildAdjustmentFallback(previousDraft, { targetDuration, instruction, goal, sessionsPerWeek: requestedSessions });
         result = finalizeDraft(adjustmentFallback.draft, finalizeOptions);
@@ -703,7 +703,7 @@ export async function POST(request: Request) {
   const quality = result.quality;
   const equipmentNote = equipment
     ? null
-    : "Equipment not specified — this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.";
+    : "Equipment not specified - this draft assumes standard gym equipment (barbells, cables, dumbbells). Confirm the client's access before approval.";
 
   // Change summary for adaptations/adjustments of an existing draft or approved plan.
   let changeSummary = null;
@@ -715,7 +715,7 @@ export async function POST(request: Request) {
     : aiDraftReplacedForSoloBeginner
       ? "AI draft contained technically demanding exercises for a solo beginner, so Jonas Coach applied a safe rules-based draft. Review it before approval."
       : generation.source === "ai"
-      ? "AI draft — review exercise selection, loading and health context before approving. Nothing has been published."
+      ? "AI draft - review exercise selection, loading and health context before approving. Nothing has been published."
       : materialMiss
         ? (adjustmentFallback?.applied
           ? "AI returned a draft that did not fully satisfy the requested adjustment, so Jonas Coach applied a safe rules-based adjustment. Review it before approval."
@@ -749,7 +749,7 @@ export async function POST(request: Request) {
     notice,
     equipmentNote,
     quality,
-    // Smart Draft Repair V1 — deterministic proposal computed from the final
+    // Smart Draft Repair V1 - deterministic proposal computed from the final
     // draft (after any objective-compliance repair), purely advisory.
     repair: planProgrammeRepair(rehydrated, repairOptions),
     published: false,
@@ -792,7 +792,7 @@ async function handleNutrition(body: Record<string, unknown>) {
     result: result ?? fallback,
     provider: result ? "ollama" : "built-in",
     model: result ? OLLAMA_MODEL : null,
-    notice: "General education only—not medical or dietetic advice.",
+    notice: "General education only-not medical or dietetic advice.",
   });
 }
 

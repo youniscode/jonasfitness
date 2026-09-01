@@ -120,7 +120,7 @@ const NEW_IDS = [
   "builtin-high-row-machine",
 ];
 
-// The 34 pre-expansion canonical ids — a snapshot guard: any drift below means
+// The 34 pre-expansion canonical ids - a snapshot guard: any drift below means
 // an existing exercise was renamed, removed or re-ordered.
 const PRE_EXPANSION_IDS = [
   "builtin-barbell-bench-press",
@@ -177,7 +177,7 @@ test("all previous 34 canonical ids are present and unchanged", () => {
   for (const id of PRE_EXPANSION_IDS) {
     assert.ok(ids.has(id), `pre-expansion id ${id} must still exist`);
   }
-  // seated-leg-curl stays the original existing built-in — never duplicated.
+  // seated-leg-curl stays the original existing built-in - never duplicated.
   assert.equal(builtInExercises.filter((exercise) => exercise.id === "builtin-seated-leg-curl").length, 1);
 });
 
@@ -197,7 +197,7 @@ test("every built-in has EN/FR/AR, movement classification and a beginner tier (
   }
 });
 
-test("image coverage invariant — every built-in resolves to an existing local genuine WebP (106/106)", () => {
+test("image coverage invariant - every built-in resolves to an existing local genuine WebP (106/106)", () => {
   for (const exercise of builtInExercises) {
     const slug = exercise.id.slice("builtin-".length);
     assert.ok(exercise.imageUrl.startsWith("/exercises/"), `${exercise.id} image path prefix`);

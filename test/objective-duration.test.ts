@@ -11,7 +11,7 @@ import {
 } from "../app/lib/ai-programme.ts";
 import { parseGatewayJsonText } from "../app/lib/local-ai.ts";
 
-// A structurally valid Full Body A/B/C draft that estimates ~48-50 min — the
+// A structurally valid Full Body A/B/C draft that estimates ~48-50 min - the
 // exact production pattern that must be REJECTED for a 30-min target.
 function fortyEightMinuteDraft(): ProgrammeDraft {
   const exercise = (libraryId: string, name: string, sets: number, restSeconds: number) => ({
@@ -146,7 +146,7 @@ test("first-mode miss: AI draft is repaired toward the target deterministically"
 test("no correction happens when the AI draft already fits the target", () => {
   const draft = fortyEightMinuteDraft();
   const estimated = estimateProgrammeDurationMinutes(draft);
-  // A target at/above the estimate is already acceptable — no deterministic
+  // A target at/above the estimate is already acceptable - no deterministic
   // repair should fire (this mirrors the route gate: state === match).
   assert.equal(objectiveDurationStatus(estimated, estimated), "match");
 });

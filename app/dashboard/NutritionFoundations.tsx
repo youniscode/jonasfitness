@@ -117,7 +117,7 @@ function targetNumbers(target: PublicNutritionTarget): NutritionTargetValues {
 
 function openOnboardingEditor(clientId: number) {
   // Ask the OnboardingSummary panel to scroll to itself and open its existing
-  // edit modal — one explicit dashboard interaction, no page reload.
+  // edit modal - one explicit dashboard interaction, no page reload.
   window.dispatchEvent(new CustomEvent("jonas-open-onboarding-edit", { detail: { clientId } }));
 }
 
@@ -187,7 +187,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
   }, [client.id]);
 
   // Refresh the ENGINE ESTIMATE when body measurements are saved (weight may
-  // have changed) or when onboarding/nutrition foundations are edited — without
+  // have changed) or when onboarding/nutrition foundations are edited - without
   // a full page reload. Approved targets are deliberately NOT refetched here:
   // those events must never rewrite a coach-approved target.
   useEffect(() => {
@@ -329,7 +329,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
       <p className="nutrition-section-label">APPROVED TARGETS · COACH-REVIEWED SNAPSHOT</p>
       {targetsLoading ? <div className="nutrition-approved-empty"><strong>Loading approved targets…</strong></div>
         : targets.current ? <>
-          {estimateChanged === "changed" && <div className="nutrition-estimate-change" role="note">Current estimate has changed since approval — review suggested. Approved targets are not changed automatically.</div>}
+          {estimateChanged === "changed" && <div className="nutrition-estimate-change" role="note">Current estimate has changed since approval - review suggested. Approved targets are not changed automatically.</div>}
           <ApprovedTargetCard target={targets.current} />
         </> : <div className="nutrition-approved-empty"><strong>Not approved yet.</strong><span>Review the estimated guidance above, then approve it or adjust the numbers before approving.</span></div>}
     </div>
@@ -353,7 +353,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
         </>}
     </div>
 
-    <p className="nutrition-guidance-notice">These values are estimates for coaching guidance and should be reviewed before being shared with the client. Approved targets stay as you set them — they do not change when the estimate moves. Generated meals are AI examples — never a medical diet plan.</p>
+    <p className="nutrition-guidance-notice">These values are estimates for coaching guidance and should be reviewed before being shared with the client. Approved targets stay as you set them - they do not change when the estimate moves. Generated meals are AI examples - never a medical diet plan.</p>
 
     {modalMode && modalBase && <div className="modal-backdrop" role="presentation" onMouseDown={() => setModalMode(null)}>
       <form className="modal nutrition-approve-form" onSubmit={submitApproval} onMouseDown={(event) => event.stopPropagation()}>
@@ -379,7 +379,7 @@ export default function NutritionFoundations({ client }: { client: Client }) {
           <label>Maximum<input name="carbohydrateMaxGrams" type="number" step="1" min={0} max={800} defaultValue={modalBase.carbohydrateMaxGrams} required /></label>
         </div>
         <label className="nutrition-notes-label">Notes (optional)<textarea name="notes" defaultValue={modalMode === "replace" ? targets.current?.notes ?? "" : ""} placeholder="Why these numbers, context for future review…" /></label>
-        <p className="nutrition-form-note">Macros must be reasonably compatible with the calorie range — obviously impossible combinations are rejected.</p>
+        <p className="nutrition-form-note">Macros must be reasonably compatible with the calorie range - obviously impossible combinations are rejected.</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="generate nutrition-submit" disabled={saving}>{saving ? "Saving…" : modalMode === "replace" ? "Save replacement targets" : "Approve targets"} <span>→</span></button>
       </form>
@@ -415,13 +415,13 @@ function ReadyView({ guidance, input }: { guidance: Guidance; input: InputSummar
     <div className="nutrition-basis-card">
       <p>INPUT BASIS</p>
       <div className="nutrition-basis-grid">
-        <span>Age<b>{input.ageYears !== null ? input.ageYears : "—"}</b></span>
-        <span>Sex<b>{input.sex ? sexLabel(input.sex) : "—"}</b></span>
-        <span>Height<b>{input.heightCm !== null ? `${input.heightCm} cm` : "—"}</b></span>
-        <span>Current weight<b>{input.currentWeightKg !== null ? `${input.currentWeightKg} kg` : "—"}</b></span>
-        <span>Weight source<b>{input.weightSource ? WEIGHT_SOURCE_LABELS[input.weightSource] ?? input.weightSource : "—"}</b></span>
-        <span>Activity<b>{input.activity || "—"}</b></span>
-        <span>Goal<b>{input.goal || "—"}</b></span>
+        <span>Age<b>{input.ageYears !== null ? input.ageYears : "-"}</b></span>
+        <span>Sex<b>{input.sex ? sexLabel(input.sex) : "-"}</b></span>
+        <span>Height<b>{input.heightCm !== null ? `${input.heightCm} cm` : "-"}</b></span>
+        <span>Current weight<b>{input.currentWeightKg !== null ? `${input.currentWeightKg} kg` : "-"}</b></span>
+        <span>Weight source<b>{input.weightSource ? WEIGHT_SOURCE_LABELS[input.weightSource] ?? input.weightSource : "-"}</b></span>
+        <span>Activity<b>{input.activity || "-"}</b></span>
+        <span>Goal<b>{input.goal || "-"}</b></span>
         {showTarget && <span>Target weight<b>{input.targetWeightKg} kg</b></span>}
       </div>
     </div>
@@ -447,8 +447,8 @@ function ReadyView({ guidance, input }: { guidance: Guidance; input: InputSummar
     <details className="nutrition-disclosure">
       <summary>How this was estimated</summary>
       <div className="nutrition-disclosure-body">
-        <p><b>BMR method:</b> Mifflin-St Jeor — 10 × weight + 6.25 × height − 5 × age (+5 male / −161 female).</p>
-        <p><b>Activity:</b> resolved deterministically from activity level, step count and work type (single factor — no double-counting). Factor {guidance.activityFactor} ({guidance.activityBand}).</p>
+        <p><b>BMR method:</b> Mifflin-St Jeor - 10 × weight + 6.25 × height − 5 × age (+5 male / −161 female).</p>
+        <p><b>Activity:</b> resolved deterministically from activity level, step count and work type (single factor - no double-counting). Factor {guidance.activityFactor} ({guidance.activityBand}).</p>
         <p><b>Goal adjustment:</b> {GOAL_LABELS[guidance.goal] ?? guidance.goal} policy applied to maintenance calories ({assumptionLines}).</p>
       </div>
     </details>
@@ -465,7 +465,7 @@ function ApprovedTargetCard({ target }: { target: PublicNutritionTarget }) {
     </div>
     <div className="nutrition-approved-provenance">
       <small>APPROVED {new Date(target.approvedAt).toLocaleDateString()}</small>
-      <p>Based on an estimated TDEE of {target.sourceEstimatedTdeeKcal ?? "—"} kcal{target.sourceWeightKg != null ? ` at ${target.sourceWeightKg} kg` : ""}{target.sourceGoal ? ` · ${target.sourceGoal}` : ""}. Engine v{target.engineVersion || "—"}.</p>
+      <p>Based on an estimated TDEE of {target.sourceEstimatedTdeeKcal ?? "-"} kcal{target.sourceWeightKg != null ? ` at ${target.sourceWeightKg} kg` : ""}{target.sourceGoal ? ` · ${target.sourceGoal}` : ""}. Engine v{target.engineVersion || "-"}.</p>
       {target.notes && <p className="nutrition-approved-notes">{target.notes}</p>}
     </div>
   </div>;
@@ -488,8 +488,8 @@ function ValidationDiagnostics({ diagnostics }: { diagnostics: MealGenerationDia
   if (!diagnostics.firstAttempt.length && !diagnostics.repairAttempt.length) return null;
   return <div className="nutrition-diagnostics" style={{ marginTop: 8, fontSize: 9, color: "#777b71", lineHeight: 1.6 }}>
     <strong style={{ fontSize: 8, letterSpacing: ".12em", textTransform: "uppercase" }}>Validation details</strong>
-    {diagnostics.firstAttempt.length > 0 && <div>First attempt: {diagnostics.firstAttempt.map((e) => `${e.code} — ${e.message}`).join("; ")}</div>}
-    {diagnostics.repairAttempt.length > 0 && <div>Repair attempt: {diagnostics.repairAttempt.map((e) => `${e.code} — ${e.message}`).join("; ")}</div>}
+    {diagnostics.firstAttempt.length > 0 && <div>First attempt: {diagnostics.firstAttempt.map((e) => `${e.code} - ${e.message}`).join("; ")}</div>}
+    {diagnostics.repairAttempt.length > 0 && <div>Repair attempt: {diagnostics.repairAttempt.map((e) => `${e.code} - ${e.message}`).join("; ")}</div>}
   </div>;
 }
 
@@ -512,9 +512,9 @@ function MealResultView({ result, clientId }: { result: MealGenerationResponse; 
 function mealFailureLabel(reason: string): string {
   const labels: Record<string, string> = {
     auth: "AI provider authentication failed.",
-    rate_limit: "AI provider is rate-limited — try again shortly.",
-    timeout: "AI provider timed out — try again.",
-    provider_error: "AI provider returned an error — try again.",
+    rate_limit: "AI provider is rate-limited - try again shortly.",
+    timeout: "AI provider timed out - try again.",
+    provider_error: "AI provider returned an error - try again.",
     model_not_found: "AI model unavailable.",
     empty_response: "AI returned an empty response.",
     malformed_json: "AI output could not be parsed.",
@@ -537,7 +537,7 @@ function ExampleDayView({ example, summary, warnings, clientId }: { example: Mea
 
 function AlternativesView({ alternatives, warnings }: { alternatives: MealAlternatives; warnings: { message: string }[] }) {
   return <div className="nutrition-meal-result">
-    <div className="nutrition-meal-head"><strong>{alternatives.title || "Meal alternatives"}</strong><em>PRACTICAL SWAPS — COACH REVIEW REQUIRED</em></div>
+    <div className="nutrition-meal-head"><strong>{alternatives.title || "Meal alternatives"}</strong><em>PRACTICAL SWAPS - COACH REVIEW REQUIRED</em></div>
     {warnings.length > 0 && <div className="nutrition-warnings" role="note">⚠ {warnings.map((w) => w.message).join(" · ")}</div>}
     <div className="nutrition-alternatives-list">{alternatives.alternatives.map((group, index) => <article className="nutrition-alt-group" key={index}>
       <h4>{group.meal}</h4>

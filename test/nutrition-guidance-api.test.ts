@@ -98,7 +98,7 @@ test("latest body measurement weight wins over client currentWeight and snapshot
   assert.deepEqual(weight, { weightKg: 79.5, source: "body_measurement" });
 });
 
-test("backdated measurement does not win — 84kg in July inserted after 80kg in August stays 80kg", () => {
+test("backdated measurement does not win - 84kg in July inserted after 80kg in August stays 80kg", () => {
   const rows: NutritionWeightRow[] = [
     { id: 2, measuredAt: "2026-07-01T00:00:00.000Z", weightKg: 84 }, // backdated, higher id
     { id: 1, measuredAt: "2026-08-20T00:00:00.000Z", weightKg: 80 },

@@ -1,5 +1,5 @@
 /**
- * Meal Builder V2 Phase 2B — server-side meal-plan service layer.
+ * Meal Builder V2 Phase 2B - server-side meal-plan service layer.
  *
  * Split of responsibilities:
  *   - THIS module owns every DECISION (ownership scoping, lifecycle guards,
@@ -35,7 +35,7 @@ import {
 } from "./nutrition-meal-plans.ts";
 
 // ---------------------------------------------------------------------------
-// Row shapes (structural — routes pass Drizzle rows straight in)
+// Row shapes (structural - routes pass Drizzle rows straight in)
 // ---------------------------------------------------------------------------
 
 export type PlanRow = {
@@ -110,7 +110,7 @@ function restrictionContext(
 }
 
 // ---------------------------------------------------------------------------
-// SAVE DRAFT — full preparation, executed by the route inside one transaction
+// SAVE DRAFT - full preparation, executed by the route inside one transaction
 // ---------------------------------------------------------------------------
 
 export type PreparedDraft = {

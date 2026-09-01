@@ -303,7 +303,7 @@ export function buildRegenPrompt(
     "- Respect allergies and intolerances as hard exclusions.",
     `- Dietary pattern: ${context.pattern || "None"}`,
     "",
-    "MEAL BUDGET (approximate — the system validates deterministically):",
+    "MEAL BUDGET (approximate - the system validates deterministically):",
     `Calories: ${Math.round(mealBudget.calMin)}-${Math.round(mealBudget.calMax)} kcal`,
     `Protein: ${Math.round(mealBudget.proMin)}-${Math.round(mealBudget.proMax)} g`,
     `Fat: ${Math.round(mealBudget.fatMin)}-${Math.round(mealBudget.fatMax)} g`,

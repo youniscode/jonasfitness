@@ -92,7 +92,7 @@ test("onboarding Like never overrides the equipment gate (home gym)", () => {
 test("onboarding signals never create coach explicit state", () => {
   const snapshot = initialPreferenceContextFrom(emptyProfile());
   assert.deepEqual(Object.keys(snapshot).sort(), ["disliked", "liked", "unsure"]);
-  // The scoring engine sees only the client snapshot — no explicit preferred/avoid.
+  // The scoring engine sees only the client snapshot - no explicit preferred/avoid.
   const liked = scoreExerciseForClient(CHEST_PRESS, withInitial(["builtin-machine-chest-press"], []));
   assert.ok(!liked.positives.some((p) => p.includes("Coach marked this exercise as preferred")));
 });
@@ -109,7 +109,7 @@ test("coach Avoid wins over a client onboarding Like (authoritative exclusion)",
   assert.equal(fit.exclusion, true);
 });
 
-test("coach Preferred + client Dislike: allowed, boosted, conflict surfaced — never overwritten", () => {
+test("coach Preferred + client Dislike: allowed, boosted, conflict surfaced - never overwritten", () => {
   const profile = emptyProfile();
   profile.preferences.disliked = ["builtin-pull-up"];
   const context: ClientFitContext = {

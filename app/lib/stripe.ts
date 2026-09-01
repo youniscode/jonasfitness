@@ -1,5 +1,5 @@
 /**
- * Stripe integration for the Founding Access offer — the single place that
+ * Stripe integration for the Founding Access offer - the single place that
  * touches the Stripe SDK. Uses the current official stripe-node library with
  * Stripe-hosted Checkout Sessions and support for Stripe Managed Payments
  * (mode "managed" -> `managed_payments.enabled=true`).
@@ -40,7 +40,7 @@ export interface FoundingCheckoutSession {
 /**
  * Creates a Stripe-hosted Checkout Session for the Founding Access one-time
  * payment (EUR 19). Bound to `ownerId` (server-resolved). `priceId` is the
- * configured Founding price — never client-supplied.
+ * configured Founding price - never client-supplied.
  *
  * `success_url` never encodes an entitlement grant: access is granted ONLY by
  * the authoritative webhook (checkout.session.completed / async_payment_succeeded).
@@ -72,7 +72,7 @@ export async function createFoundingCheckout({
       ownerId,
       productKey: "progress_founding",
     },
-    // Collect a minimal set — no onboarding questionnaire before paying.
+    // Collect a minimal set - no onboarding questionnaire before paying.
     allow_promotion_codes: false,
     billing_address_collection: "auto",
   };

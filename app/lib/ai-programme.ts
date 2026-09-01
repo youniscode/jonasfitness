@@ -106,7 +106,7 @@ export function compactCatalogue(equipment: string | null | undefined): string[]
 // Hardened output contract sent to AI providers (Ollama + OpenRouter). The
 // model may still return anything, but these instructions bias it toward JSON
 // that passes validateDraft/rehydrateDraft: a pure JSON object, strict integer
-// rep ranges, and library-grounded exercise ids. Validation is unchanged —
+// rep ranges, and library-grounded exercise ids. Validation is unchanged -
 // this only shapes the request, it never loosens the downstream checks.
 export const AI_DRAFT_CONTRACT = `OUTPUT RULES (STRICT):
 Return ONE JSON object only. The first character must be "{" and the last character must be "}".
@@ -117,7 +117,7 @@ Use EXACTLY this structure:
 
 EXERCISE RULES:
 - Every exercise must use an exact libraryId and name from the "Available library exercises" list above. Never invent ids or names.
-- libraryId is an OPAQUE identifier. COPY IT EXACTLY from the "Available library exercises" list. Never construct, rename, infer, abbreviate or transform a libraryId — it may NOT resemble the exercise name. Example: "Barbell back squat" has libraryId "builtin-back-squat" (no "barbell" in the id).
+- libraryId is an OPAQUE identifier. COPY IT EXACTLY from the "Available library exercises" list. Never construct, rename, infer, abbreviate or transform a libraryId - it may NOT resemble the exercise name. Example: "Barbell back squat" has libraryId "builtin-back-squat" (no "barbell" in the id).
 - Use library exercises whenever possible. A custom exercise (libraryId "custom") is allowed ONLY when no library exercise fits, and at most ONE per session.
 - Do NOT generate time- or distance-based exercises (plank, farmer carry, timed holds, walking carries): this programme is rep-based.
 
@@ -247,7 +247,7 @@ export function validateDraft(value: unknown, expectedSessions: number): DraftVa
 // Deterministic estimate from the actual prescription (never the model's
 // claim): a session warm-up allowance, per-exercise transition/setup, working-
 // set execution scaled by the rep range, and the programmed rest. No invented
-// dead time — but a realistic PT-session structure (warm-up + transitions).
+// dead time - but a realistic PT-session structure (warm-up + transitions).
 const SESSION_WARMUP_SECONDS = 360; // ~6 min per session
 const EXERCISE_TRANSITION_SECONDS = 75; // setup + load change between exercises
 const SET_BASE_SECONDS = 12;
@@ -283,7 +283,7 @@ export function estimateProgrammeDurationMinutes(draft: ProgrammeDraft): number 
 // ---------- Duration comparison policy ----------
 
 // Target tolerance: ±15%. A plan must land inside this window to be labelled
-// MATCH — a ~30 min plan against a 60 min target is UNDER, never "fits".
+// MATCH - a ~30 min plan against a 60 min target is UNDER, never "fits".
 export type DurationState = "match" | "under" | "over";
 export const DURATION_TOLERANCE = 0.15;
 
@@ -319,7 +319,7 @@ export function compareDuration(expectedMinutes: number, targetMinutes: number |
 // Objective duration compliance: an AI draft that parses and passes schema
 // validation may STILL be rejected when its estimated duration is materially
 // outside the target band (target ± DURATION_TOLERANCE). This is the gate the
-// route applies BEFORE accepting a draft as a successful source=ai result —
+// route applies BEFORE accepting a draft as a successful source=ai result -
 // a valid ~48-min draft against a 30-min target is a duration_miss, never a
 // malformed_json and never a silent success. Falls back to "match" when no
 // target is set (duration is advisory only).
@@ -377,7 +377,7 @@ export type DesignRecommendation = {
   /**
    * Objective summary for the draft review: the primary (design driver) plus
    * the bounded supporting objectives. Secondary objectives never override
-   * the primary — they are supporting context only.
+   * the primary - they are supporting context only.
    */
   objectives: { primary: string; supports: string[] };
 };
@@ -408,25 +408,25 @@ export function designRecommendation(
   const split = SPLIT_LABEL[count] ?? "Full Body";
   const sessionBlueprint = sessionBlueprintFor(count);
   const rationale: string[] = [];
-  if (beginner) rationale.push("Beginner client — prioritise a small set of compound patterns with controlled volume and scalable exercises.");
-  else rationale.push(`${experience} level — allow more advanced loading and a wider exercise selection.`);
+  if (beginner) rationale.push("Beginner client - prioritise a small set of compound patterns with controlled volume and scalable exercises.");
+  else rationale.push(`${experience} level - allow more advanced loading and a wider exercise selection.`);
   rationale.push(`Training ${sessionsPerWeek} day${sessionsPerWeek === 1 ? "" : "s"} per week.`);
   rationale.push(`Recommended structure: ${split}.`);
   if (equipment) rationale.push(`Available equipment: ${equipment}.`);
-  else rationale.push("Equipment unknown — the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.");
-  if (considerations) rationale.push(`Limitations reported (${considerations}) — conservative selection, coach review required.`);
+  else rationale.push("Equipment unknown - the programme assumes standard gym equipment (barbells, cables, dumbbells). Confirm access before approval.");
+  if (considerations) rationale.push(`Limitations reported (${considerations}) - conservative selection, coach review required.`);
   if (availability) rationale.push(`Availability: ${availability}.`);
   const objectives = { primary: goal, supports: boundedSecondaryGoals(secondaryGoals) };
   if (objectives.supports.length) {
-    rationale.push(`Secondary objectives (${objectives.supports.join(", ")}) are supporting context — the programme stays ${goal || "the primary objective"}-focused while accommodating only compatible structure choices (density, rest, conditioning/accessories).`);
+    rationale.push(`Secondary objectives (${objectives.supports.join(", ")}) are supporting context - the programme stays ${goal || "the primary objective"}-focused while accommodating only compatible structure choices (density, rest, conditioning/accessories).`);
   }
   const priorities = goal ? [goal] : [];
   const constraints: string[] = [];
   if (considerations) constraints.push("Respect the client's reported limitations and keep movements coach-reviewed.");
-  if (!equipment) constraints.push("Equipment not specified — confirm the client's actual gym access before approving this draft.");
+  if (!equipment) constraints.push("Equipment not specified - confirm the client's actual gym access before approving this draft.");
   const equipmentContext = equipment.toLowerCase();
   if (equipmentContext.includes("no equipment") || equipmentContext.includes("bodyweight") || equipmentContext.includes("home")) {
-    constraints.push("Bodyweight / minimal-equipment movements only — no machine or barbell-dependent exercises.");
+    constraints.push("Bodyweight / minimal-equipment movements only - no machine or barbell-dependent exercises.");
   }
   const progressionStrategy = beginner
     ? "Double progression: stay within the prescribed rep range; once every working set reaches the top of the range with the target RIR, increase the load next session."
@@ -499,7 +499,7 @@ function exercisesForPatterns(
     // Weekly-repetition cap (beginners only): an exercise may appear in at
     // most maxWeeklyUses sessions; once at the cap, the next-best fresh option
     // is used (e.g. leg press twice, then goblet squat). When every candidate
-    // is at the cap (genuinely no alternative), the best option is reused —
+    // is at the cap (genuinely no alternative), the best option is reused -
     // never silently dropped.
     const pick = preferBeginner
       ? (ordered.find((exercise) => {
@@ -588,14 +588,14 @@ export function buildFallbackDraft(
     progressionStrategy: beginner
       ? "Double progression: once every working set reaches the top of the rep range with the target RIR, increase the load."
       : "Progressive overload with 1–3 RIR, reviewed against recovery and check-ins weekly.",
-    coachNotes: "Deterministic draft — review exercise selection and loading before approving.",
+    coachNotes: "Deterministic draft - review exercise selection and loading before approving.",
     sessions,
   });
   // Structured target duration is a real control for the deterministic
   // fallback too (it must never silently return ~48 min against a 30-min
   // target). When the default draft is materially OVER the target, reuse the
   // SAME repair as the adjustment fallback: drop lower-priority exercises
-  // first, then reduce sets conservatively — never below 3 exercises per
+  // first, then reduce sets conservatively - never below 3 exercises per
   // session and never artificial rest compression. Under-target drafts are
   // left alone: no filler volume is ever added just to consume time.
   if (targetDuration && targetDuration > 0) {
@@ -613,7 +613,7 @@ export function buildFallbackDraft(
 // small, conservative set of objective intents (shorten to the target control,
 // replace a named canonical exercise, remove a named exercise, trim to an
 // explicit exercise count). No fuzzy/substring/semantic matching and no
-// invented ids — everything resolves through exact canonical library names.
+// invented ids - everything resolves through exact canonical library names.
 
 const normaliseName = (value: string): string => (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -626,7 +626,7 @@ function resolveBuiltInByName(name: string): ExerciseDefinition | null {
 const REPLACE_RATIONALE_RE = /\s+(?:because|since|due to)\b.*$/i;
 
 // A conservative session qualifier: "on Full Body C" / "in Full Body C" /
-// "on Day C". Only resolved against the current draft's session names — an
+// "on Day C". Only resolved against the current draft's session names - an
 // unresolvable qualifier is treated as ambiguous and dropped (no guessing).
 const SESSION_QUALIFIER_RE = /\b(?:on|in)\s+([A-Za-z0-9][A-Za-z0-9 ]*?)(?=\s+(?:because|since|due to)\b|[.,;!?]|$)/i;
 
@@ -647,7 +647,7 @@ function resolveSessionName(qualifier: string, draft: ProgrammeDraft | null): st
 
 // Splits a "replace X with Y" segment into its exercise-name remainder and an
 // optional resolved session qualifier. `ambiguous` is true when a qualifier is
-// present but cannot be resolved uniquely — the caller must NOT fall back to a
+// present but cannot be resolved uniquely - the caller must NOT fall back to a
 // global replacement in that case.
 function splitReplaceSegment(segment: string, draft: ProgrammeDraft | null): { name: string; session: string | null; ambiguous: boolean } {
   const match = segment.match(SESSION_QUALIFIER_RE);
@@ -668,7 +668,7 @@ export type AdjustmentIntent = {
 
 // Small conservative instruction interpreter for objective, high-confidence
 // adjustment requests. Anything it cannot resolve with exact matching is left
-// alone — the draft is preserved rather than guessed at.
+// alone - the draft is preserved rather than guessed at.
 export function interpretAdjustmentInstruction(instruction: string, draft: ProgrammeDraft | null): AdjustmentIntent {
   const text = (instruction ?? "").trim();
   const intent: AdjustmentIntent = { shorten: false, targetExerciseCount: null, replacements: [], removals: [] };
@@ -730,7 +730,7 @@ export function interpretAdjustmentInstruction(instruction: string, draft: Progr
 
 // High-confidence material-change verification for targeted adjustments. After
 // the AI (or any source) produces a draft, this checks that the explicitly
-// interpreted intents actually happened — a named exact replacement must have
+// interpreted intents actually happened - a named exact replacement must have
 // occurred, an exact removal must be gone, an explicit exercise-count target
 // must be met. It never interprets free text; only intents that the strict
 // interpreter already resolved count. `shorten` is duration-domain and is
@@ -831,7 +831,7 @@ export type AdjustmentFallbackResult = {
 
 // Deterministic adjustment of the CURRENT draft when the model call fails.
 // Starts from previousDraft, applies only safely-recognized objective intents,
-// and reports honestly whether the draft actually changed — an unchanged draft
+// and reports honestly whether the draft actually changed - an unchanged draft
 // is never presented as a successful adjustment.
 export function buildAdjustmentFallback(
   previous: ProgrammeDraft,
@@ -855,7 +855,7 @@ export function buildAdjustmentFallback(
         const targetExercise = resolveBuiltInByName(replacement.to);
         if (!targetExercise) continue;
         // Replacing with an exercise already in the same session would create an
-        // invalid duplicate — keep the source in that case (conservative).
+        // invalid duplicate - keep the source in that case (conservative).
         if (session.exercises.some((other) => normaliseName(other.name) === normaliseName(targetExercise.name))) continue;
         exercise.libraryId = targetExercise.id;
         exercise.name = targetExercise.name;
@@ -864,7 +864,7 @@ export function buildAdjustmentFallback(
     }
   }
 
-  // 2) Exact named removals ("remove cable crunch") — only when the name
+  // 2) Exact named removals ("remove cable crunch") - only when the name
   //    resolves exactly to an exercise present in the current draft.
   for (const removal of intent.removals) {
     for (const session of work.sessions) {
@@ -883,7 +883,7 @@ export function buildAdjustmentFallback(
     }
   }
 
-  // 4) Duration shortening toward the target control — never below 3 exercises
+  // 4) Duration shortening toward the target control - never below 3 exercises
   //    per session, never artificial rest compression.
   if (shorten && target) {
     for (const session of work.sessions) {

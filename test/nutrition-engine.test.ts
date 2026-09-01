@@ -195,14 +195,14 @@ test("activity factor: clamped to bounds", () => {
   const lowEnd = resolveActivityFactor("Mostly sitting", "Under 3k", "");
   assert.ok(lowEnd >= ACTIVITY_FACTOR_MIN);
 
-  // 1.725 + 0.05 + 0.05 = 1.825 — within bounds
+  // 1.725 + 0.05 + 0.05 = 1.825 - within bounds
   const high = resolveActivityFactor("Very active / physical job", "10k+", "Physical work");
   assert.equal(high, 1.825);
   assert.ok(high <= ACTIVITY_FACTOR_MAX);
 
   // An impossibly high combo is clamped
   // Let's test: 1.725 + 0.05 + 0.05 = 1.825, this is within bounds
-  // No need for clamping — the base max is 1.725 and each modifier is at most 0.05
+  // No need for clamping - the base max is 1.725 and each modifier is at most 0.05
   // so max possible is 1.725 + 0.05 + 0.05 = 1.825, which is under 1.95
   assert.ok(high <= ACTIVITY_FACTOR_MAX);
 });
@@ -541,7 +541,7 @@ test("ready: carbohydrates are never negative", () => {
   // Female, fat_loss, 50kg: BMR ~1208, TDEE ~1329, calorie ~1129
   // Protein: 80-110g, Fat floor: 40g
   // Min carbs: (1129 - 110×4 - maxFat×9) / 4
-  // This is a stress test — should still be ≥ 0
+  // This is a stress test - should still be ≥ 0
   const ctx: NutritionEngineContext = {
     ageYears: 25,
     sex: "female",

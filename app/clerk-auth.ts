@@ -33,7 +33,7 @@ export async function evaluateCoachAuth(): Promise<CoachAuthResult> {
     user = await currentUser();
   } catch {
     // Backend lookup failure denies access (never crashes the request) and is
-    // reported from the SAME evaluation — no second lookup for diagnostics.
+    // reported from the SAME evaluation - no second lookup for diagnostics.
     return { allowed: false, coachId: null, reason: "user_lookup_failed" };
   }
   if (!user) return { allowed: false, coachId: null, reason: "user_lookup_failed" };

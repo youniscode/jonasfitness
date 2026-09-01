@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     if (!access) {
       if (!coachAuth.allowed) {
         // Server-side diagnostic only. The reason comes from the SAME atomic
-        // evaluation that denied coach access — "denied: allowed" is
+        // evaluation that denied coach access - "denied: allowed" is
         // structurally impossible here. Never sent to the client, no PII.
         console.warn(`[coach-auth] client-onboarding denied: ${coachAuth.reason}`);
         return Response.json({ error: "Client access required." }, { status: 403 });
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
     .orderBy(desc(programmes.createdAt)).limit(1);
   const profile = parseProfile(intake?.profile) ?? profileFromIntake(intake ?? null, client);
 
-  // Nutrition Foundations status — deterministic, coach-facing only. Current
+  // Nutrition Foundations status - deterministic, coach-facing only. Current
   // weight resolution follows the canonical source policy: latest weight-bearing
   // client_body_measurements row, then clients.currentWeight, then the
   // onboarding snapshot. No calories are calculated.
@@ -150,7 +150,7 @@ export async function PATCH(request: Request) {
   const derived = incomingProfile ? deriveIntakeFields(incomingProfile) : null;
 
   // Coach-modal merge: a single canonical trainingSupervision token is applied to
-  // the client's EXISTING structured profile (or a legacy synthesis) — never a
+  // the client's EXISTING structured profile (or a legacy synthesis) - never a
   // wholesale profile replacement, so structured fields the modal does not display
   // are preserved. An absent value leaves the profile untouched; an empty value
   // only clears the field for clients who already have a structured profile (and

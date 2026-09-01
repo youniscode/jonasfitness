@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * (see the Final Report) and we manually track how many targeted prospects get
  * the offer. `ownerId` always comes from the session, never from the body.
  *
- * Whitelist of accepted event names — arbitrary event strings are rejected.
+ * Whitelist of accepted event names - arbitrary event strings are rejected.
  */
 const ALLOWED = new Set(["founding_offer_viewed"]);
 

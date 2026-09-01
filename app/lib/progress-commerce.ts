@@ -1,11 +1,11 @@
 /**
  * End-to-end orchestration of the Stripe webhook fulfillment path.
  *
- * The webhook is the AUTHORITATIVE source of a paid grant — the success_url
+ * The webhook is the AUTHORITATIVE source of a paid grant - the success_url
  * and any client state are never trusted to grant access. Stripe event retries
  * are made idempotent end-to-end:
  *   1. claimWebhookEvent() inserts the (provider, event_id) into the idempotency
- *      trail only once — a replay is detected and ignored early.
+ *      trail only once - a replay is detected and ignored early.
  *   2. The order update (created->paid) is keyed by unique (provider, checkout_id)
  *      and uses UPDATE ... WHERE status='created', so a duplicate event can't
  *      double-mark.
@@ -52,7 +52,7 @@ export async function fulfillStripeSession(event: {
   const paid = checkoutIsPaid(event.session.paymentStatus);
   if (!paid) return { outcome: "not_paid", granted: false };
 
-  // Price/amount/currency guard — a wrong product/price never grants.
+  // Price/amount/currency guard - a wrong product/price never grants.
   const payment: CheckoutPaymentView = {
     sessionId: event.session.id,
     paymentId: event.session.paymentId,
@@ -65,7 +65,7 @@ export async function fulfillStripeSession(event: {
 
   // Reconcile the trusted order → owner + LOCAL order id. Idempotent (handles
   // a retry where this step already marked the order paid). ownerId is NEVER
-  // taken from the browser/mail — only from the order row bound to the Stripe
+  // taken from the browser/mail - only from the order row bound to the Stripe
   // session by the server-side checkout.
   const order = await markOrderPaid(event.session.id, event.session.paymentId, event.session.amountTotal ?? 0, event.session.currency ?? "eur");
   if (!order) return { outcome: "unknown_order", granted: false };

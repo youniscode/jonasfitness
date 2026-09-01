@@ -4,7 +4,7 @@
  * Converts raw database rows into a compact, safe, structured object that is
  * sent to the model. PII is deliberately excluded: email, phone, acquisition
  * data, lead history, billing and the credit ledger are NOT part of the
- * profile — the AI has no reason to see them.
+ * profile - the AI has no reason to see them.
  *
  * Pure on purpose (no runtime imports) so it is unit-testable with Node's
  * built-in test runner, exactly like the other coach helpers.
@@ -45,7 +45,7 @@ export type CoachingProfile = {
     privateCoachNotes: string;
   };
   /**
-   * Structured onboarding survey V2 (parsed canonical shape). Always present —
+   * Structured onboarding survey V2 (parsed canonical shape). Always present -
    * legacy clients without a stored profile get a synthesized one from their
    * flat intake answers. Pure coaching context; PII-free by construction.
    */
@@ -104,7 +104,7 @@ export type CoachWorkoutRow = {
   status: string;
   startedBy: string;
   completedAt: Date | string | null;
-  /** Raw exercises JSON — optional; only the most recent completed workout is read. */
+  /** Raw exercises JSON - optional; only the most recent completed workout is read. */
   exercises?: string | null;
 };
 
@@ -143,7 +143,7 @@ export function buildClientCoachingProfile(
 
   // Recent muscle/movement exposure: read ONLY the most recent completed
   // workout's exercises and map them through the exercise-intelligence layer.
-  // A pure coaching signal ("chest was trained recently") — never a recovery or
+  // A pure coaching signal ("chest was trained recently") - never a recovery or
   // medical estimate. Unknown/custom exercises are ignored safely.
   const exposure = (() => {
     const ordered = completed
@@ -172,7 +172,7 @@ export function buildClientCoachingProfile(
     goals: {
       primary: client.goal,
       detail: trimmed(intake?.goalsDetail),
-      // Secondary objectives stay softer context — the primary goal remains the
+      // Secondary objectives stay softer context - the primary goal remains the
       // programme-design driver; these only inform accessory/rep structure.
       secondary: survey.goals.secondary,
     },
@@ -272,7 +272,7 @@ export function coachContextCompleteness(profile: CoachingProfile): { complete: 
       label: "Equipment",
       required: false,
       complete: Boolean(profile.training.equipment),
-      detail: profile.training.equipment || "Equipment not specified — the AI will not assume a full gym",
+      detail: profile.training.equipment || "Equipment not specified - the AI will not assume a full gym",
     },
     {
       id: "survey",
@@ -281,7 +281,7 @@ export function coachContextCompleteness(profile: CoachingProfile): { complete: 
       complete: profile.surveyComplete,
       detail: profile.surveyComplete
         ? "Client completed the structured survey"
-        : "Legacy profile — derived from existing answers; the client survey is optional",
+        : "Legacy profile - derived from existing answers; the client survey is optional",
     },
     {
       id: "limitations",
@@ -308,7 +308,7 @@ export function coachContextCompleteness(profile: CoachingProfile): { complete: 
 
 // Safety gate: programme generation for a client WITH reported limitations is
 // blocked until the coach has completed the readiness review (mirrors the
-// onboarding gate — never bypassed by the AI flow).
+// onboarding gate - never bypassed by the AI flow).
 export function coachGenerationBlocked(profile: CoachingProfile): string | null {
   if (profile.readiness.hasReportedLimitations && !profile.readiness.coachReviewed) {
     return "The client has reported training limitations that have not been reviewed. Complete the readiness review before generating a programme.";

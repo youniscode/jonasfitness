@@ -49,7 +49,7 @@ function volumeComparison(current: number, previous: number | undefined) {
 }
 
 function setComparison(current: WorkoutSet, previous: WorkoutSet | undefined) {
-  if (!previous || !isCompletedWorkoutSet(previous)) return "—";
+  if (!previous || !isCompletedWorkoutSet(previous)) return "-";
   const volumeDifference = setVolume(current) - setVolume(previous);
   if (volumeDifference === 0) return "Same";
   return `${volumeDifference > 0 ? "+" : ""}${compactNumber(volumeDifference)} kg`;
@@ -192,11 +192,11 @@ export default function ClientWorkoutActivity({ client }: { client: Client }) {
                                 {exercise.sets.map((set, setIndex) => (
                                   <tr key={set.id} className={isCompletedWorkoutSet(set) ? "completed" : "not-completed"}>
                                     <td>{setIndex + 1}</td>
-                                    <td>{set.weight ?? "—"} kg</td>
-                                    <td>{set.reps ?? "—"}</td>
-                                    <td>{set.rir || "—"}</td>
+                                    <td>{set.weight ?? "-"} kg</td>
+                                    <td>{set.reps ?? "-"}</td>
+                                    <td>{set.rir || "-"}</td>
                                     <td>{isCompletedWorkoutSet(set) ? setComparison(set, previousExercise?.sets[setIndex]) : "Not completed"}</td>
-                                    <td>{set.note || "—"}</td>
+                                    <td>{set.note || "-"}</td>
                                   </tr>
                                 ))}
                               </tbody>

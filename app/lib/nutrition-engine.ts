@@ -1,5 +1,5 @@
 /**
- * Nutrition Foundations V1 / Phase 2B — Pure Deterministic Nutrition Engine.
+ * Nutrition Foundations V1 / Phase 2B - Pure Deterministic Nutrition Engine.
  *
  * This module is PURE: no DB access, no network, no AI, no Clerk, no fetch,
  * no Date.now(), no randomness. Same inputs always produce the same outputs.
@@ -24,7 +24,7 @@
 import { NUTRITION_SAFETY_FLAGS, SEX_VALUES } from "./onboarding-profile.ts";
 
 // ---------------------------------------------------------------------------
-// Exported constants — every magic number is named and testable.
+// Exported constants - every magic number is named and testable.
 // ---------------------------------------------------------------------------
 
 /** Mifflin-St Jeor equation coefficients. */
@@ -42,7 +42,7 @@ export const FAT_KCAL_PER_G = 9;
 /**
  * Base activity multiplier for each canonical ACTIVITY_LEVELS value.
  * Aligned with standard Mifflin-St Jeor PAL bands (sedentary=1.2, light=1.375,
- * moderate=1.55, vigorous=1.725). Conservative — never assumes extra-active.
+ * moderate=1.55, vigorous=1.725). Conservative - never assumes extra-active.
  */
 export const ACTIVITY_BASE_FACTORS: Record<string, number> = {
   "Mostly sitting": 1.2,
@@ -117,7 +117,7 @@ export const ADULT_AGE_MIN = 18;
  * Deterministic engine-version marker (Nutrition Foundations V1 / Phase 2D).
  * Persisted with each coach-approved target so a future formula change never
  * makes historical approvals ambiguous. Bumped whenever the calculation rules
- * change in a way that could alter estimates. Deliberately a plain string — no
+ * change in a way that could alter estimates. Deliberately a plain string - no
  * semantic-versioning machinery.
  */
 export const NUTRITION_ENGINE_VERSION = "1";
@@ -194,7 +194,7 @@ export interface NutritionEngineContext {
   work: string;
   /** Canonical PRIMARY_GOALS value. */
   goal: string;
-  /** Optional target weight (kg) — stored for context only in Phase 2B. */
+  /** Optional target weight (kg) - stored for context only in Phase 2B. */
   targetWeightKg?: number | null;
   /** Explicit safety flags from profile.nutritionSafety.flags. */
   safetyFlags: string[];
@@ -260,7 +260,7 @@ export function resolveActivityBand(activity: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// BMR — Mifflin-St Jeor
+// BMR - Mifflin-St Jeor
 // ---------------------------------------------------------------------------
 
 /**
@@ -298,7 +298,7 @@ export function buildNutritionGuidance(ctx: NutritionEngineContext): NutritionGu
   const missing = collectMissingInputs(ctx);
   if (missing.length > 0) return { status: "insufficient_data", missing };
 
-  // TypeScript narrowing — all null checks passed.
+  // TypeScript narrowing - all null checks passed.
   const ageYears = ctx.ageYears as number;
   const sex = ctx.sex as "male" | "female";
   const heightCm = ctx.heightCm as number;
@@ -434,7 +434,7 @@ function computeBlockReasons(safetyFlags: string[], ageYears: number | null): st
   for (const flag of NUTRITION_SAFETY_FLAGS) {
     if (flagSet.has(flag) && !reasons.includes(flag)) reasons.push(flag);
   }
-  // Only block on age when it is a valid positive number — NaN, Infinity,
+  // Only block on age when it is a valid positive number - NaN, Infinity,
   // zero and negative are treated as missing/invalid, not as minor.
   if (
     ageYears !== null &&
@@ -482,7 +482,7 @@ function isPositiveFinite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-/** Resolve goal from the input. Never returns null here — caller validates first. */
+/** Resolve goal from the input. Never returns null here - caller validates first. */
 function nutritionGoalInfo(goal: string): [NutritionGoalClass] {
   const c = GOAL_TO_CLASS[goal] ?? "maintenance";
   return [c];

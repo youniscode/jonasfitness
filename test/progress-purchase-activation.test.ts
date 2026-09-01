@@ -40,8 +40,8 @@ test("4. entitlement remains absent until the timeout -> recoverable stalled/rec
   assert.equal(overLimit, "stalled");
 });
 
-test("5. success URL alone can never grant — a signed-in user just landing is only ever 'activating' or 'active' based on the server entitlement, never granted client-side", () => {
-  // Landing without an entitlement must NEVER resolve to "active" — only the
+test("5. success URL alone can never grant - a signed-in user just landing is only ever 'activating' or 'active' based on the server entitlement, never granted client-side", () => {
+  // Landing without an entitlement must NEVER resolve to "active" - only the
   // authoritative server entitlement can. No success-url signal enters here.
   const landing = nextActivationPhase({ entitled: false, signedIn: true, attempts: 0, timeoutMs: TIME, intervalMs: INT });
   assert.equal(landing, "activating");
@@ -50,7 +50,7 @@ test("5. success URL alone can never grant — a signed-in user just landing is 
   assert.equal(startFromVisibleSignedInUser(true), "activating");
 });
 
-test("6. unauthenticated access remains protected — signed-out resolves to needs_signin and routes to Clerk", () => {
+test("6. unauthenticated access remains protected - signed-out resolves to needs_signin and routes to Clerk", () => {
   assert.equal(nextActivationPhase({ entitled: false, signedIn: false, attempts: 0, timeoutMs: TIME, intervalMs: INT }), "needs_signin");
   assert.equal(nextActivationPhase({ entitled: true, signedIn: false, attempts: 0, timeoutMs: TIME, intervalMs: INT }), "needs_signin", "signed-out never sees entitlement state");
   assert.equal(startFromVisibleSignedInUser(false), "needs_signin");
@@ -72,7 +72,7 @@ test("7. no automatic redirect to /progress/founding merely because entitlement 
   assert.match(client, /\/sign-in\?redirect_url=\/progress\/purchase/);
 });
 
-test("8. activation polling constants are bounded — no indefinite polling", () => {
+test("8. activation polling constants are bounded - no indefinite polling", () => {
   assert.equal(MAX, Math.ceil(ACTIVATION_TIMEOUT_MS / ACTIVATION_POLL_INTERVAL_MS));
   assert.ok(MAX > 0 && MAX * INT <= ACTIVATION_TIMEOUT_MS + INT, "window is finite");
 });

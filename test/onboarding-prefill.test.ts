@@ -211,7 +211,7 @@ test("likes and dislikes become CLIENT initial-preference signals, never coach p
 test("neutral and not-sure produce no signals and no penalty", () => {
   const snapshot = initialPreferenceContextFrom(profileWithReactions([], [], ["builtin-hack-squat"]));
   assert.deepEqual(snapshot, { liked: [], disliked: [], unsure: ["builtin-hack-squat"] });
-  // Not-sure stays in its own bucket — never a dislike, never a limitation.
+  // Not-sure stays in its own bucket - never a dislike, never a limitation.
   const profile = profileWithReactions([], [], ["builtin-hack-squat"]);
   assert.deepEqual(profile.preferences.disliked, []);
   assert.equal(profile.limitations.status, "");
@@ -226,7 +226,7 @@ test("invalid ids are never persisted", () => {
 test("dislike never creates a medical inference or a coach avoid", () => {
   const snapshot = initialPreferenceContextFrom(profileWithReactions([], ["builtin-back-squat"]));
   assert.deepEqual(snapshot.disliked, ["builtin-back-squat"]);
-  // A client dislike is a soft signal — not a limitation, not a diagnosis.
+  // A client dislike is a soft signal - not a limitation, not a diagnosis.
   const profile = profileWithReactions([], ["builtin-back-squat"]);
   assert.equal(profile.limitations.status, "");
   assert.equal(profile.limitations.areas.length, 0);

@@ -135,7 +135,7 @@ test("parisDaysBetween counts whole Paris calendar days", () => {
 
 test("parisDaysBetween is safe across UTC midnight and summer/winter offsets", () => {
   // 23:30 UTC on Aug 9 is already Aug 10 in Paris (CEST, UTC+2). Measured from
-  // Aug 16, that is 6 full Paris days — still NOT inactive (off-by-one guard).
+  // Aug 16, that is 6 full Paris days - still NOT inactive (off-by-one guard).
   const lastLate = new Date("2026-08-09T23:30:00.000Z");
   assert.equal(parisDateKey(lastLate), "2026-08-10");
   assert.equal(parisDaysBetween(new Date("2026-08-16T10:00:00.000Z"), lastLate), 6);

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * POST /api/progress/checkout
  *
  * Server-side Checkout Session creation. The owner is resolved from the Clerk
- * session — NEVER from the request body — so a user cannot create a checkout
+ * session - NEVER from the request body - so a user cannot create a checkout
  * bound to an arbitrary owner or a client-supplied price. If the user is
  * already entitled, we refuse rather than letting them buy again.
  */
@@ -26,7 +26,7 @@ export async function POST() {
   const config = getStripeCommerceConfig();
 
   // Checkout success/cancel URLs are anchored to the TRUSTED configured app
-  // origin — never derived from an arbitrary request Host header, so no
+  // origin - never derived from an arbitrary request Host header, so no
   // host-header/paywall-bypass or open-redirect surface. The success page only
   // ever reflects the server-side entitlement (the webhook grants, never this).
   const origin = config.publicOrigin;

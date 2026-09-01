@@ -8,7 +8,7 @@ import { decideDeleteVersion, planIsEmptyAfterDelete, type PlanRow, type Version
 //
 // Deletes an UNAPPROVED draft version only. Approved and superseded versions
 // are permanent history. When deleting the last remaining version empties the
-// plan, the plan row goes too (assignments cascade — drafts can never have
+// plan, the plan row goes too (assignments cascade - drafts can never have
 // any).
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string; versionId: string }> }) {

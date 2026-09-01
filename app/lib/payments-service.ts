@@ -6,7 +6,7 @@
  * + INSERT ... ON CONFLICT DO NOTHING, so a Stripe event replay can never
  * create a duplicate order, entitlement or analytics event.
  *
- * Access to paid resources is granted ONLY by fulfillStripeSession() — never by
+ * Access to paid resources is granted ONLY by fulfillStripeSession() - never by
  * any success_url, client state, or client-supplied session/order id.
  */
 
@@ -24,7 +24,7 @@ import {
 
 import { computeValidationMetrics, FOUNDING_ACCESS_PRODUCT_KEY as FOUNDING_KEY } from "./payments-domain.ts";
 
-// ——— Entitlements ————————————————————————————————————
+// --- Entitlements ------------------------------------
 
 // The ON CONFLICT target for granting an entitlement lives in
 // entitlement-constraints.ts and MUST match the partial unique index
@@ -59,7 +59,7 @@ export async function grantEntitlement(ownerId: string, productKey: string, sour
 
 /**
  * Revokes a previously granted entitlement (e.g. a fully-refunded order).
- * Existing training DATA is never deleted — only access is withdrawn.
+ * Existing training DATA is never deleted - only access is withdrawn.
  */
 export async function revokeEntitlement(ownerId: string, productKey: string) {
   const db = getDb();
@@ -72,7 +72,7 @@ export async function revokeEntitlement(ownerId: string, productKey: string) {
     ));
 }
 
-// ——— Orders ——————————————————————————————————————————
+// --- Orders ------------------------------------------
 
 /** Records the fact that a Checkout Session was created (owner-scoped). */
 export async function recordCheckoutOrder(ownerId: string, providerCheckoutId: string, amountMinor: number, currency: string, productKey: string) {
@@ -118,7 +118,7 @@ export async function markOrderPaid(providerCheckoutId: string, providerPaymentI
     ))
     .returning({ id: commerceOrders.id, ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey });
   if (updated) return updated;
-  // Already paid — idempotent replay of a fulfillment that completed this step
+  // Already paid - idempotent replay of a fulfillment that completed this step
   // then failed later. Only a genuinely PAID order is returned (a refunded or
   // canceled order must never be re-granted by a replayed completed event).
   const [existing] = await db.select({ id: commerceOrders.id, ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey })
@@ -151,7 +151,7 @@ export async function markOrderRefundedByPaymentId(providerPaymentId: string): P
     ))
     .returning({ ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey });
   if (updated) return updated;
-  // Already refunded — idempotent replay of a refund that completed this step
+  // Already refunded - idempotent replay of a refund that completed this step
   // then failed before revoking. Re-read the refunded order for owner/product.
   const [existing] = await db.select({ ownerId: commerceOrders.ownerId, productKey: commerceOrders.productKey })
     .from(commerceOrders)
@@ -164,7 +164,7 @@ export async function markOrderRefundedByPaymentId(providerPaymentId: string): P
   return existing ?? null;
 }
 
-// ——— Webhook idempotency trail ——————————————————————————
+// --- Webhook idempotency trail --------------------------
 
 /**
  * Persists a consumed provider event id. Returns true only if THIS call won
@@ -179,7 +179,7 @@ export async function claimWebhookEvent(providerEventId: string, eventType: stri
   return inserted.length > 0;
 }
 
-// ——— Validation analytics (first-party) —————————————————
+// --- Validation analytics (first-party) -----------------
 
 /**
  * Records a deduplicated first-party validation event. Unique
@@ -208,7 +208,7 @@ export async function recordFirstWorkoutCompleted(ownerId: string) {
   await recordValidationEvent(ownerId, "progress_workout_completed", "first");
 }
 
-// ——— Validation metrics ———————————————————————————————
+// --- Validation metrics -------------------------------
 
 /**
  * Server-side validation summary. Pure over the store tables so an account

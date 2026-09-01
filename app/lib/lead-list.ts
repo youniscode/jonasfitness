@@ -44,7 +44,7 @@ export type NewLeadAttentionRow = {
 
 // Pure projection of the leads waiting for first contact: status "new" only.
 // Contacted/qualified/client/lost leads drop out automatically once their
-// status changes — no separate state is kept. Deterministic (newest first,
+// status changes - no separate state is kept. Deterministic (newest first,
 // bounded, input not mutated) so it is unit-testable and safe to run on every
 // dashboard poll.
 // A reapplication's "applied" instant is its reappliedAt (the fresh cycle);
@@ -94,7 +94,7 @@ export function escapeLike(term: string): string {
 // contains `now`, as absolute instants. Subtracting the Paris wall-clock
 // seconds-of-day from the absolute instant yields Paris midnight (offsets are
 // constant within a day except across a DST transition, where one boundary is
-// off by an hour — acceptable for a coarse "due today" filter).
+// off by an hour - acceptable for a coarse "due today" filter).
 export function parisDayBounds(now: Date): { start: Date; end: Date } {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Europe/Paris",

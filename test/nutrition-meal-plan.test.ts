@@ -113,7 +113,7 @@ function allowedAll(): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
-// validateDraftMeals — structural validation only
+// validateDraftMeals - structural validation only
 // ---------------------------------------------------------------------------
 
 describe("validateDraftMeals", () => {
@@ -166,14 +166,14 @@ describe("normalizePlanTitle", () => {
   });
 
   it("trims and caps length at 80 characters", () => {
-    assert.equal(normalizePlanTitle("  Cut — Week 1  "), "Cut — Week 1");
+    assert.equal(normalizePlanTitle("  Cut - Week 1  "), "Cut - Week 1");
     const long = normalizePlanTitle("x".repeat(200));
     assert.equal(long.length, 80);
   });
 });
 
 // ---------------------------------------------------------------------------
-// buildMealsSnapshot — server-side recomputation is the numeric authority
+// buildMealsSnapshot - server-side recomputation is the numeric authority
 // ---------------------------------------------------------------------------
 
 describe("buildMealsSnapshot", () => {
@@ -248,7 +248,7 @@ describe("version snapshot immutability", () => {
 });
 
 // ---------------------------------------------------------------------------
-// nextDraftAction — one editable draft, immutable history
+// nextDraftAction - one editable draft, immutable history
 // ---------------------------------------------------------------------------
 
 describe("nextDraftAction", () => {
@@ -272,7 +272,7 @@ describe("nextDraftAction", () => {
 });
 
 // ---------------------------------------------------------------------------
-// prepareDraft — ownership, target presence, restrictions, action selection
+// prepareDraft - ownership, target presence, restrictions, action selection
 // ---------------------------------------------------------------------------
 
 describe("prepareDraft", () => {
@@ -449,7 +449,7 @@ describe("client-facing payload sanitization", () => {
 });
 
 // ---------------------------------------------------------------------------
-// builderStateFromSnapshot — reopening stored versions in the builder
+// builderStateFromSnapshot - reopening stored versions in the builder
 // ---------------------------------------------------------------------------
 
 describe("builderStateFromSnapshot", () => {

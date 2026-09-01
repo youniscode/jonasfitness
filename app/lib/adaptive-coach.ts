@@ -1,5 +1,5 @@
 /**
- * Adaptive Coach V1 — deterministic "what should this client do next session?"
+ * Adaptive Coach V1 - deterministic "what should this client do next session?"
  * engine.
  *
  * Core principle: deterministic coaching decisions FIRST. The engine consumes
@@ -7,7 +7,7 @@
  * progression engine, post-workout client feedback, coach preferences,
  * onboarding preferences, reviewed limitations, recent pulse/readiness) and
  * produces a pure, typed, auditable plan. There is NO AI call anywhere in this
- * module and no load decision is ever invented by a new formula — the existing
+ * module and no load decision is ever invented by a new formula - the existing
  * progression engine (progression.ts) stays the authoritative load signal.
  *
  * Nothing changes automatically: every meaningful prescription change is a
@@ -79,7 +79,7 @@ export type PerformanceTrend = "insufficient" | "declining" | "stable" | "improv
 
 /**
  * Structured, PII-free evidence behind one exercise decision. Only fields with
- * real data available are populated — nothing here is fabricated or guessed.
+ * real data available are populated - nothing here is fabricated or guessed.
  */
 export type AdaptiveEvidence = {
   completedExposures: number;
@@ -597,36 +597,36 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
     };
   };
 
-  // --- 1. Coach explicit avoid — authoritative replacement (never overridden). ---
+  // --- 1. Coach explicit avoid - authoritative replacement (never overridden). ---
   if (explicit === "avoid") {
-    reasons.push("Coach marked this exercise as avoided for this client — replacement required.");
+    reasons.push("Coach marked this exercise as avoided for this client - replacement required.");
     concerns.push("Coach avoid is authoritative for this client.");
     const decision = base("replace", "high");
     const candidates = replacementCandidatesFor({ libraryId, intel, context, sessionExerciseIds });
     return candidates.length ? { ...decision, replacementCandidates: candidates } : decision;
   }
 
-  // --- 2. Equipment incompatibility — review + candidates (low confidence).
+  // --- 2. Equipment incompatibility - review + candidates (low confidence).
   // Custom/legacy exercises have no canonical catalogue entry, so the match is
-  // never assumed incompatible — progression still works from reps/RIR. ---
+  // never assumed incompatible - progression still works from reps/RIR. ---
   if (intel && !equipmentFits(libraryId, context.equipment)) {
-    reasons.push("This exercise does not match the client's reported equipment — confirm before keeping it.");
+    reasons.push("This exercise does not match the client's reported equipment - confirm before keeping it.");
     concerns.push("Equipment mismatch with the client's reported setup.");
     const decision = base("review", "low");
     const candidates = replacementCandidatesFor({ libraryId, intel, context, sessionExerciseIds });
     return candidates.length ? { ...decision, replacementCandidates: candidates } : decision;
   }
 
-  // --- 3. No completed workout data yet — keep, low confidence. ---
+  // --- 3. No completed workout data yet - keep, low confidence. ---
   if (exposureCount === 0) {
-    reasons.push("No completed workout data for this exercise yet — keep the prescription as assigned.");
+    reasons.push("No completed workout data for this exercise yet - keep the prescription as assigned.");
     return base("keep", "low");
   }
 
-  // --- 4. Repeated discomfort — replacement consideration (never automatic). ---
+  // --- 4. Repeated discomfort - replacement consideration (never automatic). ---
   if (discomfortCount >= REPEATED_DISCOMFORT_THRESHOLD) {
     reasons.push("Client has reported discomfort with this exercise on multiple occasions.");
-    concerns.push("Repeated discomfort — coach review recommended before keeping or progressing this exercise.");
+    concerns.push("Repeated discomfort - coach review recommended before keeping or progressing this exercise.");
     if (suggestion?.action === "increase") concerns.push("No load increase while discomfort persists.");
     const decision = base("replace", "medium");
     const candidates = replacementCandidatesFor({ libraryId, intel, context, sessionExerciseIds });
@@ -641,31 +641,31 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
   if (engineAction === "increase") {
     action = "increase_load";
     suggested = { ...prescription, targetWeight: suggestion?.proposedWeight ?? prescription.targetWeight };
-    reasons.push("All working sets reached the top of the rep range at the target RIR — the progression engine recommends a small load increase.");
+    reasons.push("All working sets reached the top of the rep range at the target RIR - the progression engine recommends a small load increase.");
   } else if (engineAction === "decrease") {
     action = "reduce_load";
     suggested = { ...prescription, targetWeight: suggestion?.proposedWeight ?? prescription.targetWeight };
-    reasons.push("Reps or RIR fell outside the prescribed target — the progression engine recommends a small load reduction.");
+    reasons.push("Reps or RIR fell outside the prescribed target - the progression engine recommends a small load reduction.");
   } else if (engineAction === "maintain") {
     action = "keep_load";
-    reasons.push("Performance stayed inside the prescribed rep range near the target RIR — keep the same load.");
+    reasons.push("Performance stayed inside the prescribed rep range near the target RIR - keep the same load.");
   } else {
     action = "keep_load";
-    reasons.push("No eligible completed-set data for the progression engine — keep the current prescription.");
+    reasons.push("No eligible completed-set data for the progression engine - keep the current prescription.");
   }
 
   // --- 5b. Repeated-pattern reasons (trend, never a single-outlier rewrite). ---
   const recentWindow = Math.min(3, validAvgRir.length);
   if (engineAction === "increase" && aboveTargetCount >= 2) {
-    reasons.push(`Completed prescribed reps comfortably in ${aboveTargetCount} of the last ${recentWindow} sessions — a consistent pattern supports the progression.`);
+    reasons.push(`Completed prescribed reps comfortably in ${aboveTargetCount} of the last ${recentWindow} sessions - a consistent pattern supports the progression.`);
   } else if (engineAction === "decrease" && belowTargetCount >= 2) {
-    reasons.push(`RIR was below target in ${belowTargetCount} of the last ${recentWindow} sessions — a repeated pattern supports the regression.`);
+    reasons.push(`RIR was below target in ${belowTargetCount} of the last ${recentWindow} sessions - a repeated pattern supports the regression.`);
   }
 
   // --- Adherence: an incomplete workout is insufficient performance evidence. ---
   if (completionRate < INCOMPLETE_COMPLETION_THRESHOLD) {
-    reasons.push(`Only ${completedSets} of ${prescription.sets} prescribed set${prescription.sets === 1 ? "" : "s"} were completed — the workout may have ended early, so this is insufficient performance evidence.`);
-    concerns.push("Incomplete session — do not treat missing volume as a load problem.");
+    reasons.push(`Only ${completedSets} of ${prescription.sets} prescribed set${prescription.sets === 1 ? "" : "s"} were completed - the workout may have ended early, so this is insufficient performance evidence.`);
+    concerns.push("Incomplete session - do not treat missing volume as a load problem.");
     if (action === "increase_load" || action === "reduce_load") {
       action = "keep_load";
       suggested = undefined;
@@ -679,26 +679,26 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
   const uncomfortable = profile?.recentComfort === "uncomfortable" || discomfortCount >= 1;
   if (tooHard) concerns.push("Client recently reported this exercise felt too difficult.");
   if (notConfident) concerns.push("Client reports low confidence with this exercise.");
-  if (uncomfortable) concerns.push("Client reported discomfort with this exercise — coach review recommended.");
+  if (uncomfortable) concerns.push("Client reported discomfort with this exercise - coach review recommended.");
 
   if (action === "increase_load" && (tooHard || notConfident || uncomfortable)) {
     action = "review";
     suggested = undefined;
-    reasons.push("The progression engine suggests more load, but recent client feedback points the other way — review before changing anything.");
+    reasons.push("The progression engine suggests more load, but recent client feedback points the other way - review before changing anything.");
   } else if ((tooHard || notConfident) && stats.valid > 0 && (isAction(action, "keep_load") || isAction(action, "reduce_load"))) {
     action = "review";
     suggested = undefined;
-    reasons.push("Recent client feedback reports the exercise is difficult — review scaling or assistance before making load changes.");
+    reasons.push("Recent client feedback reports the exercise is difficult - review scaling or assistance before making load changes.");
   } else if (uncomfortable) {
     // Only load actions remain here (replace/review were returned or assigned above).
     action = "review";
-    reasons.push("Client reported discomfort — keep the prescription unchanged and review the exercise choice or scaling.");
+    reasons.push("Client reported discomfort - keep the prescription unchanged and review the exercise choice or scaling.");
   }
   if (profile?.recentDifficulty === "too_easy" && action === "increase_load") {
-    concerns.push("Client recently reported this felt too easy — confirm the new load still lands in the prescribed rep range.");
+    concerns.push("Client recently reported this felt too easy - confirm the new load still lands in the prescribed rep range.");
   }
   if (profile?.recentDifficulty === "too_easy" && completionRate < INCOMPLETE_COMPLETION_THRESHOLD) {
-    concerns.push("Conflicting signals: the client says this felt too easy, yet only some prescribed sets were completed — keep and review.");
+    concerns.push("Conflicting signals: the client says this felt too easy, yet only some prescribed sets were completed - keep and review.");
   }
 
   // --- 7. Volume decisions (only when load itself is unchanged). ---
@@ -715,21 +715,21 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
     ) {
       action = "add_set";
       suggested = { ...prescription, sets: clampSets(prescription.sets + MAX_SET_DELTA_PER_EXERCISE) };
-      reasons.push("The client consistently completes the prescription at the target RIR with a positive trend — one additional set supports the muscle-building objective.");
+      reasons.push("The client consistently completes the prescription at the target RIR with a positive trend - one additional set supports the muscle-building objective.");
     } else if (exposureCount >= 2) {
       const incompleteExposures = exposures.filter((exposure) => prescription.sets > 0 && completedSetStats(exposure).completed / prescription.sets < INCOMPLETE_COMPLETION_THRESHOLD).length;
       if (incompleteExposures >= 2) {
         action = "remove_set";
         suggested = { ...prescription, sets: clampSets(prescription.sets - MAX_SET_DELTA_PER_EXERCISE) };
-        reasons.push("Recent exposures repeatedly missed prescribed sets — one fewer set keeps the session sustainable.");
+        reasons.push("Recent exposures repeatedly missed prescribed sets - one fewer set keeps the session sustainable.");
       }
     }
   }
 
-  // --- 8. Plateau signal (conservative — advisory only). ---
+  // --- 8. Plateau signal (conservative - advisory only). ---
   if (action === "keep_load" && exposureCount >= PLATEAU_EXPOSURE_THRESHOLD && engineAction !== "increase") {
     action = "review";
-    reasons.push(`Performance has not improved across ${exposureCount} recent exposures — review the rep range, load or exercise choice.`);
+    reasons.push(`Performance has not improved across ${exposureCount} recent exposures - review the rep range, load or exercise choice.`);
   }
 
   // --- 9. Coach preferred / positive feedback support keeping. ---
@@ -739,34 +739,34 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
     if (profile.recentConfidence === "confident") reasons.push("Client reports good confidence with this movement.");
   }
 
-  // --- 10. Onboarding preference — the weakest signal, never an override. ---
+  // --- 10. Onboarding preference - the weakest signal, never an override. ---
   if (initial) {
     if (initial.liked.includes(libraryId) && !tooHard && !uncomfortable) {
       reasons.push("Client indicated during onboarding they would like this exercise.");
     } else if (initial.disliked.includes(libraryId) && !profile?.sentimentScore && !profile?.recentConfidence) {
-      concerns.push("Client indicated during onboarding they would prefer another exercise — weak signal only.");
+      concerns.push("Client indicated during onboarding they would prefer another exercise - weak signal only.");
     }
   }
 
   // --- 11. Coach-vs-client conflict (explicitly surfaced). ---
   if (explicit === "preferred" && (discomfortCount >= 1 || notConfidentCount >= 2)) {
-    concerns.push("Coach preference and client feedback conflict — coach review required.");
+    concerns.push("Coach preference and client feedback conflict - coach review required.");
   }
 
   // --- 12. Limitation context (advisory, never a restriction). ---
   if (limLevel) {
     const label = limLevel === "HIGH" ? "high" : limLevel === "MODERATE" ? "moderate" : "low";
     if (isAction(action, "keep_load")) {
-      reasons.push(`This exercise has ${label} relevance to a reported limitation area — keep coach awareness of comfort and range.`);
+      reasons.push(`This exercise has ${label} relevance to a reported limitation area - keep coach awareness of comfort and range.`);
     } else {
-      concerns.push(`This exercise has ${label} relevance to a reported limitation area — review the choice or scaling.`);
+      concerns.push(`This exercise has ${label} relevance to a reported limitation area - review the choice or scaling.`);
     }
   }
 
   // --- Confidence (never high for major changes from a single exposure). ---
   const negative = tooHard || notConfident || uncomfortable || concerns.some((concern) => /discomfort|difficult|low confidence|conflict/i.test(concern));
   const alignedSignals = (engineAction !== null ? 1 : 0) + (exposureCount >= 2 ? 1 : 0) + (profile && profile.feedbackCount > 0 ? 1 : 0) + (explicit ? 1 : 0);
-  // replace / keep were returned earlier — only load/volume/review actions remain.
+  // replace / keep were returned earlier - only load/volume/review actions remain.
   let confidence: AdaptiveConfidence;
   if (isAction(action, "review")) {
     confidence = alignedSignals >= 2 && !negative ? "medium" : "low";
@@ -776,7 +776,7 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
     confidence = engineConfidence === "high" ? "high" : engineConfidence === "moderate" ? "medium" : "low";
   } else if (exposureCount >= 1 && alignedSignals >= 2 && !negative) {
     // One strong signal (engine increase) plus supporting context (feedback /
-    // coach preference) is enough for medium — never high on a single exposure.
+    // coach preference) is enough for medium - never high on a single exposure.
     confidence = engineConfidence === "high" || engineConfidence === "moderate" ? "medium" : "low";
   } else if (exposureCount >= 2 && !negative) {
     confidence = "medium";
@@ -787,7 +787,7 @@ function decideExercise(input: ExerciseInput): AdaptiveExerciseDecision {
   if ((isAction(action, "increase_load") || isAction(action, "add_set")) && confidence !== "low" && context.pulse) {
     if (context.pulse.pain || (context.pulse.energy !== null && context.pulse.energy <= 3) || (context.pulse.stress !== null && context.pulse.stress >= 8)) {
       confidence = confidence === "high" ? "medium" : "low";
-      concerns.push("Recent Pulse check reported low readiness — progress conservatively.");
+      concerns.push("Recent Pulse check reported low readiness - progress conservatively.");
     }
   }
 
@@ -835,18 +835,18 @@ function decideSession(input: {
   let decision: AdaptiveSessionDecision["decision"] = "keep_session";
   if (incompleteCount >= 2) {
     decision = "reduce_volume";
-    reasons.push(`Multiple completed sessions were left incomplete (${incompleteCount}) — reducing session volume is worth considering.`);
+    reasons.push(`Multiple completed sessions were left incomplete (${incompleteCount}) - reducing session volume is worth considering.`);
   } else if (negativeCount >= 2) {
     decision = "review_exercise_mix";
-    reasons.push("Several exercises in this session recently felt too difficult or low-confidence for the client — review the exercise mix.");
+    reasons.push("Several exercises in this session recently felt too difficult or low-confidence for the client - review the exercise mix.");
   } else if (completionRate !== null && completionRate >= FULL_COMPLETION_THRESHOLD && ordered.length >= 2) {
     decision = "increase_volume";
-    reasons.push("Recent sessions for this day were completed fully — additional volume may be appropriate once loads are in range.");
+    reasons.push("Recent sessions for this day were completed fully - additional volume may be appropriate once loads are in range.");
   } else if (completionRate !== null && completionRate < INCOMPLETE_COMPLETION_THRESHOLD) {
     decision = "keep_session";
-    reasons.push("The latest session for this day was left incomplete — this is an adherence signal, not a load conclusion.");
+    reasons.push("The latest session for this day was left incomplete - this is an adherence signal, not a load conclusion.");
   } else {
-    reasons.push("Session performance is on target — keep the session structure.");
+    reasons.push("Session performance is on target - keep the session structure.");
   }
   const confidence: AdaptiveConfidence = decision === "keep_session" ? (completionRate === null ? "low" : "medium") : ordered.length >= 2 ? "medium" : "low";
   return { sessionIndex, sessionName, decision, reasons, completionRate, confidence };
@@ -867,9 +867,9 @@ function programmeSignalsFor(input: {
     const estimated = estimateProgrammeDurationMinutes(draft);
     const tolerance = context.sessionDurationMinutes * 0.15;
     if (estimated > context.sessionDurationMinutes + tolerance) {
-      signals.push({ kind: "duration_off_target", message: `Estimated session duration (~${estimated} min) runs over the ~${context.sessionDurationMinutes}-minute target — review volume or rest.` });
+      signals.push({ kind: "duration_off_target", message: `Estimated session duration (~${estimated} min) runs over the ~${context.sessionDurationMinutes}-minute target - review volume or rest.` });
     } else if (estimated < context.sessionDurationMinutes - tolerance) {
-      signals.push({ kind: "duration_off_target", message: `Estimated session duration (~${estimated} min) is under the ~${context.sessionDurationMinutes}-minute target — there is room for useful volume if progress supports it.` });
+      signals.push({ kind: "duration_off_target", message: `Estimated session duration (~${estimated} min) is under the ~${context.sessionDurationMinutes}-minute target - there is room for useful volume if progress supports it.` });
     }
   }
   const incomplete = workouts.filter((workout) => {
@@ -878,7 +878,7 @@ function programmeSignalsFor(input: {
     return done / prescribed < INCOMPLETE_COMPLETION_THRESHOLD;
   }).length;
   if (incomplete >= 2) {
-    signals.push({ kind: "repeated_incomplete_sessions", message: `${incomplete} recent completed workouts were left largely incomplete — review adherence and session length before changing loads.` });
+    signals.push({ kind: "repeated_incomplete_sessions", message: `${incomplete} recent completed workouts were left largely incomplete - review adherence and session length before changing loads.` });
   }
   const negativeExercises = new Set<string>();
   for (const decision of decisions) {
@@ -888,23 +888,23 @@ function programmeSignalsFor(input: {
     }
   }
   if (negativeExercises.size) {
-    signals.push({ kind: "repeated_negative_feedback", message: `Repeated negative client feedback on ${[...negativeExercises].join(", ")} — a programme-level review is recommended.` });
+    signals.push({ kind: "repeated_negative_feedback", message: `Repeated negative client feedback on ${[...negativeExercises].join(", ")} - a programme-level review is recommended.` });
   }
   const plateau = decisions.filter((decision) => decision.action === "review" && decision.exposureCount >= PLATEAU_EXPOSURE_THRESHOLD);
   if (plateau.length) {
-    signals.push({ kind: "progression_plateau", message: `Performance on ${plateau.map((decision) => decision.exerciseName).join(", ")} has not improved across recent exposures — review the rep range, load or exercise choice.` });
+    signals.push({ kind: "progression_plateau", message: `Performance on ${plateau.map((decision) => decision.exerciseName).join(", ")} has not improved across recent exposures - review the rep range, load or exercise choice.` });
   }
   const conflicts = decisions.filter((decision) => decision.concerns.some((concern) => /conflict/i.test(concern)));
   if (conflicts.length) {
-    signals.push({ kind: "limitation_conflict", message: `Coach preference and client feedback conflict on ${conflicts.map((decision) => decision.exerciseName).join(", ")} — coach review required.` });
+    signals.push({ kind: "limitation_conflict", message: `Coach preference and client feedback conflict on ${conflicts.map((decision) => decision.exerciseName).join(", ")} - coach review required.` });
   }
   if (context.pulse?.pain) {
-    signals.push({ kind: "readiness_concern", message: "The client's latest Pulse check reported pain — keep loads conservative and review before progressing." });
+    signals.push({ kind: "readiness_concern", message: "The client's latest Pulse check reported pain - keep loads conservative and review before progressing." });
   } else if (context.pulse && ((context.pulse.energy !== null && context.pulse.energy <= 3) || (context.pulse.stress !== null && context.pulse.stress >= 8))) {
-    signals.push({ kind: "readiness_concern", message: "The client's latest Pulse check reported low energy or high stress — avoid aggressive progression this week." });
+    signals.push({ kind: "readiness_concern", message: "The client's latest Pulse check reported low energy or high stress - avoid aggressive progression this week." });
   }
   if (ambiguousHistory) {
-    signals.push({ kind: "ambiguous_history", message: "Recent completed workouts could not be mapped to a single programme session — confirm the next session with the coach." });
+    signals.push({ kind: "ambiguous_history", message: "Recent completed workouts could not be mapped to a single programme session - confirm the next session with the coach." });
   }
   return signals;
 }
@@ -920,7 +920,7 @@ function recommendNextSession(input: {
   if (!days.length) return null;
   const ordered = orderWorkouts(workouts);
   if (!ordered.length) {
-    return { programmeId, sessionIndex: 0, sessionName: days[0].name, reason: "No completed workouts yet — start with the programme's first session.", confidence: "low" };
+    return { programmeId, sessionIndex: 0, sessionName: days[0].name, reason: "No completed workouts yet - start with the programme's first session.", confidence: "low" };
   }
   const mapped = mapWorkoutToSession(days, ordered[0]);
   if (mapped === null) return null;
@@ -929,7 +929,7 @@ function recommendNextSession(input: {
     programmeId,
     sessionIndex: next,
     sessionName: days[next].name,
-    reason: `${days[mapped].name} was the most recently completed session — ${days[next].name} is next in the programme order.`,
+    reason: `${days[mapped].name} was the most recently completed session - ${days[next].name} is next in the programme order.`,
     confidence: ordered.length >= 2 ? "high" : "medium",
   };
 }
@@ -1026,10 +1026,10 @@ export function applyTrainingContextToDecision(
     const vol = ctx.muscleVolume[muscle];
     if (vol.trend === "increasing" && (vol.severity === "review" || vol.severity === "attention")) {
       if (decision.action === "increase_load") {
-        reasons.push(`Volume for ${intel?.primaryMuscles?.[0] ?? muscle} is substantially higher than the previous 7 days — progress conservatively.`);
+        reasons.push(`Volume for ${intel?.primaryMuscles?.[0] ?? muscle} is substantially higher than the previous 7 days - progress conservatively.`);
         if (shift === 0) shift = 1;
       } else if (decision.action === "add_set") {
-        reasons.push(`Volume for ${intel?.primaryMuscles?.[0] ?? muscle} is substantially higher than the previous 7 days — review before adding volume.`);
+        reasons.push(`Volume for ${intel?.primaryMuscles?.[0] ?? muscle} is substantially higher than the previous 7 days - review before adding volume.`);
         if (shift === 0) shift = 1;
       }
     }
@@ -1116,11 +1116,11 @@ export function buildAdaptiveCoachPlan(context: AdaptiveCoachContext): AdaptiveC
         sessionIndex: index,
         sessionName: day.name,
         decision: "keep_session" as const,
-        reasons: ["Limitations are not yet coach-reviewed — no session changes proposed."],
+        reasons: ["Limitations are not yet coach-reviewed - no session changes proposed."],
         completionRate: null,
         confidence: "low" as const,
       })),
-      programmeSignals: [{ kind: "limitation_conflict" as const, message: "The client has reported limitations that have not been reviewed — complete the readiness review before adapting the programme." }],
+      programmeSignals: [{ kind: "limitation_conflict" as const, message: "The client has reported limitations that have not been reviewed - complete the readiness review before adapting the programme." }],
     };
   }
 
@@ -1361,7 +1361,7 @@ export function applyAdaptiveDecisions(
     }
 
     // Write the mutation back (exercises array, plus the mirrored work strings
-    // when present — same convention as applyProgressionSuggestion).
+    // when present - same convention as applyProgressionSuggestion).
     if (Array.isArray(day.exercises)) {
       (day.exercises as unknown[])[exerciseIndex] = exercise;
     }

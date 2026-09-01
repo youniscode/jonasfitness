@@ -87,7 +87,7 @@ test("metrics: a paid customer who only created a routine and started/completed 
 test("metrics: nobody activated -> ratios null, paid count still accurate, strangers excluded", () => {
   const metrics = computeValidationMetrics({
     entitledOwners: new Set(["u1", "u2"]),
-    ownedRoutines: new Map([["u3", 2]]), // u3 is NOT entitled — excluded from paid-denominator activations
+    ownedRoutines: new Map([["u3", 2]]), // u3 is NOT entitled - excluded from paid-denominator activations
     ownedWorkouts: new Map(),
     completedWorkouts: new Map(),
   });

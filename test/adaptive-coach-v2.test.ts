@@ -166,7 +166,7 @@ test("priority and confidence are independent axes (medium confidence can be hig
   assert.ok(decision);
   assert.equal(decision.action, "replace");
   assert.equal(decision.confidence, "medium", "repeated discomfort is medium confidence");
-  assert.equal(decision.priority, "high", "repeated discomfort is HIGH priority — confidence and priority differ");
+  assert.equal(decision.priority, "high", "repeated discomfort is HIGH priority - confidence and priority differ");
 });
 
 test("single-exposure progression is low priority even when confidence is medium", () => {
@@ -372,7 +372,7 @@ test("apply derives the applied load from the recomputed plan, never from a clie
   const decision = decisionFor(plan, "builtin-machine-chest-press");
   assert.ok(decision);
   assert.equal(decision.action, "increase_load");
-  // Only opaque decision ids cross the wire — the load value must come from the plan.
+  // Only opaque decision ids cross the wire - the load value must come from the plan.
   const result = applyAdaptiveDecisions(context.programme!.content, plan, [decision.decisionId]);
   assert.equal(result.error, null);
   const parsed = JSON.parse(JSON.stringify(result.content)) as { sessions: Array<{ exercises: Array<{ libraryId: string; targetWeight: number | null }> }> };

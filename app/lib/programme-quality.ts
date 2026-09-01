@@ -1,5 +1,5 @@
 /**
- * Jonas Coach quality engine — deterministic coaching heuristics layered on top
+ * Jonas Coach quality engine - deterministic coaching heuristics layered on top
  * of schema validation. Technical validity (validateDraft) stays separate from
  * coaching quality. These checks never block on medical/scientific precision;
  * they surface coach-review signals so the coach makes the final decision.
@@ -87,13 +87,13 @@ export function weeklyMovementAnalysis(draft: ProgrammeDraft): {
   const warnings: string[] = [];
   sessions.forEach((session, index) => {
     if (session.patterns.length > 0 && session.majorCount === 0) {
-      warnings.push(`"${session.name || `Day ${index + 1}`}" has no compound/major movement — only accessories.`);
+      warnings.push(`"${session.name || `Day ${index + 1}`}" has no compound/major movement - only accessories.`);
     }
   });
   if (total >= 2 && counts.push === 0 && counts.pull > 0) {
-    warnings.push("No pressing movement this week — push/pull is unbalanced.");
+    warnings.push("No pressing movement this week - push/pull is unbalanced.");
   } else if (total >= 2 && counts.pull === 0 && counts.push > 0) {
-    warnings.push("No pulling movement (rows or pulldowns) this week — push/pull is unbalanced.");
+    warnings.push("No pulling movement (rows or pulldowns) this week - push/pull is unbalanced.");
   } else if (total >= 2 && counts.pull > 0 && counts.push > counts.pull * 2 + 1) {
     warnings.push(`Excessive pressing relative to pulling (${counts.push} push vs ${counts.pull} pull).`);
   }
@@ -102,7 +102,7 @@ export function weeklyMovementAnalysis(draft: ProgrammeDraft): {
   if (counts.posteriorChain === 0) warnings.push("No posterior-chain work (deadlift or hip hinge) this week.");
   const lowerBodySessions = sessions.filter((session) => session.patterns.some((pattern) => pattern === "knee_dominant" || pattern === "hinge")).length;
   if (total >= 3 && lowerBodySessions <= 1) {
-    warnings.push("Lower-body work is concentrated in a single session — spread it across the week.");
+    warnings.push("Lower-body work is concentrated in a single session - spread it across the week.");
   }
   return { counts, sessions, warnings };
 }
@@ -120,12 +120,12 @@ export function sessionRedundancy(draft: ProgrammeDraft): string[] {
     }
     for (const [pattern, count] of byPattern) {
       if (MAJOR_PATTERNS.has(pattern) && count >= 3) {
-        warnings.push(`"${session.name || `Day ${index + 1}`}" repeats the ${pattern.replace("_", " ")} pattern ${count} times — consider variety.`);
+        warnings.push(`"${session.name || `Day ${index + 1}`}" repeats the ${pattern.replace("_", " ")} pattern ${count} times - consider variety.`);
       }
     }
     const isolationCount = exercises.filter((exercise) => movementPatternFor(exercise) === "isolation").length;
     if (isolationCount >= 4) {
-      warnings.push(`"${session.name || `Day ${index + 1}`}" has ${isolationCount} isolation exercises — check for filler.`);
+      warnings.push(`"${session.name || `Day ${index + 1}`}" has ${isolationCount} isolation exercises - check for filler.`);
     }
   });
   return warnings;
@@ -135,7 +135,7 @@ export function sessionRedundancy(draft: ProgrammeDraft): string[] {
 
 // Identity used to detect that the SAME exercise recurs across sessions:
 // canonical libraryId when available; otherwise a conservative normalized
-// exact-name identity (trim, lowercase, single spaces). Never fuzzy — two
+// exact-name identity (trim, lowercase, single spaces). Never fuzzy - two
 // different names never merge.
 function exerciseIdentity(exercise: { libraryId?: string | null; name?: string }): string | null {
   const libraryId = (exercise.libraryId ?? "").trim();
@@ -146,7 +146,7 @@ function exerciseIdentity(exercise: { libraryId?: string | null; name?: string }
 
 // Human label for the movement-pattern warning, so a repeated hinge reads as
 // "posterior-chain work" rather than jargon. Only major (compound) patterns
-// are relevant here — accessories may repeat freely.
+// are relevant here - accessories may repeat freely.
 const PATTERN_DESCRIPTOR: Partial<Record<MovementPattern, string>> = {
   knee_dominant: "lower-body squat work",
   hinge: "posterior-chain work",
@@ -159,9 +159,9 @@ const PATTERN_DESCRIPTOR: Partial<Record<MovementPattern, string>> = {
 // Deterministic weekly exercise-frequency analysis. Counts DISTINCT weekly
 // sessions in which the exact same compound exercise appears (canonical
 // libraryId), not total sets. Policy: the same technically demanding compound
-// in EVERY weekly session (3/3, 4/4, …) is a quality warning — stronger for
+// in EVERY weekly session (3/3, 4/4, …) is a quality warning - stronger for
 // beginners; 2/3 or less is normal and never a major warning; accessories and
-// isolation movements may repeat freely. This is advisory only — the draft
+// isolation movements may repeat freely. This is advisory only - the draft
 // stays schema-valid and the coach's approval remains final.
 export function crossSessionRedundancy(draft: ProgrammeDraft, experience: string | null | undefined): string[] {
   const sessions = draft.sessions;
@@ -189,17 +189,17 @@ export function crossSessionRedundancy(draft: ProgrammeDraft, experience: string
     const descriptor = PATTERN_DESCRIPTOR[entry.pattern] ?? "movement";
     const name = entry.name;
     warnings.push(beginner
-      ? `"${name}" appears in all ${total} sessions — consider varying ${descriptor} for a beginner.`
-      : `"${name}" appears in all ${total} sessions — consider more movement variety across the week.`);
+      ? `"${name}" appears in all ${total} sessions - consider varying ${descriptor} for a beginner.`
+      : `"${name}" appears in all ${total} sessions - consider more movement variety across the week.`);
   }
-  // Concise by design — never flood the coach with minor messages.
+  // Concise by design - never flood the coach with minor messages.
   return warnings.slice(0, 3);
 }
 
 // ---------- Beginner suitability (scalability, never medical) ----------
 
 // Coaching-suitability policy for a true beginner. Tier 3 movements are NOT
-// banned — the coach may teach any of them — but a novice programme should not
+// banned - the coach may teach any of them - but a novice programme should not
 // stack several technically demanding free-weight lifts at once. These are
 // advisory thresholds only: they surface REVIEW RECOMMENDED, never a schema
 // error, and the coach can still approve intentionally.
@@ -232,21 +232,21 @@ export function beginnerSuitability(
     const label = session.name || `Day ${index + 1}`;
     if (tier3.length > BEGINNER_MAX_TIER3_PER_SESSION) {
       flagged.add(index);
-      warnings.push(`"${label}" stacks ${tier3.length} technically demanding lifts (${tier3.map((exercise) => exercise.name).join(" + ")}) — consider more stable beginner-friendly alternatives.`);
+      warnings.push(`"${label}" stacks ${tier3.length} technically demanding lifts (${tier3.map((exercise) => exercise.name).join(" + ")}) - consider more stable beginner-friendly alternatives.`);
     } else if (shortSession) {
       flagged.add(index);
-      warnings.push(`"${label}" includes ${tier3[0].name} in a short session — a machine or cable alternative is faster to set up and easier to progress.`);
+      warnings.push(`"${label}" includes ${tier3[0].name} in a short session - a machine or cable alternative is faster to set up and easier to progress.`);
     }
   });
 
   // 2) Weekly technical-demand total.
   const weeklyTier3 = draft.sessions.reduce((total, session) => total + (session.exercises ?? []).filter((exercise) => difficultyTierFor(exercise) === 3).length, 0);
   if (weeklyTier3 > BEGINNER_MAX_TIER3_PER_WEEK) {
-    warnings.push(`Beginner programme uses ${weeklyTier3} technically demanding lifts across the week — favour stable Tier 1–2 movements.`);
+    warnings.push(`Beginner programme uses ${weeklyTier3} technically demanding lifts across the week - favour stable Tier 1–2 movements.`);
   }
 
   // 3) Specific simpler canonical alternatives (exact libraryId, never fuzzy).
-  //    Only for Tier 3 lifts inside the flagged sessions — a single, justified
+  //    Only for Tier 3 lifts inside the flagged sessions - a single, justified
   //    Tier 3 hinge in an otherwise stable week is not a false warning.
   for (let index = 0; index < draft.sessions.length; index += 1) {
     if (!flagged.has(index)) continue;
@@ -254,12 +254,12 @@ export function beginnerSuitability(
       if (difficultyTierFor(exercise) !== 3) continue;
       const alternative = beginnerAlternativeFor(exercise);
       if (alternative) {
-        warnings.push(`"${exercise.name}" is more technically demanding for a beginner — ${alternative.name} is a simpler, more stable alternative.`);
+        warnings.push(`"${exercise.name}" is more technically demanding for a beginner - ${alternative.name} is a simpler, more stable alternative.`);
       }
     }
   }
 
-  // Prioritized and capped — never flood the coach.
+  // Prioritized and capped - never flood the coach.
   return warnings.slice(0, BEGINNER_SUITABILITY_WARNING_CAP);
 }
 
@@ -290,7 +290,7 @@ export function soloBeginnerChecks(
     for (const exercise of session.exercises ?? []) {
       const level = soloBeginnerLevelFor(exercise);
       if (level === 3) {
-        errors.push(`"${label}" includes ${exercise.name} (Level 3) — technically demanding for a solo beginner. Replace with a Level 1–2 alternative or review with the coach.`);
+        errors.push(`"${label}" includes ${exercise.name} (Level 3) - technically demanding for a solo beginner. Replace with a Level 1–2 alternative or review with the coach.`);
       }
       if (level === 2) {
         sessionLevel2++;
@@ -298,12 +298,12 @@ export function soloBeginnerChecks(
       }
     }
     if (sessionLevel2 > SOLO_BEGINNER_MAX_LEVEL2_PER_SESSION) {
-      warnings.push(`"${label}" has ${sessionLevel2} Level 2 exercises — solo beginners do best with mostly Level 1 (stable machines/simple movements). Consider swapping one Level 2 for a Level 1.`);
+      warnings.push(`"${label}" has ${sessionLevel2} Level 2 exercises - solo beginners do best with mostly Level 1 (stable machines/simple movements). Consider swapping one Level 2 for a Level 1.`);
     }
   });
 
   if (weeklyLevel2 > SOLO_BEGINNER_MAX_LEVEL2_PER_WEEK) {
-    warnings.push(`Programme uses ${weeklyLevel2} Level 2 exercises across the week — solo beginners benefit from a higher proportion of Level 1 (stable machines/simple movements).`);
+    warnings.push(`Programme uses ${weeklyLevel2} Level 2 exercises across the week - solo beginners benefit from a higher proportion of Level 1 (stable machines/simple movements).`);
   }
 
   // 70% Level 1 minimum check
@@ -313,7 +313,7 @@ export function soloBeginnerChecks(
       sum + (session.exercises ?? []).filter((exercise) => soloBeginnerLevelFor(exercise) === 1).length, 0);
     const ratio = level1Count / totalExercises;
     if (ratio < 0.7) {
-      warnings.push(`Only ${Math.round(ratio * 100)}% Level 1 exercises (target ≥70%) — solo beginners should have a strong foundation of stable machines and simple movements.`);
+      warnings.push(`Only ${Math.round(ratio * 100)}% Level 1 exercises (target ≥70%) - solo beginners should have a strong foundation of stable machines and simple movements.`);
     }
   }
 
@@ -326,10 +326,10 @@ export function soloBeginnerChecks(
 // ---------- Goal alignment (advisory) ----------
 
 // Primary-goal alignment: a resistance-training primary objective with NO
-// compound resistance movement anywhere in the week is a REVIEW signal — the
+// compound resistance movement anywhere in the week is a REVIEW signal - the
 // draft does not serve the primary objective. Secondary-goal omission is NEVER
 // a warning (a structurally valid programme need not represent every
-// supporting objective), and this is advisory only — never a schema error.
+// supporting objective), and this is advisory only - never a schema error.
 // Exact canonical matching only (no fuzzy goal guessing); unrecognized goal
 // values simply pass.
 const RESISTANCE_PRIMARY_GOALS = ["build muscle", "get stronger", "improve body composition", "lose body fat"];
@@ -342,7 +342,7 @@ export function goalAlignment(draft: ProgrammeDraft, primaryGoal: string | null 
     0,
   );
   if (majorCount > 0) return { ok: true };
-  return { ok: false, message: `No compound resistance movements in the programme — doesn't align with the ${primaryGoal} primary objective.` };
+  return { ok: false, message: `No compound resistance movements in the programme - doesn't align with the ${primaryGoal} primary objective.` };
 }
 
 // ---------- Aggregate quality report ----------
@@ -351,8 +351,8 @@ function durationMessage(state: DurationState, estimated: number, targetMinutes:
   if (!targetMinutes) return undefined;
   if (state === "match") return undefined;
   const difference = Math.round(Math.abs(estimated - targetMinutes));
-  if (state === "under") return `~${estimated} min — about ${difference} min under your ${targetMinutes}-minute target.`;
-  return `~${estimated} min — about ${difference} min over your ${targetMinutes}-minute target.`;
+  if (state === "under") return `~${estimated} min - about ${difference} min under your ${targetMinutes}-minute target.`;
+  return `~${estimated} min - about ${difference} min over your ${targetMinutes}-minute target.`;
 }
 
 export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityOptions): ProgrammeQualityReport {
@@ -372,17 +372,17 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
   const equipmentOk = Boolean(equipment && equipment.trim());
   // Client exercise fit: deterministic scoring of every draft exercise against
   // the client's goal, experience, equipment, limitations, avoid list and
-  // recent training. Advisory only — an avoid match or a limitation/recent-
+  // recent training. Advisory only - an avoid match or a limitation/recent-
   // training concern surfaces REVIEW RECOMMENDED, never a schema error.
   // Goal alignment: advisory primary-objective check (a muscle/strength primary
   // with zero compound movements is REVIEW; secondary-goal omission never is).
   const alignment = goalAlignment(draft, options.clientFitContext?.goal);
   const fitWarnings = clientFitWarnings(draft, options.clientFitContext);
-  // V2: client preference fit — explicit avoid is already blocked/excluded by
+  // V2: client preference fit - explicit avoid is already blocked/excluded by
   // scoring (authoritative); strongly learned negative patterns surface a
   // substitution suggestion as REVIEW RECOMMENDED, never a schema error.
   const preferenceWarnings = preferenceFitWarnings(draft, options.clientFitContext?.preferenceContext ?? null);
-  // V2.1: client feedback fit — discomfort and repeated dislike surface
+  // V2.1: client feedback fit - discomfort and repeated dislike surface
   // REVIEW RECOMMENDED; "too easy" is a progression note (not a poor-fit
   // failure); a coach-vs-client conflict is surfaced explicitly. Never a
   // schema error, never a medical claim.
@@ -399,12 +399,12 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
 
   const customTotal = draft.sessions.reduce((total, session) => total + (session.exercises ?? []).filter((exercise) => exercise.libraryId === "custom" || exercise.source === "custom").length, 0);
   const groundingOk = customTotal <= draft.sessions.length;
-  checks.push({ key: "libraryGrounding", label: "Exercise library grounding", ok: groundingOk, message: groundingOk ? undefined : "Too many custom exercises — prefer library exercises." });
+  checks.push({ key: "libraryGrounding", label: "Exercise library grounding", ok: groundingOk, message: groundingOk ? undefined : "Too many custom exercises - prefer library exercises." });
 
   checks.push({ key: "beginnerSuitability", label: "Beginner suitability", ok: suitabilityWarnings.length === 0, message: suitabilityWarnings[0] });
   checks.push({ key: "soloBeginner", label: "Solo beginner complexity", ok: soloBeginnerErrors.length === 0, message: soloBeginnerErrors[0] });
   checks.push({ key: "weeklyBalance", label: "Weekly movement balance", ok: balanceAnalysis.warnings.length === 0, message: balanceAnalysis.warnings[0] });
-  checks.push({ key: "equipment", label: "Equipment compatibility", ok: equipmentOk, message: equipmentOk ? undefined : "Equipment not specified — confirm the client's gym access before approval." });
+  checks.push({ key: "equipment", label: "Equipment compatibility", ok: equipmentOk, message: equipmentOk ? undefined : "Equipment not specified - confirm the client's gym access before approval." });
   checks.push({ key: "redundancy", label: "No major redundancy", ok: redundancyWarnings.length === 0, message: redundancyWarnings[0] });
   checks.push({ key: "goalAlignment", label: "Goal alignment", ok: alignment.ok, message: alignment.message });
   checks.push({ key: "clientFit", label: "Client exercise fit", ok: fitWarnings.length === 0, message: fitWarnings[0] });
@@ -431,7 +431,7 @@ export function analyseProgrammeQuality(draft: ProgrammeDraft, options: QualityO
     ...fitWarnings,
     ...preferenceWarnings,
     ...feedbackWarnings,
-    ...(equipmentOk ? [] : ["Equipment not specified — confirm access before approval."]),
+    ...(equipmentOk ? [] : ["Equipment not specified - confirm access before approval."]),
   ];
   const state = checks.every((check) => check.ok) ? "ready" : "review";
 

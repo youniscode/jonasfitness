@@ -33,7 +33,7 @@ function completeProfile(): OnboardingProfile {
   p.recovery.sleepHours = "6–7h";
   p.recovery.sleepQuality = 4;
   p.motivation.drivers = ["Health"];
-  p.coaching.accountability = "High — keep me accountable";
+  p.coaching.accountability = "High - keep me accountable";
   p.coaching.feedback = "Direct and concise";
   p.nutrition.tracking = "Roughly";
   p.openNote = "I prefer quiet gyms.";
@@ -93,7 +93,7 @@ test("reported limitation areas derive into flat considerations with kinds", () 
   p.limitations.areaKinds = { Knee: "Current discomfort" };
   p.limitations.note = "Only when heavy.";
   const derived = deriveIntakeFields(p);
-  assert.equal(derived.trainingConsiderations, "Knee — Current discomfort; Shoulder — Not sure. Only when heavy.");
+  assert.equal(derived.trainingConsiderations, "Knee - Current discomfort; Shoulder - Not sure. Only when heavy.");
 });
 
 test("legacy flat intake synthesizes a structured profile without losing data", () => {

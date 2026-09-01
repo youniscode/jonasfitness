@@ -12,7 +12,7 @@ import {
   type MealGenerationContext,
 } from "../app/lib/nutrition-meals.ts";
 
-// Food Nutrition Foundation V1 — deterministic validation tests.
+// Food Nutrition Foundation V1 - deterministic validation tests.
 // AI now returns foodId + quantityG. Nutrition is computed from the CIQUAL
 // catalogue, never from AI-supplied numbers. Tests exercise schema validation,
 // catalogue resolution, safety gates, deterministic totals, and repair flow.
@@ -42,7 +42,7 @@ function makeDay(overrides: Record<string, unknown> = {}): unknown {
       { name: "Lunch", foods: [{ foodId: "chicken-breast-raw", quantityG: 200 }, { foodId: "rice-white-cooked", quantityG: 300 }] },
       { name: "Dinner", foods: [{ foodId: "salmon-farmed-raw", quantityG: 180 }, { foodId: "sweet-potato-cooked", quantityG: 500 }] },
     ],
-    notes: ["Approximate — adjust to the training day."],
+    notes: ["Approximate - adjust to the training day."],
     ...overrides,
   };
 }
@@ -290,7 +290,7 @@ test("daily totals are sum of meal totals", () => {
 
 // ---------- 10. Adversarial: AI nutrition claims have no authority ----------
 
-test("AI claiming high calories is irrelevant — system computes from catalogue", () => {
+test("AI claiming high calories is irrelevant - system computes from catalogue", () => {
   const day = {
     ...makeDay() as Record<string, unknown>,
     meals: (makeDay() as { meals: unknown[] }).meals,

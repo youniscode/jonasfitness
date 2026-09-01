@@ -29,7 +29,7 @@ export function exerciseDisplayName(exercise: { name: string; nameFr?: string | 
   return english;
 }
 
-// Normalized text used for search matching — any language name, muscle group
+// Normalized text used for search matching - any language name, muscle group
 // and equipment all match. Safe to compare lowercased against a lowercased query.
 export function exerciseSearchText(exercise: ExerciseDefinition): string {
   return [exercise.name, exercise.nameFr, exercise.nameAr, exercise.muscleGroup, exercise.equipment]
@@ -162,7 +162,7 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("high-row-machine", "High row machine", "Rowing haut à la machine", "سحب علوي أفقي على الجهاز", "Back", "Machine", "Keep the chest supported and drive the elbows high and back without excessive shrugging.", "/exercises/high-row-machine.webp"),
 ];
 
-// ——— Stable rehydration of saved programme exercises ———
+// --- Stable rehydration of saved programme exercises ---
 // Saved programme exercises are persisted as JSON. Older entries (or entries
 // created by the AI programme generator) can lack imageUrl even when they
 // reference a built-in exercise. This lookup resolves such an entry back to its
@@ -192,7 +192,7 @@ export function builtInExerciseFor(libraryId: string | null | undefined, name: s
 // model may invent a plausible-looking libraryId (e.g. "builtin-barbell-back-
 // squat") while naming a real exercise exactly. If the supplied id is not a
 // canonical built-in id, we accept an EXACT normalized English-name match only
-// when it uniquely resolves to ONE catalogue exercise — then the invented id is
+// when it uniquely resolves to ONE catalogue exercise - then the invented id is
 // replaced by the canonical one. No fuzzy, substring, semantic or autocorrect
 // matching: an id that is neither canonical nor uniquely nameable stays as-is
 // and is rejected by validateDraft (validation is never weakened).
@@ -220,7 +220,7 @@ export const aiGenerationExcludedExerciseIds = new Set<string>([
 // ---------- Movement patterns (coach-quality heuristics) ----------
 
 // Broad movement-pattern classification used for weekly balance analysis and
-// balanced fallback construction. Not medical precision — a coaching heuristic.
+// balanced fallback construction. Not medical precision - a coaching heuristic.
 export type MovementPattern =
   | "knee_dominant"
   | "hinge"
@@ -237,7 +237,7 @@ const MOVEMENT_PATTERN_BY_ID: Record<string, MovementPattern> = {
   "builtin-barbell-bench-press": "horizontal_push",
   "builtin-incline-dumbbell-press": "horizontal_push",
   // Cable fly is a single-joint chest fly (isolation), NOT a pressing compound
-  // — it must never stand in for a primary horizontal push in balance analysis
+  // - it must never stand in for a primary horizontal push in balance analysis
   // or beginner fallback selection.
   "builtin-cable-fly": "isolation",
   "builtin-pull-up": "vertical_pull",
@@ -379,7 +379,7 @@ export function movementPatternFor(exercise: { id?: string; libraryId?: string; 
 
 // Coaching difficulty tiers used to steer beginner programming. This is
 // coaching suitability, NOT medical safety: Tier 3 movements are not banned,
-// unsafe or contraindicated — they are simply more technically demanding and
+// unsafe or contraindicated - they are simply more technically demanding and
 // are best introduced with coaching once technique and confidence are
 // established. The coach always makes the final decision.
 export type ExerciseDifficultyTier = 1 | 2 | 3;
@@ -391,18 +391,18 @@ export type ExerciseDifficultyTier = 1 | 2 | 3;
 // It measures how simple an exercise is to execute correctly without a coach
 // beside the client.
 //
-// 1 = IDEAL ALONE — stable machine or simple movement, low coordination,
+// 1 = IDEAL ALONE - stable machine or simple movement, low coordination,
 //     simple setup, obvious movement path, easy to self-correct.
-// 2 = OK AFTER BASIC INSTRUCTION — generally beginner-appropriate but
+// 2 = OK AFTER BASIC INSTRUCTION - generally beginner-appropriate but
 //     requires setup instruction, positioning, depth control, or some
 //     coordination that a coach or experienced partner should teach first.
-// 3 = COACHED FIRST / TECHNICAL — meaningful movement skill, balance,
+// 3 = COACHED FIRST / TECHNICAL - meaningful movement skill, balance,
 //     hinge/bracing, free-weight control, or higher self-correction demand.
 //     Best introduced with coaching before independent execution.
 export type SoloBeginnerLevel = 1 | 2 | 3;
 
 const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
-  // Tier 1 — beginner default / high stability (machines, cables, supported).
+  // Tier 1 - beginner default / high stability (machines, cables, supported).
   "builtin-cable-fly": 1,
   "builtin-lat-pulldown": 1,
   "builtin-seated-cable-row": 1,
@@ -420,7 +420,7 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-hip-thrust-machine": 1,
   "builtin-chest-supported-row": 1,
   "builtin-elevated-push-up": 1,
-  // Tier 2 — beginner coachable (dumbbells, simple free-weight isolation).
+  // Tier 2 - beginner coachable (dumbbells, simple free-weight isolation).
   "builtin-incline-dumbbell-press": 2,
   "builtin-lateral-raise": 2,
   "builtin-barbell-curl": 2,
@@ -430,7 +430,7 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-seated-dumbbell-shoulder-press": 2,
   "builtin-dumbbell-bench-press": 2,
   "builtin-back-extension": 2,
-  // Tier 3 — technically demanding / coach introduction.
+  // Tier 3 - technically demanding / coach introduction.
   "builtin-barbell-bench-press": 3,
   "builtin-pull-up": 3,
   "builtin-barbell-row": 3,
@@ -439,7 +439,7 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-romanian-deadlift": 3,
   "builtin-hip-thrust": 3,
   "builtin-overhead-press": 3,
-  // Library expansion (19 net-new): Tier 1 — stable machines/cables.
+  // Library expansion (19 net-new): Tier 1 - stable machines/cables.
   "builtin-hack-squat": 1,
   "builtin-leg-extension": 1,
   "builtin-lying-leg-curl": 1,
@@ -457,10 +457,10 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-cable-biceps-curl": 1,
   "builtin-rope-overhead-triceps-extension": 1,
   "builtin-pallof-press": 1,
-  // Tier 2 — coachable, slightly more technical.
+  // Tier 2 - coachable, slightly more technical.
   "builtin-smith-machine-squat": 2,
   "builtin-cable-lateral-raise": 2,
-  // Library expansion #2 (25 net-new): Tier 1 — stable machines/cables/bodyweight core.
+  // Library expansion #2 (25 net-new): Tier 1 - stable machines/cables/bodyweight core.
   "builtin-adductor-machine": 1,
   "builtin-abductor-machine": 1,
   "builtin-seated-calf-raise": 1,
@@ -473,7 +473,7 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-ab-crunch-machine": 1,
   "builtin-dead-bug": 1,
   "builtin-reverse-crunch": 1,
-  // Tier 2 — coachable, slightly more technical (unilateral, free-weight or bodyweight).
+  // Tier 2 - coachable, slightly more technical (unilateral, free-weight or bodyweight).
   "builtin-walking-lunge": 2,
   "builtin-reverse-lunge": 2,
   "builtin-step-up": 2,
@@ -520,7 +520,7 @@ const DIFFICULTY_TIER_BY_ID: Record<string, ExerciseDifficultyTier> = {
   "builtin-single-arm-cable-triceps-extension": 2,
 };
 
-// Exact libraryId lookup — never name-based guessing. Unknown/custom exercises
+// Exact libraryId lookup - never name-based guessing. Unknown/custom exercises
 // return null (no tier), so they are never penalised by a heuristic that cannot
 // identify them.
 export function difficultyTierFor(exercise: { id?: string; libraryId?: string }): ExerciseDifficultyTier | null {
@@ -529,11 +529,11 @@ export function difficultyTierFor(exercise: { id?: string; libraryId?: string })
   return DIFFICULTY_TIER_BY_ID[id] ?? null;
 }
 
-// Scalable alternatives for technically demanding exercises — used to prefer
+// Scalable alternatives for technically demanding exercises - used to prefer
 // friendlier options for untested beginners (never a medical claim). Each
 // source maps to an ordered list of canonical alternatives (most stable/
 // scalable first); beginnerAlternativeFor resolves the first that exists in
-// the catalogue. Every alternative is a real canonical libraryId — nothing is
+// the catalogue. Every alternative is a real canonical libraryId - nothing is
 // invented.
 export const BEGINNER_ALTERNATIVES: Record<string, string[]> = {
   "builtin-pull-up": ["builtin-assisted-pull-up", "builtin-neutral-grip-lat-pulldown", "builtin-lat-pulldown"],
@@ -575,12 +575,12 @@ export function beginnerAlternativeFor(exercise: { id?: string; libraryId?: stri
 // This is NOT medical safety / injury prediction. It measures how simple an
 // exercise is to execute correctly without a coach present.
 //
-// 1 = IDEAL ALONE — stable machine or simple movement, low coordination,
-// 2 = OK AFTER BASIC INSTRUCTION — generally beginner-appropriate but needs setup instruction first
-// 3 = COACHED FIRST / TECHNICAL — meaningful skill, balance, or free-weight control required
+// 1 = IDEAL ALONE - stable machine or simple movement, low coordination,
+// 2 = OK AFTER BASIC INSTRUCTION - generally beginner-appropriate but needs setup instruction first
+// 3 = COACHED FIRST / TECHNICAL - meaningful skill, balance, or free-weight control required
 const SOLO_BEGINNER_LEVEL_BY_ID: Record<string, SoloBeginnerLevel> = {
-  // --- Level 1: IDEAL ALONE — stable machines, cables, simple bodyweight ---
-  // Machines — stable, guided path, low coordination
+  // --- Level 1: IDEAL ALONE - stable machines, cables, simple bodyweight ---
+  // Machines - stable, guided path, low coordination
   "builtin-seated-leg-curl": 1,
   "builtin-lat-pulldown": 1,
   "builtin-seated-cable-row": 1,
@@ -623,18 +623,18 @@ const SOLO_BEGINNER_LEVEL_BY_ID: Record<string, SoloBeginnerLevel> = {
   "builtin-single-leg-leg-curl": 1,
   "builtin-single-leg-leg-extension": 1,
   "builtin-high-row-machine": 1,
-  // Simple bodyweight — stable, low coordination, self-correctable
+  // Simple bodyweight - stable, low coordination, self-correctable
   "builtin-elevated-push-up": 1,
   "builtin-dead-bug": 1,
   "builtin-reverse-crunch": 1,
   "builtin-side-plank": 1,
   "builtin-bird-dog": 1,
-  // Simple free-weight — stable movement, low coordination
+  // Simple free-weight - stable movement, low coordination
   "builtin-dumbbell-shrug": 1,
   "builtin-farmer-carry": 1,
 
-  // --- Level 2: OK AFTER BASIC INSTRUCTION — dumbbells, simple free-weight, bodyweight that needs instruction ---
-  // Dumbbells — generally beginner-appropriate, needs setup instruction
+  // --- Level 2: OK AFTER BASIC INSTRUCTION - dumbbells, simple free-weight, bodyweight that needs instruction ---
+  // Dumbbells - generally beginner-appropriate, needs setup instruction
   "builtin-incline-dumbbell-press": 2,
   "builtin-lateral-raise": 2,
   "builtin-barbell-curl": 2,
@@ -668,20 +668,20 @@ const SOLO_BEGINNER_LEVEL_BY_ID: Record<string, SoloBeginnerLevel> = {
   "builtin-smith-incline-press": 2,
   "builtin-bayesian-cable-curl": 2,
   "builtin-single-arm-cable-triceps-extension": 2,
-  // Smith machine — guided track but needs setup instruction
+  // Smith machine - guided track but needs setup instruction
   "builtin-smith-machine-squat": 2,
   // Moved from Level 1: machine but needs setup/depth instruction for beginners
   "builtin-leg-press": 2,
   "builtin-hack-squat": 2,
   "builtin-cable-pull-through": 2,
-  // Missing exercises — cable/machine isolation, needs setup instruction
+  // Missing exercises - cable/machine isolation, needs setup instruction
   "builtin-standing-calf-raise": 2,
   "builtin-rear-delt-fly": 2,
   "builtin-overhead-triceps-extension": 2,
   "builtin-plank": 2,
   "builtin-cable-crunch": 2,
 
-  // --- Level 3: COACHED FIRST / TECHNICAL (15) — free-weight compounds, complex bodyweight ---
+  // --- Level 3: COACHED FIRST / TECHNICAL (15) - free-weight compounds, complex bodyweight ---
   "builtin-barbell-bench-press": 3,
   "builtin-pull-up": 3,
   "builtin-barbell-row": 3,

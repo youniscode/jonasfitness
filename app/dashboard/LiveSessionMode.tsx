@@ -52,7 +52,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
         document.execCommand("copy");
         input.remove();
       }
-      setMessage(t("Pulse link copied — send it to the client before the session.", "Lien Pulse copié — envoyez-le au client avant la séance."));
+      setMessage(t("Pulse link copied - send it to the client before the session.", "Lien Pulse copié - envoyez-le au client avant la séance."));
     } catch {
       setMessage(t("Open the Pulse preview from Calendar to share the link.", "Ouvrez l’aperçu Pulse depuis le calendrier pour partager le lien."));
     }
@@ -300,7 +300,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       <h1>{t("Choose today’s workout.", "Choisissez l’entraînement du jour.")}</h1>
       {message && <p className="workout-message">{message}</p>}
       {readiness && <section className={`live-readiness ${readiness.readinessLevel}`}>
-        <div className="live-readiness-top"><div><small>{t("PRE-SESSION READINESS", "ÉTAT AVANT SÉANCE")}</small><strong>{readinessLabel}</strong><span>{new Date(readiness.startAt).toLocaleString(language === "fr" ? "fr-FR" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div><b>{readiness.readinessScore ? `${readiness.readinessScore}%` : "—"}</b></div>
+        <div className="live-readiness-top"><div><small>{t("PRE-SESSION READINESS", "ÉTAT AVANT SÉANCE")}</small><strong>{readinessLabel}</strong><span>{new Date(readiness.startAt).toLocaleString(language === "fr" ? "fr-FR" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div><b>{readiness.readinessScore ? `${readiness.readinessScore}%` : "-"}</b></div>
         {readiness.readinessLevel === "pending" ? <div className="live-readiness-pending"><p>{t("The client has not sent their 30-second Pulse Check yet. Copy the private link and send it before you begin.", "Le client n’a pas encore envoyé son Pulse de 30 secondes. Copiez le lien privé et envoyez-le avant de commencer.")}</p><button className="live-secondary" onClick={() => void copyPulseLink(readiness)}>{t("Copy Pulse link", "Copier le lien Pulse")} ↗</button></div> : <><div className="live-readiness-metrics"><span>{t("Energy", "Énergie")}<b>{readiness.energy}/5</b></span><span>{t("Sleep", "Sommeil")}<b>{readiness.sleep}/5</b></span><span>{t("Soreness", "Courbatures")}<b>{readiness.soreness}/3</b></span><span>{t("Stress", "Stress")}<b>{readiness.stress}/3</b></span></div>{readiness.pain && <p className="live-readiness-pain">{t("Pain flagged", "Douleur signalée")}{readiness.painArea ? ` · ${readiness.painArea}` : ""}</p>}{readiness.note && <p className="live-readiness-note">“{readiness.note}”</p>}<div className="live-readiness-action"><small>{t("COACH ACTION", "ACTION COACH")}</small><p>{readiness.coachAction}</p></div></>}
       </section>}
       {workout ? <section className="active-workout-found">
@@ -344,15 +344,15 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       </nav>
       <section className="exercise-stage">
         <div className="exercise-heading"><div><p>{current.focus}</p>{current.imageUrl && <div className="live-exercise-image" role="img" aria-label={current.name} style={{ backgroundImage: `url(${current.imageUrl})` }} />}<input className="exercise-name-input" aria-label={t("Exercise name", "Nom de l’exercice")} value={current.name} onChange={(event) => updateCurrentExercise({ name: event.target.value })} /><input className="exercise-target-input" aria-label={t("Prescription", "Prescription")} value={current.target} onChange={(event) => updateCurrentExercise({ target: event.target.value })} />{current.instructions && <p className="live-exercise-instructions">{current.instructions}</p>}{current.videoUrl && <a className="live-exercise-demo" href={current.videoUrl} target="_blank" rel="noreferrer">{t("Open demonstration", "Voir la démonstration")} ↗</a>}</div></div>
-        <div className="performance-panel"><article><small>{t("LAST TIME", "DERNIÈRE FOIS")}</small>{previous ? <p>{previous.sets.filter((set) => set.status === "completed").map((set) => <span key={set.id}>{set.weight ?? "—"} kg × {set.reps ?? "—"}</span>)}</p> : <p>{t("No previous performance logged.", "Aucune performance précédente.")}</p>}</article></div>
+        <div className="performance-panel"><article><small>{t("LAST TIME", "DERNIÈRE FOIS")}</small>{previous ? <p>{previous.sets.filter((set) => set.status === "completed").map((set) => <span key={set.id}>{set.weight ?? "-"} kg × {set.reps ?? "-"}</span>)}</p> : <p>{t("No previous performance logged.", "Aucune performance précédente.")}</p>}</article></div>
         <div className="live-set-table">
           <div className="live-set-head"><span>{t("SET", "SÉRIE")}</span><span>{t("WEIGHT", "CHARGE")}</span><span>{t("REPS", "RÉP.")}</span><span>RIR</span><span>{t("LAST", "AVANT")}</span><span /></div>
           {current.sets.map((set, index) => <div className="live-set-row" key={set.id}>
             <strong>{index + 1}</strong>
             <input aria-label={t("Weight", "Charge")} inputMode="decimal" type="number" placeholder="kg" value={set.weight ?? ""} onChange={(event) => updateSet(index, { weight: event.target.value === "" ? null : Number(event.target.value) })} />
             <input aria-label={t("Repetitions", "Répétitions")} inputMode="numeric" type="number" placeholder={set.target || t("reps", "rép.")} value={set.reps ?? ""} onChange={(event) => updateSet(index, { reps: event.target.value === "" ? null : Number(event.target.value) })} />
-            <input aria-label="RIR" placeholder="—" value={set.rir} onChange={(event) => updateSet(index, { rir: event.target.value })} />
-            <span className="previous-set-value">{previous?.sets[index]?.status === "completed" ? <>{previous.sets[index].weight ?? "—"} × {previous.sets[index].reps ?? "—"}</> : "—"}</span>
+            <input aria-label="RIR" placeholder="-" value={set.rir} onChange={(event) => updateSet(index, { rir: event.target.value })} />
+            <span className="previous-set-value">{previous?.sets[index]?.status === "completed" ? <>{previous.sets[index].weight ?? "-"} × {previous.sets[index].reps ?? "-"}</> : "-"}</span>
             <button className={set.status === "completed" ? "set-complete done" : "set-complete"} onClick={() => toggleSet(index)}>{set.status === "completed" ? "✓" : t("Done", "Fait")}</button>
           </div>)}
         </div>

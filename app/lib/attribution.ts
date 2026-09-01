@@ -64,7 +64,7 @@ export type AcquisitionSummary = {
 // Pure aggregation for the acquisition dashboard. Rows are expected to be
 // newest-first (the API orders by createdAt desc). Every client row counts
 // exactly once, so a freshly converted client appears in `total`, in its
-// source bucket, and at the top of `recent` — with its real first-touch
+// source bucket, and at the top of `recent` - with its real first-touch
 // source preserved. Duplicate rows would inflate counts, which the idempotent
 // conversion find-or-create never produces.
 export function aggregateAcquisition(rows: AcquisitionRow[]): AcquisitionSummary {

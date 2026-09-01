@@ -14,7 +14,7 @@ const LEGAL_CONTENT = {
 };
 
 // ---------------------------------------------------------------------------
-// Shared language store — exactly fr/en/ar, FR default, persistence
+// Shared language store - exactly fr/en/ar, FR default, persistence
 // ---------------------------------------------------------------------------
 
 test("shared lang store supports exactly FR/EN/AR with French as the default", () => {
@@ -107,7 +107,7 @@ test("purchase success page is fr/en/ar with FR default and AR RTL (no hardcoded
 });
 
 // ---------------------------------------------------------------------------
-// Legal pages — fr/en/ar, exact seller identity, honest status, price
+// Legal pages - fr/en/ar, exact seller identity, honest status, price
 // ---------------------------------------------------------------------------
 
 test("every legal page is trilingual and seeded from the shared FR-first store", () => {
@@ -128,7 +128,7 @@ test("legal shell renders AR RTL with a FR/EN/AR switch and keeps the exact sell
   assert.match(shell, /rtl-site/, "RTL class applied");
   assert.match(shell, /LegalLangSwitch/, "language switch in the shell header");
   assert.ok(shell.includes("Younis MOHAMMAD"), "seller identity exact");
-  assert.ok(shell.includes("SIREN 108 783 192 — SIRET 108 783 192 00017"), "seller identity exact");
+  assert.ok(shell.includes("SIREN 108 783 192 - SIRET 108 783 192 00017"), "seller identity exact");
   assert.ok(shell.includes("104 Avenue Vauban, 83000 Toulon, France"), "seller address exact");
   assert.ok(shell.includes("contact@jonascode.com"), "seller email exact");
   const lang = read("app", "legal", "legal-lang.tsx");

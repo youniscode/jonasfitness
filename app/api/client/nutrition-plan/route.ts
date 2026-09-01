@@ -7,7 +7,7 @@ import { publicClientNutritionPlan, type AssignmentRow, type VersionRow } from "
 // GET /api/client/nutrition-plan
 //
 // The ONLY endpoint through which a client can ever see a meal plan. Identity
-// comes from the verified portal session (or coach preview param) — never from
+// comes from the verified portal session (or coach preview param) - never from
 // a client-controlled id. Returns the ACTIVE assignment's APPROVED version as
 // a sanitized snapshot; drafts, unassigned approved versions, history and any
 // internal ids never leave the server.

@@ -1,5 +1,5 @@
 /**
- * Exercise Intelligence V2 — client preference memory + coach decision learning.
+ * Exercise Intelligence V2 - client preference memory + coach decision learning.
  *
  * Pure deterministic tests for the preference model, the scoring integration,
  * explanations, the compact Jonas Coach summary, the quality engine, reset
@@ -488,7 +488,7 @@ test("migration creates the three preference tables with owner+client scoping", 
   assert.match(sql, /CREATE TABLE "client_exercise_preferences"/);
   assert.match(sql, /CREATE TABLE "client_exercise_replacements"/);
   assert.match(sql, /CREATE TABLE "client_exercise_events"/);
-  // Owner/client scoping on every unique key — coach A can never collide with coach B.
+  // Owner/client scoping on every unique key - coach A can never collide with coach B.
   assert.match(sql, /CREATE UNIQUE INDEX "client_exercise_preferences_owner_client_exercise_unique" ON "client_exercise_preferences" USING btree \("owner_id","client_id","exercise_id"\)/);
   assert.match(sql, /CREATE UNIQUE INDEX "client_exercise_replacements_owner_client_pair_unique" ON "client_exercise_replacements" USING btree \("owner_id","client_id","from_exercise_id","to_exercise_id"\)/);
   assert.match(sql, /CREATE UNIQUE INDEX "client_exercise_events_owner_key_unique" ON "client_exercise_events" USING btree \("owner_id","operation_key"\)/);

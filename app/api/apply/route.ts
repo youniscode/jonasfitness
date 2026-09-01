@@ -36,11 +36,11 @@ async function recordResubmission(leadId: number, title: string) {
 async function reactivateLead(leadId: number) {
   const db = getDb();
   await db.update(leads).set({ status: "new", nextFollowUpAt: null, updatedAt: new Date() }).where(eq(leads.id, leadId));
-  await recordResubmission(leadId, "Application resubmitted — lead reactivated");
+  await recordResubmission(leadId, "Application resubmitted - lead reactivated");
 }
 
 // A former client reapplies (their converted lead's client was removed): the
-// durable lead reopens as a fresh application — status back to "new", a
+// durable lead reopens as a fresh application - status back to "new", a
 // reappliedAt timestamp so it surfaces at the top of the active pipeline, and
 // a coach-facing timeline entry. The NEW submission's answers replace the
 // previous cycle's on the durable row (that is what the coach acts on now);
@@ -66,7 +66,7 @@ async function reopenLeadForReapplication(leadId: number, values: ReturnType<typ
     consentAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(leads.id, leadId));
-  await recordResubmission(leadId, "New application received — previous client record was removed; lead reopened");
+  await recordResubmission(leadId, "New application received - previous client record was removed; lead reopened");
 }
 
 export async function POST(request: Request) {

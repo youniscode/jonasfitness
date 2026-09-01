@@ -182,7 +182,7 @@ export default function WorkoutLogger() {
         <div className="progress-prev-bar">
           <small>{t.lastTime}</small>
           {previous && previous.sets.filter((s) => isCompletedWorkoutSet(s)).length > 0
-            ? <span className="progress-prev-sets">{previous.sets.filter((s) => isCompletedWorkoutSet(s)).map((s, i) => <b key={i}>{s.weight ?? "—"} × {s.reps ?? "—"}</b>)}</span>
+            ? <span className="progress-prev-sets">{previous.sets.filter((s) => isCompletedWorkoutSet(s)).map((s, i) => <b key={i}>{s.weight ?? "-"} × {s.reps ?? "-"}</b>)}</span>
             : <p>{t.noPrevious}</p>}
         </div>
 
@@ -197,7 +197,7 @@ export default function WorkoutLogger() {
                 <input aria-label={t.weight} inputMode="decimal" type="number" min={0} max={1000} step={0.5} placeholder="kg" value={set.weight ?? ""} onChange={(e) => updateSet(index, { weight: e.target.value === "" ? null : Number(e.target.value), status: e.target.value !== "" && (set.reps ?? 0) > 0 ? "completed" : set.status })} />
                 <input aria-label={t.reps} inputMode="numeric" type="number" min={0} max={100} placeholder={set.target || t.reps} value={set.reps ?? ""} onChange={(e) => updateSet(index, { reps: e.target.value === "" ? null : Number(e.target.value), status: (set.weight ?? 0) > 0 && Number(e.target.value) > 0 ? "completed" : set.status })} />
                 <input aria-label="RIR" inputMode="numeric" type="number" min={0} max={6} placeholder="2" value={set.rir} onChange={(e) => updateSet(index, { rir: e.target.value })} />
-                <span>{previous && isCompletedWorkoutSet(previous.sets[index]) ? `${previous.sets[index].weight ?? "—"}×${previous.sets[index].reps ?? "—"}` : "—"}</span>
+                <span>{previous && isCompletedWorkoutSet(previous.sets[index]) ? `${previous.sets[index].weight ?? "-"}×${previous.sets[index].reps ?? "-"}` : "-"}</span>
                 <button type="button" onClick={() => toggleSet(index)}>{set.status === "completed" ? "✓" : t.done}</button>
               </div>
             ))}

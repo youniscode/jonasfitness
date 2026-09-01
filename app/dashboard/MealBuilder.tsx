@@ -668,7 +668,7 @@ export function MealBuilder({ example, summary, clientId }: Props) {
                 if (!info || info.outsideDistance <= 0) return null;
                 return (
                   <li key={key}>
-                    {label} — {Math.round(info.outsideDistance)} {unit} {info.value < info.min ? "below minimum" : "above maximum"}
+                    {label} - {Math.round(info.outsideDistance)} {unit} {info.value < info.min ? "below minimum" : "above maximum"}
                   </li>
                 );
               })}
@@ -749,7 +749,7 @@ export function MealBuilder({ example, summary, clientId }: Props) {
             ))}
           </div>
         )}
-        {!plan && <div className="meal-plan-empty">No saved versions yet — create a draft to keep this day.</div>}
+        {!plan && <div className="meal-plan-empty">No saved versions yet - create a draft to keep this day.</div>}
       </div>
     </div>
   );

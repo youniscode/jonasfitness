@@ -4,10 +4,10 @@ const OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 export const OLLAMA_MODEL = "qwen3:8b";
 
 // Production model served through Vercel AI Gateway (the AI SDK's default
-// provider — the same gateway the programme translation route uses). The
+// provider - the same gateway the programme translation route uses). The
 // gateway authenticates via the AI_GATEWAY_API_KEY env var or, in Vercel
-// deployments, an automatically-provisioned OIDC token — no client-side keys.
-// NOTE: kept implemented (and tested) but no longer selected for production —
+// deployments, an automatically-provisioned OIDC token - no client-side keys.
+// NOTE: kept implemented (and tested) but no longer selected for production -
 // Jonas Coach now routes through DeepSeek. Re-enable by routing production
 // through askGatewayJson again (see coachAiProviderFor).
 export const GATEWAY_MODEL = "alibaba/qwen3.5-flash";
@@ -15,7 +15,7 @@ export const GATEWAY_MODEL = "alibaba/qwen3.5-flash";
 // OpenRouter: the previous production/preview Jonas Coach provider, kept for
 // rollback/testing via COACH_AI_PROVIDER=openrouter. Fixed free model chosen
 // from OpenRouter's current :free list (verified 2026-08-17):
-//   nvidia/nemotron-3-super-120b-a12b:free — $0/$0, 262K context.
+//   nvidia/nemotron-3-super-120b-a12b:free - $0/$0, 262K context.
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 export const OPENROUTER_REFERER = "https://jonas-fitness.jonascode.com";
@@ -23,7 +23,7 @@ export const OPENROUTER_TITLE = "Jonas-Fitness Coach AI";
 
 // Direct DeepSeek (OpenAI-compatible) provider for Jonas Coach. deepseek-v4-flash
 // with thinking disabled for fast, deterministic JSON programme drafts. Shares
-// the GatewayResult contract, parser and safe diagnostics with OpenRouter —
+// the GatewayResult contract, parser and safe diagnostics with OpenRouter -
 // only the transport and request shape differ. Never logs the key or prompt.
 export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/chat/completions";
 export const DEEPSEEK_MODEL = "deepseek-v4-flash";
@@ -155,7 +155,7 @@ export function gatewayFailureReason(error: unknown, statusCode?: number | null)
   return "unknown";
 }
 
-// Safe, loggable detail for a provider failure. Only identifiers and codes —
+// Safe, loggable detail for a provider failure. Only identifiers and codes -
 // never the error message, response body, keys, headers or prompt context.
 export type GatewayFailureDetails = {
   reason: GatewayFailureReason;
@@ -193,7 +193,7 @@ const MAX_JSON_CHATTER = 400;
 // Balanced-brace scanner: finds every complete top-level {...} object in the
 // text while respecting quoted strings and escapes, so braces inside strings
 // never confuse the scan. `unbalanced` is true when an opening brace is never
-// closed — the usual signature of a response cut off mid-object.
+// closed - the usual signature of a response cut off mid-object.
 export function balancedTopLevelObjects(text: string): { objects: string[]; unbalanced: boolean } {
   const objects: string[] = [];
   let unbalanced = false;
@@ -276,7 +276,7 @@ export function jsonCandidateSet(text: string): JsonCandidateSet {
     if (chatter <= MAX_JSON_CHATTER) candidates.push({ text: objects[0], stage: "embedded" });
     else failure = "no_candidate";
   } else if (objects.length > 1) {
-    // Multiple competing objects — never guess which one the model meant.
+    // Multiple competing objects - never guess which one the model meant.
     failure = "multiple_ambiguous";
   } else {
     failure = "no_candidate";
@@ -297,7 +297,7 @@ export function jsonExtractionCandidates(text: string): string[] {
   return jsonCandidateSet(text).candidates.map((candidate) => candidate.text);
 }
 
-// Classifies why an unparsable model response failed — used to log a safe
+// Classifies why an unparsable model response failed - used to log a safe
 // parse stage for provider diagnostics (never the content itself).
 export type JsonParseStage =
   | "parsed_direct" | "parsed_fenced" | "parsed_stringified" | "parsed_embedded"
@@ -319,7 +319,7 @@ function parseFailureFor(set: JsonCandidateSet, text: string, finishReason: stri
 }
 
 // Parses raw model output into the structured contract. Empty output is its
-// own code (empty_response) and unparsable output is malformed_json — neither
+// own code (empty_response) and unparsable output is malformed_json - neither
 // is ever classified as a provider error. Model prose/fences around the JSON
 // are tolerated (formatting noise only); invalid content is still rejected.
 // finish_reason "length" or a clearly cut-off object is classified as
@@ -334,7 +334,7 @@ export function parseGatewayJsonText<T>(
   for (const candidate of set.candidates) {
     try {
       const parsed: unknown = JSON.parse(candidate.text);
-      // Only a plain object is a valid programme contract — a parsed string,
+      // Only a plain object is a valid programme contract - a parsed string,
       // array or primitive is not (the stringified candidate handles the
       // quoted-object shape, e.g. "{\"a\":1}").
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -348,7 +348,7 @@ export function parseGatewayJsonText<T>(
   return { ok: false, reason: failure.reason };
 }
 
-// Safe parse diagnostics for the server log: counts and stage only — never the
+// Safe parse diagnostics for the server log: counts and stage only - never the
 // response content, prompt or any client data.
 export function jsonParseDiagnostics(
   text: string | null | undefined,
@@ -391,7 +391,7 @@ async function safeOpenRouterErrorCode(response: Response): Promise<string | nul
   }
 }
 
-// Which stage produced the failure — distinguishes OUR client abort (the
+// Which stage produced the failure - distinguishes OUR client abort (the
 // AbortSignal.timeout fired with no upstream response) from an upstream HTTP
 // error or a network failure. This is what tells us whether 90s was simply too
 // short for the free provider vs. the provider itself rejecting the request.
@@ -405,7 +405,7 @@ export function openRouterFailureStage(error: unknown, statusCode: number | null
 }
 
 // Production/preview model call through OpenRouter's OpenAI-compatible chat
-// completions endpoint. Server-side fetch only — OPENROUTER_API_KEY stays in
+// completions endpoint. Server-side fetch only - OPENROUTER_API_KEY stays in
 // process.env and is never logged, returned, or exposed client-side. Reuses
 // the same safe reason codes and output classification as the gateway path,
 // so callers cannot tell provider failure from validation failure apart by
@@ -423,7 +423,7 @@ export async function askOpenRouterJson<T>(
     console.error(`[coach-ai] openrouter timing ${JSON.stringify({ result: "auth", elapsedMs: 0, model, stage: "no_key", statusCode: null, errorCode: null })}`);
     return { ok: false, reason: "auth" };
   }
-  // Safe request-size diagnostics — character counts only, never content.
+  // Safe request-size diagnostics - character counts only, never content.
   console.error(`[coach-ai] openrouter request ${JSON.stringify({ model, promptChars: (system ?? "").length + (prompt ?? "").length, maxTokens: 4096, timeoutMs })}`);
   const startedAt = Date.now();
   try {
@@ -442,7 +442,7 @@ export async function askOpenRouterJson<T>(
         max_tokens: 4096,
         // The model's OpenRouter supported_parameters include response_format,
         // so json_object mode is a supported hint toward valid JSON. It is a
-        // soft guarantee only — the full validateDraft pipeline still runs.
+        // soft guarantee only - the full validateDraft pipeline still runs.
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -495,7 +495,7 @@ export async function askDeepSeekJson<T>(
     console.error(`[coach-ai] deepseek timing ${JSON.stringify({ result: "auth", elapsedMs: 0, model, stage: "no_key", statusCode: null, errorCode: null })}`);
     return { ok: false, reason: "auth" };
   }
-  // Safe request-size diagnostics — character counts only, never content.
+  // Safe request-size diagnostics - character counts only, never content.
   console.error(`[coach-ai] deepseek request ${JSON.stringify({ model, promptChars: (system ?? "").length + (prompt ?? "").length, maxTokens: 4096, timeoutMs, thinking: "disabled" })}`);
   const startedAt = Date.now();
   try {
@@ -544,7 +544,7 @@ export async function askDeepSeekJson<T>(
 // Unified JSON-provider entry point for Jonas Coach (OpenRouter or DeepSeek).
 // The local Ollama path keeps its legacy null contract and is handled by the
 // route separately. Shared system prompt, AI_DRAFT_CONTRACT, exercise catalogue,
-// parser and validation are untouched — only transport differs.
+// parser and validation are untouched - only transport differs.
 export async function generateCoachDraft<T>(
   options: { provider: CoachAiProvider; model: string; system: string; prompt: string; mode?: string; timeoutMs?: number },
 ): Promise<GatewayResult<T>> {

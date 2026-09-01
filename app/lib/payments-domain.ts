@@ -20,7 +20,7 @@ export interface CheckoutPaymentView {
   paymentId: string | null;
   amountPaidMinor: number | null;
   currency: string | null;
-  /** Stripe price id actually charged — must equal the configured Founding price. */
+  /** Stripe price id actually charged - must equal the configured Founding price. */
   priceId: string | null;
 }
 
@@ -58,7 +58,7 @@ export function checkoutIsPaid(paymentStatus: string | null): boolean {
 }
 
 /**
- * Refund decision — reverses a granted entitlement only for a FULL refund.
+ * Refund decision - reverses a granted entitlement only for a FULL refund.
  * Partial refunds leave the entitlement intact (the customer keeps their
  * access until fully refunded). `amountRefunded` is compared against the
  * original `amountPaid` in minor units.
@@ -68,7 +68,7 @@ export function decideRefund(amountPaidMinor: number | null, amountRefundedMinor
   return amountRefundedMinor >= amountPaidMinor;
 }
 
-/** Deterministic metrics from a seeded/store shape — pure, testable. */
+/** Deterministic metrics from a seeded/store shape - pure, testable. */
 export interface MetricsInput {
   entitledOwners: Set<string>;
   ownedRoutines: Map<string, number>;

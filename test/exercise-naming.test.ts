@@ -225,7 +225,7 @@ test("parseExercises tolerates saved workouts without FR/AR names", () => {
   assert.equal(exercises[0].nameAr, "");
 });
 
-// ——— Phase 1C: real exercise images (78/78) ———
+// --- Phase 1C: real exercise images (78/78) ---
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 

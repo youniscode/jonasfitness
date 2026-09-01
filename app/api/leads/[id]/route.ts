@@ -68,7 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 // its activities, consultations and lead-linked notifications (the FK is
 // ON DELETE CASCADE) and nulls any communication-log references (SET NULL).
 // NOTE: leads have no ownerId (single-coach/global model), so this is scoped by
-// coach auth + lead id only — safe while Jonas-Fitness remains single-coach.
+// coach auth + lead id only - safe while Jonas-Fitness remains single-coach.
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await getCoachId();
   if (!ownerId) return Response.json({ error: "Coach access required." }, { status: 403 });

@@ -40,7 +40,7 @@ test("the onboarding profile migration (0007) is additive-only and adds only the
 test("the nutrition-targets migration (0011) is additive-only and creates only the nutrition_targets table", () => {
   const sql = readFileSync(join(DRIZZLE, "0011_nutrition-targets.sql"), "utf8");
   // The nutrition-targets migration must create ONLY the nutrition_targets
-  // table — exactly one CREATE TABLE, nothing else.
+  // table - exactly one CREATE TABLE, nothing else.
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, "exactly one table creation");
   assert.match(sql, /CREATE TABLE "nutrition_targets"/);
   // No destructive or unrelated operations anywhere in the latest migration.
@@ -50,7 +50,7 @@ test("the nutrition-targets migration (0011) is additive-only and creates only t
   // drizzle output); any ALTER targeting a pre-existing table is forbidden.
   assert.doesNotMatch(sql, /ALTER TABLE (?!"nutrition_targets")/i, "no ALTER of existing tables");
   // Unlike the append-only measurement ledger, this table needs exactly one
-  // active (approved) row per owner+client — enforced by a PARTIAL unique index
+  // active (approved) row per owner+client - enforced by a PARTIAL unique index
   // (superseded history rows are unaffected).
   assert.match(sql, /CREATE UNIQUE INDEX "nutrition_targets_owner_client_active_unique"/);
   assert.match(sql, /WHERE "nutrition_targets"\."status" = 'approved'/);
@@ -64,7 +64,7 @@ test("the meal-plans migration (0012) is additive-only and creates only the thre
   assert.ok(mealPlans, "meal-plans migration is journal index 12");
   assert.equal(mealPlans.tag, "0012_magenta_wallflower");
   const sql = readFileSync(join(DRIZZLE, `${mealPlans.tag}.sql`), "utf8");
-  // Exactly the three Phase 2B tables — nothing else is touched.
+  // Exactly the three Phase 2B tables - nothing else is touched.
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 3, "exactly three table creations");
   assert.match(sql, /CREATE TABLE "meal_plans"/);
   assert.match(sql, /CREATE TABLE "meal_plan_versions"/);
@@ -86,7 +86,7 @@ test("every applied migration is additive-only (no destructive table/column/data
   for (const entry of journal.entries) {
     const sql = readFileSync(join(DRIZZLE, `${entry.tag}.sql`), "utf8");
     // Project convention: migrations create tables/columns/indexes and add
-    // columns — never drop data-bearing objects, truncate or delete. The one
+    // columns - never drop data-bearing objects, truncate or delete. The one
     // sanctioned exception is DROP INDEX: dropping a redundant uniqueness index
     // (migration 0015) preserves every row while fixing the re-grant invariant.
     assert.doesNotMatch(sql, /^\s*(DROP (TABLE|COLUMN|SCHEMA|VIEW|TRIGGER|FUNCTION|SEQUENCE)|DELETE FROM|TRUNCATE)\b/mi, `destructive op in ${entry.tag}`);

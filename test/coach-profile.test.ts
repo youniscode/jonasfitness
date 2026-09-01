@@ -40,7 +40,7 @@ const intake: CoachIntakeRow = {
     lifestyle: { activity: "Some walking", steps: "3–6k", work: "Desk job" },
     recovery: { sleepHours: "6–7h", sleepQuality: 4, stress: 3, recovery: "Good" },
     motivation: { drivers: ["Health"], barriers: ["Lack of time"] },
-    coaching: { accountability: "High — keep me accountable", feedback: "Direct and concise", focus: ["Technique"] },
+    coaching: { accountability: "High - keep me accountable", feedback: "Direct and concise", focus: ["Technique"] },
     nutrition: { tracking: "Roughly", pattern: "", note: "" },
     measurements: { heightCm: null, weightKg: null, waistCm: null },
     openNote: "",
@@ -70,7 +70,7 @@ test("onboarding data maps into the structured profile", () => {
   assert.equal(profile.client.name, "Mohamed Ali ALI");
   assert.equal(profile.client.preferredLanguage, "fr");
   assert.equal(profile.goals.primary, "Build muscle");
-  // Secondary objectives stay a distinct, softer field — the primary goal is
+  // Secondary objectives stay a distinct, softer field - the primary goal is
   // the programme-design driver and is never merged into the secondary list.
   assert.deepEqual(profile.goals.secondary, ["Confidence"]);
   assert.equal(profile.goals.detail, "Build a balanced physique and improve pull-up strength.");
@@ -94,7 +94,7 @@ test("multi-goal application secondaries stay distinct from the primary in coach
     }),
   };
   const profile = buildClientCoachingProfile(client, multiGoalIntake, programmes, workouts, progress);
-  // The primary goal remains the design driver — never merged into secondary.
+  // The primary goal remains the design driver - never merged into secondary.
   assert.equal(profile.goals.primary, "Build muscle");
   assert.deepEqual(profile.goals.secondary, ["Get stronger", "Improve fitness"]);
 });

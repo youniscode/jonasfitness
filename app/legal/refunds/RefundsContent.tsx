@@ -15,7 +15,7 @@ const copy = {
       "Un remboursement intégral confirmé sur votre commande entraîne la révocation du droit d’accès fondateur correspondant (l’accès est retiré ; les journaux d’entraînement que vous avez créés sont conservés mais ne sont plus accessibles via le produit payant).",
       "Les remboursements partiels ne révoquent pas l’accès.",
     ],
-    withdrawal: "Rétractation — contenus/services numériques (UE)",
+    withdrawal: "Rétractation : contenus/services numériques (UE)",
     withdrawalText: "Les règles européennes de consommation prévoient que le droit de rétractation de 14 jours peut, dans certains cas, être exclu ou modifié pour les contenus/services numériques <strong>uniquement si</strong> le professionnel obtient de la part du consommateur une reconnaissance et un consentement exprès et préalables avant le début de la fourniture. Nous ne nous appuyons <strong>pas</strong> actuellement sur une telle exception : aucun consentement/reconnaissance exprès au paiement n’existe aujourd’hui, et nous ne prétendons donc pas à une perte automatique du droit de rétractation. La politique de remboursement ci-dessus s’applique donc.",
     howTo: "Comment demander un remboursement",
     howToList: [
@@ -29,7 +29,7 @@ const copy = {
     addressee: "Destinataire du remboursement & statut",
     addresseeLabel: "Les remboursements relèvent de la responsabilité du vendeur légal :",
     statusList: [
-      "<strong>Enregistrement d’activité supplémentaire (Guichet unique / RNE) :</strong> le dépôt relatif à l’activité supplémentaire numérique/logicielle de Jonas Fitness est en attente — mise à jour administrative en cours, non présentée comme aboutie.",
+      "<strong>Enregistrement d’activité supplémentaire (Guichet unique / RNE) :</strong> le dépôt relatif à l’activité supplémentaire numérique/logicielle de Jonas Fitness est en attente ; mise à jour administrative en cours, non présentée comme aboutie.",
       "<strong>Médiateur de la consommation :</strong> aucun médiateur de la consommation n’est actuellement désigné ; la désignation et la publication des coordonnées d’un médiateur de référence pour les litiges de consommation sont en attente.",
       "<strong>Droit applicable :</strong> le droit français s’applique aux remboursements, sans limiter les droits impératifs des consommateurs dont vous pouvez bénéficier en vertu du droit de votre pays de résidence.",
     ],
@@ -59,7 +59,7 @@ const copy = {
     addressee: "Refund addressee & status",
     addresseeLabel: "Refunds are the responsibility of the legal seller:",
     statusList: [
-      "<strong>Additional-activity registration (French Guichet unique / RNE):</strong> the filing for the Jonas Fitness additional digital/software activity is <strong>pending</strong> — an administrative update in progress, not claimed as completed.",
+      "<strong>Additional-activity registration (French Guichet unique / RNE):</strong> the filing for the Jonas Fitness additional digital/software activity is <strong>pending</strong>; an administrative update in progress, not claimed as completed.",
       "<strong>Consumer mediator:</strong> no consumer mediator is currently designated; designation and publication of a referenced mediator’s details for consumer-mediation matters are pending.",
       "<strong>Governing law:</strong> French law applies to refunds, without limiting the mandatory consumer-protection rights you may have under the law of your country of residence.",
     ],
@@ -75,7 +75,7 @@ const copy = {
       "يؤدي استرداد كامل مؤكد على طلبك إلى إلغاء حق الوصول التأسيسي المقابل (يُسحب الوصول؛ وتُحتفظ بسجلات التدريب التي أنشأتها لكنها لن تكون متاحة بعد الآن ضمن المنتج المدفوع).",
       "الاستردادات الجزئية لا تلغي الوصول.",
     ],
-    withdrawal: "الانسحاب — المحتوى/الخدمات الرقمية (الاتحاد الأوروبي)",
+    withdrawal: "الانسحاب: المحتوى/الخدمات الرقمية (الاتحاد الأوروبي)",
     withdrawalText: "تنص قواعد المستهلك الأوروبية على أن حق الانسحاب خلال 14 يومًا يمكن، في بعض الحالات، استبعاده أو تعديله للمحتوى/الخدمات الرقمية <strong>فقط إذا</strong> حصل التاجر على إقرار وموافقة صريحين وسابقين من المستهلك قبل بدء التوريد. نحن لا نعتمد حاليًا على مثل هذا الاستثناء: لا يوجد إقرار/موافقة صريحان عند الدفع اليوم، لذا لا ندّعي فقدانًا تلقائيًا لحق الانسحاب. وبالتالي تنطبق سياسة الاسترداد أعلاه.",
     howTo: "كيف تطلب استردادًا",
     howToList: [
@@ -89,7 +89,7 @@ const copy = {
     addressee: "جهة الاسترداد والحالة",
     addresseeLabel: "تقع مسؤولية الاستردادات على البائع القانوني:",
     statusList: [
-      "<strong>تسجيل النشاط الإضافي (الشباك الموحد / السجل الوطني للمنشآت RNE):</strong> الإيداع المتعلق بالنشاط الإضافي الرقمي/البرمجي لـ Jonas Fitness معلَّق — تحديث إداري قيد التنفيذ، ولم يُعلَن اكتماله.",
+      "<strong>تسجيل النشاط الإضافي (الشباك الموحد / السجل الوطني للمنشآت RNE):</strong> الإيداع المتعلق بالنشاط الإضافي الرقمي/البرمجي لـ Jonas Fitness معلَّق؛ تحديث إداري قيد التنفيذ، ولم يُعلَن اكتماله.",
       "<strong>وسيط المستهلك:</strong> لا يوجد وسيط مستهلك معيّن حاليًا؛ تعيين ونشر بيانات وسيط مرجعي لمسائل الوساطة الاستهلاكية قيد الانتظار.",
       "<strong>القانون الواجب التطبيق:</strong> يخضع الاسترداد للقانون الفرنسي، دون الإخلال بالحقوق الملزمة للمستهلك التي قد تتمتع بها بموجب قانون بلد إقامتك.",
     ],

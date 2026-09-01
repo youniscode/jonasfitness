@@ -4,7 +4,7 @@ import { clientExerciseFeedback, workoutSessions } from "../../../../db/schema";
 import { getPortalAccess } from "../../../client/portal-auth";
 import { feedbackPayloadFrom } from "../../../lib/exercise-feedback";
 
-// Client-facing safe feedback DTO — never leaks ownerId or any coach-private
+// Client-facing safe feedback DTO - never leaks ownerId or any coach-private
 // field. Only the client's own feedback dimensions are returned.
 function publicFeedback(row: typeof clientExerciseFeedback.$inferSelect) {
   return {
@@ -21,7 +21,7 @@ function publicFeedback(row: typeof clientExerciseFeedback.$inferSelect) {
 
 // Client-authenticated feedback submission. The client can only write feedback
 // for their own client record (the owner+client scope is derived server-side
-// from the verified Clerk session — never from the request body). A stable
+// from the verified Clerk session - never from the request body). A stable
 // operationKey makes retries idempotent via the (owner, client, operationKey)
 // unique index. Feedback never writes the coach-preference tables.
 export async function POST(request: Request) {
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     .returning();
 
   if (!inserted) {
-    // Idempotent retry: the same submission already exists — report success.
+    // Idempotent retry: the same submission already exists - report success.
     return Response.json({ ok: true, duplicated: true }, { status: 200 });
   }
   return Response.json({ ok: true, feedback: publicFeedback(inserted) }, { status: 201 });

@@ -1,4 +1,4 @@
-/* Jonas Fitness legal/document pages — dark + lime, matching the public offer.
+/* Jonas Fitness legal/document pages: dark + lime, matching the public offer.
    Structure only; not legal advice. */
 .legal{background:#0b0d0a;color:#eef2e4;min-height:100vh;font-family:var(--font-geist-sans),system-ui,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:.01em;}
 .legal *{box-sizing:border-box;}
@@ -33,7 +33,7 @@
 .legal-footer nav a:hover{color:#b6f34c;}
 .legal-disclaimer{max-width:760px;margin:0 auto;padding:0 20px 34px;color:#8a8f7e;font-size:12px;}
 
-/* Arabic RTL — keep the language switch, links and brand direction LTR while the
+/* Arabic RTL: keep the language switch, links and brand direction LTR while the
    page text flows right; numbers like €19 are left readable by the bidi algorithm. */
 .legal[dir="rtl"]{font-family:Arial,var(--font-geist-sans),sans-serif;}
 .rtl-site .legal-links,.rtl-site .legal-lang{direction:ltr;}

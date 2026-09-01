@@ -62,7 +62,7 @@ const format = (value: number, lang: Lang) =>
   new Intl.NumberFormat(lang === "ar" ? "ar" : lang, { maximumFractionDigits: 0 }).format(value);
 
 // Read-only view of the ACTIVE assignment's approved plan. The client can
-// never see drafts, history or internal ids — only this sanitized snapshot.
+// never see drafts, history or internal ids - only this sanitized snapshot.
 export default function ClientNutritionPlan({ lang, preview, clientId }: { lang: Lang; preview: boolean; clientId: number }) {
   const t = copy[lang];
   const [plan, setPlan] = useState<PlanPayload | null>(null);
@@ -131,7 +131,7 @@ export default function ClientNutritionPlan({ lang, preview, clientId }: { lang:
             <strong>{format(plan.meals.totals.kcal, lang)} kcal</strong>
             <span>P {format(plan.meals.totals.proteinG, lang)} g · F {format(plan.meals.totals.fatG, lang)} g · C {format(plan.meals.totals.carbohydrateG, lang)} g</span>
           </div>
-          <p className="client-plan-disclaimer"><b>{t.disclaimerLabel} — </b>{plan.disclaimer}</p>
+          <p className="client-plan-disclaimer"><b>{t.disclaimerLabel} - </b>{plan.disclaimer}</p>
         </>
       )}
     </section>

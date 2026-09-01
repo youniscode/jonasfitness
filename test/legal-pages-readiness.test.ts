@@ -26,7 +26,7 @@ function readLegal(name: keyof typeof legalPages): string {
 }
 
 // ---------------------------------------------------------------------------
-// VERIFIED identity — these must now appear consistently across all legal pages
+// VERIFIED identity - these must now appear consistently across all legal pages
 // ---------------------------------------------------------------------------
 const VERIFIED = [
   "Younis MOHAMMAD",
@@ -87,7 +87,7 @@ test("additional-activity registration is stated factually as pending on every l
     const src = readLegal(name);
     assert.match(src, /Guichet unique \/ RNE|Guichet/, `${name} references the Guichet unique / RNE`);
     assert.match(src, /pending|in progress|not yet/i, `${name} states the registration status as outstanding`);
-    assert.doesNotMatch(src, /REGISTRATION PENDING — LAUNCH BLOCKER/, `${name} removed launch-blocker language`);
+    assert.doesNotMatch(src, /REGISTRATION PENDING - LAUNCH BLOCKER/, `${name} removed launch-blocker language`);
     assert.doesNotMatch(src, /registration[^.!?]{0,60}finali[sz]ed\b/i, `${name} does not claim the registration is finalised`);
   }
   const doc = readFileSync(join(ROOT, "docs", "production-launch-gate.md"), "utf8");
@@ -99,7 +99,7 @@ test("no consumer mediator is invented and no compliance is claimed", () => {
   assert.match(src, /no (?:consumer )?mediator is currently designated/i, "neutral mediator status stated");
   // No made-up mediator name, e.g. no named mediator organisation invented.
   assert.doesNotMatch(src, /(CMAP|CNPM|Médicys|Medicys|Conciliateur)/i, "no invented mediator organisation");
-  assert.doesNotMatch(src, /CONSUMER MEDIATOR — PENDING — LAUNCH BLOCKER/, "no launch-blocker language");
+  assert.doesNotMatch(src, /CONSUMER MEDIATOR - PENDING - LAUNCH BLOCKER/, "no launch-blocker language");
 });
 
 // ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ test("privacy states a documented retention/legal-basis policy without inventing
   assert.match(privacy, /Article 6\(1\)\(b\) GDPR/, "contract legal basis stated");
   assert.match(privacy, /standard contractual clauses where applicable/i, "transfer safeguards stated conservatively");
   assert.match(privacy, /(?:does|do) not currently offer an in-app self-service data export/i, "no invented export feature claimed");
-  assert.doesNotMatch(privacy, /RETENTION PERIOD —|DELETION & EXPORT PROCEDURE|LEGAL BASES|TRANSFER SAFEGUARDS/, "no raw retention/legal-basis placeholders");
+  assert.doesNotMatch(privacy, /RETENTION PERIOD -|DELETION & EXPORT PROCEDURE|LEGAL BASES|TRANSFER SAFEGUARDS/, "no raw retention/legal-basis placeholders");
 });
 
 test("terms page describes the product accurately and does NOT promise AI coaching or guaranteed results", () => {
@@ -210,7 +210,7 @@ test("accessible legal footer links wired from the public landing page and the F
 });
 
 // ---------------------------------------------------------------------------
-// Launch gate doc — verified DB state + resolved/blocking gates
+// Launch gate doc - verified DB state + resolved/blocking gates
 // ---------------------------------------------------------------------------
 
 test("launch gate documentation exists and blocks launch on legal placeholders / live-Stripe steps", () => {

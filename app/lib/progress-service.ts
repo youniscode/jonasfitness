@@ -45,7 +45,7 @@ function toPrescription(row: ExerciseRow): ProgressPrescription {
   };
 }
 
-// ——— Routines ————————————————————————————————————————————
+// --- Routines --------------------------------------------
 
 export async function listRoutines(ownerId: string) {
   const db = getDb();
@@ -99,7 +99,7 @@ export async function deleteRoutine(ownerId: string, routineId: number) {
   return Boolean(deleted);
 }
 
-// ——— Routine exercises —————————————————————
+// --- Routine exercises ---------------------
 
 export async function addRoutineExercise(ownerId: string, routineId: number, prescription: ProgressPrescription, language: ExerciseLanguage = "en") {
   const db = getDb();
@@ -202,7 +202,7 @@ export async function reorderRoutineExercises(ownerId: string, routineId: number
   });
 }
 
-// ——— Workout sessions ————————————————————————————————
+// --- Workout sessions --------------------------------
 
 function parseRowExercises(row: SessionRow) {
   return parseExercises(row.exercises);
@@ -293,7 +293,7 @@ export async function saveWorkout(ownerId: string, sessionId: number, input: { e
       eq(trainingWorkoutSessions.id, sessionId),
       eq(trainingWorkoutSessions.ownerId, ownerId),
       eq(trainingWorkoutSessions.status, "active"),
-      // completedAt must stay null while open — prevents reopening a closed session
+      // completedAt must stay null while open - prevents reopening a closed session
     ))
     .returning();
   if (!row) return null;
@@ -301,7 +301,7 @@ export async function saveWorkout(ownerId: string, sessionId: number, input: { e
   return { session: publicSession(row, parseRowExercises(row)) };
 }
 
-// ——— Reads (history, dashboard) ————————————————————————
+// --- Reads (history, dashboard) ------------------------
 
 export async function exerciseHistory(ownerId: string) {
   const db = getDb();

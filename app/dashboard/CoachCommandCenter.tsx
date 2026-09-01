@@ -102,11 +102,11 @@ export default function CoachCommandCenter({ onSelectClient }: { onSelectClient:
     // still need an explicit completed / cancelled / no-show decision.
     ...data.attendancePending.map((item) => ({
       key: `attendance-${item.id}`, tone: "red" as const, eyebrow: "ATTENDANCE PENDING", title: item.clientName,
-      detail: `Session ended ${relativeTime(item.startAt, now)} — record what happened.`, time: relativeTime(item.startAt, now), action: "Record attendance", onOpen: () => onSelectClient(item.clientId, "#calendar"),
+      detail: `Session ended ${relativeTime(item.startAt, now)} - record what happened.`, time: relativeTime(item.startAt, now), action: "Record attendance", onOpen: () => onSelectClient(item.clientId, "#calendar"),
     })),
     ...pulseAlerts.map((item) => ({
       key: `pulse-${item.id}`, tone: item.readinessLevel as "red" | "amber", eyebrow: `${item.readinessLevel.toUpperCase()} PULSE`, title: item.clientName,
-      detail: item.coachAction || `Readiness ${item.readinessScore ?? "—"}% needs review before training.`, time: formatWhen(item.startAt), action: "Review Pulse", onOpen: () => onSelectClient(item.clientId, "#calendar"),
+      detail: item.coachAction || `Readiness ${item.readinessScore ?? "-"}% needs review before training.`, time: formatWhen(item.startAt), action: "Review Pulse", onOpen: () => onSelectClient(item.clientId, "#calendar"),
     })),
     ...data.followUps.map((item) => ({
       key: `follow-${item.id}`, tone: "amber" as const, eyebrow: "LEAD FOLLOW-UP", title: item.name,

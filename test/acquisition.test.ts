@@ -38,7 +38,7 @@ test("recent clients lists the newest converted client first, then existing clie
   assert.deepEqual(summary.recent.map((item) => item.id), [5, 3, 2, 1]);
 });
 
-test("each client counts exactly once — no duplicate totals after idempotent conversion", () => {
+test("each client counts exactly once - no duplicate totals after idempotent conversion", () => {
   // The conversion find-or-create guarantees one row per client; aggregation
   // must never double-count even if the same source appears many times.
   const many = [

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const payload = await evaluateCoachNotifications(ownerId, { origin });
     return Response.json(payload);
   } catch (error) {
-    // Log only the error message — never raw DB errors to the browser, and no
+    // Log only the error message - never raw DB errors to the browser, and no
     // secrets or client data.
     console.error("[coach-notifications:get] failed", {
       ownerId,

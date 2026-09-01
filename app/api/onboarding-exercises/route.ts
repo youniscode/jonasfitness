@@ -5,7 +5,7 @@ import { representativeExercises } from "../../lib/onboarding-profile";
 // image) for the onboarding exercise-preference picker. `context` is a small
 // client-side hint (venue/equipment/experience/goal) used to build a bounded
 // representative set of 6–12 exercises. The response is deterministic and every
-// id is a canonical built-in id — no fuzzy identity is ever persisted.
+// id is a canonical built-in id - no fuzzy identity is ever persisted.
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const venue = searchParams.get("venue") ?? "";

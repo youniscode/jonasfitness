@@ -200,7 +200,7 @@ test("Adaptive Coach replacement candidates can surface the new neutral-grip mac
 
 // ---------- Beginner fallback safety ----------
 
-test("beginner fallback stays conservative — the new Tier 3 deadlift family never becomes a default", () => {
+test("beginner fallback stays conservative - the new Tier 3 deadlift family never becomes a default", () => {
   const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
   const ids = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId));
   assert.ok(!ids.includes("builtin-conventional-deadlift"), "no Tier 3 conventional deadlift for a beginner");

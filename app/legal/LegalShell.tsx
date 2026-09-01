@@ -34,7 +34,7 @@ export function SellerIdentity() {
       <br />
       Entrepreneur individuel (micro-entrepreneur)
       <br />
-      SIREN 108 783 192 — SIRET 108 783 192 00017
+      SIREN 108 783 192 - SIRET 108 783 192 00017
       <br />
       104 Avenue Vauban, 83000 Toulon, France
       <br />
@@ -47,7 +47,7 @@ export function SellerIdentity() {
  * Shared shell for the Jonas Fitness legal/document pages (dark + lime brand,
  * consistent with the public Progress offer page). Renders in fr/en/ar with
  * Arabic in RTL; each page states an honest status for any outstanding
- * administrative item — it never claims unresolved obligations as resolved and
+ * administrative item; it never claims unresolved obligations as resolved and
  * never invents facts. Nothing here is legal advice.
  */
 export default function LegalShell({

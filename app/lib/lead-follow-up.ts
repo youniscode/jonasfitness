@@ -40,7 +40,7 @@ export function consultationValues(body: Record<string, unknown>) {
 
 // Canonical lifecycle: a consultation is born "scheduled"; the coach moves it to
 // completed/no_show/cancelled. Cancelled can be reactivated (rebooked in place);
-// completed and no_show are terminal for the row itself — a follow-up or a new
+// completed and no_show are terminal for the row itself - a follow-up or a new
 // booking is a fresh record, never a silent status mutation.
 export const consultationTransitions: Record<ConsultationStatus, readonly ConsultationStatus[]> = {
   scheduled: ["scheduled", "completed", "cancelled", "no_show"],
@@ -63,7 +63,7 @@ export function canRescheduleConsultation(status: ConsultationStatus): boolean {
 // The explicit action a consultation row in the lead card should expose.
 // Only a scheduled consultation is managed in place (reschedule, complete,
 // no-show, cancel); completed / no-show / cancelled rows keep their history
-// and are not reschedulable — moving the appointment means booking a new one.
+// and are not reschedulable - moving the appointment means booking a new one.
 export function consultationRowAction(status: ConsultationStatus): "manage" | null {
   return canRescheduleConsultation(status) ? "manage" : null;
 }
@@ -130,7 +130,7 @@ function followUpVerb(
 // entry a mutation should record, or null when the mutation is a no-op. One
 // logical change → at most one entry. Saving the exact same datetime again, a
 // double-click on a quick chip, a client retry or a chip-then-save of the same
-// value must never append another entry — idempotent at the server.
+// value must never append another entry - idempotent at the server.
 export function planFollowUpActivity(
   existing: Date | null,
   next: Date | null,
@@ -143,7 +143,7 @@ export function planFollowUpActivity(
 }
 
 // The verb for client success toasts ("Follow-up scheduled/rescheduled/cleared/
-// completed for X"), or null when the transition changed nothing — so a no-op
+// completed for X"), or null when the transition changed nothing - so a no-op
 // save never claims a new schedule was created.
 export function followUpTransitionVerb(
   existing: Date | null,

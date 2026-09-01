@@ -235,13 +235,13 @@ test("tier classification matches the intended coaching tiers", () => {
   for (const [id, tier] of EXPECTED_TIERS) {
     assert.equal(difficultyTierFor({ libraryId: id }), tier, id);
   }
-  // The catalogue must have exactly 106 built-ins — the audit table above is the
+  // The catalogue must have exactly 106 built-ins - the audit table above is the
   // complete classification, so a drift here means a new exercise was added
   // without a tier.
   assert.equal(builtInExercises.length, 106);
 });
 
-test("difficultyTierFor is exact — unknown ids and missing ids return null", () => {
+test("difficultyTierFor is exact - unknown ids and missing ids return null", () => {
   assert.equal(difficultyTierFor({ libraryId: "custom-1" }), null);
   assert.equal(difficultyTierFor({ libraryId: "builtin-does-not-exist" }), null);
   assert.equal(difficultyTierFor({}), null);
@@ -267,7 +267,7 @@ test("beginner alternatives resolve to real canonical exercises", () => {
   }
 });
 
-test("fallback alternatives resolve in order — first available canonical option wins", () => {
+test("fallback alternatives resolve in order - first available canonical option wins", () => {
   // All alternative ids exist, so the first entry of each list is returned.
   assert.equal(beginnerAlternativeFor({ libraryId: "builtin-pull-up" })?.id, "builtin-assisted-pull-up");
   assert.equal(beginnerAlternativeFor({ libraryId: "builtin-barbell-row" })?.id, "builtin-machine-row");
@@ -285,7 +285,7 @@ test("every alternative id exists in the catalogue (nothing invented)", () => {
   }
 });
 
-test("alternatives are exact-libraryId only — no fuzzy matching", () => {
+test("alternatives are exact-libraryId only - no fuzzy matching", () => {
   assert.equal(beginnerAlternativeFor({ libraryId: "builtin-pullup" }), null);
   assert.equal(beginnerAlternativeFor({ libraryId: "builtin-pull-ups" }), null);
   assert.equal(beginnerAlternativeFor({}), null);
@@ -420,7 +420,7 @@ test("beginner fallback prefers stable Tier 1/2 over Tier 3 where the catalogue 
   // Vertical pull: lat pulldown (T1) preferred over pull-up.
   assert.ok(ids.includes("builtin-lat-pulldown"));
   assert.ok(!ids.includes("builtin-pull-up"), "no Tier 3 pull-up for a beginner");
-  // Cable fly (now classified isolation) may appear only as an accessory — it
+  // Cable fly (now classified isolation) may appear only as an accessory - it
   // can never occupy the horizontal push slot.
   const pushIds = draft.sessions
     .flatMap((session) => session.exercises)
@@ -430,7 +430,7 @@ test("beginner fallback prefers stable Tier 1/2 over Tier 3 where the catalogue 
   assert.ok(pushIds.every((id) => id !== "builtin-cable-fly"), "cable fly must not be the horizontal push");
 });
 
-test("beginner fallback uses no Tier 3 movement — every major pattern has a stable option", () => {
+test("beginner fallback uses no Tier 3 movement - every major pattern has a stable option", () => {
   const draft = buildFallbackDraft("Build muscle", 3, "Commercial gym", "beginner");
   const tier3 = fallbackIds(draft).filter((id) => difficultyTierFor({ libraryId: id }) === 3);
   assert.equal(tier3.length, 0, `expected no Tier 3 for a beginner, got: ${tier3.join(", ")}`);
@@ -441,16 +441,16 @@ test("beginner fallback uses no Tier 3 movement — every major pattern has a st
   assert.ok(weekly <= BEGINNER_MAX_TIER3_PER_WEEK);
 });
 
-test("beginner fallback varies the week — no exercise appears in every session", () => {
+test("beginner fallback varies the week - no exercise appears in every session", () => {
   const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
   const counts = new Map<string, number>();
   for (const id of fallbackIds(draft)) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, count] of counts) {
-    assert.ok(count < 3, `${id} appears in all ${count} sessions — fallback must vary the week`);
+    assert.ok(count < 3, `${id} appears in all ${count} sessions - fallback must vary the week`);
   }
   // The expansion added Tier 1 knee options, so once the first Tier 1 fixture
   // (leg press) would repeat a third time, a fresh machine knee option is used
-  // instead — no need to fall back to the Tier 2 goblet squat.
+  // instead - no need to fall back to the Tier 2 goblet squat.
   const freshKnee = fallbackIds(draft).filter((id) => id === "builtin-hack-squat" || id === "builtin-leg-extension" || id === "builtin-goblet-squat");
   assert.ok(freshKnee.length > 0, "a fresh knee option should appear across the week");
 });
@@ -475,7 +475,7 @@ test("beginner 30-min fallback keeps movement balance, duration and validity", (
   assert.match(all, /glute bridge|hip thrust|back extension|deadlift|leg curl/i);
   assert.match(all, /press|bench/i);
   assert.match(all, /row|pulldown/i);
-  // All library-grounded — nothing invented.
+  // All library-grounded - nothing invented.
   for (const session of draft.sessions) {
     for (const exercise of session.exercises) assert.equal(exercise.source, "library");
   }

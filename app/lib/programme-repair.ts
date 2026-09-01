@@ -1,19 +1,19 @@
 /**
- * Smart Draft Repair V1 — deterministic repair suggestions for an already-valid
+ * Smart Draft Repair V1 - deterministic repair suggestions for an already-valid
  * programme draft plus quality findings.
  *
  * V1 covers TWO repair families:
- *   1. DURATION REPAIR  — bring an under/over-target draft back into the same
+ *   1. DURATION REPAIR  - bring an under/over-target draft back into the same
  *      tolerance band used by the quality engine (target ± DURATION_TOLERANCE),
  *      adding useful volume (never filler) or trimming lower-priority volume.
- *   2. LIMITATION COVERAGE REVIEW — audit EVERY exercise relevant to a reported
+ *   2. LIMITATION COVERAGE REVIEW - audit EVERY exercise relevant to a reported
  *      limitation area (not just the first one the quality engine happens to
  *      flag) and surface canonical alternatives, coach-reviewable only.
  *
  * This is NOT another generative AI layer and NOT a medical engine:
  *   - everything is pure and deterministic (unit-testable with node:test);
  *   - no second AI call anywhere in the repair flow;
- *   - a repair is a PROPOSAL — nothing mutates until `applyProgrammeRepair`
+ *   - a repair is a PROPOSAL - nothing mutates until `applyProgrammeRepair`
  *     applies the exact listed actions to a fresh clone;
  *   - limitation language is advisory ("coach review recommended") and never
  *     claims an exercise is unsafe, dangerous or contraindicated;
@@ -74,7 +74,7 @@ export type RepairActionType =
 
 /**
  * One auditable repair action. Every action carries its before/after values,
- * the exercise it touches and the deterministic reason — never a black box.
+ * the exercise it touches and the deterministic reason - never a black box.
  */
 export type RepairAction = {
   type: RepairActionType;
@@ -158,7 +158,7 @@ const MAX_ADDED_SETS_PER_EXERCISE = 1;
 const MAX_ADDED_SETS_TOTAL = 6;
 /** Total added exercises across the whole plan. */
 const MAX_ADDED_EXERCISES = 2;
-/** Absolute action cap — one deterministic pass, never a recursive loop. */
+/** Absolute action cap - one deterministic pass, never a recursive loop. */
 const MAX_ACTIONS = 8;
 /** Never push a single exercise past this many sets. */
 const MAX_SETS_PER_EXERCISE = 5;
@@ -197,7 +197,7 @@ const STRUCTURED_AREA_MAP: Record<string, LimitationArea> = {
 };
 
 // Conservative free-text fallback (legacy clients without a structured
-// profile). Mirrors the quality engine's limitation vocabulary — never fuzzy,
+// profile). Mirrors the quality engine's limitation vocabulary - never fuzzy,
 // never a diagnosis.
 const TEXT_AREA_RULES: Array<{ pattern: RegExp; area: LimitationArea }> = [
   { pattern: /\bknee\b/, area: "knee" },
@@ -239,48 +239,48 @@ export function limitationAreasFrom(structuredAreas: string[] | null | undefined
 // "contraindicated", "cannot do".
 const AREA_REASONS: Record<LimitationArea, { direct: string; partial: string }> = {
   shoulder: {
-    direct: "Shoulder-demanding movement — coach review of comfort and range recommended.",
-    partial: "Indirect shoulder involvement — monitor comfort through the chosen range.",
+    direct: "Shoulder-demanding movement - coach review of comfort and range recommended.",
+    partial: "Indirect shoulder involvement - monitor comfort through the chosen range.",
   },
   elbow: {
-    direct: "Elbow-demanding movement — coach review of comfort recommended.",
-    partial: "Indirect elbow involvement — monitor comfort through the chosen range.",
+    direct: "Elbow-demanding movement - coach review of comfort recommended.",
+    partial: "Indirect elbow involvement - monitor comfort through the chosen range.",
   },
   wrist: {
-    direct: "Grip/wrist load may be relevant to the reported area — coach review recommended.",
-    partial: "May load the wrist — monitor comfort through the chosen range.",
+    direct: "Grip/wrist load may be relevant to the reported area - coach review recommended.",
+    partial: "May load the wrist - monitor comfort through the chosen range.",
   },
   upper_back: {
-    direct: "Upper-back loading movement — coach review of comfort recommended.",
-    partial: "Indirect upper-back involvement — monitor comfort through the chosen range.",
+    direct: "Upper-back loading movement - coach review of comfort recommended.",
+    partial: "Indirect upper-back involvement - monitor comfort through the chosen range.",
   },
   lower_back: {
-    direct: "Lower-back/axial-loading movement — coach review of control and comfort recommended.",
-    partial: "Indirect trunk involvement — monitor comfort through the chosen range.",
+    direct: "Lower-back/axial-loading movement - coach review of control and comfort recommended.",
+    partial: "Indirect trunk involvement - monitor comfort through the chosen range.",
   },
   hip: {
-    direct: "Hip-involved movement — coach review of comfort and range recommended.",
-    partial: "Indirect hip involvement — monitor comfort through the chosen range.",
+    direct: "Hip-involved movement - coach review of comfort and range recommended.",
+    partial: "Indirect hip involvement - monitor comfort through the chosen range.",
   },
   knee: {
-    direct: "Knee-involved movement — coach review of comfort and range recommended.",
-    partial: "Indirect knee involvement — monitor comfort through the chosen range.",
+    direct: "Knee-involved movement - coach review of comfort and range recommended.",
+    partial: "Indirect knee involvement - monitor comfort through the chosen range.",
   },
   ankle: {
-    direct: "Ankle-involved movement — coach review of comfort recommended.",
-    partial: "Indirect ankle involvement — monitor comfort through the chosen range.",
+    direct: "Ankle-involved movement - coach review of comfort recommended.",
+    partial: "Indirect ankle involvement - monitor comfort through the chosen range.",
   },
   neck: {
-    direct: "Movement may load the neck — coach review recommended.",
-    partial: "Indirect neck involvement — monitor comfort through the chosen range.",
+    direct: "Movement may load the neck - coach review recommended.",
+    partial: "Indirect neck involvement - monitor comfort through the chosen range.",
   },
 };
 
 /**
  * Deterministic per-area relevance for one exercise.
- *   LOW      — limited direct relevance (secondary involvement)
- *   MODERATE — directly involves the reported area
- *   HIGH     — direct involvement + high technical/stability demand
+ *   LOW      - limited direct relevance (secondary involvement)
+ *   MODERATE - directly involves the reported area
+ *   HIGH     - direct involvement + high technical/stability demand
  * Returns null when the exercise has no meaningful relevance to the area.
  * Levels describe review priority, never "safe/unsafe".
  */
@@ -413,7 +413,7 @@ function isCanonical(exercise: { libraryId?: string; id?: string }): boolean {
 // Deterministic suitability for +1 set on an existing exercise (higher = better
 // repair candidate). Primary-goal relevance dominates; coach/client signals are
 // tie-breakers; limitation relevance, fatigue, technical demand and redundancy
-// are penalties. Never an exclusion by itself — hard exclusions happen earlier.
+// are penalties. Never an exclusion by itself - hard exclusions happen earlier.
 function addSetSuitability(
   exercise: DraftExercise,
   intel: ExerciseIntelligence,
@@ -511,7 +511,7 @@ function pickAddSetAction(
     exerciseName: chosen.exercise.name,
     beforeValue: chosen.exercise.sets,
     afterValue: chosen.exercise.sets + 1,
-    reason: `Add one set to ${chosen.exercise.name} — ${chosen.intel.coachingBenefits[0] ?? "useful volume for the primary objective"} with no coach avoid, no repeated negative client feedback and no current limitation concern.`,
+    reason: `Add one set to ${chosen.exercise.name} - ${chosen.intel.coachingBenefits[0] ?? "useful volume for the primary objective"} with no coach avoid, no repeated negative client feedback and no current limitation concern.`,
     estimatedDeltaMinutes: Math.max(0, Math.round(delta)),
   };
 }
@@ -595,7 +595,7 @@ function pickAddExerciseAction(
       if (patternCountInSession(session, intel.movementPattern) >= 2) score -= 6;
       // Fills an underrepresented accessory/role in this session.
       if (patternCountInSession(session, intel.movementPattern) === 0) score += 10;
-      if (usedIds.has(definition.id)) score -= 8; // already a weekly fixture — prefer fresh
+      if (usedIds.has(definition.id)) score -= 8; // already a weekly fixture - prefer fresh
       const explicit = explicitStateFor(definition.id, options);
       if (explicit === "preferred") score += 4;
       const learned = options.preferenceContext?.learned?.[definition.id];
@@ -626,13 +626,13 @@ function pickAddExerciseAction(
     beforeValue: undefined,
     afterValue: prescription.sets,
     prescription,
-    reason: `Add ${chosen.definition.name} — canonical ${intel?.movementPattern.replace("_", " ") ?? "accessory"} option that fills an underrepresented role in the session with equipment-compatible, non-avoid selection.`,
+    reason: `Add ${chosen.definition.name} - canonical ${intel?.movementPattern.replace("_", " ") ?? "accessory"} option that fills an underrepresented role in the session with equipment-compatible, non-avoid selection.`,
     estimatedDeltaMinutes: Math.max(0, Math.round(delta)),
   };
 }
 
 // Last-resort under-target action: raise rest for a compound only when it is
-// below a sustainable minimum (90s) — physiologically justified, never filler.
+// below a sustainable minimum (90s) - physiologically justified, never filler.
 function pickRestIncreaseAction(work: ProgrammeDraft): RepairAction | null {
   for (let sessionIndex = 0; sessionIndex < work.sessions.length; sessionIndex += 1) {
     const session = work.sessions[sessionIndex];
@@ -720,7 +720,7 @@ function pickRemoveSetAction(work: ProgrammeDraft, options: ProgrammeRepairOptio
     exerciseName: chosen.exercise.name,
     beforeValue: chosen.exercise.sets,
     afterValue: chosen.exercise.sets - 1,
-    reason: `Remove one set from ${chosen.exercise.name} — lower-priority volume (high fatigue/technical demand or weak primary-goal relevance) while keeping the pattern covered.`,
+    reason: `Remove one set from ${chosen.exercise.name} - lower-priority volume (high fatigue/technical demand or weak primary-goal relevance) while keeping the pattern covered.`,
     estimatedDeltaMinutes: Math.min(0, Math.round(delta)),
   };
 }
@@ -778,7 +778,7 @@ function pickRemoveExerciseAction(work: ProgrammeDraft, options: ProgrammeRepair
     exerciseName: chosen.exercise.name,
     beforeValue: (work.sessions[chosen.sessionIndex]?.exercises ?? []).length,
     afterValue: (work.sessions[chosen.sessionIndex]?.exercises ?? []).length - 1,
-    reason: `Remove ${chosen.exercise.name} — redundant or lowest-priority exercise while every major pattern stays covered (session stays ≥ ${MIN_SESSION_EXERCISES} exercises).`,
+    reason: `Remove ${chosen.exercise.name} - redundant or lowest-priority exercise while every major pattern stays covered (session stays ≥ ${MIN_SESSION_EXERCISES} exercises).`,
     estimatedDeltaMinutes: Math.min(0, Math.round(estimateWithAction(work, chosen.sessionIndex, (session) => {
       const index = session.exercises.findIndex((candidate) => candidate.libraryId === chosen.exercise.libraryId);
       if (index >= 0) session.exercises.splice(index, 1);
@@ -804,7 +804,7 @@ function durationSummary(direction: "under" | "over", current: number, target: n
     ? `Duration is ~${gap} min under the ${target}-minute target. Suggested repair: add useful ${goalVolumeLabel(goal)}.`
     : `Duration is ~${gap} min over the ${target}-minute target. Suggested repair: trim lower-priority volume.`;
   if (actions.length === 0 && !withinTolerance) {
-    return `${base} No safe automatic repair found — manual coach review required.`;
+    return `${base} No safe automatic repair found - manual coach review required.`;
   }
   return base;
 }
@@ -990,15 +990,15 @@ export function planProgrammeRepair(draft: ProgrammeDraft, options: ProgrammeRep
   const limitationReview = reviewProgrammeForLimitations(draft, options);
   const warnings: string[] = [];
   if (durationRepair.direction !== "none" && !durationRepair.withinTolerance && durationRepair.actions.length === 0) {
-    warnings.push("No safe deterministic repair could bring the duration into the target band — manual coach review required.");
+    warnings.push("No safe deterministic repair could bring the duration into the target band - manual coach review required.");
   }
   if (limitationReview) {
     const total = limitationReview.reduce((count, group) => count + group.items.length, 0);
     if (total > 0) {
       warnings.push(
         limitationReview.every((group) => group.reviewed)
-          ? "Reported limitations are coach-reviewed — keep comfort and range coach-reviewed; these are advisory review signals, not restrictions."
-          : "Reported limitations are not yet fully coach-reviewed — complete the readiness review before approval.",
+          ? "Reported limitations are coach-reviewed - keep comfort and range coach-reviewed; these are advisory review signals, not restrictions."
+          : "Reported limitations are not yet fully coach-reviewed - complete the readiness review before approval.",
       );
     }
   }
@@ -1032,19 +1032,19 @@ export function applyRepairActions(draft: ProgrammeDraft, actions: RepairAction[
   const work = structuredClone(draft) as ProgrammeDraft;
   for (const action of actions) {
     const session = work.sessions[action.sessionIndex];
-    if (!session) return { draft, applied: false, error: "Repair could not be applied — session not found. Review manually." };
+    if (!session) return { draft, applied: false, error: "Repair could not be applied - session not found. Review manually." };
     if (action.type === "add_exercise") {
       if (!action.exerciseId || (session.exercises ?? []).some((exercise) => exercise.libraryId === action.exerciseId)) {
-        return { draft, applied: false, error: "Repair could not be applied — exercise already present. Review manually." };
+        return { draft, applied: false, error: "Repair could not be applied - exercise already present. Review manually." };
       }
     } else if (action.type === "add_set" || action.type === "remove_set" || action.type === "replace_exercise" || action.type === "adjust_rest" || action.type === "remove_exercise") {
       const exercise = (session.exercises ?? []).find((candidate) => candidate.libraryId === action.exerciseId);
-      if (!exercise) return { draft, applied: false, error: `Repair could not be applied — ${action.exerciseName ?? "an exercise"} is no longer in the draft. Review manually.` };
+      if (!exercise) return { draft, applied: false, error: `Repair could not be applied - ${action.exerciseName ?? "an exercise"} is no longer in the draft. Review manually.` };
       if (action.type === "remove_set" && exercise.sets <= setFloor(exercise)) {
-        return { draft, applied: false, error: "Repair could not be applied — sets are already at the minimum. Review manually." };
+        return { draft, applied: false, error: "Repair could not be applied - sets are already at the minimum. Review manually." };
       }
       if (action.type === "replace_exercise" && action.alternativeId && (session.exercises ?? []).some((candidate) => candidate.libraryId === action.alternativeId)) {
-        return { draft, applied: false, error: "Repair could not be applied — the alternative is already in the session. Review manually." };
+        return { draft, applied: false, error: "Repair could not be applied - the alternative is already in the session. Review manually." };
       }
     }
     applyActionToSession(work, action);

@@ -1,5 +1,5 @@
 /**
- * Food Nutrition Foundation V1 — runtime access to the canonical food catalogue.
+ * Food Nutrition Foundation V1 - runtime access to the canonical food catalogue.
  *
  * The ONLY authoritative source of food calories/macronutrients in this app is
  * the versioned catalogue at app/data/food-catalogue-v1.json (built from
@@ -69,7 +69,7 @@ function validateCatalogue(raw: unknown): asserts raw is RawCatalogue & { foods:
     for (const key of ["kcal", "proteinG", "carbohydrateG", "fatG"] as const) {
       assertNonNegativeNumber(item.nutritionPer100g[key], `${label}.${key}`);
     }
-    // Sanity ceiling per 100 g — catches corrupted rows early.
+    // Sanity ceiling per 100 g - catches corrupted rows early.
     if (item.nutritionPer100g.kcal > 1000) throw new Error(`${label}.kcal exceeds physical maximum of 1000 kcal/100 g`);
     for (const key of ["proteinG", "carbohydrateG", "fatG"] as const) {
       if (item.nutritionPer100g[key] > 100) throw new Error(`${label}.${key} exceeds 100 g/100 g`);
@@ -113,7 +113,7 @@ export function getFoodById(id: string): CatalogueFood | null {
 
 /**
  * Case-insensitive lookup by exact catalogue name or alias. Used by tests and
- * tooling — NOT by the AI pipeline (the AI must use explicit ids).
+ * tooling - NOT by the AI pipeline (the AI must use explicit ids).
  */
 export function findFoodByAlias(alias: string): CatalogueFood | null {
   return ALIAS_INDEX.get(alias.trim().toLowerCase()) ?? null;

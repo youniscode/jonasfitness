@@ -59,7 +59,7 @@ function sessionsOf(draft: Record<string, unknown>): Record<string, unknown>[] {
 function exercisesOf(session: Record<string, unknown>): Record<string, unknown>[] {
   return Array.isArray(session.exercises) ? session.exercises.map(record) : [];
 }
-function durationLabel(minutes: number | null | undefined) { return minutes ? `~${minutes} min` : "—"; }
+function durationLabel(minutes: number | null | undefined) { return minutes ? `~${minutes} min` : "-"; }
 
 export default function JonasCoach({ client, onReady }: { client: Client; onReady?: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -69,13 +69,13 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   // The targeted-adjustment lifecycle lives in ONE context so mode, previous
   // mode, instruction and base draft always move together. `avoid` (below) is
   // a separate, persistent coach constraint that the adjustment flow never
-  // reads or writes — so the two can never cross-contaminate.
+  // reads or writes - so the two can never cross-contaminate.
   //
   // JSX binding contract (keep it this way): the "Avoid exercises" textarea
   // (id="coach-avoid-input", name="avoidExercises") binds to `avoid`/`setAvoid`
   // ONLY; the adjustment textarea (id="coach-adjust-input") binds to
   // `adjustment.instruction` ONLY. The two are separate DOM nodes and separate
-  // state channels — never alias, copy or share values between them.
+  // state channels - never alias, copy or share values between them.
   const [adjustment, setAdjustment] = useState<AdjustmentContext>(INITIAL_ADJUSTMENT_CONTEXT);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState("");
@@ -87,7 +87,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [avoid, setAvoid] = useState("");
   // Multi-objective draft context: the primary objective (single select) plus
   // secondary objectives (chips), seeded from the client's onboarding profile.
-  // `goalSource` tracks whether the coach adjusted them for THIS draft — the
+  // `goalSource` tracks whether the coach adjusted them for THIS draft - the
   // onboarding profile is never mutated from Coach Controls; a fresh draft or
   // a client switch re-seeds from onboarding.
   const [goalPrimary, setGoalPrimary] = useState("");
@@ -96,11 +96,11 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   const [goalBaseline, setGoalBaseline] = useState<{ primary: string; secondary: string[] } | null>(null);
   // Secondary-objective editor: the default view shows only the selected
   // objectives as compact tags; editing opens the full canonical list as
-  // toggleable chips. Purely presentational — generation semantics unchanged.
+  // toggleable chips. Purely presentational - generation semantics unchanged.
   const [secondaryEdit, setSecondaryEdit] = useState(false);
   const seededGoalsRef = useRef(false);
   const [savedDraftId, setSavedDraftId] = useState<number | null>(null);
-  // Smart Draft Repair V1 — deterministic proposal + apply state.
+  // Smart Draft Repair V1 - deterministic proposal + apply state.
   const [repairing, setRepairing] = useState(false);
   const [repairError, setRepairError] = useState("");
   const [limitationReviewOpen, setLimitationReviewOpen] = useState(false);
@@ -115,7 +115,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   useEffect(() => {
     if (!loading) return;
     const timer = window.setTimeout(() => {
-      setLoadingMessage("Still generating — free AI providers can occasionally take longer.");
+      setLoadingMessage("Still generating - free AI providers can occasionally take longer.");
     }, 25000);
     return () => window.clearTimeout(timer);
   }, [loading]);
@@ -141,7 +141,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       // A new client starts fresh: back to the first-programme view so a
       // previous client's adjustment mode/instruction never leak across.
       setAdjustment(INITIAL_ADJUSTMENT_CONTEXT);
-      // A new client starts from the intended default duration — a manually
+      // A new client starts from the intended default duration - a manually
       // chosen value for a previous client must never leak across.
       setSessionDuration(sessionDurationForClientChange());
       setContextItems([]);
@@ -177,7 +177,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
   // Effective objectives: before the onboarding context loads the controls fall
   // back to the client's stored goal; once seeded they follow the onboarding
   // profile (or the coach's draft override). Secondary goals are bounded for
-  // the generation request — the UI keeps the full list.
+  // the generation request - the UI keeps the full list.
   const effectivePrimary = goalPrimary || client.goal || "Build muscle";
   const primaryOptions = [...new Set([...(PRIMARY_GOALS as readonly string[]), effectivePrimary])];
   const secondaryOptions = SECONDARY_GOAL_VALUES.filter((goal) => goal !== effectivePrimary);
@@ -190,7 +190,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     if (event) event.preventDefault();
     if (loading) return; // never start a second generation while one is in flight
     if (client.id < 1) { setError("Select a saved client first."); return; }
-    // A targeted adjustment needs a real instruction — never send an empty one
+    // A targeted adjustment needs a real instruction - never send an empty one
     // (the form's `required` guards the submit path; this also covers Retry).
     if (adjustment.mode === "adjust") {
       const instructionError = adjustmentInstructionError(adjustment.instruction);
@@ -202,7 +202,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     setLoading(true); setLoadingMessage("Building programme with Jonas Coach…"); setError(""); setSavedNotice(""); setSavedDraftId(null);
     const goal = effectivePrimary;
     // The exact same request context must be reproduced on Retry (generate
-    // with event === null) — mode, previousDraft, instruction, duration and
+    // with event === null) - mode, previousDraft, instruction, duration and
     // controls all come from live state, never from a changed payload.
     const body = coachRequestBody({
       clientId: client.id,
@@ -228,7 +228,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       // the retry actually happened (with the reason and a timestamp).
       if (event === null && (data as CoachPayload).generation?.source === "fallback") {
         const reason = (data as CoachPayload).generation?.fallbackReason ?? "unavailable";
-        setRetryNotice(`AI retry failed — ${reason} at ${new Date().toLocaleTimeString()}`);
+        setRetryNotice(`AI retry failed - ${reason} at ${new Date().toLocaleTimeString()}`);
       }
       // Persist the target duration: the coach's manual value always wins;
       // only an empty field adopts a default from the generation response.
@@ -260,7 +260,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
     setError("");
   }
 
-  // Smart Draft Repair — deterministic apply (no AI call). The plan is always
+  // Smart Draft Repair - deterministic apply (no AI call). The plan is always
   // recomputed server-side; the client only sends the current draft and the
   // explicit intent ("duration" or a canonical replacement). The response goes
   // through the same finalize pipeline, so quality is re-run on the repaired
@@ -284,16 +284,16 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
       };
       const response = await fetch("/api/coach-ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) { setRepairError(data.error ?? "Repair could not be applied — review manually."); return; }
+      if (!response.ok) { setRepairError(data.error ?? "Repair could not be applied - review manually."); return; }
       setPayload(data as CoachPayload);
       setSavedDraftId(null);
       setSavedNotice("");
     } catch (issue) {
-      setRepairError(issue instanceof Error ? issue.message : "Repair could not be applied — review manually.");
+      setRepairError(issue instanceof Error ? issue.message : "Repair could not be applied - review manually.");
     } finally { setRepairing(false); }
   }
 
-  // Save as a DRAFT first — the coach approves explicitly afterwards.
+  // Save as a DRAFT first - the coach approves explicitly afterwards.
   async function saveAsDraft() {
     if (!payload || client.id < 1) return;
     setSaving(true); setSavedNotice("");
@@ -316,7 +316,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
 
   return <section className="jonas-coach" id="coach-studio">
     <header className="jonas-coach-heading">
-      <div><p>JONAS COACH AI</p><h2>Coach with client context.</h2><span>Programme drafts are built from the client&apos;s onboarding, history and limitations — never published until you approve.</span></div>
+      <div><p>JONAS COACH AI</p><h2>Coach with client context.</h2><span>Programme drafts are built from the client&apos;s onboarding, history and limitations - never published until you approve.</span></div>
       <span className="jonas-coach-mode">{adjustment.mode === "first" ? "FIRST PROGRAMME" : adjustment.mode === "adapt" ? "ADAPT CURRENT" : "TARGETED ADJUSTMENT"}</span>
     </header>
 
@@ -325,11 +325,11 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
         <article className="jonas-context">
           <div className="jonas-context-head"><div><p>JONAS COACH CONTEXT</p><h3>What I know about {client.name}</h3></div><span className={contextComplete ? "context-quality complete" : "context-quality"}>{contextComplete ? "COMPLETE" : "MISSING"}</span></div>
           {contextItems.length === 0 ? <p className="jonas-context-loading">Loading client context…</p> : <div className="jonas-context-list">{contextItems.map((item) => <div className={`jonas-context-item ${item.complete ? "done" : ""} ${!item.required ? "optional" : ""}`} key={item.id}><i>{item.complete ? "✓" : "○"}</i><span><b>{item.label}</b><small>{item.detail}</small></span>{!item.required && <em>OPTIONAL</em>}</div>)}</div>}
-          <p className="jonas-context-hint">AI sees only coaching context — never email, phone, acquisition or billing data.</p>
+          <p className="jonas-context-hint">AI sees only coaching context - never email, phone, acquisition or billing data.</p>
         </article>
 
         <article className="jonas-controls">
-          <div className="jonas-controls-head"><p>COACH CONTROLS</p><span>AUTO — defaults come from onboarding</span></div>
+          <div className="jonas-controls-head"><p>COACH CONTROLS</p><span>AUTO - defaults come from onboarding</span></div>
           <form className="jonas-controls-form" onSubmit={generate}>
             <label>Mode<select value={adjustment.mode} onChange={(event) => setAdjustment(modeSelectionContext(event.target.value as CoachMode))}><option value="first">Generate first programme</option><option value="adapt">Adapt current programme</option><option value="adjust">Targeted adjustment</option></select></label>
             <div className="jonas-goal-block">
@@ -364,9 +364,9 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
               <label>Sessions / week<input type="number" min="1" max="7" value={sessionsOverride || client.sessionsPerWeek} onChange={(event) => setSessionsOverride(event.target.value)} /></label>
               <label>Target duration (min)<input type="number" min="30" max="120" step="5" value={sessionDuration} onChange={(event) => setSessionDuration(event.target.value)} /></label>
             </div>
-            <label>Equipment<select value={equipmentPreset} onChange={(event) => setEquipmentPreset(event.target.value)}><option value="auto">Auto — from onboarding</option><option value="Full commercial gym">Full commercial gym</option><option value="Dumbbells">Dumbbells + bench</option><option value="Home">Home / basic equipment</option><option value="Bodyweight">Bodyweight</option><option value="custom">Custom…</option></select></label>
+            <label>Equipment<select value={equipmentPreset} onChange={(event) => setEquipmentPreset(event.target.value)}><option value="auto">Auto - from onboarding</option><option value="Full commercial gym">Full commercial gym</option><option value="Dumbbells">Dumbbells + bench</option><option value="Home">Home / basic equipment</option><option value="Bodyweight">Bodyweight</option><option value="custom">Custom…</option></select></label>
             {equipmentPreset === "custom" && <label>Custom equipment<input value={equipmentCustom} onChange={(event) => setEquipmentCustom(event.target.value)} placeholder="e.g. squat rack + dumbbells" /></label>}
-            <label>Avoid exercises<textarea id="coach-avoid-input" name="avoidExercises" value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional — e.g. barbell squats, cable machines, deadlifts…" /></label>
+            <label>Avoid exercises<textarea id="coach-avoid-input" name="avoidExercises" value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="Optional - e.g. barbell squats, cable machines, deadlifts…" /></label>
             {adjustment.mode === "adjust" && <div className="jonas-adjust-row"><label className="jonas-adjust-label">What would you like Jonas Coach to change?<textarea id="coach-adjust-input" value={adjustment.instruction} onChange={(event) => setAdjustment(withAdjustmentInstruction(adjustment, event.target.value))} placeholder="e.g. shorten sessions to 30 min, replace Romanian deadlift on Day C, reduce volume…" required /></label><button type="button" className="ghost-button" onClick={() => { setAdjustment(cancelAdjustmentContext(adjustment)); setError(""); }}>Cancel</button></div>}
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="generate" disabled={loading}>{loading ? loadingMessage : adjustment.mode === "first" ? "Generate first programme" : adjustment.mode === "adapt" ? "Adapt current programme" : "Adjust programme"}<span>✦</span></button>
@@ -379,7 +379,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           <div className="jonas-recommendation-head"><div><p>JONAS COACH RECOMMENDS</p><h3>{payload.design.recommendedSplit}</h3><span>{payload.design.sessionsPerWeek} sessions/week · {durationLabel(payload.design.estimatedSessionDurationMinutes)} per session</span></div>{errors.length === 0 && <div className="jonas-validity"><b className="draft-valid">✓ VALID DRAFT</b>{payload.quality && <b className={payload.quality.state === "ready" ? "quality-ready" : "quality-review"}>{payload.quality.state === "ready" ? "READY FOR COACH REVIEW" : "REVIEW RECOMMENDED"}</b>}</div>}</div>
           {payload.equipmentNote && <div className="jonas-equipment-note" role="note">⚠ {payload.equipmentNote}</div>}
           {payload.design.rationale.map((point, index) => <p key={point}><i>{index + 1}</i><span>{point}</span></p>)}
-          {payload.design.objectives && <div className="jonas-objectives"><strong>PROGRAMME OBJECTIVES</strong><p><b>Primary:</b> {payload.design.objectives.primary}</p>{payload.design.objectives.supports.length > 0 && <p><b>Supports:</b> {payload.design.objectives.supports.join(", ")}</p>}<small>Secondary objectives are supporting context — the primary objective stays the programme priority.</small></div>}
+          {payload.design.objectives && <div className="jonas-objectives"><strong>PROGRAMME OBJECTIVES</strong><p><b>Primary:</b> {payload.design.objectives.primary}</p>{payload.design.objectives.supports.length > 0 && <p><b>Supports:</b> {payload.design.objectives.supports.join(", ")}</p>}<small>Secondary objectives are supporting context - the primary objective stays the programme priority.</small></div>}
           {payload.design.constraints.length > 0 && <div className="jonas-constraints"><strong>Constraints</strong>{payload.design.constraints.map((constraint) => <p key={constraint}>⚠ {constraint}</p>)}</div>}
         </div>
 
@@ -392,27 +392,27 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
           <div className="jonas-duration">
             <div><small>EXPECTED DURATION</small><strong>{durationLabel(payload.estimatedMinutes)}</strong>{payload.duration.targetMinutes ? <span>Client target: {payload.duration.targetMinutes} min</span> : <span>No client target set</span>}</div>
             {payload.duration.targetMinutes && payload.duration.state === "match" && <em className="duration-ok">✓ Fits the {payload.duration.targetMinutes}-minute target.</em>}
-            {payload.duration.targetMinutes && payload.duration.state === "under" && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} — about {Math.abs(payload.duration.differenceMinutes)} min under your {payload.duration.targetMinutes}-minute target.</em>}
-            {payload.duration.targetMinutes && payload.duration.state === "over" && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} — about {payload.duration.differenceMinutes} min over target.</em>}
-            {!payload.duration.targetMinutes && <em className="duration-ok">✓ No client target set — duration is advisory.</em>}
+            {payload.duration.targetMinutes && payload.duration.state === "under" && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} - about {Math.abs(payload.duration.differenceMinutes)} min under your {payload.duration.targetMinutes}-minute target.</em>}
+            {payload.duration.targetMinutes && payload.duration.state === "over" && <em className="duration-warning">⚠ {durationLabel(payload.estimatedMinutes)} - about {payload.duration.differenceMinutes} min over target.</em>}
+            {!payload.duration.targetMinutes && <em className="duration-ok">✓ No client target set - duration is advisory.</em>}
           </div>
 
           {payload.quality && <div className="jonas-quality">
             <div className="jonas-quality-head"><p>PROGRAMME QUALITY</p><b className={payload.quality.state === "ready" ? "quality-ready" : "quality-review"}>{payload.quality.state === "ready" ? "READY FOR COACH REVIEW" : "REVIEW RECOMMENDED"}</b></div>
             <ul>{payload.quality.checks.map((check) => <li key={check.key}><i>{check.ok ? "✓" : "⚠"}</i><span><b>{check.label}</b><small>{check.ok ? (check.message ?? "Passed") : (check.message ?? "Review recommended")}</small></span></li>)}</ul>
-            <p className="jonas-quality-note">Technical validity and coaching quality are separate — schema validation is authoritative, these are coach-review signals. Not a medical assessment.</p>
+            <p className="jonas-quality-note">Technical validity and coaching quality are separate - schema validation is authoritative, these are coach-review signals. Not a medical assessment.</p>
           </div>}
 
           {payload.repair && payload.repair.status !== "NO_REPAIR_NEEDED" && <div className="jonas-repair">
             <div className="jonas-repair-head"><p>SMART DRAFT REPAIR</p><b className={payload.repair.status === "REPAIR_AVAILABLE" ? "quality-ready" : "quality-review"}>{payload.repair.status === "REPAIR_AVAILABLE" ? "REPAIR AVAILABLE" : "COACH REVIEW RECOMMENDED"}</b></div>
-            <p className="jonas-repair-note">Deterministic repair suggestions — nothing changes until you apply them. No second AI call, never a medical claim.</p>
+            <p className="jonas-repair-note">Deterministic repair suggestions - nothing changes until you apply them. No second AI call, never a medical claim.</p>
             {payload.repair.durationRepair && payload.repair.durationRepair.direction !== "none" && <div className="jonas-repair-block">
               <strong>DURATION</strong>
               <p>Current: {durationLabel(payload.repair.durationRepair.currentMinutes)} · Target: {payload.repair.durationRepair.targetMinutes} min</p>
               <p className="jonas-repair-summary">{payload.repair.durationRepair.summary}</p>
               {payload.repair.durationRepair.actions.length > 0 && <>
                 <ul className="jonas-repair-actions">{payload.repair.durationRepair.actions.map((action, index) => <li key={`${action.type}-${action.sessionIndex}-${action.exerciseName}-${index}`}>
-                  <span>{action.type === "add_set" ? "+1 set" : action.type === "remove_set" ? "−1 set" : action.type === "add_exercise" ? "Add exercise" : action.type === "remove_exercise" ? "Remove exercise" : action.type === "replace_exercise" ? "Replace" : "Rest"} — {action.exerciseName}{action.type === "add_set" ? ` (${action.beforeValue} → ${action.afterValue} sets)` : ""}{action.type === "replace_exercise" ? ` with ${action.alternativeName}` : ""}{action.estimatedDeltaMinutes != null ? ` · ${action.estimatedDeltaMinutes >= 0 ? "+" : ""}${action.estimatedDeltaMinutes} min` : ""}</span>
+                  <span>{action.type === "add_set" ? "+1 set" : action.type === "remove_set" ? "−1 set" : action.type === "add_exercise" ? "Add exercise" : action.type === "remove_exercise" ? "Remove exercise" : action.type === "replace_exercise" ? "Replace" : "Rest"} - {action.exerciseName}{action.type === "add_set" ? ` (${action.beforeValue} → ${action.afterValue} sets)` : ""}{action.type === "replace_exercise" ? ` with ${action.alternativeName}` : ""}{action.estimatedDeltaMinutes != null ? ` · ${action.estimatedDeltaMinutes >= 0 ? "+" : ""}${action.estimatedDeltaMinutes} min` : ""}</span>
                   <small>{action.reason}</small>
                 </li>)}</ul>
                 <p className="jonas-repair-estimate">Estimated after: {durationLabel(payload.repair.durationRepair.estimatedAfterMinutes)}</p>
@@ -421,7 +421,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             </div>}
             {payload.repair.limitationReview && payload.repair.limitationReview.length > 0 && <div className="jonas-repair-block">
               <div className="jonas-repair-limitation-head">
-                <div><strong>LIMITATION REVIEW</strong><p>{payload.repair.limitationReview.map((group) => group.label).join(" · ")} — {payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0)} exercise{payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0) === 1 ? "" : "s"} involve the reported area{payload.repair.limitationReview.every((group) => group.reviewed) ? " (coach reviewed)" : ""}.</p></div>
+                <div><strong>LIMITATION REVIEW</strong><p>{payload.repair.limitationReview.map((group) => group.label).join(" · ")} - {payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0)} exercise{payload.repair.limitationReview.reduce((total, group) => total + group.items.length, 0) === 1 ? "" : "s"} involve the reported area{payload.repair.limitationReview.every((group) => group.reviewed) ? " (coach reviewed)" : ""}.</p></div>
                 <button type="button" className="ghost-button jonas-repair-review-toggle" aria-expanded={limitationReviewOpen} onClick={() => setLimitationReviewOpen((open) => !open)}>{limitationReviewOpen ? "Close review" : "Review exercises"}</button>
               </div>
               {limitationReviewOpen && <ul className="jonas-repair-limitation-list">{payload.repair.limitationReview.map((group) => group.items.map((item) => <li key={`${group.area}-${item.exerciseId}-${item.sessionIndex}`}>
@@ -456,7 +456,7 @@ export default function JonasCoach({ client, onReady }: { client: Client; onRead
             <button type="button" className="ghost-button" onClick={() => { setAdjustment(openAdjustmentContext(adjustment.mode, payload?.draft ?? null)); setError(""); window.requestAnimationFrame(() => document.querySelector("#coach-adjust-input")?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Ask Jonas Coach to adjust</button>
           </div>
           {savedNotice && <p className="programme-notice">✓ {savedNotice}</p>}
-          {savedDraftId !== null && <p className="jonas-saved-note">Draft saved — approve it in the Programme Builder below to publish to the client portal.</p>}
+          {savedDraftId !== null && <p className="jonas-saved-note">Draft saved - approve it in the Programme Builder below to publish to the client portal.</p>}
           <small className="jonas-coach-footnote">AI never publishes a programme. {hasApproved ? "Review, then approve in the Programme Builder." : "This client has no approved programme yet."} Health-related notes always stay coach-reviewed.</small>
         </>}
       </div>}

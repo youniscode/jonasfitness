@@ -10,7 +10,7 @@
  * Fail-closed contract:
  *  - Production paywall: PROGRESS_PAYWALL_ENABLED must be explicitly set to
  *    "true" (or an explicit "false" during a deliberate pre-launch hold). A
- *    missing/invalid value THROWS — production never silently defaults to
+ *    missing/invalid value THROWS - production never silently defaults to
  *    "paywall off", because that would hand out free paid access.
  *  - Dev/test paywall: defaults OFF so existing Phase 1 accounts and local
  *    test flows keep working.
@@ -39,7 +39,7 @@ export class ConfigValidationError extends Error {
   }
 }
 
-// ——— STRIPE_SECRET_KEY ———————————————————————————————
+// --- STRIPE_SECRET_KEY -------------------------------
 
 /**
  * Validates STRIPE_SECRET_KEY: non-empty, a SECRET key (sk_*), never a
@@ -73,7 +73,7 @@ export function validateStripeWebhookSecret(value: string | undefined): string {
   return trimmed;
 }
 
-// ——— STRIPE_PROGRESS_FOUNDING_PRICE_ID ————————————————
+// --- STRIPE_PROGRESS_FOUNDING_PRICE_ID ----------------
 // Always server-controlled: only ever read from the server environment, never
 // from the client. Production requires it (fails clearly before checkout).
 
@@ -86,7 +86,7 @@ export function validateFoundingPriceId(value: string | undefined, env: RuntimeE
   return trimmed;
 }
 
-// ——— STRIPE_PAYMENT_MODE ——————————————————————————————
+// --- STRIPE_PAYMENT_MODE ------------------------------
 
 export function resolvePaymentMode(value: string | undefined, env: RuntimeEnv): "managed" | "standard" {
   const raw = (value ?? "").trim().toLowerCase();
@@ -104,7 +104,7 @@ export function resolvePaymentMode(value: string | undefined, env: RuntimeEnv): 
   throw new ConfigValidationError(`STRIPE_PAYMENT_MODE must be "managed" or "standard" (got "${raw}").`);
 }
 
-// ——— PROGRESS_PAYWALL_ENABLED ——————————————————————————
+// --- PROGRESS_PAYWALL_ENABLED --------------------------
 
 /**
  * Fail-closed resolution of the paywall flag.
@@ -127,7 +127,7 @@ export function resolvePaywallEnabled(value: string | undefined, env: RuntimeEnv
   return false; // dev/test default OFF
 }
 
-// ——— PROGRESS_DEV_TEST_BYPASS —————————————————————————
+// --- PROGRESS_DEV_TEST_BYPASS -------------------------
 // Survives only in development/test. In production it ALWAYS resolves to false,
 // so an accidentally-set "true" can never bypass Founding Access via the coach
 // allowlist.
@@ -136,7 +136,7 @@ export function resolveDevTestBypassEnabled(value: string | undefined, env: Runt
   return !isProduction(env) && (value ?? "").trim() === "true";
 }
 
-// ——— NEXT_PUBLIC_APP_URL / APP_URL —————————————————————
+// --- NEXT_PUBLIC_APP_URL / APP_URL ---------------------
 // A valid absolute http(s) origin. Production requires https. Returns the
 // normalized ORIGIN (protocol + host) so redirect URLs are never derived from
 // arbitrary request hosts.

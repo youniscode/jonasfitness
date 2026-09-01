@@ -1,5 +1,5 @@
 /**
- * Training Load + Recovery Intelligence V1 — deterministic, coach-facing
+ * Training Load + Recovery Intelligence V1 - deterministic, coach-facing
  * analytics derived entirely from already-owned training history.
  *
  * This module is PURE: no DB access, no network, no Date.now(), no randomness.
@@ -7,14 +7,14 @@
  * so every threshold is unit-testable with Node's built-in runner and the same
  * inputs always produce the same report.
  *
- * It answers "how much volume, where, and is anything worth reviewing?" — and
+ * It answers "how much volume, where, and is anything worth reviewing?" - and
  * nothing more. It is NOT a medical recovery system: it never diagnoses
  * overtraining, injury or readiness conditions, never changes a programme, and
  * never suggests a deload or an automatic volume reduction. All load/volume
  * conclusions stay advisory and coach-reviewed.
  *
  * Muscle attribution is read from canonical Exercise Intelligence
- * (primaryMuscles / secondaryMuscles) only — no second hardcoded mapping lives
+ * (primaryMuscles / secondaryMuscles) only - no second hardcoded mapping lives
  * here. Custom/legacy exercises without intelligence are counted as "unmapped"
  * rather than guessed.
  *
@@ -205,7 +205,7 @@ function between(ms: number | null, start: number, end: number): boolean {
   return ms !== null && ms >= start && ms < end;
 }
 
-// Missing RIR is missing data — never interpreted as RIR 0.
+// Missing RIR is missing data - never interpreted as RIR 0.
 function rirValue(value: string): number | null {
   const trimmed = (value ?? "").trim();
   if (trimmed === "") return null;
@@ -293,7 +293,7 @@ function adherenceFor(attendance: AttendanceSession[], start: number, end: numbe
 
 // A scheduled session is "future pending" only while its start time is still
 // ahead of now; once the start time has passed it becomes "past unresolved"
-// (attendance not yet confirmed — never silently counted as missed).
+// (attendance not yet confirmed - never silently counted as missed).
 function scheduledBreakdown(attendance: AttendanceSession[], nowMs: number, trendStart: number) {
   let futurePending = 0;
   let pastUnresolved = 0;
@@ -590,7 +590,7 @@ export function buildTrainingLoadReport(context: TrainingLoadContext): TrainingL
     if (count >= REPEATED_DISCOMFORT_COUNT) {
       exerciseDiscomfort.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "attention", exerciseId, title: `${name} discomfort reported repeatedly`, explanation: `${name} received discomfort feedback ${count} times across the last ${TREND_WINDOW_DAYS} days.` });
     } else {
-      exerciseDiscomfort.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "info", exerciseId, title: `${name} discomfort reported once`, explanation: `${name} received a single discomfort report — monitor at the next session.` });
+      exerciseDiscomfort.push({ id: `repeated_discomfort:${exerciseId}`, type: "repeated_discomfort", severity: "info", exerciseId, title: `${name} discomfort reported once`, explanation: `${name} received a single discomfort report - monitor at the next session.` });
     }
   }
 

@@ -254,7 +254,7 @@ test("Adaptive Coach can surface the new dumbbell pullover and chin-up as canoni
 
 // ---------- Beginner fallback safety ----------
 
-test("beginner fallback stays conservative — the new Tier 3 lifts never become defaults", () => {
+test("beginner fallback stays conservative - the new Tier 3 lifts never become defaults", () => {
   const draft = buildFallbackDraft("Build muscle", 3, "Full commercial gym", "beginner");
   const ids = draft.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.libraryId));
   assert.ok(!ids.includes("builtin-ab-wheel-rollout"), "no Tier 3 ab-wheel rollout for a beginner");

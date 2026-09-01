@@ -40,12 +40,12 @@ function rowToBodyMeasurement(row: typeof clientBodyMeasurements.$inferSelect): 
 
 // Coach-only, owner-scoped body-composition ledger API (Nutrition Foundations
 // V1 / Phase 1B). Every read/write is scoped by BOTH ownerId (from the
-// authenticated coach — never from the browser) and clientId. ownerId is never
+// authenticated coach - never from the browser) and clientId. ownerId is never
 // returned to the browser: GET answers with public measurement rows plus a
 // deterministic trend computed by the pure domain module.
 //
 // POST inserts a measurement and, when it contains a weight, synchronizes
-// clients.currentWeight — a denormalized latest-weight cache — to the
+// clients.currentWeight - a denormalized latest-weight cache - to the
 // chronologically latest weight-bearing measurement IN THE SAME TRANSACTION.
 // A backdated entry therefore never corrupts the roster's current weight.
 
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 
   // Insert + currentWeight sync commit atomically. The sync only runs when the
   // inserted measurement carries a weight, and it always resolves to the
-  // chronologically latest weight-bearing row — never blindly to the new row.
+  // chronologically latest weight-bearing row - never blindly to the new row.
   const hasWeight = typeof input.weightKg === "number";
   const outcome = await db.transaction(async (tx) => {
     const [row] = await tx.insert(clientBodyMeasurements).values({

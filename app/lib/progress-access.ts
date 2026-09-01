@@ -1,7 +1,7 @@
 /**
  * Centralized server-side access guard for the paid Jonas Fitness Progress
  * product. THE single place paywall enforcement lives, used by BOTH the
- * /progress UI and every /api/progress route — a user can never bypass payment
+ * /progress UI and every /api/progress route - a user can never bypass payment
  * by calling an API endpoint directly, and paywall logic is never scattered.
  *
  * Resolution order:
@@ -10,11 +10,11 @@
  *      any signed-in user may access their own log (existing Phase 1 accounts
  *      keep working; no data is deleted).
  *   3. If the paywall is ENABLED, the user needs an active `progress_founding`
- *      entitlement — OR an explicit internal bypass (see below).
+ *      entitlement - OR an explicit internal bypass (see below).
  *
  * Internal testing bypass: because NO weak admin bypass is acceptable, the only
  * sanctioned dev exemption is the existing robust coach allowlist
- * (COACH_EMAILS) — already used for the /dashboard admin area. It is gated on
+ * (COACH_EMAILS) - already used for the /dashboard admin area. It is gated on
  * the same verified-coach check and NEVER user-controlled. (No random
  * "PROGRESS_BYPASS=1" toggle.)
  *

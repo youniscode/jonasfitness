@@ -41,7 +41,7 @@ export function isAllowedCoachEmail(
 
 /**
  * Machine-readable reason for a coach-auth decision. Used for server-side
- * diagnostics only — never surfaced to browser responses.
+ * diagnostics only - never surfaced to browser responses.
  */
 export type CoachAuthReason =
   | "no_session"

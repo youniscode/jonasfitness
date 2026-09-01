@@ -12,7 +12,7 @@ import {
 } from "../../../lib/session-scheduling";
 import { formatParisShort } from "../../../lib/paris-time";
 
-// PATCH /api/sessions/[id] — the coach's attendance + reschedule endpoint.
+// PATCH /api/sessions/[id] - the coach's attendance + reschedule endpoint.
 //   - status: scheduled → completed / cancelled / no_show (attendance is always
 //     an explicit coach action, never inferred from time passing); cancelled
 //     may be reactivated back to scheduled

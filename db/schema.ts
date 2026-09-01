@@ -11,8 +11,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-// —————————————————————————————————————————————————————————————————
-// Phase 2 — Jonas Fitness Progress commercial layer (Founding Access).
+// -----------------------------------------------------------------
+// Phase 2 - Jonas Fitness Progress commercial layer (Founding Access).
 //
 // Three minimal, provider-faithful tables power the paid product: an
 // authoritative order ledger (one row per purchase attempt, keyed by the
@@ -21,7 +21,7 @@ import {
 // via a partial unique index, `revoked_at` superseding rather than deleting),
 // and an append-only webhook idempotency trail (one row per consumed provider
 // event id). Ownership is the ATHLETE'S OWN Clerk user id (`owner_id`),
-// resolved server-side only — never from the browser. Monetary amounts are
+// resolved server-side only - never from the browser. Monetary amounts are
 // stored as integer minor units (cents) to avoid floating-point drift; the
 // provider (Stripe) remains authoritative for amounts, tax and compliance.
 
@@ -203,7 +203,7 @@ export const sessions = pgTable("sessions", {
 // Auditable session-credit ledger. The current balance is derived from
 // SUM(delta) rather than a cached counter, so every credit added, consumed or
 // restored is a permanent row. One charge per session is enforced by the
-// partial unique index on (related_session_id, reason) — a double-click or
+// partial unique index on (related_session_id, reason) - a double-click or
 // retry can never debit a session twice.
 export const sessionCreditLedger = pgTable("session_credit_ledger", {
   id: serial("id").primaryKey(),
@@ -243,13 +243,13 @@ export const progressEntries = pgTable("progress_entries", {
 }, (table) => [index("progress_entries_client_owner_idx").on(table.clientId, table.ownerId, table.createdAt)]);
 
 // Canonical append-only ledger for measured body-composition data. One row per
-// measurement event — history is never collapsed or overwritten. The table holds
+// measurement event - history is never collapsed or overwritten. The table holds
 // measured body data ONLY: demographic/profile fields (age, sex, onboarding
 // snapshot) deliberately stay in `client_intakes.profile`, and
 // `clients.currentWeight` remains the denormalized latest-weight cache used by
 // existing roster UI. Values are nullable because a measurement rarely captures
 // every metric; conservative range validation lives in the domain layer
-// (app/lib/body-measurements.ts), never here — raw measurements are stored as
+// (app/lib/body-measurements.ts), never here - raw measurements are stored as
 // entered, not clamped. No uniqueness constraint on (client, measuredAt):
 // multiple legitimate measurements may exist historically.
 export const clientBodyMeasurements = pgTable("client_body_measurements", {
@@ -292,7 +292,7 @@ export const clientIntakes = pgTable("client_intakes", {
   // (trainingExperience, availability, equipment, goalsDetail,
   // trainingConsiderations) are derived from this profile on every client save,
   // so existing consumers keep working unchanged. `profile` is client-reported
-  // coaching context only — never a medical record.
+  // coaching context only - never a medical record.
   profile: text("profile").notNull().default("{}"),
   readinessReviewedAt: timestamp("readiness_reviewed_at", { withTimezone: true }),
   coachNotes: text("coach_notes").notNull().default(""),
@@ -347,12 +347,12 @@ export const coachNotifications = pgTable("coach_notifications", {
 
 // This is an operational contact history, not a copy of private conversations.
 // It records what was prepared/opened/sent so follow-ups are not duplicated.
-// Exercise Intelligence V2 — coach decision learning. Aggregate-only preference
+// Exercise Intelligence V2 - coach decision learning. Aggregate-only preference
 // memory: explicit coach preferences plus deterministic learned counters derived
 // from coach actions (replace/remove/add/approve). Owner-scoped and
 // client-scoped; canonical exercise ids are validated at the API layer (built-in
 // catalogue ids or stable custom-<n> ids). These are PREFERENCES, never medical
-// restrictions — the coach remains the final authority and one action never
+// restrictions - the coach remains the final authority and one action never
 // bans an exercise. `client_exercise_events` is a tiny dedupe ledger so a
 // retried operation (same operationKey) can never inflate a count.
 export const clientExercisePreferences = pgTable("client_exercise_preferences", {
@@ -404,17 +404,17 @@ export const clientExerciseEvents = pgTable("client_exercise_events", {
   uniqueIndex("client_exercise_events_owner_key_unique").on(table.ownerId, table.operationKey),
 ]);
 
-// Exercise Intelligence V2.1 — structured client exercise feedback. Append-only
+// Exercise Intelligence V2.1 - structured client exercise feedback. Append-only
 // history (never collapsed into one mutable row) so a client's experience across
 // sessions stays visible: liked today, too hard last week, confident later.
 // Feedback is a coaching signal, kept strictly separate from coach preference
 // (client_exercise_preferences) and from health/limitation/pain information
-// (the session Pulse flags). "Uncomfortable" is coaching feedback only — never
+// (the session Pulse flags). "Uncomfortable" is coaching feedback only - never
 // a diagnosis, never an automatic exclusion. Each dimension is optional so a
 // client may send a single signal (e.g. just sentiment). `operationKey` makes a
 // retried submission idempotent; the unique (owner, client, operationKey) guard
 // means the same UI action can never create a duplicate row. The coach remains
-// the final authority — feedback never writes the preference tables.
+// the final authority - feedback never writes the preference tables.
 export const clientExerciseFeedback = pgTable("client_exercise_feedback", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),
@@ -458,7 +458,7 @@ export const communicationLogs = pgTable("communication_logs", {
   index("communication_logs_related_idx").on(table.ownerId, table.relatedKey),
 ]);
 
-// Nutrition Foundations V1 / Phase 2D — coach-approved nutrition targets.
+// Nutrition Foundations V1 / Phase 2D - coach-approved nutrition targets.
 //
 // This is a coach DECISION layer, deliberately separate from the deterministic
 // engine estimate (app/lib/nutrition-engine.ts). A row is the numeric targets a
@@ -469,7 +469,7 @@ export const communicationLogs = pgTable("communication_logs", {
 // estimate that informed the approval so a future review can explain "these
 // targets were based on TDEE X at Y kg", and so the UI can flag when the current
 // estimate has since drifted. No demographic duplication (age/sex/height) is
-// stored — that stays in client_intakes.profile; only the engine OUTPUT
+// stored - that stays in client_intakes.profile; only the engine OUTPUT
 // provenance needed for audit + drift detection is snapshotted. The partial
 // unique index enforces at most ONE active (status='approved') row per
 // owner+client at the database level.
@@ -512,12 +512,12 @@ export const nutritionTargets = pgTable("nutrition_targets", {
     .where(sql`${table.status} = 'approved'`),
 ]);
 
-// Meal Builder V2 Phase 2B — persisted meal plans with immutable versions.
+// Meal Builder V2 Phase 2B - persisted meal plans with immutable versions.
 //
 // A meal plan is a logical container per (owner, client). Its content lives in
 // append-only versions: one mutable draft at a time, frozen approved snapshots
 // forever. Nothing becomes client-visible through these tables until a coach
-// BOTH approves a version AND creates an active assignment — AI generation,
+// BOTH approves a version AND creates an active assignment - AI generation,
 // optimizer runs and draft saves never publish anything on their own.
 //
 // Snapshots are deliberately denormalized JSON: an approved version must stay
@@ -558,7 +558,7 @@ export const mealPlanVersions = pgTable("meal_plan_versions", {
   index("meal_plan_versions_plan_status_idx").on(table.mealPlanId, table.status),
 ]);
 
-// —————————————————————————————————————————————————————————————————
+// -----------------------------------------------------------------
 // Self-service "Jonas Fitness Progress" training log domain.
 //
 // Deliberately separate from the coach-owned domain. Every self-service
@@ -636,7 +636,7 @@ export const trainingWorkoutSessions = pgTable("training_workout_sessions", {
 // Current + historical client assignments. History rows are never deleted;
 // assigning a new version deactivates the previous active row inside one
 // transaction. The partial unique index guarantees at most ONE active
-// assignment per client across ALL plans — the database itself rejects a
+// assignment per client across ALL plans - the database itself rejects a
 // double-assign race even if service logic were bypassed.
 export const mealPlanAssignments = pgTable("meal_plan_assignments", {
   id: serial("id").primaryKey(),
@@ -656,8 +656,8 @@ export const mealPlanAssignments = pgTable("meal_plan_assignments", {
     .where(sql`${table.active} = true`),
 ]);
 
-// —————————————————————————————————————————————————————————————————
-// Phase 2 — Jonas Fitness Progress commercial layer (Founding Access).
+// -----------------------------------------------------------------
+// Phase 2 - Jonas Fitness Progress commercial layer (Founding Access).
 //
 // Three minimal, provider-faithful tables drive the paid validation loop:
 //  - A commerce order ledger keyed by the Stripe session id, recording every
@@ -668,7 +668,7 @@ export const mealPlanAssignments = pgTable("meal_plan_assignments", {
 //  - An append-only webhook idempotency trail so a replayed Stripe event can
 //    never double-grant.
 // Ownership is always the ATHLETE'S OWN Clerk user id, resolved server-side
-// only — never from the browser. The provider (Stripe) remains authoritative
+// only - never from the browser. The provider (Stripe) remains authoritative
 // for amounts, currency and tax treatment.
 
 // One commerce order per purchase attempt. `provider_checkout_id` is the unique
@@ -679,7 +679,7 @@ export const commerceOrders = pgTable("commerce_orders", {
   ownerId: text("owner_id").notNull(),
   productKey: text("product_key").notNull(),
   provider: text("provider").notNull().default("stripe"),
-  // Unique Stripe Checkout Session id — idempotency anchor + audit.
+  // Unique Stripe Checkout Session id - idempotency anchor + audit.
   providerCheckoutId: text("provider_checkout_id").notNull(),
   // Stripe PaymentIntent / Payment id once known (null until paid).
   providerPaymentId: text("provider_payment_id"),
@@ -702,7 +702,7 @@ export const commerceOrders = pgTable("commerce_orders", {
 // is impossible even if service logic is bypassed. `source` records how the
 // entitlement arrived (stripe_checkout | manual_test | grant). A grant is
 // superseded by setting `revoked_at` / flipping status to "revoked" rather than
-// deleting — the commerce order that sourced it stays intact for audit.
+// deleting - the commerce order that sourced it stays intact for audit.
 export const productEntitlements = pgTable("product_entitlements", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),
@@ -718,7 +718,7 @@ export const productEntitlements = pgTable("product_entitlements", {
   // UNIQUENESS is enforced ONLY by the partial index below: at most one ACTIVE
   // entitlement per (owner, product). A revoked/superseded row must not block a
   // later legitimate re-grant, so there is deliberately NO broad unique on
-  // (owner, product) — "refund → revoked → later purchase again → active".
+  // (owner, product) - "refund → revoked → later purchase again → active".
   uniqueIndex("product_entitlements_owner_product_active_unique")
     .on(table.ownerId, table.productKey)
     .where(sql`${table.status} = 'active'`),
@@ -727,7 +727,7 @@ export const productEntitlements = pgTable("product_entitlements", {
 // Idempotency trail for consumed provider webhook events.
 // `provider_event_id` is unique so a Stripe retry (Stripe retries signatures a
 // few times on transient failures) or a manual re-delivery is processed once.
-// Full payloads are NOT stored — only the id, type and outcome.
+// Full payloads are NOT stored - only the id, type and outcome.
 export const paymentWebhookEvents = pgTable("payment_webhook_events", {
   id: serial("id").primaryKey(),
   provider: text("provider").notNull().default("stripe"),

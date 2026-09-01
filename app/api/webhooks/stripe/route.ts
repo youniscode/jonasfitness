@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 // Stripe routes webhooks to this endpoint. Signature is verified against the
 // RAW body using STRIPE_WEBHOOK_SECRET. Access is NEVER granted from the
-// success_url or any client state — only from these authoritative webhook
+// success_url or any client state - only from these authoritative webhook
 // events. Processing is idempotent end-to-end (provider event id + unique
 // constraints + the refund/fulfillment guards), so Stripe retries are harmless.
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   // Read the RAW body as text for signature verification (do NOT JSON.parse it
-  // beforehand — Stripe signs the exact bytes).
+  // beforehand - Stripe signs the exact bytes).
   const rawBody = await request.text();
 
   let event;

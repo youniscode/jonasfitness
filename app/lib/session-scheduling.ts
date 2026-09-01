@@ -9,7 +9,7 @@ const sessionStatusSet = new Set<string>(sessionStatuses);
 export const isSessionStatus = (value: unknown): value is SessionStatus => sessionStatusSet.has(String(value));
 
 // Canonical attendance lifecycle: a session is born "scheduled"; the coach
-// explicitly records completed / cancelled / no-show — attendance is never
+// explicitly records completed / cancelled / no-show - attendance is never
 // inferred from time passing. Completed and no-show are terminal (a new
 // appointment is a fresh booking); cancelled may be reactivated (rebooked in
 // place) when the coach reschedules it.
@@ -42,7 +42,7 @@ export function attendancePending(
 // A shared coach-availability slot check used by BOTH PT sessions and
 // consultations, so a scheduled PT session and an active consultation can
 // never double-book the coach. Back-to-back slots (one ends exactly when the
-// other starts) do not conflict. Only rows passed in are considered — routes
+// other starts) do not conflict. Only rows passed in are considered - routes
 // hand over only ACTIVE (scheduled) rows, so cancelled/completed/no-show
 // history never blocks a slot. Pure: works on any { id, startAt,
 // durationMinutes } shape.
@@ -121,7 +121,7 @@ export function planSessionCharge(
   return { delta: creditDeltaForStatus(to), reason, relatedSessionId: sessionId };
 }
 
-// Current balance from a ledger — the sum of every delta. Never a cached
+// Current balance from a ledger - the sum of every delta. Never a cached
 // counter, so it is always auditable and can never drift from history.
 export function ledgerBalance(entries: { delta: number }[]): number {
   return entries.reduce((total, entry) => total + entry.delta, 0);

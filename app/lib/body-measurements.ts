@@ -3,7 +3,7 @@
  *
  * Deterministic, owner-scoped domain module for the historical
  * `client_body_measurements` ledger. This module is PURE: no DB access, no
- * network, no Date.now(), no randomness — it consumes already-fetched rows (or
+ * network, no Date.now(), no randomness - it consumes already-fetched rows (or
  * plain inputs) and returns typed results, so every bound and derivation is
  * unit-testable with Node's built-in runner and identical inputs always produce
  * identical outputs.
@@ -19,12 +19,12 @@
  *    is explicitly ESTIMATED and never overwrites a measured value. No
  *    calorie/macro/BMR/TDEE logic lives here (that is a later phase).
  *  - DB access is deliberately absent. Any future API layer MUST scope every
- *    read/write by ownerId + clientId (see `isMeasurementOwnedBy`) — never by
+ *    read/write by ownerId + clientId (see `isMeasurementOwnedBy`) - never by
  *    id alone.
  */
 
 // ---------- Canonical source vocabulary ----------
-// Small fixed set — arbitrary strings are never accepted. Wearable sources
+// Small fixed set - arbitrary strings are never accepted. Wearable sources
 // (Strava / Garmin / Apple Health) are explicitly future work.
 export const MEASUREMENT_SOURCES = ["coach", "client", "progress_import"] as const;
 export type MeasurementSource = (typeof MEASUREMENT_SOURCES)[number];
@@ -85,7 +85,7 @@ export type BodyMeasurementInput = BodyMeasurementValues & {
  * Minimal structural row shape the chronological/trend helpers need. Both full
  * DB rows (`BodyMeasurement`) and the coach-facing public DTO satisfy it, so
  * trend logic runs identically on server rows and on browser-safe payloads
- * (which deliberately carry no ownerId/clientId — see `publicBodyMeasurement`).
+ * (which deliberately carry no ownerId/clientId - see `publicBodyMeasurement`).
  */
 export type MeasurementRow = { id: number; measuredAt: string } & BodyMeasurementValues;
 
@@ -112,7 +112,7 @@ export type MeasurementDelta = {
 export type MeasurementDeltas = Record<MeasuredField, MeasurementDelta>;
 
 /**
- * A resolved per-field value with its provenance — which measurement row and
+ * A resolved per-field value with its provenance - which measurement row and
  * date it came from. The UI can show the value plus the source date when fields
  * originate from different rows.
  */
@@ -176,7 +176,7 @@ function isMissing(value: number | null | undefined): boolean {
 /**
  * Validates a measurement input against conservative physical bounds. Numbers
  * are never clamped: an invalid value is rejected with a structured error. A
- * row is only valid when at least one real measured value is present — notes
+ * row is only valid when at least one real measured value is present - notes
  * alone never count as a measurement. On success the returned value is a
  * normalized copy (notes trimmed, source defaulted to "coach").
  */
@@ -207,7 +207,7 @@ export function validateBodyMeasurement(input: BodyMeasurementInput): Measuremen
   }
 
   if (presentCount === 0) {
-    errors.push({ field: "measurements", message: "At least one body measurement is required — notes alone do not count." });
+    errors.push({ field: "measurements", message: "At least one body measurement is required - notes alone do not count." });
   }
 
   let source: MeasurementSource = DEFAULT_MEASUREMENT_SOURCE;
@@ -236,7 +236,7 @@ export function validateBodyMeasurement(input: BodyMeasurementInput): Measuremen
 /**
  * leanMassKg = weightKg × (1 − bodyFatPercent / 100), rounded to 1 decimal.
  * Returns null when either input is missing, non-finite or out of bounds.
- * Always flagged `estimated: true` — this is a deterministic estimate, never a
+ * Always flagged `estimated: true` - this is a deterministic estimate, never a
  * measurement. Body-fat % is NEVER derived from BMI or visual assumptions.
  */
 export function estimateLeanMassKg(
@@ -340,7 +340,7 @@ export type MeasurementOwner = Pick<BodyMeasurement, "id" | "clientId" | "ownerI
 
 /**
  * Pure owner-scope predicate (mirrors `isClientOwnedBy`). Every DB read/write
- * of a measurement row MUST be scoped by ownerId + clientId — never by id
+ * of a measurement row MUST be scoped by ownerId + clientId - never by id
  * alone. This predicate is the reusable guard for the future API layer.
  */
 export function isMeasurementOwnedBy(
@@ -383,7 +383,7 @@ export function resolveLatestBodyComposition(
 /**
  * Per-field delta: compares the latest known value for each field against the
  * previous known value for THAT SAME field. A waist-only entry between two
- * weight entries does not break the weight delta — it simply contributes to
+ * weight entries does not break the weight delta - it simply contributes to
  * the waist delta independently.
  *
  * Uses the same sorted-chronological walk as resolveLatestBodyComposition,
@@ -426,7 +426,7 @@ export function perFieldDeltasForHistory(
  * the reusable sync source: when the future API inserts a measurement
  * containing weightKg, it should read `latestWeightKg` from the client's rows
  * and update `clients.currentWeight` in the same transaction. This module
- * never writes — it only reports the value to sync. No second independent
+ * never writes - it only reports the value to sync. No second independent
  * "latest weight" authority exists.
  */
 export function latestWeightKg(measurements: readonly MeasurementRow[]): number | null {
@@ -483,7 +483,7 @@ export function publicBodyMeasurement(row: BodyMeasurement): PublicBodyMeasureme
  * Safe measurement-date parsing. Accepts a date-only "YYYY-MM-DD" (normalized
  * to UTC noon so a calendar-date choice can never shift a day across timezones)
  * or a full ISO timestamp. Absent values default to "now". Malformed dates and
- * clearly-future dates are rejected — never silently clamped.
+ * clearly-future dates are rejected - never silently clamped.
  */
 export function parseMeasurementDate(value: unknown, now: string): MeasurementDateResult {
   const raw = typeof value === "string" ? value.trim() : "";
@@ -507,9 +507,9 @@ export function parseMeasurementDate(value: unknown, now: string): MeasurementDa
 
 /**
  * Coerces a raw form/JSON value into a measurement number. Empty strings, null
- * and undefined become null (missing — an optional field left blank). Anything
+ * and undefined become null (missing - an optional field left blank). Anything
  * else becomes Number(value); unparseable non-empty input yields NaN which
- * `validateBodyMeasurement` rejects explicitly — invalid numbers are never
+ * `validateBodyMeasurement` rejects explicitly - invalid numbers are never
  * silently dropped or clamped.
  */
 export function measurementNumberFrom(value: unknown): number | null {
@@ -563,7 +563,7 @@ export function measurementInputFrom(
  * The value to synchronize `clients.currentWeight` to after a measurement
  * insert: the chronologically latest measurement that CONTAINS a weight,
  * among all of the owner/client's rows. A backdated entry can therefore never
- * overwrite a newer weight — ordering is the same deterministic
+ * overwrite a newer weight - ordering is the same deterministic
  * measuredAt-then-id rule as everywhere else in this module.
  */
 export function latestWeightForSync(measurements: readonly MeasurementRow[]): number | null {
@@ -666,7 +666,7 @@ export function validatePatchBodyMeasurement(
   }
 
   if (presentCount === 0) {
-    errors.push({ field: "measurements", message: "At least one body measurement is required — notes alone do not count." });
+    errors.push({ field: "measurements", message: "At least one body measurement is required - notes alone do not count." });
   }
 
   if (errors.length > 0) return { ok: false, errors };

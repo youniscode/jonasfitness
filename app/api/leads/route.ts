@@ -64,7 +64,7 @@ export async function GET(request: Request) {
   const db = getDb();
 
   // Base filter: view (active vs archived) + optional source + search. Search
-  // matches name/email/phone with literal (escaped) substrings — no wildcard or
+  // matches name/email/phone with literal (escaped) substrings - no wildcard or
   // SQL injection surface.
   const conditions = [inArray(leads.status, viewStatuses(query.view))];
   if (query.source) conditions.push(eq(leads.acquisitionSource, query.source));
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
 
   // Ordering: a reapplication (reappliedAt) surfaces by its new application
   // date; everything else by original createdAt. History is never reordered
-  // away — the coalesce only promotes the reopened cycle.
+  // away - the coalesce only promotes the reopened cycle.
   const [rows, totalRows] = await Promise.all([
     db.select(leadColumns).from(leads).where(where)
       .orderBy(desc(sql`COALESCE(${leads.reappliedAt}, ${leads.createdAt})`), desc(leads.id))

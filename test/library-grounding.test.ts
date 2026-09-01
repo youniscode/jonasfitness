@@ -8,7 +8,7 @@ import { rehydrateDraft, validateDraft, type ProgrammeDraft } from "../app/lib/a
 // naming a real exercise exactly (production case: "builtin-barbell-back-
 // squat" for "Barbell back squat", whose canonical id is "builtin-back-squat").
 // canonicalBuiltInFor must resolve the canonical id ONLY on an exact normalized
-// unique name match — no fuzzy/substring/semantic matching — and validation
+// unique name match - no fuzzy/substring/semantic matching - and validation
 // must stay authoritative for everything else.
 
 function draftWith(exercises: Array<{ libraryId: string; name: string }>): ProgrammeDraft {
@@ -22,7 +22,7 @@ function draftWith(exercises: Array<{ libraryId: string; name: string }>): Progr
 }
 
 // Canonicalize each exercise the way the route does, then run the unchanged
-// validation pipeline — this mirrors the production code path.
+// validation pipeline - this mirrors the production code path.
 function canonicalizeAndValidate(exercises: Array<{ libraryId: string; name: string }>) {
   const canonical = draftWith(exercises.map((e) => {
     const resolved = canonicalBuiltInFor(e.libraryId, e.name);
@@ -65,7 +65,7 @@ test("CASE C: invented id + unknown name is NOT canonicalized and still rejected
   assert.match(validation.errors.map((e) => e.message).join(" "), /unknown library exercise/i);
 });
 
-test("invented id + fuzzy name is rejected — no fuzzy matching", () => {
+test("invented id + fuzzy name is rejected - no fuzzy matching", () => {
   // "Barbell backsquat" is NOT the canonical name "Barbell back squat".
   assert.equal(canonicalBuiltInFor("builtin-barbell-back-squat", "Barbell backsquat"), null);
   const { validation } = canonicalizeAndValidate([

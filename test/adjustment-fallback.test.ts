@@ -78,7 +78,7 @@ test("interpretAdjustmentInstruction recognizes the real 30-minute request", () 
   assert.equal(intent.targetExerciseCount, 4);
   assert.deepEqual(intent.replacements, [{ from: "pull-up", to: "Lat pulldown" }]);
   // "remove lower-priority isolation/core work first" is not an exact exercise
-  // name present in the draft — it must NOT be treated as a removal.
+  // name present in the draft - it must NOT be treated as a removal.
   assert.deepEqual(intent.removals, []);
 });
 
@@ -151,7 +151,7 @@ test("unknown replacement target is never guessed", () => {
   assert.ok(dayC.exercises.some((exercise) => exercise.name === "Pull-up"), "unknown destination leaves the source untouched");
 });
 
-test("no fuzzy matching — misspelled exercise names are not resolved", () => {
+test("no fuzzy matching - misspelled exercise names are not resolved", () => {
   const result = buildAdjustmentFallback(mohamedDraft(), { targetDuration: 30, instruction: "Replace pullup with lat pulldown" });
   const dayC = result.draft.sessions[2];
   assert.ok(dayC.exercises.some((exercise) => exercise.name === "Pull-up"), "\"pullup\" must not fuzzy-match \"Pull-up\"");
@@ -197,7 +197,7 @@ test("fallback draft stays fully library-grounded (no invented ids)", () => {
 
 // ---------- Contextual replacement (Pull-up → Lat pulldown) ----------
 
-// A ~30-min draft already inside the target band — the coach's production
+// A ~30-min draft already inside the target band - the coach's production
 // starting point for the reported bug.
 function productionThirtyMinuteDraft(): ProgrammeDraft {
   const exercise = (libraryId: string, name: string) => ({

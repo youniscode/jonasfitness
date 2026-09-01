@@ -1,5 +1,5 @@
 /**
- * Exercise Intelligence V2.1 — structured client exercise feedback.
+ * Exercise Intelligence V2.1 - structured client exercise feedback.
  *
  * Pure deterministic tests for the feedback model, aggregation/recency, scoring
  * integration, coach-vs-client conflict policy, explanations, the quality
@@ -172,7 +172,7 @@ test("discomfort is a review signal but never an exclusion", () => {
   assert.ok(impact.delta < 0);
 });
 
-test("too_easy does not lower suitability — it is a progression note", () => {
+test("too_easy does not lower suitability - it is a progression note", () => {
   const p = profile([row("builtin-leg-press", { difficulty: "too_easy" }, "2026-08-18T10:00:00.000Z")])!;
   const impact = clientFeedbackImpact(p);
   assert.equal(impact.delta, 0);
@@ -180,7 +180,7 @@ test("too_easy does not lower suitability — it is a progression note", () => {
   assert.equal(impact.reviewRecommended, false);
 });
 
-test("liked raises the score; disliked lowers it — neither excludes", () => {
+test("liked raises the score; disliked lowers it - neither excludes", () => {
   const liked = clientFeedbackImpact(profile([row("builtin-lat-pulldown", { sentiment: "liked" })])!);
   const disliked = clientFeedbackImpact(profile([row("builtin-pull-up", { sentiment: "disliked" })])!);
   assert.ok(liked.delta > 0);
@@ -288,7 +288,7 @@ test("feedbackFitWarnings surfaces a coach-vs-client conflict", () => {
 
 test("compactFeedbackSummary is PII-free and never includes raw comments", () => {
   const rows = [
-    row("builtin-lat-pulldown", { sentiment: "liked", confidence: "confident", comment: "my shoulder hurt here — private note" }),
+    row("builtin-lat-pulldown", { sentiment: "liked", confidence: "confident", comment: "my shoulder hurt here - private note" }),
     row("builtin-overhead-press", { comfort: "uncomfortable" }),
     row("builtin-leg-press", { difficulty: "too_easy" }),
   ];
@@ -309,8 +309,8 @@ test("compactFeedbackSummary is empty when there is no feedback", () => {
 
 test("progressionFeedbackNote is advisory and specific", () => {
   assert.equal(progressionFeedbackNote(profile([row("builtin-leg-press", { difficulty: "too_easy" })])!), "Client reported this exercise felt too easy.");
-  assert.equal(progressionFeedbackNote(profile([row("builtin-assisted-pull-up", { difficulty: "too_hard" })])!), "Client reported this exercise felt too hard — consider scaling before progressing.");
-  assert.equal(progressionFeedbackNote(profile([row("builtin-bulgarian-split-squat", { confidence: "not_confident" })])!), "Client reported low confidence — do not progress complexity yet.");
+  assert.equal(progressionFeedbackNote(profile([row("builtin-assisted-pull-up", { difficulty: "too_hard" })])!), "Client reported this exercise felt too hard - consider scaling before progressing.");
+  assert.equal(progressionFeedbackNote(profile([row("builtin-bulgarian-split-squat", { confidence: "not_confident" })])!), "Client reported low confidence - do not progress complexity yet.");
   assert.equal(progressionFeedbackNote(profile([row("builtin-lat-pulldown", { sentiment: "liked" })])!), null);
 });
 

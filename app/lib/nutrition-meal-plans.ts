@@ -1,5 +1,5 @@
 /**
- * Meal Builder V2 Phase 2B — meal-plan domain types, snapshot schemas and
+ * Meal Builder V2 Phase 2B - meal-plan domain types, snapshot schemas and
  * validators. Pure and dependency-light so every function is unit-testable.
  *
  * Persistence model (see db/schema.ts):
@@ -10,7 +10,7 @@
  * A version is a SELF-CONTAINED historical record: it embeds the display food
  * names, the deterministic per-food/meal/day nutrition and the approved target
  * that were current at write time, so later catalogue/formula/target changes
- * never rewrite history. Nothing here trusts browser-computed numbers — the
+ * never rewrite history. Nothing here trusts browser-computed numbers - the
  * server recomputes before persisting (see nutrition-meal-plan-server.ts).
  */
 
@@ -82,7 +82,7 @@ function isValidQuantity(q: unknown): q is number {
 }
 
 /**
- * Validates raw browser payload into DraftMealInput[] — STRUCTURE ONLY. No
+ * Validates raw browser payload into DraftMealInput[] - STRUCTURE ONLY. No
  * nutrition, no targets, no restriction decisions are accepted from the
  * browser; those are recomputed server-side at snapshot time.
  */
@@ -199,7 +199,7 @@ export type SnapshotContext = {
 /**
  * Builds the immutable snapshot content for a draft/approval from validated
  * structural input. Every nutrition number is recomputed here from the CIQUAL
- * catalogue — nothing numeric is accepted from the caller. Unknown food ids and
+ * catalogue - nothing numeric is accepted from the caller. Unknown food ids and
  * foods violating CURRENT restrictions hard-fail, so a stale unsafe draft can
  * never be silently persisted or approved (restriction changes re-fail save).
  */

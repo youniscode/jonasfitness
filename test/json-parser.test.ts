@@ -121,10 +121,10 @@ test("jsonExtractionCandidates still exposes pure, fenced and braced candidates"
 test("jsonCandidateSet never emits an embedded candidate for multiple objects", () => {
   const set = jsonCandidateSet('{"a":1} then {"b":2}');
   assert.equal(set.failure, "multiple_ambiguous");
-  assert.equal(set.candidates.length, 1); // only the raw text — no per-object guesses
+  assert.equal(set.candidates.length, 1); // only the raw text - no per-object guesses
 });
 
-test("jsonParseDiagnostics reports stage and counts only — never content", () => {
+test("jsonParseDiagnostics reports stage and counts only - never content", () => {
   const ok = jsonParseDiagnostics('{"a":1}');
   assert.equal(ok.result, "ok");
   assert.equal(ok.stage, "parsed_direct");

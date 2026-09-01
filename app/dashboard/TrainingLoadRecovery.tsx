@@ -33,11 +33,11 @@ function trendMark(trend: VolumeTrend): string {
   if (trend === "increasing") return "↗";
   if (trend === "decreasing") return "↘";
   if (trend === "stable") return "→";
-  return "—";
+  return "-";
 }
 
 function deltaText(deltaPercent: number | null, trend: VolumeTrend): string {
-  if (deltaPercent === null) return trend === "insufficient_data" ? "no baseline" : "—";
+  if (deltaPercent === null) return trend === "insufficient_data" ? "no baseline" : "-";
   return `${deltaPercent > 0 ? "+" : ""}${deltaPercent}%`;
 }
 
@@ -81,7 +81,7 @@ export default function TrainingLoadRecovery({ client }: { client: Client }) {
 
   return <section className="training-load" id="training-load">
     <header className="training-load-head">
-      <div><p>TRAINING LOAD &amp; RECOVERY</p><h2>How much work is the client doing?</h2><span>Deterministic volume, RIR, adherence and recovery signals from completed training. Advisory only — nothing changes automatically.</span></div>
+      <div><p>TRAINING LOAD &amp; RECOVERY</p><h2>How much work is the client doing?</h2><span>Deterministic volume, RIR, adherence and recovery signals from completed training. Advisory only - nothing changes automatically.</span></div>
       <button type="button" className="refresh-button" onClick={() => void load()}>{loading ? "Analysing…" : "Refresh"}</button>
     </header>
     {error && <p className="adaptive-error" role="alert">{error}</p>}
@@ -93,8 +93,8 @@ export default function TrainingLoadRecovery({ client }: { client: Client }) {
       <div className="training-load-summary">
         <article><small>Last {report.period.currentDays} days</small><strong>{report.completedWorkouts}</strong><span>workout{report.completedWorkouts === 1 ? "" : "s"} completed</span></article>
         <article><small>Working sets</small><strong>{report.totalWorkingSets}</strong><span>{trendMark(report.volumeTrend)} vs previous week</span></article>
-        <article><small>Adherence</small><strong>{report.adherencePercent !== null ? `${Math.round(report.adherencePercent)}%` : "—"}</strong><span>{report.completedSessions} completed · {report.missedSessions} missed</span></article>
-        <article><small>Average RIR</small><strong>{report.rir.averageRir !== null ? report.rir.averageRir : "—"}</strong><span>{report.rir.lowRirPercent !== null ? `${Math.round(report.rir.lowRirPercent)}% at RIR 0–1` : "no RIR recorded"}</span></article>
+        <article><small>Adherence</small><strong>{report.adherencePercent !== null ? `${Math.round(report.adherencePercent)}%` : "-"}</strong><span>{report.completedSessions} completed · {report.missedSessions} missed</span></article>
+        <article><small>Average RIR</small><strong>{report.rir.averageRir !== null ? report.rir.averageRir : "-"}</strong><span>{report.rir.lowRirPercent !== null ? `${Math.round(report.rir.lowRirPercent)}% at RIR 0–1` : "no RIR recorded"}</span></article>
       </div>
 
       {report.completedWorkouts === 1 && report.totalWorkingSets > 0 && <p className="training-load-note">{report.totalWorkingSets} working sets · RIR recorded on {report.rir.sampleCount} set{report.rir.sampleCount === 1 ? "" : "s"}. Not enough history for week-over-week trends.</p>}
@@ -131,7 +131,7 @@ export default function TrainingLoadRecovery({ client }: { client: Client }) {
           <div className="training-load-detail-grid">
             <div>
               <h4>RIR DISTRIBUTION</h4>
-              <p>{report.rir.sampleCount} recorded set{report.rir.sampleCount === 1 ? "" : "s"} · median {report.rir.medianRir ?? "—"}</p>
+              <p>{report.rir.sampleCount} recorded set{report.rir.sampleCount === 1 ? "" : "s"} · median {report.rir.medianRir ?? "-"}</p>
               <p>RIR 0: {report.rir.rir0} · RIR 1: {report.rir.rir1} · RIR 2: {report.rir.rir2} · RIR 3+: {report.rir.rir3Plus}</p>
             </div>
             <div>
@@ -152,6 +152,6 @@ export default function TrainingLoadRecovery({ client }: { client: Client }) {
         </div>}
       </div>
     </>}
-    <footer className="training-load-foot">Training load is derived analytics for coach review — it never changes a client programme, publishes anything, or makes a medical assessment.</footer>
+    <footer className="training-load-foot">Training load is derived analytics for coach review - it never changes a client programme, publishes anything, or makes a medical assessment.</footer>
   </section>;
 }

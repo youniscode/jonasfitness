@@ -15,7 +15,7 @@ import { decideApprove, type PlanRow, type VersionRow } from "../../../../../../
 //
 // Approval FREEZES a version permanently. Before freezing, the stored draft is
 // re-validated against the client's CURRENT restrictions and CURRENT approved
-// target and both snapshots are rebuilt fresh (spec §28) — approval never
+// target and both snapshots are rebuilt fresh (spec §28) - approval never
 // persists stale numbers when the target changed after the last save.
 
 async function loadPlanAndVersion(planId: number, versionId: number) {

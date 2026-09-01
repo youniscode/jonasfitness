@@ -129,7 +129,7 @@ test("POST denies adding measurements for another coach's client and writes noth
   assert.equal(store.clients[0].currentWeight, 80, "foreign client's weight must stay untouched");
 });
 
-test("ownerId supplied in the request body is ignored — the authenticated coach wins", () => {
+test("ownerId supplied in the request body is ignored - the authenticated coach wins", () => {
   const store = makeStore();
   const result = simulatePost(store, { ...weightBody(), ownerId: "coach-b", clientId: 7 }, "coach-a", NOW);
   expect201(result);
@@ -146,7 +146,7 @@ test("valid measurement insert returns 201 and syncs currentWeight to the new la
   assert.equal(store.measurements.length, 1);
 });
 
-test("backdated weight never corrupts currentWeight — 84kg in July must not overwrite 80kg in August", () => {
+test("backdated weight never corrupts currentWeight - 84kg in July must not overwrite 80kg in August", () => {
   const store = makeStore();
   const august = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
   assert.equal(august.currentWeight, 80);
@@ -198,7 +198,7 @@ test("derived lean mass is never persisted automatically", () => {
   assert.equal(result.measurement.leanMassKg, null);
 });
 
-test("missing values remain missing — never converted to zero", () => {
+test("missing values remain missing - never converted to zero", () => {
   const store = makeStore();
   expect201(simulatePost(store, weightBody(), "coach-a", NOW));
   const get = expectOk(simulateGet(store, 7, "coach-a"));
@@ -233,7 +233,7 @@ test("absent measurement date defaults to now", () => {
 
 test("full ISO timestamps pass through and today's date within tolerance is accepted", () => {
   assert.deepEqual(parseMeasurementDate("2026-08-20T08:30:00.000Z", NOW), { ok: true, measuredAt: "2026-08-20T08:30:00.000Z" });
-  // "Today" picked from a west-of-UTC timezone can be a few hours ahead of the server clock — allowed.
+  // "Today" picked from a west-of-UTC timezone can be a few hours ahead of the server clock - allowed.
   assert.equal(parseMeasurementDate("2026-08-21T22:00:00.000Z", NOW).ok, true);
   // Clearly-future (beyond the 24h tolerance) is rejected.
   assert.equal(parseMeasurementDate("2026-08-25T00:00:00.000Z", NOW).ok, false);
@@ -298,7 +298,7 @@ test("publicBodyMeasurement strips ownerId, clientId and createdAt", () => {
   assert.equal(dto.source, "coach");
 });
 
-test("the GET payload — including the trend — never leaks ownerId or clientId", () => {
+test("the GET payload - including the trend - never leaks ownerId or clientId", () => {
   const store = makeStore();
   simulatePost(store, weightBody({ weightKg: 80, bodyFatPercent: 20 }), "coach-a", NOW);
   simulatePost(store, { clientId: 7, measuredAt: "2026-08-15", weightKg: 79, bodyFatPercent: 19 }, "coach-a", NOW);
@@ -419,7 +419,7 @@ test("PATCH preserves all other historical rows untouched", () => {
   assert.equal(firstRow?.weightKg, 84, "first row weight preserved");
 });
 
-test("PATCH with ownerId in body is ignored — authenticated coach wins", () => {
+test("PATCH with ownerId in body is ignored - authenticated coach wins", () => {
   const store = makeStore();
   const post = expect201(simulatePost(store, { clientId: 7, measuredAt: "2026-08-20", weightKg: 80 }, "coach-a", NOW));
   const patched = simulatePatch(store, { clientId: 7, measurementId: post.measurement.id, measuredAt: "2026-08-20", weightKg: 79, ownerId: "coach-b" }, "coach-a", NOW);

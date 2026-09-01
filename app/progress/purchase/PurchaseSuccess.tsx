@@ -20,7 +20,7 @@ const copy = {
     body: "Ton accès fondateur à Jonas Fitness Progress est actif. Tu peux créer ta première routine et ouvrir ton carnet d’entraînement.",
     cta: "Créer ma première routine",
     activate: "Activation de ton accès…",
-    activateBody: "Le paiement est confirmé. Nous appliquons l’activation — cela ne prend que quelques secondes.",
+    activateBody: "Le paiement est confirmé. Nous appliquons l’activation, cela ne prend que quelques secondes.",
     retry: "Réessayer",
     notYet: "Nous confirmons encore ton paiement…",
     notYetBody: "Ton accès n’est pas encore activé. Recharge la page ou réessaie dans un instant ; si cela persiste, contacte-nous.",
@@ -34,7 +34,7 @@ const copy = {
     body: "Your Founding Access to Jonas Fitness Progress is active. Create your first routine and open your training log.",
     cta: "Create your first routine",
     activate: "Activating your access…",
-    activateBody: "Your payment is confirmed. We’re confirming your access — just a few seconds.",
+    activateBody: "Your payment is confirmed. We’re confirming your access; just a few seconds.",
     retry: "Check again",
     notYet: "We’re still confirming your payment…",
     notYetBody: "Your access hasn’t activated yet. Refresh or check again in a moment; if it persists, reach out to us.",
@@ -48,7 +48,7 @@ const copy = {
     body: "وصولك التأسيسي إلى Jonas Fitness Progress نشط. يمكنك إنشاء أول روتين لك وفتح سجلّك التدريبي.",
     cta: "أنشئ أول روتين لك",
     activate: "جارٍ تفعيل وصولك…",
-    activateBody: "تم تأكيد الدفع. نحن نُكمل التفعيل — يستغرق ذلك بضع ثوانٍ فقط.",
+    activateBody: "تم تأكيد الدفع. نحن نُكمل التفعيل؛ يستغرق ذلك بضع ثوانٍ فقط.",
     retry: "تحقق مجددًا",
     notYet: "ما زلنا نأكد دفعك…",
     notYetBody: "لم يتم تفعيل وصولك بعد. حدّث الصفحة أو حاول مجددًا بعد لحظة؛ وإذا استمر الأمر، تواصل معنا.",
@@ -78,7 +78,7 @@ export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitl
   // webhook can still be delivering, we poll for a bounded window (see the pure
   // module) then show a recoverable "still confirming" state. Once the Clerk
   // client loads, if the user is genuinely signed out we send them to sign-in
-  // (preserving their return) — but we never grant access client-side and never
+  // (preserving their return), but we never grant access client-side and never
   // bounce a signed-in-but-not-yet-entitled user to the founding offer.
   useEffect(() => {
     if (initiallyEntitled) return;
@@ -105,7 +105,7 @@ export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitl
         }
         entitled = Boolean(data.entitled);
       } catch {
-        /* transient — keep trying within the bounded window */
+        /* transient; keep trying within the bounded window */
       }
       if (cancelled) return;
       const next = nextActivationPhase({

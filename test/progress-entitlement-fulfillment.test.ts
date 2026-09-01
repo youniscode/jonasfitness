@@ -10,7 +10,7 @@ import { activeEntitlementConflictInfo } from "../app/lib/entitlement-constraint
 // This suite is the regression net for the fixes surfaced by the first REAL
 // sandbox Checkout:
 //   1. grantEntitlement's ON CONFLICT must target the partial unique index
-//      (owner_id, product_key) WHERE status='active' — not a 3-column target.
+//      (owner_id, product_key) WHERE status='active' - not a 3-column target.
 //   2. A Stripe fulfillment must link the entitlement to the LOCAL commerce
 //      order id (orderId != null for source=stripe_checkout).
 //   3. A failed webhook delivery must NOT poison the idempotency record, so a
@@ -103,11 +103,11 @@ async function fulfill(store: Store, session: { id: string; payment_status: stri
   }
   const order = markOrderPaid(store, session.id, session.payment_id);
   if (!order) return { outcome: "unknown_order", granted: false };
-  if (fault === "grant") throw new Error("simulated ON CONFLICT (grant insert is atomic — nothing granted)");
+  if (fault === "grant") throw new Error("simulated ON CONFLICT (grant insert is atomic - nothing granted)");
   if (fault === "after_paid") throw new Error("simulated failure after order paid");
   grantEntitlement(store, order.id, "stripe_checkout");
   recordValidationEvent(store, order.ownerId, session.id);
-  claimWebhookEvent(store, session.id); // success marker LAST — never poisons on retries
+  claimWebhookEvent(store, session.id); // success marker LAST - never poisons on retries
   return { outcome: "granted", granted: true };
 }
 
@@ -163,18 +163,18 @@ test("5 & 6. duplicate webhook does not duplicate the order or the entitlement",
   assert.equal(store.orders.filter((o) => o.status === "paid").length, 1, "exactly one paid order");
 });
 
-test("7. a FAILED webhook delivery can be retried successfully — marker is not poisoned", async () => {
+test("7. a FAILED webhook delivery can be retried successfully - marker is not poisoned", async () => {
   const store = makeStore();
   recordCheckoutOrder(store, "owner-erin", "cs_paid", FOUNDING_ACCESS_PRODUCT_KEY);
 
-  // Attempt 1 — fails AFTER the order is marked paid (the original ON CONFLICT bug).
+  // Attempt 1 - fails AFTER the order is marked paid (the original ON CONFLICT bug).
   await assert.rejects(() => fulfill(store, session(), "grant"));
   // No entitlement yet, and critically NO success marker was written.
   assert.equal(getActiveEntitlement(store, "owner-erin", FOUNDING_ACCESS_PRODUCT_KEY), null, "no entitlement after failed attempt");
   assert.equal(store.events.length, 0, "no idempotency marker before success (retry must not be blocked)");
   assert.equal(store.orders[0].status, "paid", "order already paid from first attempt");
 
-  // Attempt 2 — the Stripe retry of the SAME event now succeeds.
+  // Attempt 2 - the Stripe retry of the SAME event now succeeds.
   const res = await fulfill(store, session());
   assert.equal(res.granted, true, "retry grants");
   const e = getActiveEntitlement(store, "owner-erin", FOUNDING_ACCESS_PRODUCT_KEY)!;
@@ -182,7 +182,7 @@ test("7. a FAILED webhook delivery can be retried successfully — marker is not
   assert.equal(e.orderId, store.orders[0].id, "linked to the same local order");
   assert.equal(store.events.length, 1, "success marker written exactly once");
 
-  // Attempt 3 — third replay remains idempotent (still exactly one paid order/entitlement).
+  // Attempt 3 - third replay remains idempotent (still exactly one paid order/entitlement).
   assert.equal((await fulfill(store, session())).granted, true);
   assert.equal(store.orders.filter((o) => o.status === "paid").length, 1);
   assert.equal(store.entitlements.filter((x) => x.status === "active").length, 1);
@@ -195,7 +195,7 @@ test("8. Checkout success_url resolves to the implemented /progress/purchase rou
   assert.match(route, /\/progress\/founding/, "cancel_url returns to the Founding offer");
 });
 
-test("9. a success URL alone can never grant — a session with no local checkout order grants nothing", async () => {
+test("9. a success URL alone can never grant - a session with no local checkout order grants nothing", async () => {
   const store = makeStore();
   // Direct "success" hit with a session id that was never issued a checkout order.
   const res = await fulfill(store, session({ id: "cs_fake_success_url", payment_id: "pi_fake" }));

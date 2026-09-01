@@ -190,7 +190,7 @@ export async function GET() {
         return { clientId: client.id, clientName: client.name, kind: "onboarding_incomplete" as const, tone: "neutral" as const, eyebrow: "CLIENT ONBOARDING", detail: state.nextAction, action: "Complete onboarding" };
       }
       if (state.stage === "ready_for_programme") {
-        return { clientId: client.id, clientName: client.name, kind: "first_programme" as const, tone: "lime" as const, eyebrow: "FIRST PROGRAMME", detail: "Onboarding complete — assign the first programme", action: "Assign programme" };
+        return { clientId: client.id, clientName: client.name, kind: "first_programme" as const, tone: "lime" as const, eyebrow: "FIRST PROGRAMME", detail: "Onboarding complete - assign the first programme", action: "Assign programme" };
       }
       return null;
     })

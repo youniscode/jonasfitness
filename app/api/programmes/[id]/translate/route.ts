@@ -81,7 +81,7 @@ export async function POST(
     result = JSON.parse(response.text) as Translation;
   } catch (error) {
     failureReason = gatewayFailureReason(error);
-    console.error(`[programme-translate] gateway ${failureReason} — live translation unavailable`);
+    console.error(`[programme-translate] gateway ${failureReason} - live translation unavailable`);
     return Response.json({
       error: "Live translation is unavailable. Enable Vercel AI Gateway and keep the project on its free-credit tier, then try again.",
       gatewayReason: failureReason,

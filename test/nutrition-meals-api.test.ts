@@ -10,12 +10,12 @@ import { emptyProfile, nutritionGuidanceBlocked, type OnboardingProfile } from "
 import { type NutritionTargetRow } from "../app/lib/nutrition-targets.ts";
 import type { GatewayResult } from "../app/lib/local-ai.ts";
 
-// Food Nutrition Foundation V1 — API layer tests.
+// Food Nutrition Foundation V1 - API layer tests.
 // The route is a thin wire: auth, ownership, profile, safety gate, active
 // approved target, trusted context, runMealGeneration. Tests mirror that
 // sequence with an in-memory store and an INJECTED generator so gating,
 // trusted-data, repair orchestration, failure handling and DTO leaks are
-// verified deterministically — no live AI or network.
+// verified deterministically - no live AI or network.
 
 const NOW = "2026-08-21T10:00:00.000Z";
 

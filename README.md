@@ -45,16 +45,16 @@ npm run db:push
 
 ## Jonas Fitness Progress · Founding Access (payments)
 
-`/progress/founding` is the public, pre-auth offer for the paid Founding Access product. Checkout is Stripe-hosted and access is granted **only** by the Stripe webhook (`/api/webhooks/stripe`) after authentic payment confirmation — never by the success page or any client state.
+`/progress/founding` is the public, pre-auth offer for the paid Founding Access product. Checkout is Stripe-hosted and access is granted **only** by the Stripe webhook (`/api/webhooks/stripe`) after authentic payment confirmation - never by the success page or any client state.
 
 Configuration (server-only; see `.env.example`):
 
-- `STRIPE_SECRET_KEY` — a Stripe **SECRET** key (`sk_test_...` / `sk_live_...`). Publishable `pk_*` keys are rejected; test keys are rejected in production.
+- `STRIPE_SECRET_KEY` - a Stripe **SECRET** key (`sk_test_...` / `sk_live_...`). Publishable `pk_*` keys are rejected; test keys are rejected in production.
 - `STRIPE_WEBHOOK_SECRET`, `STRIPE_PROGRESS_FOUNDING_PRICE_ID` (a `price_...` id).
-- `STRIPE_PAYMENT_MODE=managed|standard` — explicit; production fails closed if missing/unknown.
-- `NEXT_PUBLIC_APP_URL` — absolute origin used for redirects; production requires https.
-- `PROGRESS_PAYWALL_ENABLED` — **fail-closed**: production requires an explicit `true`; there is no silent off default. Dev/test default off.
-- `PROGRESS_DEV_TEST_BYPASS` — honored only outside production.
+- `STRIPE_PAYMENT_MODE=managed|standard` - explicit; production fails closed if missing/unknown.
+- `NEXT_PUBLIC_APP_URL` - absolute origin used for redirects; production requires https.
+- `PROGRESS_PAYWALL_ENABLED` - **fail-closed**: production requires an explicit `true`; there is no silent off default. Dev/test default off.
+- `PROGRESS_DEV_TEST_BYPASS` - honored only outside production.
 
 ## PRE-LAUNCH BLOCKERS (payments)
 
@@ -65,7 +65,7 @@ Configuration (server-only; see `.env.example`):
 ## PRODUCTION LAUNCH GATE
 
 See [`docs/production-launch-gate.md`](docs/production-launch-gate.md) for the deterministic launch gate:
-- **read-only migration preflight** procedure (checks `drizzle.__drizzle_migrations`, `0013` training tables, `0014` commerce tables/indexes, `0015` index cleanup, and partial-application detection — no writes);
+- **read-only migration preflight** procedure (checks `drizzle.__drizzle_migrations`, `0013` training tables, `0014` commerce tables/indexes, `0015` index cleanup, and partial-application detection - no writes);
 - production environment checklist separated into safe identifiers vs secrets;
 - live-Stripe pre-launch checklist; and a deployment gate that blocks launch until all legal/identity, Stripe, Clerk, DB, env, and build data are green.
 

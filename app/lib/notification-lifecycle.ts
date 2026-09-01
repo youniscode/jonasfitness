@@ -56,7 +56,7 @@ function isStillActive(notification: ActiveNotificationRow, evidence: Resolution
     case "client_inactive":
       return id !== null && evidence.openInactiveClientIds.has(id);
     default:
-      // Unknown kind: do not auto-resolve (conservative — never lose data).
+      // Unknown kind: do not auto-resolve (conservative - never lose data).
       return true;
   }
 }

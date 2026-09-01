@@ -268,7 +268,7 @@ const rdlEverySession: RawSession[] = [
 
 test("RDL in all 3 sessions → cross-session redundancy warning", () => {
   const draft = rehydrateDraft(draftFixture(rdlEverySession, 3));
-  // Structurally valid and weekly coverage present — only the exact-exercise
+  // Structurally valid and weekly coverage present - only the exact-exercise
   // repetition should be flagged.
   assert.equal(validateDraft(draft, 3).ok, true);
   assert.ok(weeklyMovementAnalysis(draft).counts.posteriorChain > 0);
@@ -283,7 +283,7 @@ test("RDL 3/3 for a beginner → REVIEW RECOMMENDED, never schema invalidation",
   assert.equal(redundancy?.ok, false);
   assert.match(redundancy?.message ?? "", /Romanian deadlift/);
   assert.equal(report.state, "review");
-  // The draft itself is still valid — warning is advisory only.
+  // The draft itself is still valid - warning is advisory only.
   assert.equal(validateDraft(draft, 3).ok, true);
 });
 
@@ -309,7 +309,7 @@ test("accessory repetition (cable crunch 2/3, lateral raise 2/3) never warns", (
   assert.equal(warnings.length, 0, `accessory 2/3 must not warn: ${warnings.join(" | ")}`);
 });
 
-test("three different hinge exercises pass — pattern variety is not exact repetition", () => {
+test("three different hinge exercises pass - pattern variety is not exact repetition", () => {
   const variedHinges: RawSession[] = [
     { name: "Day A", focus: "f", exercises: [deadlift, bench, row] },
     { name: "Day B", focus: "f", exercises: [hipThrust, overheadPress, pulldown] },
@@ -332,13 +332,13 @@ test("production Tier-3-heavy beginner pattern is REVIEW RECOMMENDED (no longer 
     { name: "Full Body C", focus: "Full body", exercises: [splitSquat, deadlift, inclinePress, pulldown, crunch] },
   ], 3));
   assert.equal(validateDraft(production, 3).ok, true);
-  // Romanian deadlift appears 2/3 and cable crunch 2/3 — neither is a major
+  // Romanian deadlift appears 2/3 and cable crunch 2/3 - neither is a major
   // cross-session redundancy.
   assert.equal(crossSessionRedundancy(production, "beginner").length, 0);
   const report = analyseProgrammeQuality(production, { targetMinutes: null, equipment: "Full commercial gym", experience: "beginner" });
   assert.equal(report.checks.find((check) => check.key === "redundancy")?.ok, true);
   // The beginner-selection policy now flags the stacked Tier 3 free-weight
-  // lifts — advisory REVIEW RECOMMENDED, never a schema error.
+  // lifts - advisory REVIEW RECOMMENDED, never a schema error.
   assert.equal(report.checks.find((check) => check.key === "beginnerSuitability")?.ok, false);
   assert.equal(report.state, "review");
 });

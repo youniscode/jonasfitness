@@ -1,10 +1,10 @@
 /**
- * Exercise Intelligence V1 — structured coaching knowledge layer.
+ * Exercise Intelligence V1 - structured coaching knowledge layer.
  *
  * Every canonical built-in exercise carries deterministic structured metadata
  * (muscles, modality, laterality, demands, goal fit, coaching text) that the
  * matching engine, the quality engine, the Programme Builder UX and Jonas
- * Coach all read. It complements — never replaces — the existing
+ * Coach all read. It complements - never replaces - the existing
  * movement-pattern and beginner-tier engines in exercise-catalogue.ts.
  *
  * This is a coaching-support layer, NOT a medical engine: limitations only
@@ -111,7 +111,7 @@ export type ExerciseIntelligence = {
   goalTags: GoalTag[];
   sessionUse: SessionUse;
   coachingBenefits: string[];
-  /** Advisory only — e.g. "shoulder", "knee", "lower back". Never medical. */
+  /** Advisory only - e.g. "shoulder", "knee", "lower back". Never medical. */
   cautionTags: string[];
   coachingCues: string[];
   commonMistakes: string[];
@@ -1095,7 +1095,7 @@ const MODALITY_EQUIPMENT: Record<ExerciseModality, string[]> = {
 // Complete metadata for a built-in exercise: the stored structured entry plus
 // the fields derived from the canonical catalogue (movement pattern, beginner
 // tier, equipment labels) so the two sources can never drift apart. Unknown or
-// custom exercises return null — they are never penalised by a heuristic that
+// custom exercises return null - they are never penalised by a heuristic that
 // cannot identify them.
 export function exerciseIntelligenceFor(exercise: { id?: string; libraryId?: string; name?: string } | null | undefined): ExerciseIntelligence | null {
   const id = exercise?.libraryId ?? exercise?.id;
@@ -1116,7 +1116,7 @@ export function intelligenceForExerciseDefinition(definition: { id: string }): E
   return exerciseIntelligenceFor({ id: definition.id });
 }
 
-// All intelligence ids must reference real canonical built-ins — a test-time
+// All intelligence ids must reference real canonical built-ins - a test-time
 // invariant, also useful for tooling.
 export function intelligenceCoversAllBuiltIns(): string[] {
   return builtInExercises.map((exercise) => exercise.id).filter((id) => !EXERCISE_INTELLIGENCE[id]);
@@ -1132,7 +1132,7 @@ export type ClientFitContext = {
   /**
    * Secondary objectives (multi-goal onboarding / coach draft override).
    * Supporting context only: a small deterministic bonus for clearly
-   * compatible exercises, applied with the generic fit — never equal to the
+   * compatible exercises, applied with the generic fit - never equal to the
    * primary goal, never an exclusion, never overriding coach explicit
    * preference or equipment/validation gates.
    */
@@ -1151,7 +1151,7 @@ export type ClientFitContext = {
   /** Canonical libraryIds trained in the most recent completed session. */
   recentIds?: string[];
   /**
-   * Exercise Intelligence V2 — coach preference memory for this client
+   * Exercise Intelligence V2 - coach preference memory for this client
    * (explicit preferred/avoid plus learned counters from prior coach actions).
    * PREFERENCES only, never medical restrictions: explicit avoid excludes,
    * explicit preferred boosts, learned signals nudge modestly and can never
@@ -1159,7 +1159,7 @@ export type ClientFitContext = {
    */
   preferenceContext?: ClientPreferenceContext | null;
   /**
-   * Exercise Intelligence V2.1 — the client's own structured exercise feedback
+   * Exercise Intelligence V2.1 - the client's own structured exercise feedback
    * (liked/disliked, comfort, difficulty, confidence). A separate signal from
    * coach preference and from health/limitation data: it nudges scores modestly
    * and can surface a coach-review concern, but NEVER excludes an exercise and
@@ -1168,7 +1168,7 @@ export type ClientFitContext = {
   feedbackContext?: ClientFeedbackContext | null;
   /**
    * Initial client exercise preferences reported during onboarding (pre-training
-   * preference/familiarity, CLIENT-originated — never coach preference). The
+   * preference/familiarity, CLIENT-originated - never coach preference). The
    * weakest personalization signal: a modest nudge only, applied AFTER coach
    * preference and post-workout feedback, never an exclusion, and it never
    * overrides coach explicit preference or equipment/validation gates.
@@ -1198,7 +1198,7 @@ export function secondaryGoalSupport(
     return { delta: SECONDARY_GOAL_SUPPORT_BONUS, reason: "Also supports the client's secondary objective of getting stronger." };
   }
   if (goals.includes("improve fitness") && intel.fatigueCost <= 2) {
-    return { delta: 1, reason: "Efficient movement — also supports the client's fitness objective." };
+    return { delta: 1, reason: "Efficient movement - also supports the client's fitness objective." };
   }
   return { delta: 0, reason: null };
 }
@@ -1208,7 +1208,7 @@ export type ExerciseFitResult = {
   score: number;
   positives: string[];
   concerns: string[];
-  /** True ONLY for an exact canonical match with the avoid list — never for limitations. */
+  /** True ONLY for an exact canonical match with the avoid list - never for limitations. */
   exclusion: boolean;
   confidence: "high" | "medium" | "low";
 };
@@ -1246,7 +1246,7 @@ function avoidTokens(avoid: string | null | undefined): string[] {
 }
 
 // Exact canonical exclusion only: the exercise's normalized English name or its
-// exact libraryId. No fuzzy, substring or semantic matching — "pullup" never
+// exact libraryId. No fuzzy, substring or semantic matching - "pullup" never
 // matches "Pull-up".
 function isExplicitlyAvoided(exercise: { id?: string; libraryId?: string; name?: string }, tokens: string[]): boolean {
   if (!tokens.length) return false;
@@ -1256,7 +1256,7 @@ function isExplicitlyAvoided(exercise: { id?: string; libraryId?: string; name?:
 }
 
 // Limitation → relevant-exercise rules. These only REDUCE the score and surface
-// a coach-review concern — they never exclude and never claim safety. The text
+// a coach-review concern - they never exclude and never claim safety. The text
 // "unsafe"/"contraindicated" is deliberately absent.
 const LIMITATION_RULES: Array<{ pattern: RegExp; label: string; applies: (intel: ExerciseIntelligence) => boolean; penalty: number }> = [
   { pattern: /\bknee/, label: "knee", penalty: 6, applies: (i) => i.movementPattern === "knee_dominant" || i.primaryMuscles.some((m) => m === "quads" || m === "hamstrings") },
@@ -1293,7 +1293,7 @@ export function scoreExerciseForClient(
 ): ExerciseFitResult {
   if (!exercise) return { score: 0, positives: [], concerns: [], exclusion: false, confidence: "low" };
   const id = exercise.libraryId ?? exercise.id;
-  // V2 — explicit coach preference is the strongest signal, checked BEFORE any
+  // V2 - explicit coach preference is the strongest signal, checked BEFORE any
   // metadata lookup so custom exercises are covered too. Explicit avoid is the
   // only preference-based exclusion; everything learned stays a modest nudge.
   const explicitState = id ? context?.preferenceContext?.explicit?.[id] : undefined;
@@ -1301,7 +1301,7 @@ export function scoreExerciseForClient(
     return { score: 0, positives: [], concerns: ["coach marked this exercise as avoided for this client."], exclusion: true, confidence: "high" };
   }
   const intel = exerciseIntelligenceFor(exercise);
-  // Unknown/custom exercises have no structured metadata — stay neutral, never
+  // Unknown/custom exercises have no structured metadata - stay neutral, never
   // penalise a custom exercise the coach explicitly added (an explicit
   // preferred preference still gives it the coach's boost).
   if (!intel || !id) {
@@ -1399,7 +1399,7 @@ export function scoreExerciseForClient(
       }
     }
     if (!context?.limitationsReviewed) {
-      concerns.push("reported limitations are not yet coach-reviewed — review before finalising.");
+      concerns.push("reported limitations are not yet coach-reviewed - review before finalising.");
     }
   }
 
@@ -1428,7 +1428,7 @@ export function scoreExerciseForClient(
     let delta = learnedPreferenceFor(learned);
     // Policy: learned soft preferences may NEVER override equipment
     // incompatibility. On an exercise the client's equipment penalises,
-    // learned positive is ignored (learned negative still applies — the
+    // learned positive is ignored (learned negative still applies - the
     // coach's repeated actions stay visible). Explicit preferred is NOT
     // suppressed: the coach's explicit word is the strongest signal and
     // beats the equipment heuristic.
@@ -1450,7 +1450,7 @@ export function scoreExerciseForClient(
   // ---- V2.1: client exercise feedback (separate from coach preference) ----
   // Feedback is the client's own report: liked/confident nudge up, dislike/
   // low-confidence nudge down, discomfort surfaces coach-review. It NEVER
-  // excludes — explicit coach avoid and authoritative validation stay the only
+  // excludes - explicit coach avoid and authoritative validation stay the only
   // exclusions. It is deliberately applied AFTER coach preference so the
   // priority hierarchy (coach > feedback > generic fit) is explicit.
   const feedbackProfile = id ? context?.feedbackContext?.profile?.[id] : undefined;
@@ -1478,7 +1478,7 @@ export function scoreExerciseForClient(
     else if (initialPrefs.liked.includes(id)) delta += ONBOARDING_LIKE_BONUS;
     if (delta > 0) {
       // A positive onboarding like never overrides equipment incompatibility
-      // (same policy as learned signals — the client's equipment is factual).
+      // (same policy as learned signals - the client's equipment is factual).
       const equipmentPenalized = equip.homeLike
         ? !(intel.modality === "bodyweight" || intel.modality === "dumbbell")
         : equip.dumbbellsOnly
@@ -1511,7 +1511,7 @@ export function scoreExerciseForClient(
   };
 }
 
-// ---------- "Why this exercise?" explanation (V1.1 — client-specific) ----------
+// ---------- "Why this exercise?" explanation (V1.1 - client-specific) ----------
 
 export type ExerciseExplanation = {
   /** 3–5 coach-facing reasons, most client/session-specific first. */
@@ -1525,7 +1525,7 @@ export type ExerciseExplanation = {
 };
 
 // Optional session context: the other exercises already in the current session
-// day, used for complement/role reasons. Never claims perfect balance — only
+// day, used for complement/role reasons. Never claims perfect balance - only
 // states what is deterministically present.
 export type ExplanationSession = {
   exercises?: Array<{ id?: string; libraryId?: string; name?: string }>;
@@ -1567,9 +1567,9 @@ const MUSCLE_CATEGORY: Partial<Record<MuscleGroupId, MuscleGroupId[]>> = {
   core: ["chest", "lats", "upper_back", "rear_delts", "shoulders", "core"],
 };
 
-// A. Client-specific — recent exposure. The exercise's primary muscles do NOT
+// A. Client-specific - recent exposure. The exercise's primary muscles do NOT
 // overlap recently trained groups, so the pick deliberately prioritises fresh
-// work. A coaching signal only — never a recovery-time claim.
+// work. A coaching signal only - never a recovery-time claim.
 function recentExposureReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
   const recent = context?.recentMuscles ?? [];
   if (!recent.length) return null;
@@ -1586,7 +1586,7 @@ function recentExposureReason(intel: ExerciseIntelligence, context: ClientFitCon
   return `Prioritises ${muscleLower(primary)} work after recent ${recentText} training.`;
 }
 
-// A. Client-specific — experience level.
+// A. Client-specific - experience level.
 function experienceReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
   const beginner = isBeginner(context?.experience);
   if (beginner) {
@@ -1603,7 +1603,7 @@ function experienceReason(intel: ExerciseIntelligence, context: ClientFitContext
   return null;
 }
 
-// C. Progression/scalability — modality-scaled so it reads specifically (e.g.
+// C. Progression/scalability - modality-scaled so it reads specifically (e.g.
 // "adjustable assistance" for the assist machine, "cable load" for cables).
 function progressionReason(intel: ExerciseIntelligence): string | null {
   if (!intel.progressions.length) return null;
@@ -1619,14 +1619,14 @@ function progressionReason(intel: ExerciseIntelligence): string | null {
   return `Clear progression path toward ${targets}.`;
 }
 
-// A. Client-specific — goal relevance (exact goal only).
+// A. Client-specific - goal relevance (exact goal only).
 function goalReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
   const goal = goalTagFor(context?.goal);
   if (!goal || !intel.goalTags.includes(goal)) return null;
   return `Supports the ${GOAL_LABEL[goal] ?? goal} goal.`;
 }
 
-// A. Client-specific — short session (only when the metadata supports a fast setup).
+// A. Client-specific - short session (only when the metadata supports a fast setup).
 function shortSessionReason(intel: ExerciseIntelligence, context: ClientFitContext | null | undefined): string | null {
   const short = context?.sessionDurationMinutes != null && context.sessionDurationMinutes > 0 && context.sessionDurationMinutes <= 30;
   if (!short || intel.technicalDemand > 1 || intel.stabilityDemand < 2) return null;
@@ -1635,7 +1635,7 @@ function shortSessionReason(intel: ExerciseIntelligence, context: ClientFitConte
     : "Low setup complexity for a short session.";
 }
 
-// A. Client-specific — available equipment (never claimed when unknown).
+// A. Client-specific - available equipment (never claimed when unknown).
 function equipmentReason(context: ClientFitContext | null | undefined): string | null {
   const equip = equipmentContext(context?.equipment);
   if (equip.unknown) return null;
@@ -1645,7 +1645,7 @@ function equipmentReason(context: ClientFitContext | null | undefined): string |
   return null;
 }
 
-// B. Session-aware — the other exercises already in this session day.
+// B. Session-aware - the other exercises already in this session day.
 function otherSessionExercises(
   exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
   session: ExplanationSession | null | undefined,
@@ -1658,7 +1658,7 @@ function otherSessionExercises(
   });
 }
 
-// B. Session-aware — complement pairing or unique session role for major patterns.
+// B. Session-aware - complement pairing or unique session role for major patterns.
 function sessionComplementReason(
   exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
   intel: ExerciseIntelligence,
@@ -1683,7 +1683,7 @@ function sessionComplementReason(
   return null;
 }
 
-// B. Session-aware — isolation volume after the matching compound in the session.
+// B. Session-aware - isolation volume after the matching compound in the session.
 function isolationComplementReason(
   exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
   intel: ExerciseIntelligence,
@@ -1699,7 +1699,7 @@ function isolationComplementReason(
   return hasCompound ? `Adds direct ${muscleLower(primary)} volume after the compound work in this session.` : null;
 }
 
-// C. Generic fallbacks — used only when client/session reasons don't fill the panel.
+// C. Generic fallbacks - used only when client/session reasons don't fill the panel.
 function stabilityReason(intel: ExerciseIntelligence): string | null {
   if (intel.stabilityDemand >= 2 && (intel.modality === "machine" || intel.modality === "cable" || intel.modality === "smith")) {
     return "Stable machine/cable pattern that is easy to scale.";
@@ -1723,7 +1723,7 @@ function simplicityReason(intel: ExerciseIntelligence): string | null {
   return intel.technicalDemand <= 1 && intel.coordinationDemand <= 1 ? "Simple technique with low coaching overhead." : null;
 }
 
-// WATCH FOR — advisory only. Limitations/cautions become coach-review lines;
+// WATCH FOR - advisory only. Limitations/cautions become coach-review lines;
 // recent overlap surfaces as a coaching signal; the avoid list is the only
 // exclusion. Never a diagnosis, never "unsafe".
 function watchForFrom(
@@ -1735,7 +1735,7 @@ function watchForFrom(
   const watch: string[] = [];
   if (fit.exclusion) {
     // V2: an explicit coach preference exclusion reads as a coach decision,
-    // not a client-side avoid-list entry — both are authoritative exclusions.
+    // not a client-side avoid-list entry - both are authoritative exclusions.
     const id = exercise?.libraryId ?? exercise?.id;
     const explicit = id ? context?.preferenceContext?.explicit?.[id] : undefined;
     watch.push(explicit === "avoid" ? "Coach marked this exercise as avoided for this client." : "On the avoid list for this client.");
@@ -1745,9 +1745,9 @@ function watchForFrom(
   const limitationHits = limitationText.trim()
     ? LIMITATION_RULES.filter((rule) => rule.pattern.test(limitationText) && rule.applies(intel))
     : [];
-  for (const hit of limitationHits) watch.push(`Reported ${hit.label} limitation — coach review recommended.`);
+  for (const hit of limitationHits) watch.push(`Reported ${hit.label} limitation - coach review recommended.`);
   if (limitationText.trim() && !context?.limitationsReviewed) {
-    watch.push("Reported limitations are not yet coach-reviewed — review before finalising.");
+    watch.push("Reported limitations are not yet coach-reviewed - review before finalising.");
   }
   if (limitationHits.length) watch.push("Monitor comfort through the chosen range.");
   for (const concern of fit.concerns) {
@@ -1756,7 +1756,7 @@ function watchForFrom(
       if (!watch.includes(line)) watch.push(line);
     }
   }
-  // Initial onboarding client preference — client-specific and ranked ahead of
+  // Initial onboarding client preference - client-specific and ranked ahead of
   // generic caution labels (factual wording, never "coach prefers" and never
   // "client cannot do this exercise").
   const exerciseId = exercise?.libraryId ?? exercise?.id;
@@ -1768,22 +1768,22 @@ function watchForFrom(
     }
     const coachExplicit = context?.preferenceContext?.explicit?.[exerciseId];
     if (coachExplicit === "preferred" && initialPrefs.disliked.includes(exerciseId)) {
-      const line = "Coach preference and initial client preference conflict — review.";
+      const line = "Coach preference and initial client preference conflict - review.";
       if (!watch.includes(line)) watch.push(line);
     }
   }
   for (const tag of intel.cautionTags) {
     const label = CAUTION_LABEL[tag];
     if (label && !watch.some((line) => line.includes(label))) {
-      watch.push(`${label} — monitor through the chosen range.`);
+      watch.push(`${label} - monitor through the chosen range.`);
     }
   }
-  // V2: learned preference watch points (factual — never a medical claim).
+  // V2: learned preference watch points (factual - never a medical claim).
   if (exerciseId) {
     for (const line of preferenceExplanationLines(context?.preferenceContext, exerciseId).watchFor) {
       if (!watch.includes(line)) watch.push(line);
     }
-    // V2.1: client feedback watch points (factual — discomfort surfaces
+    // V2.1: client feedback watch points (factual - discomfort surfaces
     // coach review, never a diagnosis or an exclusion).
     const feedbackProfile = context?.feedbackContext?.profile?.[exerciseId];
     for (const line of feedbackExplanationLines(feedbackProfile).watchFor) {
@@ -1801,7 +1801,7 @@ function watchForFrom(
 // THIS session. Deterministic reason ranking: client-specific context first
 // (recent exposure, experience, goal, duration, equipment), then session
 // context (complement/role), then generic fallbacks (progression, stability,
-// modality). Generic reasons only fill the panel — they are never the first
+// modality). Generic reasons only fill the panel - they are never the first
 // three when client/session context exists. Never a medical statement.
 export function explainExerciseForClient(
   exercise: { id?: string; libraryId?: string; name?: string } | null | undefined,
@@ -1839,7 +1839,7 @@ export function explainExerciseForClient(
     if (conflict.kind === "aligned" && conflict.text) {
       push(95, "feedback-aligned", conflict.text);
     }
-    // Initial onboarding client preference — weakest reason tier (below coach
+    // Initial onboarding client preference - weakest reason tier (below coach
     // preference and post-workout feedback), client-reported wording only.
     if (context?.initialPreferenceContext?.liked.includes(exerciseId)) {
       push(88, "initial-preference", "Client indicated during onboarding that they like this exercise.");
@@ -1902,7 +1902,7 @@ export function clientFitWarnings(
       const name = exercise.name ?? id;
       if (fit.exclusion) {
         // The concern distinguishes an explicit coach preference from the
-        // free-text avoid list — both are authoritative exclusions.
+        // free-text avoid list - both are authoritative exclusions.
         warnings.push(`"${name}" ${fit.concerns[0] ?? "is on the avoid list for this client."}`);
         continue;
       }

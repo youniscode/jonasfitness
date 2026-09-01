@@ -255,7 +255,7 @@ test("nonexistent spring-forward time snaps forward deterministically", () => {
 
 test("ambiguous fall-back time resolves to the later (CET) instant", () => {
   // 2026-10-25 02:30 occurs twice (CEST then CET). The later instant wins,
-  // deterministically — server and UI share the same function.
+  // deterministically - server and UI share the same function.
   const result = parisFromInput("2026-10-25T02:30");
   assert.ok(result);
   assert.equal(result.toISOString(), "2026-10-25T01:30:00.000Z");

@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   if (!client) return Response.json({ error: "Add this client before saving their programme." }, { status: 404 });
   const title = String(body.title ?? "AI programme draft").trim();
   // AI-generated drafts are saved as "draft" unless the coach explicitly
-  // approves (status "approved") — the AI never publishes to the client on its own.
+  // approves (status "approved") - the AI never publishes to the client on its own.
   const status = body.status === "approved" ? "approved" : "draft";
   const [saved] = await db.insert(programmes).values({
     clientId, ownerId, title, goal: String(body.goal ?? client.goal),

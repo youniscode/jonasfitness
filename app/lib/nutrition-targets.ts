@@ -1,5 +1,5 @@
 /**
- * Nutrition Foundations V1 / Phase 2D — coach-approved nutrition targets.
+ * Nutrition Foundations V1 / Phase 2D - coach-approved nutrition targets.
  *
  * This module is PURE: no DB access, no network, no Clerk, no fetch, no
  * Date.now(), no randomness. It owns the approval-layer logic that sits BETWEEN
@@ -7,17 +7,17 @@
  * AI meal generation:
  *
  *   - conservative validation of the coach-approved numeric targets (never
- *     silently clamped — invalid values are rejected with structured errors);
+ *     silently clamped - invalid values are rejected with structured errors);
  *   - a deterministic macro ↔ calorie consistency check (obviously impossible
  *     combinations are rejected, not rewritten);
  *   - estimate-vs-approved drift detection (the engine keeps recalculating, but
- *     an approved target is NEVER auto-changed — the UI only surfaces that the
+ *     an approved target is NEVER auto-changed - the UI only surfaces that the
  *     current estimate may now differ);
  *   - the public, leak-free DTO and the untrusted-request-body assembly.
  *
  * The deterministic engine remains the estimate authority; a persisted approved
  * target is a COACH DECISION snapshotted at approval time, never a live engine
- * output. No meals, no AI, no food suggestions — Phase 2D ends at numeric
+ * output. No meals, no AI, no food suggestions - Phase 2D ends at numeric
  * targets.
  */
 
@@ -46,7 +46,7 @@ export const NUTRITION_TARGET_BOUNDS = {
   carbohydrate: { min: 0, max: 800 },
 } as const;
 
-/** Macronutrient energy densities (kcal/g) — mirrored from the engine. */
+/** Macronutrient energy densities (kcal/g) - mirrored from the engine. */
 export const TARGET_PROTEIN_KCAL_PER_G = PROTEIN_KCAL_PER_G;
 export const TARGET_CARB_KCAL_PER_G = CARB_KCAL_PER_G;
 export const TARGET_FAT_KCAL_PER_G = FAT_KCAL_PER_G;
@@ -83,7 +83,7 @@ export type NutritionTargetValues = {
   carbohydrateMaxGrams: number;
 };
 
-/** Raw, coerced input (numbers may be null/NaN — validation rejects them). */
+/** Raw, coerced input (numbers may be null/NaN - validation rejects them). */
 export type NutritionTargetRawValues = {
   [K in keyof NutritionTargetValues]: number | null;
 };
@@ -99,7 +99,7 @@ export type NutritionTargetValidationResult =
   | { ok: true; value: NutritionTargetInput }
   | { ok: false; errors: TargetError[] };
 
-/** Coach-facing DTO — no ownerId, clientId, createdAt or updatedAt. */
+/** Coach-facing DTO - no ownerId, clientId, createdAt or updatedAt. */
 export type PublicNutritionTarget = {
   id: number;
   status: NutritionTargetStatus;
@@ -238,7 +238,7 @@ export type NutritionEstimateComparison = "unchanged" | "changed" | "unknown";
  * source calorie range captured at approval. Returns "unknown" when the source
  * provenance is absent (e.g. a legacy row); otherwise "changed" when either end
  * drifted by more than the threshold and "unchanged" otherwise. This only
- * surfaces a review suggestion — it NEVER rewrites or auto-adjusts a target.
+ * surfaces a review suggestion - it NEVER rewrites or auto-adjusts a target.
  */
 export function compareNutritionCalorieEstimate(
   current: { minKcal: number; maxKcal: number } | null | undefined,
@@ -277,7 +277,7 @@ export function targetValuesFromGuidance(guidance: NutritionGuidanceReady): Nutr
 
 /**
  * Coerces a raw JSON/form value into a number. Empty strings, null and undefined
- * become null (a blank field); anything else becomes Number(value) — garbage
+ * become null (a blank field); anything else becomes Number(value) - garbage
  * stays NaN so validation rejects it explicitly rather than silently dropping.
  */
 export function targetNumberFrom(value: unknown): number | null {
@@ -290,7 +290,7 @@ export type TargetInputResult = { ok: true; input: NutritionTargetInput } | { ok
 
 /**
  * Assembles a target input from an untrusted request body. ownerId, status,
- * approvedAt and every provenance column are NEVER read from the body — they are
+ * approvedAt and every provenance column are NEVER read from the body - they are
  * assembled server-side from the authenticated coach and the recomputed engine
  * result. Numbers are coerced here and authority-checked by
  * `validateNutritionTargets` in the route.
@@ -321,7 +321,7 @@ export function targetInputFrom(body: Record<string, unknown>): TargetInputResul
 
 /**
  * Coach-facing DTO. Deliberately excludes ownerId, clientId, createdAt and
- * updatedAt — the browser never needs them, and ownerId must never leak.
+ * updatedAt - the browser never needs them, and ownerId must never leak.
  */
 export function publicNutritionTarget(row: NutritionTargetRow): PublicNutritionTarget {
   return {

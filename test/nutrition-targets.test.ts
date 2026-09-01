@@ -13,7 +13,7 @@ import {
 } from "../app/lib/nutrition-targets.ts";
 import { buildNutritionGuidance, NUTRITION_ENGINE_VERSION } from "../app/lib/nutrition-engine.ts";
 
-// Phase 2D — coach-approved nutrition targets. These tests exercise the pure
+// Phase 2D - coach-approved nutrition targets. These tests exercise the pure
 // approval-layer module: validation bounds, macro↔calorie consistency,
 // estimate-vs-approved drift detection, DTO leak prevention and the
 // deterministic engine-version marker. No DB is required.

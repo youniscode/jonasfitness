@@ -141,7 +141,7 @@ test("optimizer does not fix or bypass banned-language validation", async () => 
 /* 5. Structure preservation: only grams change                         */
 /* ────────────────────────────────────────────────────────────────────── */
 
-test("optimizer preserves meal/food structure — only grams change", async () => {
+test("optimizer preserves meal/food structure - only grams change", async () => {
   const { generate } = fakeGenerate([lowDay]);
   const result = await runMealGeneration(makeContext(), "example_day", generate);
   assert.equal(result.status, "ready");

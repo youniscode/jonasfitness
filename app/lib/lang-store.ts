@@ -35,6 +35,6 @@ export function persistLang(lang: Lang): void {
   try {
     window.localStorage.setItem(LANG_STORAGE_KEY, lang);
   } catch {
-    /* storage may be disabled — selection still works for this page */
+    /* storage may be disabled; selection still works for this page */
   }
 }

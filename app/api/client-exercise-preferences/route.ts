@@ -100,7 +100,7 @@ export async function PATCH(request: Request) {
         eq(clientExercisePreferences.exerciseId, exerciseId),
       )).limit(1);
     if (!existing && (parsed.action === "reset-explicit" || parsed.action === "reset-learned")) {
-      // Nothing to reset — the client has no record for this exercise.
+      // Nothing to reset - the client has no record for this exercise.
       return Response.json(await summary(ownerId, clientId));
     }
     const next = preferenceAfterAction(

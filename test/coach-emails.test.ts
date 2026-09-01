@@ -122,7 +122,7 @@ test("multiple allowlist entries are all honoured", () => {
 // ---------- evaluateCoachAuthDecision (atomic result) ----------
 
 const allowed: Parameters<typeof evaluateCoachAuthDecision>[0] = {
-  // Synthetic fixture id — proves the result carries the exact session id.
+  // Synthetic fixture id - proves the result carries the exact session id.
   userId: "user_2abcdefghijklmnopqrstuvwx",
   userLookupFailed: false,
   primaryEmail: "jonas@example.com",
@@ -155,7 +155,7 @@ test("invariant: 'allowed' never coexists with a null coachId", () => {
   assert.notEqual(withNullId.reason, "allowed");
 });
 
-test("invariant: every denial reports coachId null and a truthful reason — 'denied: allowed' is impossible", () => {
+test("invariant: every denial reports coachId null and a truthful reason - 'denied: allowed' is impossible", () => {
   const denials = [
     { ...allowed, userId: null },
     { ...allowed, userLookupFailed: true },

@@ -179,7 +179,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     if (updates.status !== undefined || updates.nextFollowUpAt !== undefined) void load();
     if (updates.nextFollowUpAt !== undefined && previous) {
       // Toast semantics come from the same transition rules as the timeline
-      // entry: scheduled / rescheduled / cleared / completed — and no toast for
+      // entry: scheduled / rescheduled / cleared / completed - and no toast for
       // a no-op (same value re-saved, already cleared, done without pending).
       const verb = followUpTransitionVerb(
         previous.nextFollowUpAt ? new Date(previous.nextFollowUpAt) : null,
@@ -230,7 +230,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       const result = await response.json().catch(() => ({}));
       if (!response.ok) { setError(result.error ?? "Consultation could not be scheduled."); return; }
       if (result.duplicate) {
-        setNotice(`A consultation for ${consultationLead.name} is already scheduled at this time — no duplicate created.`);
+        setNotice(`A consultation for ${consultationLead.name} is already scheduled at this time - no duplicate created.`);
         setConsultationLead(null); return;
       }
       setConsultations((current) => [...current, result.consultation].sort((a, b) => a.startAt.localeCompare(b.startAt)));
@@ -275,7 +275,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
     setArchiving(lead.id); setError("");
     try {
       await patchLead(lead.id, { status: "lost" });
-      setNotice(`${lead.name} archived — previous conversion history kept.`);
+      setNotice(`${lead.name} archived - previous conversion history kept.`);
     } finally { setArchiving(null); }
   }
 
@@ -369,7 +369,7 @@ export default function LeadPipeline({ onConverted }: { onConverted: (client: Co
       {leads.filter((lead) => lead.status === column.status).map((lead) => {
         const leadActivities = activitiesByLead.get(lead.id) ?? []; const leadConsultations = consultationsByLead.get(lead.id) ?? []; const followUpTime = lead.nextFollowUpAt ? new Date(lead.nextFollowUpAt).getTime() : 0;
         return <details className="lead-card" id={`lead-card-${lead.id}`} key={lead.id}><summary><span><small>{lead.acquisitionSource}{lead.acquisitionCampaign ? ` · ${lead.acquisitionCampaign}` : ""}</small><strong>{lead.name}</strong><em>{lead.goal} · {lead.country}</em>{followUpTime ? <i className={followUpTime < now ? "follow-up-overdue" : "follow-up-set"}>{followUpTime < now ? "OVERDUE · " : "NEXT · "}{formatDateTime(lead.nextFollowUpAt!)}</i> : null}{consultationBadge(leadConsultations, now)}</span><b>＋</b></summary><div className="lead-detail">
-          <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "—"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.reappliedAt ?? lead.createdAt).toLocaleDateString()}</b></span></div>
+          <div className="lead-facts"><span><small>EXPERIENCE</small><b>{lead.experience || "-"}</b></span><span><small>TRAINING</small><b>{lead.trainingDays} days · {lead.coachingFormat}</b></span><span><small>CONTACT</small><b>{lead.contactPreference} · {lead.preferredLanguage.toUpperCase()}</b></span><span><small>APPLIED</small><b>{new Date(lead.reappliedAt ?? lead.createdAt).toLocaleDateString()}</b></span></div>
           {lead.message ? <p>{lead.message}</p> : null}
           <div className="contact-workbench"><label>Message template<select value={chosenTemplate(lead)} onChange={(event) => setTemplates((current) => ({ ...current, [lead.id]: event.target.value as TemplateKey }))}><option value="initial">Initial reply · {lead.preferredLanguage.toUpperCase()}</option><option value="followup">Follow-up · {lead.preferredLanguage.toUpperCase()}</option><option value="consultation">Consultation · {lead.preferredLanguage.toUpperCase()}</option></select></label><div><button onClick={() => void copyTemplate(lead)}>Copy</button><button onClick={() => openContact(lead, "email")}>Email</button><button className="whatsapp-contact" onClick={() => openContact(lead, "whatsapp")}>WhatsApp ↗</button></div></div>
           <div className="lead-action-row"><button onClick={() => setActivityLead(lead)}>+ Log interaction</button><button onClick={() => setConsultationLead(lead)}>+ Consultation</button></div>

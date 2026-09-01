@@ -1,5 +1,5 @@
 /**
- * Nutrition Foundations V1 / Phase 2D — shared server-side guidance resolver.
+ * Nutrition Foundations V1 / Phase 2D - shared server-side guidance resolver.
  *
  * The guidance route (app/api/nutrition-guidance) and the targets route
  * (app/api/nutrition-targets) must resolve the SAME current deterministic
@@ -40,7 +40,7 @@ function rowToWeightRow(row: {
 /**
  * Resolves the current deterministic guidance for an owner-scoped client, or
  * null when the client is missing/foreign. Every read is scoped by BOTH ownerId
- * (from the authenticated coach — never the browser) and clientId.
+ * (from the authenticated coach - never the browser) and clientId.
  */
 export async function resolveNutritionGuidance(
   db: NutritionResolutionDb,

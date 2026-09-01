@@ -220,7 +220,7 @@ test("weight, waist and body-fat deltas are calculated from latest − previous"
   assert.equal(deltas.bodyFatPercent.change, -1.5);
 });
 
-test("missing values are never treated as zero — the delta is null, not 0", () => {
+test("missing values are never treated as zero - the delta is null, not 0", () => {
   const latest = measurement({ measuredAt: "2026-08-15T00:00:00.000Z", weightKg: 82.4 });
   const previous = measurement({ measuredAt: "2026-08-01T00:00:00.000Z", weightKg: 84 });
   const deltas = measurementDeltas(latest, previous);
@@ -424,7 +424,7 @@ test("latestWeightForSync returns correct weight after hypothetical edit", () =>
 });
 
 // ---------- Regression: no literal \u escapes in ProgressTracker UI ----------
-// JSX text nodes do NOT process \u escapes — they render as literal text.
+// JSX text nodes do NOT process \u escapes - they render as literal text.
 // All Unicode characters in ProgressTracker.tsx must use the actual character
 // (imported as constants) or be inside JS string expressions {"..."}.
 import { readFileSync } from "node:fs";
@@ -453,5 +453,5 @@ test("ProgressTracker.tsx must not contain literal backslash-u escape sequences 
       }
     }
   }
-  assert.deepEqual(violations, [], "Found literal backslash-u escapes in JSX text — use the actual Unicode character or a JS string expression instead.");
+  assert.deepEqual(violations, [], "Found literal backslash-u escapes in JSX text - use the actual Unicode character or a JS string expression instead.");
 });

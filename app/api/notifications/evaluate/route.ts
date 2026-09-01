@@ -34,7 +34,7 @@ async function runEvaluation() {
       }
       results.push({ ownerId, generated: payload.notifications.length, cleaned });
     } catch (error) {
-      // Log only the error type/message — never coach data or secrets.
+      // Log only the error type/message - never coach data or secrets.
       console.error("[notifications:evaluate] failed", {
         ownerId,
         message: error instanceof Error ? error.message : String(error),

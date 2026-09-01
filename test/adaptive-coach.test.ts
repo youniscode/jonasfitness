@@ -197,7 +197,7 @@ test("low RIR + missed reps → no increase (reduce_load from the existing progr
 });
 
 test("incomplete workout → insufficient performance evidence, never an automatic load conclusion", () => {
-  // Only 1 of 3 prescribed sets completed — the client may have ended early.
+  // Only 1 of 3 prescribed sets completed - the client may have ended early.
   const legPress = exercise("e3", "builtin-leg-press", "Leg press", [
     { weight: 100, reps: 12, rir: "2", status: "completed" },
     { weight: null, reps: null, rir: "", status: "pending" },
@@ -348,7 +348,7 @@ test("client Like is a keep/progress tie-break reason", () => {
   assert.match(decision.reasons.join(" "), /liking this exercise/i);
 });
 
-test("onboarding Dislike is weak — performance still progresses", () => {
+test("onboarding Dislike is weak - performance still progresses", () => {
   const chestPress = exercise("e1", "builtin-machine-chest-press", "Machine chest press", [
     { weight: 20, reps: 12, rir: "2" },
     { weight: 20, reps: 12, rir: "2" },
@@ -385,7 +385,7 @@ test("post-workout feedback outweighs onboarding preference", () => {
 
 // ---------- 4. Limitation policy ----------
 
-test("reviewed limitation relevance stays advisory — no medical wording, no load increase on discomfort", () => {
+test("reviewed limitation relevance stays advisory - no medical wording, no load increase on discomfort", () => {
   const shoulderPress = exercise("e4", "builtin-machine-shoulder-press", "Machine shoulder press", [
     { weight: 15, reps: 12, rir: "2" },
     { weight: 15, reps: 12, rir: "2" },
@@ -421,7 +421,7 @@ test("unreviewed limitations gate exercise-level adaptation", () => {
   assert.ok(plan.programmeSignals.some((signal) => /reviewed/.test(signal.message)));
 });
 
-test("custom exercises work conservatively — progression from reps/RIR, no canonical candidates", () => {
+test("custom exercises work conservatively - progression from reps/RIR, no canonical candidates", () => {
   const custom = exercise("c1", "custom-7", "Custom cable crunch", [
     { weight: 10, reps: 12, rir: "2" },
     { weight: 10, reps: 12, rir: "2" },
@@ -563,7 +563,7 @@ function planWithChanges(): { context: AdaptiveCoachContext; plan: ReturnType<ty
   return { context, plan: buildAdaptiveCoachPlan(context) };
 }
 
-test("apply mutates a clone only — the original programme content is never changed", () => {
+test("apply mutates a clone only - the original programme content is never changed", () => {
   const { context, plan } = planWithChanges();
   const original = context.programme!.content;
   const decision = decisionFor(plan, "builtin-machine-chest-press");
@@ -736,7 +736,7 @@ function sebastienContext(overrides: Partial<AdaptiveCoachContext> = {}): Adapti
   });
 }
 
-test("Sebastien first-workout fixture — next session, full decision set, conservative", () => {
+test("Sebastien first-workout fixture - next session, full decision set, conservative", () => {
   const plan = buildAdaptiveCoachPlan(sebastienContext({ workouts: [sebastienWorkout()] }));
   // NEXT SESSION
   assert.ok(plan.nextSession);
@@ -760,7 +760,7 @@ test("Sebastien first-workout fixture — next session, full decision set, conse
   assert.equal(plan.status, "ADAPTATION_AVAILABLE");
 });
 
-test("Sebastien — shoulder-sensitive press keeps review awareness with good performance", () => {
+test("Sebastien - shoulder-sensitive press keeps review awareness with good performance", () => {
   const plan = buildAdaptiveCoachPlan(sebastienContext({
     workouts: [sebastienWorkout()],
     feedbackContext: buildClientExerciseFeedbackProfile([
@@ -775,7 +775,7 @@ test("Sebastien — shoulder-sensitive press keeps review awareness with good pe
   assert.match(wording, /reported limitation area/i, "shoulder review awareness is surfaced");
 });
 
-test("Sebastien shoulder Case B — uncomfortable → review, no blind load increase", () => {
+test("Sebastien shoulder Case B - uncomfortable → review, no blind load increase", () => {
   const plan = buildAdaptiveCoachPlan(sebastienContext({
     workouts: [sebastienWorkout()],
     feedbackContext: buildClientExerciseFeedbackProfile([
@@ -789,7 +789,7 @@ test("Sebastien shoulder Case B — uncomfortable → review, no blind load incr
   assert.equal(plan.status, "COACH_REVIEW_REQUIRED");
 });
 
-test("Sebastien shoulder Case C — repeated discomfort → replacement consideration, coach approval required", () => {
+test("Sebastien shoulder Case C - repeated discomfort → replacement consideration, coach approval required", () => {
   const plan = buildAdaptiveCoachPlan(sebastienContext({
     workouts: [sebastienWorkout()],
     feedbackContext: buildClientExerciseFeedbackProfile([
@@ -802,7 +802,7 @@ test("Sebastien shoulder Case C — repeated discomfort → replacement consider
   assert.equal(decision.action, "replace");
   assert.ok(decision.concerns.some((concern) => /repeated discomfort/i.test(concern)));
   assert.equal(decision.confidence, "medium");
-  // Nothing is applied without the coach — replace is only surfaced for approval.
+  // Nothing is applied without the coach - replace is only surfaced for approval.
   const result = applyAdaptiveDecisions(sebastienContent(), plan, [decision.decisionId]);
   assert.equal(result.error, null);
   assert.equal(result.applied.length, 1);
@@ -847,7 +847,7 @@ test("replacement candidates are canonical, equipment-compatible, session-safe a
   const sessionIds = new Set([...FULL_BODY_A, ...FULL_BODY_B, ...FULL_BODY_C].map((exercise) => exercise.libraryId));
   const pool = new Set(candidateExercisesFor("Full commercial gym").map((definition) => definition.id));
   for (const candidate of decision.replacementCandidates) {
-    assert.match(candidate.libraryId, /^builtin-/, "canonical libraryId only — never a fuzzy match");
+    assert.match(candidate.libraryId, /^builtin-/, "canonical libraryId only - never a fuzzy match");
     assert.ok(pool.has(candidate.libraryId), `candidate ${candidate.libraryId} is equipment-compatible`);
     assert.ok(!sessionIds.has(candidate.libraryId), `candidate ${candidate.libraryId} is not redundant with the session`);
   }

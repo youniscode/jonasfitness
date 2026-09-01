@@ -1,5 +1,5 @@
 /**
- * Meal Builder Phase 2A — deterministic portion optimizer.
+ * Meal Builder Phase 2A - deterministic portion optimizer.
  *
  * PURE domain logic. No AI, no DB, no fetch, no randomness: identical inputs
  * always produce byte-identical results (same state, same change list, same
@@ -10,7 +10,7 @@
  * touched. Foods are never added, removed or swapped. Priority is expressed as
  * a multi-objective penalty score (calories > protein > fat > carbs by unit
  * normalization), plus a quantity-change penalty that prefers the smallest
- * practical edits. Tolerance-expanded ranges are NEVER used here — the exact
+ * practical edits. Tolerance-expanded ranges are NEVER used here - the exact
  * approved range is the goal; tolerances remain validation/UI context only.
  */
 
@@ -53,7 +53,7 @@ export const CHANGE_GRAMS_PER_PENALTY_UNIT = 200;
 /** Staged coordinate-descent step sizes, tried in order (integer grams). */
 export const OPTIMIZER_STEP_SCHEDULE_G = [50, 25, 10, 5, 1] as const;
 
-/** Hard cap on applied moves — guarantees termination (test-enforced). */
+/** Hard cap on applied moves - guarantees termination (test-enforced). */
 export const MAX_OPTIMIZER_ITERATIONS = 500;
 
 /** Minimum score improvement required to accept a move (avoids float cycling). */
@@ -236,7 +236,7 @@ export type MealOptimizationResult =
   | ({ status: "no_feasible_improvement"; reachedExactTarget: false } & OptimizationBase);
 
 // ---------------------------------------------------------------------------
-// Solver — bounded greedy coordinate descent over unlocked foods
+// Solver - bounded greedy coordinate descent over unlocked foods
 // ---------------------------------------------------------------------------
 
 type OptimizerVariable = { mealIndex: number; foodIndex: number };
@@ -248,7 +248,7 @@ function unlockedVariables(state: MealBuilderState): OptimizerVariable[] {
     meal.foods.forEach((food, foodIndex) => {
       if (food.locked) return;
       // Unknown catalogue entries have no trustworthy nutrition signal to
-      // optimize against — leave them exactly as submitted.
+      // optimize against - leave them exactly as submitted.
       if (!getFoodById(food.foodId)) return;
       vars.push({ mealIndex, foodIndex });
     });

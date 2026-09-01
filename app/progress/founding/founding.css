@@ -1,4 +1,4 @@
-/* Founding Access — public commercial landing page. Dark + lime, serious,
+/* Founding Access: public commercial landing page. Dark + lime, serious,
    mobile-first, aligned with the Progress brand. Reuses global tokens where sensible. */
 .founding{
   background:#0b0d0a; color:#eef2e4; min-height:100vh; font-family:var(--font-geist-sans),system-ui,sans-serif;
@@ -69,7 +69,7 @@
   .found-actions{flex-direction:column;align-items:flex-start;}
 }
 
-/* Arabic RTL — page text flows right; the language switch stays LTR and the
+/* Arabic RTL: page text flows right; the language switch stays LTR and the
    arrow glyphs in CTA buttons are mirrored. Numeric values are not mirrored. */
 .founding[dir="rtl"]{font-family:Arial,var(--font-geist-sans),sans-serif;}
 .rtl-site .founding-lang{direction:ltr;}

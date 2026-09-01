@@ -3,7 +3,7 @@ import { appGoalToCanonical } from "./onboarding-profile.ts";
 
 // Secondary objectives from the multi-goal application: validated against the
 // canonical APP_GOALS vocabulary, deduplicated, never repeating the primary
-// goal, capped at 5. Junk entries are dropped — free text is never persisted.
+// goal, capped at 5. Junk entries are dropped - free text is never persisted.
 export function applicationSecondaryGoals(value: unknown, primaryGoal: string): string[] {
   if (!Array.isArray(value)) return [];
   const goals: string[] = [];

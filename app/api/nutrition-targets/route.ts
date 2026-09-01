@@ -17,8 +17,8 @@ import {
 
 // Coach-only, owner-scoped approved-target API (Nutrition Foundations V1 /
 // Phase 2D). This is the approval layer between the deterministic estimate and
-// any future AI meal generation — no meals here. Every read/write is scoped by
-// BOTH ownerId (from the authenticated coach — never the browser) and clientId.
+// any future AI meal generation - no meals here. Every read/write is scoped by
+// BOTH ownerId (from the authenticated coach - never the browser) and clientId.
 //
 // GET returns the current active approved target plus bounded history (newest
 // first). POST approves/replaces targets: it recomputes the CURRENT engine
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Nutrition targets require professional review and cannot be approved." }, { status: 409 });
   }
   if (guidance.status === "insufficient_data") {
-    return Response.json({ error: "Missing nutrition inputs — approval requires a complete profile." }, { status: 409 });
+    return Response.json({ error: "Missing nutrition inputs - approval requires a complete profile." }, { status: 409 });
   }
 
   // Server-side validation is authoritative (the UI only pre-validates for UX).

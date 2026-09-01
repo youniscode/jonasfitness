@@ -395,7 +395,7 @@ test("applyNutritionInputs preserves unrelated structured data when setting foun
 test("legacy free-text goal is never promoted to a canonical primary goal", () => {
   const legacy = profileFromIntake({ goalsDetail: "Wants to lose weight fast" }, { goal: "Build strength" });
   // "Build strength" is not a canonical PRIMARY_GOALS value, so it must NOT
-  // become the structured primary goal — the coach selects it explicitly.
+  // become the structured primary goal - the coach selects it explicitly.
   assert.equal(legacy.goals.primary, "");
   assert.equal(legacy.goals.note, "Wants to lose weight fast");
 });

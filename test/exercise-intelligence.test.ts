@@ -1,5 +1,5 @@
 /**
- * Exercise Intelligence V1 — library metadata, client matching engine,
+ * Exercise Intelligence V1 - library metadata, client matching engine,
  * explanations, quality integration and recent-exposure wiring.
  *
  * Coaching-support, never medical: limitations reduce scores and surface
@@ -174,7 +174,7 @@ test("secondary goals never override coach explicit avoid or the primary goal", 
   const avoided = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle", secondaryGoals: ["Get stronger"], preferenceContext: { explicit: { [compound.id]: "avoid" }, learned: {}, replacements: {} } });
   assert.equal(avoided.score, 0);
   assert.equal(avoided.exclusion, true);
-  // The primary goal match stays authoritative — a strength secondary only
+  // The primary goal match stays authoritative - a strength secondary only
   // adds a small nudge on top of whatever the primary dictates.
   const conditioning = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Lose body fat", secondaryGoals: ["Get stronger"] });
   const plain = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Lose body fat" });
@@ -380,7 +380,7 @@ test("limitation context surfaces coach-review watch points, never a diagnosis",
     { ...V11_CONTEXT, limitations: "shoulder discomfort", limitationsReviewed: true, recentMuscles: undefined, recentIds: undefined },
   );
   const text = explanationText(explanation);
-  assert.match(text, /reported shoulder limitation — coach review recommended/i);
+  assert.match(text, /reported shoulder limitation - coach review recommended/i);
   assert.match(text, /monitor comfort through the chosen range/i);
   assert.doesNotMatch(text, /unsafe|contraindicated|dangerous|diagnos/i);
 });
@@ -435,7 +435,7 @@ test("Jonas Coach catalogue exposes structured fields for the expansion exercise
   assert.match(line ?? "", /core/);
   assert.match(line ?? "", /Tier 1/);
   assert.match(line ?? "", /general_fitness/);
-  // Long coaching text is NOT sent to the AI — keep the prompt lean.
+  // Long coaching text is NOT sent to the AI - keep the prompt lean.
   assert.ok(!(line ?? "").includes("Keep the lower back pressed down"), "no long cues in the AI catalogue");
 });
 

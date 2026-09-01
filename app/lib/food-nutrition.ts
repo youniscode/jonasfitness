@@ -1,5 +1,5 @@
 /**
- * Food Nutrition Foundation V1 — deterministic nutrition calculators.
+ * Food Nutrition Foundation V1 - deterministic nutrition calculators.
  *
  * PURE functions. No AI, no I/O, no randomness: identical inputs always produce
  * byte-identical outputs. These calculators are the ONLY place where food
@@ -7,7 +7,7 @@
  *
  * Rounding policy (fixed, documented, test-enforced):
  *   - kcal  → rounded to the nearest whole number
- *   - grams → rounded to one decimal (0.1 g — below measurement noise)
+ *   - grams → rounded to one decimal (0.1 g - below measurement noise)
  *   Aggregation sums EXACT scaled values and rounds once at the end, so the
  *   result never depends on grouping or order of intermediate roundings.
  */
@@ -35,7 +35,7 @@ function requireQuantity(quantityG: unknown): number {
 const roundKcal = (kcal: number): number => Math.round(kcal);
 const roundGrams = (grams: number): number => Math.round(grams * 10) / 10;
 
-/** Exact (unrounded) per-100g scaling — used internally and by tests. */
+/** Exact (unrounded) per-100g scaling - used internally and by tests. */
 export function scaleNutritionExact(food: CatalogueFood, quantityG: number): FoodNutrition {
   const q = requireQuantity(quantityG);
   const factor = q / 100;
@@ -50,7 +50,7 @@ export function scaleNutritionExact(food: CatalogueFood, quantityG: number): Foo
 
 /**
  * Deterministic nutrition for ONE food at ONE quantity.
- * Throws on invalid quantity — callers validate AI input first.
+ * Throws on invalid quantity - callers validate AI input first.
  */
 export function calculateFoodNutrition(food: CatalogueFood, quantityG: number): FoodNutrition {
   const exact = scaleNutritionExact(food, quantityG);

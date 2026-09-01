@@ -121,7 +121,7 @@ export default function ProgressTracker({ client, onWeightChange }: { client: Cl
     setBodyLoading(false);
   }, [client.id]);
 
-  // Initial body composition load — inline fetch pattern to satisfy react-hooks/set-state-in-effect.
+  // Initial body composition load - inline fetch pattern to satisfy react-hooks/set-state-in-effect.
   useEffect(() => {
     if (client.id < 1) return;
     let cancelled = false;
@@ -141,7 +141,7 @@ export default function ProgressTracker({ client, onWeightChange }: { client: Cl
     return () => { window.removeEventListener("jonas-measurement-saved", onMeasurement); };
   }, [client.id, loadBody]);
 
-  // Informational lean-mass preview while filling the form — never persisted.
+  // Informational lean-mass preview while filling the form - never persisted.
   const estimate = useMemo(() => {
     const weight = Number(previewWeight);
     const bodyFat = Number(previewBodyFat);

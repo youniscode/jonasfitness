@@ -1,6 +1,6 @@
 // Pure, dependency-free notification rules. Kept free of runtime imports so it
 // can be unit-tested with Node's built-in test runner (type stripping) without
-// resolving the Next.js module graph — the same convention as client-ownership,
+// resolving the Next.js module graph - the same convention as client-ownership,
 // client-dto and client-email. This is the single source of truth for how a
 // notification candidate (and its dedupe key) is derived from coaching data.
 export type CoachNotificationCandidate = {
@@ -166,7 +166,7 @@ export function buildNotificationCandidates<
     kind: "pulse_alert",
     severity: session.readinessLevel === "red" ? "high" : "medium",
     title: `${session.readinessLevel === "red" ? "Red" : "Amber"} Pulse: ${session.clientName}`,
-    message: session.coachAction || `Readiness ${session.readinessScore ?? "—"}% needs coach review.`,
+    message: session.coachAction || `Readiness ${session.readinessScore ?? "-"}% needs coach review.`,
     actionHref: "#calendar",
     clientId: session.clientId,
     scheduledFor: session.startAt,

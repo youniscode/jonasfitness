@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     .where(and(eq(sessions.clientId, access.client.id), eq(sessions.ownerId, access.client.ownerId), eq(sessions.status, "scheduled"), gt(sessions.startAt, new Date())))
     .orderBy(asc(sessions.startAt)).limit(8);
   // Recent session history with attendance status, newest first. Credit effect
-  // is derived from the status — never exposed from internal coach state.
+  // is derived from the status - never exposed from internal coach state.
   const historyRows = await db.select({ id: sessions.id, startAt: sessions.startAt, durationMinutes: sessions.durationMinutes, status: sessions.status })
     .from(sessions)
     .where(and(

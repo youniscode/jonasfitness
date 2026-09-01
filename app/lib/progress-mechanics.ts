@@ -2,7 +2,7 @@
  * Pure, dependency-free domain logic for the self-service "Jonas Fitness
  * Progress" training log. Everything in this module is deterministic and reads
  * no database, so the security and calibration contracts are unit-tested in
- * isolation (the repo's established pattern — see test/body-measurements-api
+ * isolation (the repo's established pattern - see test/body-measurements-api
  * .test.ts). Route/service files are thin wires over these functions.
  *
  * Design principles:
@@ -52,7 +52,7 @@ export const PROGRESS_NOTE_MAX = 1200;
 
 const round = (value: number, digits = 1) => Number(value.toFixed(digits));
 
-/** Epley-style estimate used by the existing history engine — kept identical so
+/** Epley-style estimate used by the existing history engine - kept identical so
  *  records and trends match across the product. Capped at 20 reps and never
  *  produced for a set without a positive weight and reps. */
 export function estimateOneRepMax(weight: number | null, reps: number | null): number {
@@ -62,7 +62,7 @@ export function estimateOneRepMax(weight: number | null, reps: number | null): n
   return round(w * (1 + Math.min(r, 20) / 30));
 }
 
-// ——— Input validation ———————————————————————————————————
+// --- Input validation -----------------------------------
 
 export type ValidationResult =
   | { ok: true }
@@ -129,7 +129,7 @@ export function prescriptionToPersist(input: unknown): ProgressPrescription | nu
 
 const normaliseSlug = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "exercise";
 
-// ——— Session snapshot ——————————————————————————————————————
+// --- Session snapshot --------------------------------------
 
 const uid = () => (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -179,7 +179,7 @@ export function buildWorkoutExercisesFromRoutine(
   });
 }
 
-// ——— Strict validation of logged sets ——————————————————————
+// --- Strict validation of logged sets ----------------------
 
 export type SetValidationError = { exerciseIndex: number; setIndex: number; message: string };
 
@@ -272,7 +272,7 @@ export function validateLoggedExercises(exercisesInput: unknown): { ok: true; ex
   return { ok: true, exercises };
 }
 
-// ——— Previous performance ——————————————————————————————————
+// --- Previous performance ----------------------------------
 
 export type PreviousSet = { weight: number | null; reps: number | null; rir: string };
 export type PreviousPerformance = { date: string | null; sets: PreviousSet[] };
@@ -281,7 +281,7 @@ const normaliseName = (value: string) => value.trim().toLocaleLowerCase().replac
 
 /**
  * For each exercise in the current (in-progress) workout, finds the most recent
- * completed session that contains a match — first by the stable template
+ * completed session that contains a match - first by the stable template
  * exercise id embedded at start (programmeExerciseId = training_routine_
  * exercises.id), then by normalized name. This is exactly what lets the logger
  * show "PREVIOUS → TARGET → ACTUAL" without navigating away.
@@ -314,7 +314,7 @@ export function previousPerformanceFor(
   return result;
 }
 
-// ——— Deterministic progression indicator ————————————————————
+// --- Deterministic progression indicator --------------------
 
 export type ProgressionState = "insufficient" | "below" | "in_range" | "upper_reached";
 export type ProgressionIndicator = {
@@ -330,7 +330,7 @@ export type ProgressionIndicator = {
 /**
  * Transparent double-progression signal for one exercise. The logic is entirely
  * deterministic and explainable:
- *   - upper_reached : EVERY completed working set hit >= the target rep maximum —
+ *   - upper_reached : EVERY completed working set hit >= the target rep maximum -
  *                     the classic "time to add load" signal.
  *   - in_range      : completed reps sit inside the configured rep range.
  *   - below         : reps fell below the target minimum.
@@ -375,7 +375,7 @@ export function progressionIndicator(
   };
 }
 
-// ——— Public DTOs (never leak ownerId/internal wiring) ————————
+// --- Public DTOs (never leak ownerId/internal wiring) --------
 
 export type PublicRoutine = {
   id: number;
@@ -453,7 +453,7 @@ export function publicSession(session: { id: number; routineId: number | null; t
   };
 }
 
-// ——— Dashboard summary ————————————————————————————————
+// --- Dashboard summary --------------------------------
 
 export type DashboardSummary = {
   completedWorkouts: number;

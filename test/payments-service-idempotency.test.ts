@@ -69,7 +69,7 @@ test("a successful paid checkout grants the correct owner entitlement exactly on
   assert.equal(ent!.ownerId, "owner-alice");
 });
 
-test("a webhook replay is idempotent — no duplicate grant, no duplicate paid order", async () => {
+test("a webhook replay is idempotent - no duplicate grant, no duplicate paid order", async () => {
   const orderCount = store.orders.filter((o) => o.providerCheckoutId === "cs_a").length;
   const entitlements = store.entitlements.filter((e) => e.ownerId === "owner-alice").length;
   assert.equal(await fulfill(session), "duplicate_event");
@@ -83,7 +83,7 @@ test("a wrong Stripe product/price never grants", async () => {
   assert.equal(activeEntitlement("owner-bob", FOUNDING_ACCESS_PRODUCT_KEY), null);
 });
 
-test("a fake success-URL session (no prior order) cannot grant — no owner is derivable", async () => {
+test("a fake success-URL session (no prior order) cannot grant - no owner is derivable", async () => {
   assert.equal(await fulfill({ ...session, id: "cs_fake", payment_id: "pi_fake" }), "unknown_order");
 });
 

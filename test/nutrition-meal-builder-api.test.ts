@@ -104,7 +104,7 @@ test("recalculate: unknown client denied", () => {
   if (!result.ok) assert.equal(result.status, 404);
 });
 
-test("recalculate: fake browser calorie totals ignored — server recalculates", () => {
+test("recalculate: fake browser calorie totals ignored - server recalculates", () => {
   const store = makeStore("coach-a", 7);
   store.targets = [approvedTarget()];
   const result = recalculateMealBuilder("coach-a", 7, twoMeals(), store);
@@ -176,7 +176,7 @@ test("recalculate: nut allergy rejects nut food", () => {
     twoMeals()[1],
   ];
   const result = recalculateMealBuilder("coach-a", 7, meals, store);
-  // The recalculate route doesn't enforce restrictions — it validates catalogue IDs and quantities only.
+  // The recalculate route doesn't enforce restrictions - it validates catalogue IDs and quantities only.
   // Restrictions are enforced at the AI generation layer. The recalculate endpoint is purely deterministic.
   // So almonds should be accepted if they exist in the catalogue.
   assert.equal(result.ok, true);
@@ -463,7 +463,7 @@ test("regenerate: forbidden food rejected", async () => {
   if (!result.ok) assert.match(result.error, /Unknown food|not preserved|Regeneration failed/);
 });
 
-test("regenerate: fake browser approved target ignored — server uses own target", async () => {
+test("regenerate: fake browser approved target ignored - server uses own target", async () => {
   const store = makeStore("coach-a", 7);
   store.targets = [approvedTarget({ calorieMinKcal: 2100, calorieMaxKcal: 2200 })];
   const gen = queuedGenerator({
@@ -741,7 +741,7 @@ test("regenerate: negative mealIndex", async () => {
 });
 
 // ===========================================================================
-// 6. OPTIMIZE SERVICE TESTS (Phase 2A — deterministic portion optimizer)
+// 6. OPTIMIZE SERVICE TESTS (Phase 2A - deterministic portion optimizer)
 // ===========================================================================
 
 function optimizeMeals(): { name: string; foods: { foodId: string; quantityG: number; locked?: boolean }[]; locked?: boolean }[] {
@@ -821,7 +821,7 @@ test("optimize: server target drives the optimization (no browser target exists)
 test("optimize: nutrition totals computed entirely server-side", () => {
   const store = makeStore("coach-a", 7);
   store.targets = [approvedTarget()];
-  // Input carries no nutrition fields at all — only structure.
+  // Input carries no nutrition fields at all - only structure.
   const result = optimizeMealBuilder("coach-a", 7, optimizeMeals(), store);
   assert.equal(result.ok, true);
   if (result.ok && result.status === "ready") {
@@ -913,7 +913,7 @@ test("optimize: locked foods preserved in response", () => {
   }
 });
 
-test("optimize: pure function — store and inputs not mutated", () => {
+test("optimize: pure function - store and inputs not mutated", () => {
   const store = makeStore("coach-a", 7);
   store.targets = [approvedTarget()];
   const target = store.targets[0];

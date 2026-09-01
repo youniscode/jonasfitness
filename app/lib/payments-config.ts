@@ -4,7 +4,7 @@
  * exposed to the client (no NEXT_PUBLIC_ keys here beyond the app URL, which is
  * a public value).
  *
- * FAIL-CLOSED PRE-LAUNCH BEHAVIOUR (hardened — see payments-config-validation.ts
+ * FAIL-CLOSED PRE-LAUNCH BEHAVIOUR (hardened - see payments-config-validation.ts
  * for the pure rules):
  *
  *  - STRIPE_SECRET_KEY must be a Stripe SECRET key (sk_*). Publishable pk_*
@@ -46,7 +46,7 @@ import {
 export const FOUNDING_ACCESS_PRODUCT_KEY = "progress_founding";
 export const FOUNDING_ACCESS_PRICE_EUR = 19;
 
-/** "managed" | "standard" — explicitly configured, never inferred. */
+/** "managed" | "standard" - explicitly configured, never inferred. */
 export type StripePaymentMode = "managed" | "standard";
 
 export interface StripeCommerceConfig {

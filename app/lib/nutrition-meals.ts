@@ -1,5 +1,5 @@
 ﻿/**
- * Food Nutrition Foundation V1 — AI meal generation over a canonical catalogue.
+ * Food Nutrition Foundation V1 - AI meal generation over a canonical catalogue.
  *
  * DIVISION OF RESPONSIBILITY (enforced in code, proven by adversarial tests):
  *   - The AI chooses WHICH catalogue foods and HOW MANY grams, and writes
@@ -13,14 +13,14 @@
  * This module is PURE except for one deliberately-injected AI seam
  * (`runMealGeneration` receives a `generate` function), so every gate,
  * validation rule, prompt and repair step is unit-testable with deterministic
- * fake responses — no live AI, network or DB.
+ * fake responses - no live AI, network or DB.
  *
  * Boundary rules (unchanged from Phase 3):
  *   - The ACTIVE coach-approved nutrition target is the ONLY numeric authority.
  *   - Allergies/intolerances are HARD exclusions; disliked foods warn;
  *     dietary patterns are enforced via catalogue dietary flags AND text scans.
  *   - No medical/prescription language, no extreme-diet language.
- *   - Coach-facing examples only — never presented as a medical diet plan.
+ *   - Coach-facing examples only - never presented as a medical diet plan.
  */
 
 import type { GatewayFailureReason, GatewayResult } from "./local-ai.ts";
@@ -65,7 +65,7 @@ export function nutrientTargetStatus(
 
 /**
  * Display-only number formatting for meal-builder target read-outs.
- * Presentation only — never changes stored or computed values.
+ * Presentation only - never changes stored or computed values.
  */
 export function formatKcal(value: number): string {
   return String(Math.round(value));
@@ -93,7 +93,7 @@ export type MealMode = (typeof MEAL_MODES)[number];
 /** What the AI must output per food line: a catalogue id + grams. Nothing else. */
 export type MealLineInput = { foodId: string; quantityG: number };
 
-/** UI-facing food line — display labels + numbers COMPUTED server-side. */
+/** UI-facing food line - display labels + numbers COMPUTED server-side. */
 export type MealFood = { foodId: string; food: string; quantity: string };
 
 export type MealExample = {
@@ -127,7 +127,7 @@ export type MealAlternatives = {
   notes: string[];
 };
 
-/** Trusted server-assembled generation context — never accepted from the browser. */
+/** Trusted server-assembled generation context - never accepted from the browser. */
 export type MealGenerationContext = {
   calories: { min: number; max: number };
   protein: { min: number; max: number };
@@ -553,7 +553,7 @@ function foodLevelWarnings(context: MealGenerationContext, names: string[]): Mea
     }
   }
   if (context.pattern.trim() === "Other") {
-    warnings.push({ code: "ambiguous_pattern", message: "Dietary pattern is \"Other\" — the coach should confirm it manually." });
+    warnings.push({ code: "ambiguous_pattern", message: "Dietary pattern is \"Other\" - the coach should confirm it manually." });
   }
   return warnings;
 }
@@ -729,7 +729,7 @@ function validateResolvedAlternatives(raw: RawAlternatives, context: MealGenerat
       notes: raw.notes,
     };
   }
-  // Alternatives are per-meal swaps, not a full day — no daily-total gate.
+  // Alternatives are per-meal swaps, not a full day - no daily-total gate.
   return { ok: errors.length === 0, errors, warnings, withinTargets: true, payload };
 }
 
@@ -739,19 +739,19 @@ function validateResolvedAlternatives(raw: RawAlternatives, context: MealGenerat
 
 const MEAL_SYSTEM_PROMPT = [
   "You are Jonas Coach AI, a private assistant for an experienced coach.",
-  "You generate GENERAL EXAMPLE MEALS for the coach to review — never a medical diet, prescription or treatment plan.",
+  "You generate GENERAL EXAMPLE MEALS for the coach to review - never a medical diet, prescription or treatment plan.",
   "Never diagnose, treat or make medical claims; never claim medical suitability.",
   "The approved calorie and macronutrient targets are authoritative. Do not recalculate or alter the provided calorie or macronutrient targets.",
   "Never recommend extreme restriction, fasting, purging, detoxes, dehydration, or rapid weight-loss practices.",
   "Respect all listed allergies and intolerances as hard exclusions, and disliked foods as strong preferences to avoid.",
   "Choose foods ONLY from the provided AVAILABLE FOODS list, referenced by their exact foodId, with quantities in grams (quantityG).",
-  "Never invent food ids, nutrition values or calories — the system computes all nutrition deterministically from an official food composition table.",
-  "Return structured JSON only — no markdown, no code fences, no free-form essay.",
+  "Never invent food ids, nutrition values or calories - the system computes all nutrition deterministically from an official food composition table.",
+  "Return structured JSON only - no markdown, no code fences, no free-form essay.",
 ].join(" ");
 
 function targetBlock(context: MealGenerationContext): string {
   return [
-    "APPROVED TARGETS (authoritative — do NOT recalculate or alter these):",
+    "APPROVED TARGETS (authoritative - do NOT recalculate or alter these):",
     `Calories: ${context.calories.min}-${context.calories.max} kcal/day`,
     `Protein: ${context.protein.min}-${context.protein.max} g/day`,
     `Fat: ${context.fat.min}-${context.fat.max} g/day`,
@@ -762,11 +762,11 @@ function targetBlock(context: MealGenerationContext): string {
 function dietaryBlock(context: MealGenerationContext): string {
   const lines: string[] = [];
   lines.push(`Dietary pattern: ${context.pattern || "No particular pattern"}`);
-  lines.push(`ALLERGIES — MUST NOT INCLUDE: ${context.allergies.length ? context.allergies.join(", ") : "none"}`);
-  lines.push(`INTOLERANCES — DO NOT INCLUDE UNLESS EXPLICITLY SAFE: ${context.intolerances.length ? context.intolerances.join(", ") : "none"}`);
-  lines.push(`DISLIKED FOODS — PREFER TO AVOID: ${context.dislikedFoods.length ? context.dislikedFoods.join(", ") : "none"}`);
+  lines.push(`ALLERGIES - MUST NOT INCLUDE: ${context.allergies.length ? context.allergies.join(", ") : "none"}`);
+  lines.push(`INTOLERANCES - DO NOT INCLUDE UNLESS EXPLICITLY SAFE: ${context.intolerances.length ? context.intolerances.join(", ") : "none"}`);
+  lines.push(`DISLIKED FOODS - PREFER TO AVOID: ${context.dislikedFoods.length ? context.dislikedFoods.join(", ") : "none"}`);
   const mealCount = context.mealsPerDay ?? MEAL_DEFAULT_COUNT;
-  lines.push(`Meals per day: ${context.mealsPerDay != null ? mealCount : `${mealCount} (generation default — client did not specify)`}`);
+  lines.push(`Meals per day: ${context.mealsPerDay != null ? mealCount : `${mealCount} (generation default - client did not specify)`}`);
   if (context.note) lines.push(`Client nutrition note: ${context.note}`);
   if (context.preferredLanguage) lines.push(`Preferred language: ${context.preferredLanguage}`);
   return lines.join("\n");
@@ -788,7 +788,7 @@ function hardRestrictionBlock(context: MealGenerationContext): string {
   return lines.join("\n");
 }
 
-/** Compact food selection list (id + name + category). Nutrient values are omitted — the system computes them deterministically. When a context is provided, only foods passing all hard restrictions are included. */
+/** Compact food selection list (id + name + category). Nutrient values are omitted - the system computes them deterministically. When a context is provided, only foods passing all hard restrictions are included. */
 function availableFoodsBlock(context?: MealGenerationContext): string {
   const foods = context ? getAllowedFoodsForMealContext(context) : getCatalogueFoods();
   const header = "AVAILABLE FOODS (choose ONLY these foodIds; the system computes all nutrition deterministically):\nfoodId | name | category";
@@ -801,7 +801,7 @@ const EXAMPLE_DAY_CONTRACT = [
   "Return a single JSON object with exactly this shape:",
   '{ "title": string, "meals": [ { "name": string, "foods": [ { "foodId": string, "quantityG": number } ] } ], "notes": string[] }',
   "Every foodId MUST be copied EXACTLY from the AVAILABLE FOODS list. quantityG is a number of grams (1-2000).",
-  "Do NOT include any calorie or macro estimates — the system computes them deterministically.",
+  "Do NOT include any calorie or macro estimates - the system computes them deterministically.",
   "Plan quantities so the computed daily total lands inside the approved target ranges.",
 ].join("\n");
 
@@ -810,7 +810,7 @@ const ALTERNATIVES_CONTRACT = [
   '{ "title": string, "alternatives": [ { "meal": string, "options": [ { "title": string, "foods": [ { "foodId": string, "quantityG": number } ] } ] } ], "notes": string[] }',
   "Every foodId MUST be copied EXACTLY from the AVAILABLE FOODS list. quantityG is a number of grams (1-2000).",
   "Each meal group should offer 2-3 practical, broadly compatible swaps (e.g. Breakfast A / B / C).",
-  "Do NOT include any calorie or macro estimates — the system computes them deterministically.",
+  "Do NOT include any calorie or macro estimates - the system computes them deterministically.",
 ].join("\n");
 
 export function buildMealSystemPrompt(): string {
@@ -864,7 +864,7 @@ type AttemptResult =
   | { kind: "provider_failure"; reason: GatewayFailureReason }
   | {
       kind: "ok";
-      /** Validated example day (with computed totals) — null when validation failed. */
+      /** Validated example day (with computed totals) - null when validation failed. */
       example: MealExampleDay | null;
       /** Parsed raw example day (meals/lines) even when validation failed, for optimizer use. */
       raw: ReturnType<typeof parseMealExampleDay> | null;
@@ -897,7 +897,7 @@ async function attemptGeneration(
  * A failure is "nutrient-only" when the ONLY blocking errors are calorie-target
  * misses. Hard safety failures (allergies, intolerances, dietary pattern, unknown
  * food, invalid grams, malformed structure, banned language) use other error codes
- * and must keep flowing through the existing AI repair/failure path — the optimizer
+ * and must keep flowing through the existing AI repair/failure path - the optimizer
  * may only adjust quantities of an otherwise safe, structurally-valid day.
  */
 function isNutrientOnlyFailure(errors: MealValidationError[]): boolean {
@@ -907,7 +907,7 @@ function isNutrientOnlyFailure(errors: MealValidationError[]): boolean {
 /**
  * Convert a generated example day into a builder state, run the deterministic
  * quantity-only optimizer against the exact approved target, then re-validate.
- * Returns the optimized, re-validated payload only when it passes — the optimizer
+ * Returns the optimized, re-validated payload only when it passes - the optimizer
  * never adds/removes/swaps foods, it only changes grams. Returns null when the
  * optimized day still fails validation (best effort did not reach the target).
  */

@@ -228,7 +228,7 @@ export function onboardingState(
   let nextAction: string;
   if (hasApprovedProgramme) {
     stage = "ready_to_train";
-    nextAction = "Client can start training — the programme is live in their portal.";
+    nextAction = "Client can start training - the programme is live in their portal.";
   } else if (!intake) {
     stage = "new";
     nextAction = "Complete onboarding";

@@ -1,12 +1,12 @@
 /**
  * Pure, testable logic for the /progress/purchase activation/status page.
  *
- * The purchase page is purely a STATUS / ACTIVATION UX. It NEVER grants access —
+ * The purchase page is purely a STATUS / ACTIVATION UX. It NEVER grants access -
  * the Stripe webhook is the only authority. The webhook can race the browser
  * redirect (payment succeeds -> browser lands on /progress/purchase -> webhook
  * still delivering), so a signed-in user without an active entitlement yet must
  * see an "Activating…" state and poll the authoritative server entitlement
- * endpoint — NOT be bounced to the founding offer.
+ * endpoint - NOT be bounced to the founding offer.
  *
  * All of the state-transition decisions below are side-effect free so the
  * exact polling/timeout behavior is unit-testable without a browser.
@@ -56,7 +56,7 @@ export function nextActivationPhase(input: PollInput): ActivationPhase {
  *
  * The page server-component decides this from its own `auth()`: if the server
  * render already saw a userId we start directly in "activating"; if it did not,
- * the page routes to Clerk sign-in (preserving the return path) — never to the
+ * the page routes to Clerk sign-in (preserving the return path) - never to the
  * founding offer. This separate helper keeps the pure client decision obvious.
  */
 export function startFromVisibleSignedInUser(isSignedInOnServer: boolean): ActivationPhase {

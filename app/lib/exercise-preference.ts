@@ -1,5 +1,5 @@
 /**
- * Exercise Intelligence V2 — client preference memory + coach decision learning.
+ * Exercise Intelligence V2 - client preference memory + coach decision learning.
  *
  * The system learns PREFERENCES from explicit coach actions; it must NEVER turn
  * preferences into medical restrictions. The coach remains the final authority:
@@ -172,7 +172,7 @@ function touchNegative(row: ClientPreferenceRow, now: Date) {
 }
 
 // Applies ONE coach action to the aggregate state. A replacement counts as a
-// single event (never remove + add + replacement). Mutates the given maps —
+// single event (never remove + add + replacement). Mutates the given maps -
 // callers pass cloned state.
 export function applyPreferenceEvent(
   preferences: PreferenceStateMap,
@@ -251,7 +251,7 @@ export type LearnedPreference = {
 };
 
 // Compact, deterministic preference context handed to the scoring engine and
-// the quality engine. Exercise ids only — never names, never free text.
+// the quality engine. Exercise ids only - never names, never free text.
 export type ClientPreferenceContext = {
   explicit: Record<string, ExplicitPreferenceState>;
   learned: Record<string, LearnedPreference>;
@@ -364,14 +364,14 @@ function sourceExercisesFor(replacements: ClientPreferenceContext["replacements"
 // ---------- Compact PII-free summary for Jonas Coach ----------
 
 // What the AI sees: exercise names and counts only. Never a client name, email,
-// phone, acquisition, billing or credit data — and never raw event history.
+// phone, acquisition, billing or credit data - and never raw event history.
 export function compactPreferenceSummary(preferences: ClientPreferenceRow[], replacements: ReplacementRow[]): string {
   const lines: string[] = [];
   const preferred = preferences.filter((row) => row.explicitState === "preferred");
   const avoided = preferences.filter((row) => row.explicitState === "avoid");
   const orderedReplacements = [...replacements].sort((a, b) => b.count - a.count).slice(0, 6);
   if (!preferred.length && !avoided.length && !orderedReplacements.length) return "";
-  lines.push("CLIENT EXERCISE PREFERENCES (coach-set context — treat as coach preference, never a medical restriction):");
+  lines.push("CLIENT EXERCISE PREFERENCES (coach-set context - treat as coach preference, never a medical restriction):");
   if (preferred.length) {
     lines.push("Preferred:");
     for (const row of preferred) lines.push(`- ${exerciseNameFor(row.exerciseId)}`);
@@ -393,7 +393,7 @@ export type PreferenceFitWarning = { exerciseId: string; message: string };
 
 // Deterministic per-draft preference warnings for the quality engine. Explicit
 // avoid is already handled by scoring exclusion (authoritative). These are
-// REVIEW RECOMMENDED signals only — a learned dislike never invalidates a
+// REVIEW RECOMMENDED signals only - a learned dislike never invalidates a
 // draft, it surfaces a substitution suggestion.
 export function preferenceFitWarnings(
   draft: { sessions?: { exercises?: Array<{ id?: string; libraryId?: string; name?: string }> }[] } | null | undefined,
