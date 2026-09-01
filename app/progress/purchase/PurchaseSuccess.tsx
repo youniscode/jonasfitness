@@ -17,7 +17,7 @@ const copy = {
   fr: {
     kicker: "BIENVENUE · ACCÈS ACTIF",
     thanks: "Ton accès à Progress est actif.",
-    body: "Ton accès à Jonas Fitness Progress est actif. Tu peux créer ta première routine et ouvrir ton carnet d’entraînement.",
+    body: "Ton accès à Jonas Progress est actif. Tu peux créer ta première routine et ouvrir ton carnet d’entraînement.",
     cta: "Créer ma première routine",
     activate: "Activation de ton accès…",
     activateBody: "Le paiement est confirmé. Nous appliquons l’activation, cela ne prend que quelques secondes.",
@@ -31,7 +31,7 @@ const copy = {
   en: {
     kicker: "WELCOME · ACTIVATED",
     thanks: "Your Progress access is active.",
-    body: "Your access to Jonas Fitness Progress is active. Create your first routine and open your training log.",
+    body: "Your access to Jonas Progress is active. Create your first routine and open your training log.",
     cta: "Create your first routine",
     activate: "Activating your access…",
     activateBody: "Your payment is confirmed. We’re confirming your access; just a few seconds.",
@@ -45,7 +45,7 @@ const copy = {
   ar: {
     kicker: "مرحبًا · تم التفعيل",
     thanks: "وصولك إلى Progress نشط.",
-    body: "وصولك إلى Jonas Fitness Progress نشط. يمكنك إنشاء أول روتين لك وفتح سجلّك التدريبي.",
+    body: "وصولك إلى Jonas Progress نشط. يمكنك إنشاء أول روتين لك وفتح سجلّك التدريبي.",
     cta: "أنشئ أول روتين لك",
     activate: "جارٍ تفعيل وصولك…",
     activateBody: "تم تأكيد الدفع. نحن نُكمل التفعيل؛ يستغرق ذلك بضع ثوانٍ فقط.",
@@ -127,7 +127,7 @@ export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitl
   return (
     <section dir={rtl ? "rtl" : "ltr"} className={`founding purchase ${rtl ? "rtl-site" : ""}`}>
       <header className="purchase-top">
-        <Link className="founding-brand" href="/"><span className="brand-mark">JF</span><span>JONAS FITNESS</span></Link>
+        <Link className="founding-brand" href="/"><span className="brand-mark">JF</span><span>JONAS PROGRESS</span></Link>
         <div className="founding-lang" aria-label="Language">{(LANGS as Lang[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => switchLang(l)}>{l.toUpperCase()}</button>)}</div>
       </header>
 

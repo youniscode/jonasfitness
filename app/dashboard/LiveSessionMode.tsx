@@ -284,7 +284,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
   return <section className="workout-mode" role="dialog" aria-modal="true">
     <header className="workout-topbar">
       <button type="button" onClick={onClose}>← {t("Back to dashboard", "Retour au tableau de bord")}</button>
-      <strong>JONAS FITNESS</strong>
+      <strong>JONAS PROGRESS</strong>
       <div className="workout-top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         <button type="button" onClick={() => setLanguage("en")} aria-pressed={language === "en"}>EN</button>
         <button type="button" onClick={() => setLanguage("fr")} aria-pressed={language === "fr"}>FR</button>

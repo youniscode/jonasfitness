@@ -33,8 +33,8 @@ export function sessionReminderMessages(name: string, startAt: Date, pulseUrl: s
 export function leadFollowUpMessages(name: string): ReminderMessages {
   const first = firstName(name);
   return {
-    fr: `Bonjour ${first}, je reviens vers vous concernant votre demande de coaching Jonas Fitness. Souhaitez-vous que nous organisions un court appel pour parler de vos objectifs et de vos disponibilités ?`,
-    en: `Hi ${first}, I’m following up about your Jonas Fitness coaching request. Would you like to arrange a short call to discuss your goals and availability?`,
-    ar: `مرحباً ${first}، أتابع معك بخصوص طلب التدريب مع Jonas Fitness. هل ترغب في تحديد مكالمة قصيرة لمناقشة أهدافك والأوقات المناسبة لك؟`,
+    fr: `Bonjour ${first}, je reviens vers vous concernant votre demande de coaching Jonas Progress. Souhaitez-vous que nous organisions un court appel pour parler de vos objectifs et de vos disponibilités ?`,
+    en: `Hi ${first}, I’m following up about your Jonas Progress coaching request. Would you like to arrange a short call to discuss your goals and availability?`,
+    ar: `مرحباً ${first}، أتابع معك بخصوص طلب التدريب مع Jonas Progress. هل ترغب في تحديد مكالمة قصيرة لمناقشة أهدافك والأوقات المناسبة لك؟`,
   };
 }

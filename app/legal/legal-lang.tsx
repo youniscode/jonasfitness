@@ -26,7 +26,7 @@ export function useLegalLang(): { lang: Lang; setLang: (lang: Lang) => void } {
   return context;
 }
 
-/** FR / EN / AR switch with the same visual convention used across Jonas Fitness. */
+/** FR / EN / AR switch with the same visual convention used across Jonas Progress. */
 export function LegalLangSwitch() {
   const { lang, setLang } = useLegalLang();
   return (

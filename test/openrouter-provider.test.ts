@@ -93,8 +93,8 @@ test("OpenRouter request wire contract: endpoint, fixed model, bounded options, 
     assert.equal(body.messages[1].content, PROMPT);
     const headers = lastRequest?.init?.headers as Record<string, string> | undefined;
     assert.equal(headers?.authorization, `Bearer ${FAKE_KEY}`);
-    assert.equal(headers?.["http-referer"], "https://jonas-fitness.jonascode.com");
-    assert.equal(headers?.["x-title"], "Jonas-Fitness Coach AI");
+    assert.equal(headers?.["http-referer"], "https://jonasprogress.com");
+    assert.equal(headers?.["x-title"], "Jonas-Progress Coach AI");
   });
 });
 

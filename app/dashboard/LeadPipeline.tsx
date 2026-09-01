@@ -56,28 +56,28 @@ function contactTemplate(lead: Lead, key: TemplateKey, consultation?: Consultati
   const language = ["fr", "en", "ar"].includes(lead.preferredLanguage) ? lead.preferredLanguage : "fr";
   const messages = {
     fr: {
-      initial: `Bonjour ${firstName}, c’est Jonas de Jonas Fitness. Merci pour votre demande de coaching. J’ai bien étudié votre objectif et j’aimerais échanger quelques minutes avec vous pour comprendre vos besoins. Quand seriez-vous disponible ?`,
-      followup: `Bonjour ${firstName}, je reviens vers vous concernant votre demande de coaching Jonas Fitness. Souhaitez-vous toujours que nous échangions sur votre objectif ${lead.goal.toLowerCase()} ?`,
+      initial: `Bonjour ${firstName}, c’est Jonas de Jonas Progress. Merci pour votre demande de coaching. J’ai bien étudié votre objectif et j’aimerais échanger quelques minutes avec vous pour comprendre vos besoins. Quand seriez-vous disponible ?`,
+      followup: `Bonjour ${firstName}, je reviens vers vous concernant votre demande de coaching Jonas Progress. Souhaitez-vous toujours que nous échangions sur votre objectif ${lead.goal.toLowerCase()} ?`,
       consultation: consultation
-        ? `Bonjour ${firstName}, votre consultation Jonas Fitness est confirmée pour le ${date}. Durée prévue : ${consultation.durationMinutes} minutes. À très bientôt.`
+        ? `Bonjour ${firstName}, votre consultation Jonas Progress est confirmée pour le ${date}. Durée prévue : ${consultation.durationMinutes} minutes. À très bientôt.`
         : `Bonjour ${firstName}, je vous propose une courte consultation afin de parler de votre objectif et de voir si mon accompagnement vous convient. Quelles sont vos disponibilités ?`,
-      subject: "Votre demande de coaching Jonas Fitness",
+      subject: "Votre demande de coaching Jonas Progress",
     },
     en: {
-      initial: `Hi ${firstName}, this is Jonas from Jonas Fitness. Thank you for your coaching application. I have reviewed your goal and would like to speak with you briefly to understand what you need. When would you be available?`,
-      followup: `Hi ${firstName}, I am following up about your Jonas Fitness coaching application. Would you still like to discuss your ${lead.goal.toLowerCase()} goal?`,
+      initial: `Hi ${firstName}, this is Jonas from Jonas Progress. Thank you for your coaching application. I have reviewed your goal and would like to speak with you briefly to understand what you need. When would you be available?`,
+      followup: `Hi ${firstName}, I am following up about your Jonas Progress coaching application. Would you still like to discuss your ${lead.goal.toLowerCase()} goal?`,
       consultation: consultation
-        ? `Hi ${firstName}, your Jonas Fitness consultation is confirmed for ${date}. Expected duration: ${consultation.durationMinutes} minutes. Speak soon.`
+        ? `Hi ${firstName}, your Jonas Progress consultation is confirmed for ${date}. Expected duration: ${consultation.durationMinutes} minutes. Speak soon.`
         : `Hi ${firstName}, I would like to offer you a short consultation to discuss your goal and see whether my coaching is the right fit. When are you available?`,
-      subject: "Your Jonas Fitness coaching application",
+      subject: "Your Jonas Progress coaching application",
     },
     ar: {
-      initial: `مرحباً ${firstName}، معك جوناس من Jonas Fitness. شكراً على طلب التدريب. راجعت هدفك وأود التحدث معك لبضع دقائق لفهم احتياجاتك. متى يكون الوقت مناسباً لك؟`,
-      followup: `مرحباً ${firstName}، أتابع معك بخصوص طلب التدريب لدى Jonas Fitness. هل ما زلت ترغب في مناقشة هدفك: ${lead.goal}؟`,
+      initial: `مرحباً ${firstName}، معك جوناس من Jonas Progress. شكراً على طلب التدريب. راجعت هدفك وأود التحدث معك لبضع دقائق لفهم احتياجاتك. متى يكون الوقت مناسباً لك؟`,
+      followup: `مرحباً ${firstName}، أتابع معك بخصوص طلب التدريب لدى Jonas Progress. هل ما زلت ترغب في مناقشة هدفك: ${lead.goal}؟`,
       consultation: consultation
-        ? `مرحباً ${firstName}، تم تأكيد استشارتك مع Jonas Fitness بتاريخ ${date}. المدة المتوقعة: ${consultation.durationMinutes} دقيقة. إلى اللقاء قريباً.`
+        ? `مرحباً ${firstName}، تم تأكيد استشارتك مع Jonas Progress بتاريخ ${date}. المدة المتوقعة: ${consultation.durationMinutes} دقيقة. إلى اللقاء قريباً.`
         : `مرحباً ${firstName}، أقترح استشارة قصيرة لمناقشة هدفك والتأكد من أن التدريب مناسب لك. ما هي الأوقات المناسبة لك؟`,
-      subject: "طلب التدريب لدى Jonas Fitness",
+      subject: "طلب التدريب لدى Jonas Progress",
     },
   } as const;
   const selected = messages[language as keyof typeof messages];

@@ -7,7 +7,7 @@ const copy = {
   fr: {
     kicker: "CONFIDENTIALITÉ",
     title: "Confidentialité",
-    intro: "Cette page décrit les données personnelles traitées dans le cadre de Jonas Fitness Progress (« Progress ») et les processeurs que nous utilisons. Elle recense ce qui existe réellement dans le produit aujourd’hui et expose la politique applicable en matière de conservation et de base légale, sans inventer de durées ni de fonctionnalités.",
+    intro: "Cette page décrit les données personnelles traitées dans le cadre de Jonas Progress (« Progress ») et les processeurs que nous utilisons. Elle recense ce qui existe réellement dans le produit aujourd’hui et expose la politique applicable en matière de conservation et de base légale, sans inventer de durées ni de fonctionnalités.",
     whatWeProcess: "Ce que nous traitons",
     processList: [
       "Identité du compte (via Clerk) : identité du compte Clerk, e-mail, identifiant utilisateur et données de connexion/session.",
@@ -33,7 +33,7 @@ const copy = {
       "Suppression / export : Progress ne propose actuellement pas d’export de données en libre-service dans l’application. Pour demander la suppression ou une copie de vos données, contactez <a href=\"mailto:contact@jonascode.com\">contact@jonascode.com</a> ; les demandes sont traitées conformément au droit applicable.",
     ],
     status: "Statut",
-    statusText: "Jonas Fitness est une <strong>activité supplémentaire numérique/logicielle</strong> de l’entreprise existante du vendeur. Le dépôt de cette activité supplémentaire auprès de l’administration française (Guichet unique / RNE) est <strong>en attente</strong> ; mise à jour administrative en cours, non présentée comme aboutie.",
+    statusText: "L’activité supplémentaire numérique/logicielle est exercée dans le cadre de l’entreprise existante du vendeur. Le dépôt de cette activité supplémentaire auprès de l’administration française (Guichet unique / RNE) est <strong>en attente</strong> ; mise à jour administrative en cours, non présentée comme aboutie.",
     legalBasis: "Base légale & droits",
     controllerLabel: "Le responsable du traitement des données personnelles de Progress est le vendeur légal :",
     basesIntro: "Lorsque le droit européen/UK de la protection des données s’applique, nous nous appuyons sur les bases légales suivantes :",
@@ -49,7 +49,7 @@ const copy = {
   en: {
     kicker: "PRIVACY",
     title: "Privacy",
-    intro: "This page describes the personal data handled in relation to Jonas Fitness Progress (“Progress”) and the processors we use. It inventories what actually exists in the product today and states the applicable retention and legal-basis policy, without inventing periods or features.",
+    intro: "This page describes the personal data handled in relation to Jonas Progress (“Progress”) and the processors we use. It inventories what actually exists in the product today and states the applicable retention and legal-basis policy, without inventing periods or features.",
     whatWeProcess: "What we process",
     processList: [
       "<strong>Account identity (via Clerk):</strong> Clerk account identity, email, user ID, and sign-in/session data.",
@@ -75,7 +75,7 @@ const copy = {
       "<strong>Deletion / export:</strong> Progress does not currently offer an in-app self-service data export. To request deletion or a copy of your data, contact <a href=\"mailto:contact@jonascode.com\">contact@jonascode.com</a>; requests are processed in accordance with applicable law.",
     ],
     status: "Status",
-    statusText: "Jonas Fitness is an <strong>additional digital/software activity</strong> of the legal seller’s existing enterprise. The filing of this additional activity with the French administration (Guichet unique / RNE) is <strong>pending</strong>; an administrative update in progress, not claimed as completed.",
+    statusText: "The <strong>additional digital/software activity</strong> is exercised within the legal seller’s existing enterprise. The filing of this additional activity with the French administration (Guichet unique / RNE) is <strong>pending</strong>; an administrative update in progress, not claimed as completed.",
     legalBasis: "Legal basis & rights",
     controllerLabel: "The data controller for Progress personal data is the legal seller:",
     basesIntro: "Where EU/UK data-protection law applies, we rely on the following legal bases:",
@@ -91,7 +91,7 @@ const copy = {
   ar: {
     kicker: "الخصوصية",
     title: "الخصوصية",
-    intro: "تصف هذه الصفحة البيانات الشخصية التي نتعامل معها فيما يتعلق بمنتج Jonas Fitness Progress («بروغريس») والجهات المعالجة التي نستخدمها. وهي تُحصي ما هو موجود فعليًا في المنتج اليوم وتوضح سياسة الاحتفاظ والأساس القانوني المطبقة، دون اختلاق فترات أو ميزات.",
+    intro: "تصف هذه الصفحة البيانات الشخصية التي نتعامل معها فيما يتعلق بمنتج Jonas Progress («بروغريس») والجهات المعالجة التي نستخدمها. وهي تُحصي ما هو موجود فعليًا في المنتج اليوم وتوضح سياسة الاحتفاظ والأساس القانوني المطبقة، دون اختلاق فترات أو ميزات.",
     whatWeProcess: "ما نعالجه",
     processList: [
       "<strong>هوية الحساب (عبر Clerk):</strong> هوية حساب Clerk والبريد الإلكتروني ومعرف المستخدم وبيانات تسجيل الدخول/الجلسة.",
@@ -117,7 +117,7 @@ const copy = {
       "<strong>الحذف/التصدير:</strong> لا يوفّر Progress حاليًا تصدير بيانات ذاتي داخل التطبيق. لطلب حذف بياناتك أو نسخة منها، تواصل مع <a href=\"mailto:contact@jonascode.com\">contact@jonascode.com</a>؛ وتُعالَج الطلبات وفقًا للقانون المعمول به.",
     ],
     status: "الحالة",
-    statusText: "Jonas Fitness هو <strong>نشاط إضافي رقمي/برمجي</strong> للمؤسسة القائمة للبائع. إيداع هذا النشاط الإضافي لدى الإدارة الفرنسية (الشباك الموحد / السجل الوطني للمنشآت) <strong>معلَّق</strong>؛ تحديث إداري قيد التنفيذ، ولم يُعلَن اكتماله.",
+    statusText: "يُمارَس <strong>النشاط الإضافي الرقمي/البرمجي</strong> ضمن المؤسسة القائمة للبائع. إيداع هذا النشاط الإضافي لدى الإدارة الفرنسية (الشباك الموحد / السجل الوطني للمنشآت) <strong>معلَّق</strong>؛ تحديث إداري قيد التنفيذ، ولم يُعلَن اكتماله.",
     legalBasis: "الأساس القانوني والحقوق",
     controllerLabel: "مسؤول معالجة البيانات الشخصية لـ Progress هو البائع القانوني:",
     basesIntro: "عند تطبيق قانون حماية البيانات الأوروبي/البريطاني، نعتمد على الأسس القانونية التالية:",

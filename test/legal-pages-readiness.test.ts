@@ -76,7 +76,7 @@ test("the verified registered address (104 Avenue Vauban) is used, not 512 Rue H
 test("Jonas Fitness is framed as brand/product, not a separate company; Riviera is the same EI's commercial name", () => {
   const legal = readLegal("legal");
   const terms = readLegal("terms");
-  assert.match(legal, /Jonas Fitness is the <strong>product\/brand<\/strong>/i);
+  assert.match(legal, /Jonas Progress is the <strong>product\/brand<\/strong>/i);
   assert.match(legal, /Riviera With Younis/i, "existing commercial name mentioned only where contextually needed");
   assert.match(legal, /same enterprise\s+individuelle|same EI/i, "Riviera is same EI, not separate");
   assert.match(terms, /product\/brand/i);
@@ -203,7 +203,7 @@ test("legal purchase/refund copy refers to the product as Progress access, not F
   assert.doesNotMatch(src, /Founding Access/i, "no English Founding Access in legal copy");
   assert.doesNotMatch(src, /accès fondateur/i, "no French accès fondateur in legal copy");
   assert.doesNotMatch(src, /الوصول التأسيسي|وصول المؤسسين|وصول تأسيسي/, "no Arabic founding-access terminology in legal copy");
-  assert.match(src, /Progress access|access to Jonas Fitness Progress/i, "EN refers to Progress access");
+  assert.match(src, /Progress access|access to Jonas Progress/i, "EN refers to Progress access");
   assert.match(src, /accès à Progress/, "FR refers to accès à Progress");
   assert.match(src, /الوصول إلى Progress/, "AR refers to الوصول إلى Progress");
 });
@@ -214,9 +214,9 @@ test("founding page has no remaining customer-visible Founding Access wording", 
   assert.ok(offer.includes("PROGRESS · ACCÈS UNIQUE"), "FR tag");
   assert.ok(offer.includes("PROGRESS · ONE-TIME ACCESS"), "EN tag");
   assert.ok(offer.includes("PROGRESS · وصول لمرة واحدة"), "AR tag");
-  assert.ok(offer.includes("Un accès unique à Jonas Fitness Progress."), "FR offer body");
-  assert.ok(offer.includes("One-time access to Jonas Fitness Progress."), "EN offer body");
-  assert.ok(offer.includes("وصول لمرة واحدة إلى Jonas Fitness Progress."), "AR offer body");
+  assert.ok(offer.includes("Un accès unique à Jonas Progress."), "FR offer body");
+  assert.ok(offer.includes("One-time access to Jonas Progress."), "EN offer body");
+  assert.ok(offer.includes("وصول لمرة واحدة إلى Jonas Progress."), "AR offer body");
   assert.ok(offer.includes("L’accès à Progress est un achat unique (19 €)."), "FR legal note");
   assert.ok(offer.includes("Progress access is a one-time purchase (€19)."), "EN legal note");
   assert.ok(offer.includes("الوصول إلى Progress هو شراء لمرة واحدة (19 €)."), "AR legal note");

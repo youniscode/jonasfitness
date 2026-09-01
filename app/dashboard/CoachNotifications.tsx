@@ -86,7 +86,7 @@ export default function CoachNotifications({ onSelectClient }: { onSelectClient:
     setPermission(result);
     if (result === "granted") {
       localStorage.setItem("jonas-phone-alerts", "enabled");
-      setNotice("Phone alerts enabled. New important alerts will appear when Jonas Fitness synchronises.");
+      setNotice("Phone alerts enabled. New important alerts will appear when Jonas Progress synchronises.");
       await showDeviceNotifications(data);
     } else setNotice("Notifications remain off. You can still use every in-app reminder.");
   }

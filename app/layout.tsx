@@ -21,11 +21,30 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Jonas Fitness | Worldwide personal coaching",
-  description: "Human-led personal coaching with intelligent training, progress and nutrition tracking for clients worldwide.",
+  metadataBase: new URL("https://jonasprogress.com"),
+  title: {
+    default: "Jonas Progress | Stop guessing. Beat the logbook.",
+    template: "%s · Jonas Progress",
+  },
+  description: "Jonas Progress is self-directed training software: see what you did last time, set what you want to beat today, and record what you actually achieved.",
+  applicationName: "Jonas Progress",
   icons: { icon: "/icon", apple: "/icon", shortcut: "/favicon.svg" },
-  applicationName: "Jonas Fitness",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Jonas Fitness" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Jonas Progress" },
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "Jonas Progress",
+    title: "Jonas Progress | Stop guessing. Beat the logbook.",
+    description: "Jonas Progress is self-directed training software: see what you did last time, set what you want to beat today, and record what you actually achieved.",
+    url: "https://jonasprogress.com",
+    locale: "fr_FR",
+    alternateLocale: ["en_US", "ar_AR"],
+  },
+  twitter: {
+    card: "summary",
+    title: "Jonas Progress | Stop guessing. Beat the logbook.",
+    description: "Jonas Progress is self-directed training software: see what you did last time, set what you want to beat today, and record what you actually achieved.",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

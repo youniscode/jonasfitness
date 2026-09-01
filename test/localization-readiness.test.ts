@@ -93,13 +93,13 @@ test("€19 price stays consistent across languages on the founding offer", () =
 
 test("founding primary CTA names the product instead of the founding-access offer", () => {
   const offer = read("app", "progress", "founding", "FoundingOffer.tsx");
-  assert.ok(offer.includes("Get Jonas Fitness Progress"), "EN primary CTA");
-  assert.ok(offer.includes("Obtenir Jonas Fitness Progress"), "FR primary CTA");
-  assert.ok(offer.includes("احصل على Jonas Fitness Progress"), "AR primary CTA");
+  assert.ok(offer.includes("Get Jonas Progress"), "EN primary CTA");
+  assert.ok(offer.includes("Obtenir Jonas Progress"), "FR primary CTA");
+  assert.ok(offer.includes("احصل على Jonas Progress"), "AR primary CTA");
   assert.doesNotMatch(offer, /Get Founding Access/, "no founding-access primary CTA");
-  assert.ok(offer.includes("Jonas Fitness Progress · €19 one-time"), "EN offer price line");
-  assert.ok(offer.includes("Jonas Fitness Progress · 19 € en paiement unique"), "FR offer price line");
-  assert.ok(offer.includes("Jonas Fitness Progress · 19 € دفعة واحدة"), "AR offer price line");
+  assert.ok(offer.includes("Jonas Progress · €19 one-time"), "EN offer price line");
+  assert.ok(offer.includes("Jonas Progress · 19 € en paiement unique"), "FR offer price line");
+  assert.ok(offer.includes("Jonas Progress · 19 € دفعة واحدة"), "AR offer price line");
 });
 
 // ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   assert.ok(home.includes("Maintenant, sache si tu progresses."), "FR headline 2");
   assert.ok(home.includes("PRÉCÉDENT → OBJECTIF → RÉEL"), "FR progression model");
   assert.ok(home.includes("19 € une seule fois"), "FR price");
-  assert.ok(home.includes("Obtenir Jonas Fitness Progress"), "FR CTA");
+  assert.ok(home.includes("Obtenir Jonas Progress"), "FR CTA");
   assert.ok(home.includes("Pas un coaching personnalisé."), "FR clarification");
   // EN
   assert.ok(home.includes("Discover Progress · €19"), "EN hero CTA");
@@ -133,7 +133,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   assert.ok(home.includes("Now know if you’re progressing."), "EN headline 2");
   assert.ok(home.includes("PREVIOUS → TARGET → ACTUAL"), "EN progression model");
   assert.ok(home.includes("€19 one-time"), "EN price");
-  assert.ok(home.includes("Get Jonas Fitness Progress"), "EN CTA");
+  assert.ok(home.includes("Get Jonas Progress"), "EN CTA");
   assert.ok(home.includes("Not personalized coaching."), "EN clarification");
   // AR
   assert.ok(home.includes("اكتشف Progress · 19 €"), "AR hero CTA");
@@ -141,7 +141,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   assert.ok(home.includes("الآن اعرف إن كنت تتقدّم فعلاً."), "AR headline 2");
   assert.ok(home.includes("السابق ← الهدف ← الفعلي"), "AR progression model");
   assert.ok(home.includes("19 € دفعة واحدة"), "AR price");
-  assert.ok(home.includes("احصل على Jonas Fitness Progress"), "AR CTA");
+  assert.ok(home.includes("احصل على Jonas Progress"), "AR CTA");
   assert.ok(home.includes("ليس تدريباً شخصياً مخصصاً."), "AR clarification");
 });
 

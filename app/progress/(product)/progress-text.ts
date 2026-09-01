@@ -19,7 +19,7 @@ export type ProgressText = { [K in keyof typeof text.en]: string };
 
 const text = {
   en: {
-    brand: "JONAS FITNESS · PROGRESS",
+    brand: "JONAS PROGRESS · PROGRESS",
     navDashboard: "Dashboard",
     navRoutines: "Routines",
     navHistory: "History",
@@ -145,7 +145,7 @@ const text = {
     error: "Something went wrong.",
   },
   fr: {
-    brand: "JONAS FITNESS · PROGRESSION",
+    brand: "JONAS PROGRESS · PROGRESSION",
     navDashboard: "Tableau de bord",
     navRoutines: "Routines",
     navHistory: "Historique",
@@ -264,7 +264,7 @@ const text = {
     error: "Une erreur est survenue.",
   },
   ar: {
-    brand: "JONAS FITNESS · تقدّم",
+    brand: "JONAS PROGRESS · تقدّم",
     navDashboard: "لوحة القيادة",
     navRoutines: "الروتينات",
     navHistory: "السجل",

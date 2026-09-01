@@ -70,7 +70,7 @@ export default function LegalShell({
       <header className="legal-nav">
         <Link className="legal-brand" href="/">
           <span className="brand-mark">JF</span>
-          <span>JONAS FITNESS</span>
+          <span>JONAS PROGRESS</span>
         </Link>
         <nav className="legal-links" aria-label="Legal">
           {navHrefs.map((href, index) => (
@@ -88,7 +88,7 @@ export default function LegalShell({
       </article>
 
       <footer className="legal-footer">
-        <p>© 2026 Jonas Fitness · Progress</p>
+        <p>© 2026 Jonas Progress</p>
         <nav>
           {navHrefs.map((href, index) => (
             <Link key={href} href={href}>{t.nav[index]}</Link>

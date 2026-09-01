@@ -18,8 +18,8 @@ export const GATEWAY_MODEL = "alibaba/qwen3.5-flash";
 //   nvidia/nemotron-3-super-120b-a12b:free - $0/$0, 262K context.
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
-export const OPENROUTER_REFERER = "https://jonas-fitness.jonascode.com";
-export const OPENROUTER_TITLE = "Jonas-Fitness Coach AI";
+export const OPENROUTER_REFERER = "https://jonasprogress.com";
+export const OPENROUTER_TITLE = "Jonas-Progress Coach AI";
 
 // Direct DeepSeek (OpenAI-compatible) provider for Jonas Coach. deepseek-v4-flash
 // with thinking disabled for fast, deterministic JSON programme drafts. Shares
