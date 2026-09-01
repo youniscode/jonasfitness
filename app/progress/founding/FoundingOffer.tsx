@@ -20,6 +20,7 @@ const copy = {
     priceLine: "Accès fondateur · 19 € en paiement unique",
     problem: "LE PROBLÈME",
     problemTitle: "La plupart des pratiquants savent quels exercices ils font.",
+    problemBridge: "Encore moins peuvent répondre :",
     problemList: [
       ["Qu’est-ce que j’ai fait la dernière fois ?", ""],
       ["Ai-je progressé ?", ""],
@@ -66,6 +67,7 @@ const copy = {
     legalNote: "L’accès fondateur est un achat unique (19 €). C’est un logiciel auto-dirigé : ce n’est ni un coaching personnalisé, ni un dispositif médical, ni une rééducation.",
     signInFirst: "Connecte-toi pour continuer",
     starting: "Redirection vers le paiement…",
+    legalLinks: ["Légal", "Confidentialité", "Conditions", "Remboursements"],
     footer: "© 2026 Jonas Fitness",
   },
   en: {
@@ -79,6 +81,7 @@ const copy = {
     priceLine: "Founding Access · €19 one-time",
     problem: "THE PROBLEM",
     problemTitle: "Most lifters know what exercises they perform.",
+    problemBridge: "Fewer still can answer:",
     problemList: [
       ["What did I actually do last time?", ""],
       ["Did I improve?", ""],
@@ -125,6 +128,7 @@ const copy = {
     legalNote: "Founding Access is a one-time purchase (€19). It is self-directed software: not personalized coaching, not medical or rehabilitation software.",
     signInFirst: "Sign in to continue",
     starting: "Redirecting to checkout…",
+    legalLinks: ["Legal", "Privacy", "Terms", "Refunds"],
     footer: "© 2026 Jonas Fitness",
   },
   ar: {
@@ -138,6 +142,7 @@ const copy = {
     priceLine: "الوصول التأسيسي · 19 € دفعة واحدة",
     problem: "المشكلة",
     problemTitle: "معظم المتدربين يعرفون التمارين التي يؤدونها.",
+    problemBridge: "وقليلون فقط يستطيعون الإجابة.",
     problemList: [
       ["ما الذي فعلته آخر مرة؟", ""],
       ["هل تقدمت؟", ""],
@@ -184,6 +189,7 @@ const copy = {
     legalNote: "الوصول التأسيسي هو شراء لمرة واحدة (19 €). إنه برنامج ذاتي التوجيه: ليس تدريبًا شخصيًا ولا جهازًا طبيًا ولا إعادة تأهيل.",
     signInFirst: "سجّل الدخول للمتابعة",
     starting: "جارٍ تحويلك إلى الدفع…",
+    legalLinks: ["قانوني", "الخصوصية", "الشروط", "الاسترداد"],
     footer: "© 2026 Jonas Fitness",
   },
 } as const;
@@ -261,7 +267,7 @@ export default function FoundingOffer() {
     <section className="found-problem">
       <p className="found-eyebrow">{t.problem}</p>
       <h2>{t.problemTitle}</h2>
-      <p>Fewer still can answer:</p>
+      <p>{t.problemBridge}</p>
       <div className="found-problem-list">{t.problemList.map(([q]) => <span key={q}>· {q}</span>)}</div>
     </section>
 
@@ -296,10 +302,10 @@ export default function FoundingOffer() {
     <footer className="found-footer">
       <p>{t.legalNote}</p>
       <nav className="found-legal-links">
-        <Link href="/legal">Legal</Link>
-        <Link href="/legal/privacy">Privacy</Link>
-        <Link href="/legal/terms">Terms</Link>
-        <Link href="/legal/refunds">Refunds</Link>
+        <Link href="/legal">{t.legalLinks[0]}</Link>
+        <Link href="/legal/privacy">{t.legalLinks[1]}</Link>
+        <Link href="/legal/terms">{t.legalLinks[2]}</Link>
+        <Link href="/legal/refunds">{t.legalLinks[3]}</Link>
       </nav>
       <span>{t.footer}</span>
     </footer>
