@@ -293,7 +293,7 @@ export default function LiveSessionMode({ client, onClose }: { client: Client; o
       </div>
     </header>
 
-    {mode === "loading" && <div className="workout-empty"><span className="brand-mark">JF</span><h1>{t("Opening Live Session…", "Ouverture de la séance…")}</h1></div>}
+    {mode === "loading" && <div className="workout-empty"><span className="brand-mark">JP</span><h1>{t("Opening Live Session…", "Ouverture de la séance…")}</h1></div>}
 
     {mode === "choose" && <main className="workout-chooser">
       <p>{t("LIVE SESSION", "SÉANCE EN DIRECT")} · {client.name}</p>

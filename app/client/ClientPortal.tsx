@@ -100,7 +100,7 @@ export default function ClientPortal({ initialAccess, preview }: { initialAccess
   // The account header (brand, language switch, Clerk account menu) is rendered
   // on EVERY signed-in state - including loading and Profile Not Found - so a
   // client can always reach Manage account / Sign out instead of being trapped.
-  const accountHeader = <header className="client-portal-header"><Link className="brand dash-brand" href="/"><span className="brand-mark">JF</span><span>JONAS PROGRESS</span></Link><div>{languageSwitch}{preview && <span className="preview-pill">{t.preview}</span>}<UserButton /></div></header>;
+  const accountHeader = <header className="client-portal-header"><Link className="brand dash-brand" href="/"><span className="brand-mark">JP</span><span>JONAS PROGRESS</span></Link><div>{languageSwitch}{preview && <span className="preview-pill">{t.preview}</span>}<UserButton /></div></header>;
   if (loading) return <main dir={lang === "ar" ? "rtl" : "ltr"} className={`client-portal-page ${lang === "ar" ? "rtl-site" : ""}`}>{accountHeader}<div className="portal-state"><p>{t.clientPortal}</p><h1>{t.load}</h1></div></main>;
   if (error || !data) return <main dir={lang === "ar" ? "rtl" : "ltr"} className={`client-portal-page ${lang === "ar" ? "rtl-site" : ""}`}>{accountHeader}<div className="portal-state"><p>{t.clientPortal}</p><h1>{t.profileMissing}</h1><p>{initialAccess ? t.loadFailed : t.unlinked}</p><Link className="portal-button" href="/">{t.back}<span>{t.arrow}</span></Link></div></main>;
   const nextSession = data.sessions[0];

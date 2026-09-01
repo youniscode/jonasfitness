@@ -69,7 +69,7 @@ export default function LegalShell({
     <main dir={rtl ? "rtl" : "ltr"} className={`legal ${rtl ? "rtl-site" : ""}`}>
       <header className="legal-nav">
         <Link className="legal-brand" href="/">
-          <span className="brand-mark">JF</span>
+          <span className="brand-mark">JP</span>
           <span>JONAS PROGRESS</span>
         </Link>
         <nav className="legal-links" aria-label="Legal">

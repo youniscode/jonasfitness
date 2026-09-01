@@ -65,7 +65,7 @@ export default function AIResultView({ result, mode, clientId, clientName, goal,
   }
 
   return <section className="ai-result chat-result"><div className="result-kicker"><span>CLIENT RESPONSE DRAFT</span><i>Not sent</i></div><h3>Ready for your review</h3>
-    <div className="message-bubble"><span>JF</span><p>{text(data.reply, "Review the client’s recent progress and adjust one variable at a time.")}</p></div>
+    <div className="message-bubble"><span>JP</span><p>{text(data.reply, "Review the client’s recent progress and adjust one variable at a time.")}</p></div>
     {text(data.coachReview) && <div className="coach-review"><strong>Coach note</strong><p>{text(data.coachReview)}</p></div>}
     <div className="result-actions"><button type="button" onClick={copyResult}>Copy response <span>□</span></button></div>{message && <p className="result-message">{message}</p>}<small>{notice}</small>
   </section>;

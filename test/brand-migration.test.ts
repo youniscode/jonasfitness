@@ -165,6 +165,38 @@ test("OpenRouter referer uses the new domain and old-brand domain stays out of a
   }
 });
 
+test("every customer-visible brand badge shows JP (never JF)", () => {
+  const expectations: [string, string][] = [
+    ["app/page.tsx", "homepage nav/footer badge"],
+    ["app/legal/LegalShell.tsx", "legal shell badge"],
+    ["app/progress/founding/FoundingOffer.tsx", "foundation offer badge"],
+    ["app/progress/purchase/PurchaseSuccess.tsx", "purchase badge"],
+    ["app/progress/(product)/ProgressShell.tsx", "product shell badge"],
+    ["app/client/ClientPortal.tsx", "client portal badge"],
+    ["app/dashboard/DashboardClient.tsx", "dashboard badge"],
+    ["app/dashboard/LiveSessionMode.tsx", "live-session badge"],
+  ];
+  for (const [file, label] of expectations) {
+    const src = read(...file.split("/"));
+    assert.ok(src.includes(`<span className="brand-mark">JP</span>`), `${label}: JP brand mark`);
+  }
+  const pulse = read("app", "pulse", "[token]", "PulseClient.tsx");
+  assert.ok(pulse.includes(`<span className="pulse-logo">JP</span>`), "Pulse logo is JP");
+  // Zero rendered JF badges anywhere in app source.
+  for (const { path, text } of appSources()) {
+    assert.doesNotMatch(text, />JF</, `${path}: no rendered JF badge`);
+    assert.doesNotMatch(text, /brand-mark">JF</, `${path}: no JF brand mark`);
+    assert.doesNotMatch(text, /pulse-logo">JF</, `${path}: no JF pulse logo`);
+  }
+  // The generated app icon explicitly renders the brand initials.
+  const icon = read("app", "icon.tsx");
+  assert.match(icon, />JP<\/div>/, "app icon renders JP");
+  assert.doesNotMatch(icon, />JF</, "app icon no longer renders JF");
+  // The static favicon is a generic geometric mark (no letters) - unchanged.
+  const favicon = read("public", "favicon.svg");
+  assert.doesNotMatch(favicon, /<text|>JF<|>JP</, "favicon carries no brand letters");
+});
+
 test("service worker cache is renamed with a bumped version", () => {
   const sw = read("public", "sw.js");
   assert.ok(sw.includes('"jonas-progress-shell-v7"'), "shell cache renamed and bumped");

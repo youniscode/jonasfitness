@@ -127,7 +127,7 @@ export default function PurchaseSuccess({ initiallyEntitled }: { initiallyEntitl
   return (
     <section dir={rtl ? "rtl" : "ltr"} className={`founding purchase ${rtl ? "rtl-site" : ""}`}>
       <header className="purchase-top">
-        <Link className="founding-brand" href="/"><span className="brand-mark">JF</span><span>JONAS PROGRESS</span></Link>
+        <Link className="founding-brand" href="/"><span className="brand-mark">JP</span><span>JONAS PROGRESS</span></Link>
         <div className="founding-lang" aria-label="Language">{(LANGS as Lang[]).map((l) => <button key={l} type="button" className={lang === l ? "active" : ""} onClick={() => switchLang(l)}>{l.toUpperCase()}</button>)}</div>
       </header>
 

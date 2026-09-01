@@ -20,7 +20,7 @@ function Nav({ children }: { children: React.ReactNode }) {
   return (
     <main dir={rtl ? "rtl" : "ltr"} className={`progress-page ${baseClass}`}>
       <header className="progress-header">
-        <Link className="progress-brand" href="/progress"><span className="brand-mark">JF</span><span>{t.brand}</span></Link>
+        <Link className="progress-brand" href="/progress"><span className="brand-mark">JP</span><span>{t.brand}</span></Link>
         <nav className="progress-nav" aria-label="Progress">
           {links.map((link) => <Link key={link.href} className={link.active ? "active" : ""} href={link.href}>{link.label}</Link>)}
         </nav>
