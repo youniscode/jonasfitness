@@ -120,7 +120,7 @@ test("homepage exposes /progress/founding via nav, hero CTA and a dedicated Prog
 test("homepage Progress copy is fr/en/ar with the progression model, price and product naming", () => {
   const home = read("app", "page.tsx");
   // FR
-  assert.ok(home.includes("Découvrir Progress · 19 €"), "FR hero CTA");
+  assert.ok(home.includes("Obtenir Jonas Progress · 19 €"), "FR hero CTA");
   assert.ok(home.includes("Tu t’entraînes déjà."), "FR headline");
   assert.ok(home.includes("Maintenant, sache si tu progresses."), "FR headline 2");
   assert.ok(home.includes("PRÉCÉDENT → OBJECTIF → RÉEL"), "FR progression model");
@@ -128,7 +128,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   assert.ok(home.includes("Obtenir Jonas Progress"), "FR CTA");
   assert.ok(home.includes("Pas un coaching personnalisé."), "FR clarification");
   // EN
-  assert.ok(home.includes("Discover Progress · €19"), "EN hero CTA");
+  assert.ok(home.includes("Get Jonas Progress · €19"), "EN hero CTA");
   assert.ok(home.includes("You already train."), "EN headline");
   assert.ok(home.includes("Now know if you’re progressing."), "EN headline 2");
   assert.ok(home.includes("PREVIOUS → TARGET → ACTUAL"), "EN progression model");
@@ -136,7 +136,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   assert.ok(home.includes("Get Jonas Progress"), "EN CTA");
   assert.ok(home.includes("Not personalized coaching."), "EN clarification");
   // AR
-  assert.ok(home.includes("اكتشف Progress · 19 €"), "AR hero CTA");
+  assert.ok(home.includes("احصل على Jonas Progress · 19 €"), "AR hero CTA");
   assert.ok(home.includes("أنت تتدرّب بالفعل."), "AR headline");
   assert.ok(home.includes("الآن اعرف إن كنت تتقدّم فعلاً."), "AR headline 2");
   assert.ok(home.includes("السابق ← الهدف ← الفعلي"), "AR progression model");
@@ -147,11 +147,75 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
 
 test("homepage keeps coaching as the primary offer, distinct from Progress", () => {
   const home = read("app", "page.tsx");
-  assert.ok(home.includes("Accès prioritaire"), "FR coaching CTA kept");
-  assert.ok(home.includes("Join early access"), "EN coaching CTA kept");
+  assert.ok(home.includes("Postuler au coaching"), "FR coaching CTA");
+  assert.ok(home.includes("Apply for coaching"), "EN coaching CTA");
+  assert.ok(home.includes("قدّم طلبك للتدريب"), "AR coaching CTA");
   assert.ok(home.includes("#early-access"), "coaching CTA target kept");
   assert.ok(home.includes("coaching-section"), "coaching section kept");
   assert.ok(home.includes("human:"), "coaching positioning kept");
+});
+
+test("homepage hero first-glance: clear coaching CTA, Progress price CTA, informational link", () => {
+  const home = read("app", "page.tsx");
+  // FR
+  assert.ok(home.includes("Postuler au coaching"), "FR primary CTA");
+  assert.ok(home.includes("Voir comment ça fonctionne"), "FR tertiary link");
+  assert.ok(home.includes("Obtenir Jonas Progress · 19 €"), "FR progress CTA with price");
+  // EN
+  assert.ok(home.includes("Apply for coaching"), "EN primary CTA");
+  assert.ok(home.includes("See how it works"), "EN tertiary link");
+  assert.ok(home.includes("Get Jonas Progress · €19"), "EN progress CTA with price");
+  // AR
+  assert.ok(home.includes("قدّم طلبك للتدريب"), "AR primary CTA");
+  assert.ok(home.includes("شاهد كيف يعمل"), "AR tertiary link");
+  assert.ok(home.includes("احصل على Jonas Progress · 19 €"), "AR progress CTA with price");
+  // Hero hierarchy: primary button = coaching, outline = Progress, text link = info.
+  assert.match(home, /<a className="button" href="#early-access">\{t\.join\}/, "primary CTA is the coaching application");
+  assert.match(home, /<Link className="button-outline" href="\/progress\/founding">\{t\.progHero\}/, "secondary CTA is the €19 Progress offer");
+  assert.match(home, /<a className="text-link" href="#method">\{t\.explore\}/, "tertiary link is informational");
+  // The early-access destination still exists (coaching application section).
+  const app = read("app", "CoachingApplication.tsx");
+  assert.match(app, /id="early-access"/, "coaching CTA target exists");
+});
+
+test("homepage hero eyebrow is personalized coaching, not a coaching platform concept", () => {
+  const home = read("app", "page.tsx");
+  assert.ok(home.includes("PERSONAL COACHING WITH JONAS"), "EN eyebrow");
+  assert.ok(home.includes("COACHING PERSONNALISÉ AVEC JONAS"), "FR eyebrow");
+  assert.ok(home.includes("تدريب شخصي مع جوناس"), "AR eyebrow");
+  assert.ok(!home.includes("Worldwide coaching platform"), "no EN platform-claim wording");
+  assert.ok(!home.includes("Plateforme de coaching internationale"), "no FR platform-claim wording");
+  assert.ok(!home.includes("منصة تدريب عالمية"), "no AR platform-claim wording");
+});
+
+test("homepage removed early-access / first-glance placeholder CTAs from all languages", () => {
+  const home = read("app", "page.tsx");
+  const gone = [
+    "Join early access",
+    "Accès prioritaire",
+    "انضم مبكرًا",
+    "Discover Progress · €19",
+    "Découvrir Progress · 19 €",
+    "اكتشف Progress · 19 €",
+  ];
+  for (const phrase of gone) {
+    assert.ok(!home.includes(phrase), `removed: ${phrase}`);
+  }
+});
+
+test("homepage public nav order is Coaching, Progress, Method, About, and My space stays", () => {
+  const home = read("app", "page.tsx");
+  assert.match(
+    home,
+    /<div className="nav-links"><a href="#coaching">\{t\.nav\[0\]\}<\/a><Link className="nav-progress" href="\/progress\/founding">\{t\.progNav\}<\/Link><a href="#method">\{t\.nav\[1\]\}<\/a><a href="#about">\{t\.nav\[2\]\}<\/a><\/div>/,
+    "nav renders Coaching, Progress, Method, About in that order",
+  );
+  assert.ok(home.includes("dash:\"Mon espace\""), "FR My space label kept");
+  assert.ok(home.includes("dash:\"My space\""), "EN My space label kept");
+  assert.ok(home.includes("dash:\"مساحتي\""), "AR My space label kept");
+  assert.match(home, /href="\/progress">\{t\.dash\}/, "My space goes to /progress (guard decides paid vs founding)");
+  assert.ok(!/href="\/client">\{t\.dash\}/.test(home), "My space never targets the coaching client portal");
+  assert.ok(!/href="\/dashboard">\{t\.dash\}/.test(home), "My space never targets the coach dashboard");
 });
 
 // ---------------------------------------------------------------------------
