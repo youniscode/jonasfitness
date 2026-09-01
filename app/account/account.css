@@ -1,0 +1,30 @@
+.account{background:#0b0d0a;color:#eef2e4;min-height:100vh;font-family:var(--font-geist-sans),system-ui,sans-serif;}
+.account-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);}
+.account-brand{display:inline-flex;align-items:center;gap:10px;color:#eef2e4;text-decoration:none;font-weight:800;letter-spacing:.08em;font-size:13px;}
+.account-brand .brand-mark{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#b6f34c;color:#0b0d0a;font-weight:900;font-size:11px;letter-spacing:0;}
+.account-lang{display:flex;gap:4px;}
+.account-lang button{background:none;border:none;color:#8a8f7e;font-size:11px;letter-spacing:.1em;cursor:pointer;padding:6px 8px;}
+.account-lang button.active{color:#b6f34c;}
+.account-hero{max-width:880px;margin:0 auto;padding:56px 20px 12px;text-align:center;}
+.account-kicker{display:flex;align-items:center;justify-content:center;gap:10px;color:#8a8f7e;font-size:12px;letter-spacing:.22em;font-weight:700;margin:0 0 12px;}
+.account-kicker span{width:22px;height:1px;background:#b6f34c;display:inline-block;}
+.account-hero h1{font-size:clamp(30px,5vw,44px);font-weight:900;letter-spacing:-.02em;margin:0 0 8px;}
+.account-intro{color:#8a8f7e;font-size:15px;margin:0;}
+.account-grid{max-width:880px;margin:32px auto 64px;padding:0 20px;display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.account-card{background:#10130c;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;}
+.account-card-label{color:#8a8f7e;font-size:11px;letter-spacing:.2em;font-weight:700;margin:0;}
+.account-card h2{margin:0;font-size:20px;font-weight:800;}
+.account-card-desc{color:#c4cabe;font-size:14px;line-height:1.55;margin:0;}
+.account-price{color:#8a8f7e;font-size:13px;}
+.account-cta{display:inline-flex;align-items:center;gap:10px;background:#b6f34c;color:#0b0d0a;font-weight:800;text-decoration:none;border:none;padding:11px 18px;border-radius:10px;font-size:14px;margin-top:6px;transition:transform .1s ease,background .15s ease;}
+.account-cta:hover{background:#c3ff5a;transform:translateY(-1px);}
+.account-cta span{font-size:16px;line-height:1;}
+.account-cta-outline{background:transparent;color:#b6f34c;border:1px solid #b6f34c;}
+.account-cta-outline:hover{background:rgba(182,243,76,.08);color:#c3ff5a;}
+.account-footer{max-width:880px;margin:0 auto;padding:20px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;gap:16px;color:#8a8f7e;font-size:12px;flex-wrap:wrap;}
+.account-legal-links{display:flex;gap:14px;}
+.account-legal-links a{color:#8a8f7e;text-decoration:none;}
+.account-legal-links a:hover{color:#eef2e4;}
+.rtl-site .account-lang{direction:ltr;}
+.rtl-site .account-cta span{transform:rotate(180deg);}
+@media (max-width:700px){.account-grid{grid-template-columns:1fr;}}

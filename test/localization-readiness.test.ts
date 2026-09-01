@@ -213,9 +213,10 @@ test("homepage public nav order is Coaching, Progress, Method, About, and My spa
   assert.ok(home.includes("dash:\"Mon espace\""), "FR My space label kept");
   assert.ok(home.includes("dash:\"My space\""), "EN My space label kept");
   assert.ok(home.includes("dash:\"مساحتي\""), "AR My space label kept");
-  assert.match(home, /href="\/progress">\{t\.dash\}/, "My space goes to /progress (guard decides paid vs founding)");
+  assert.ok(home.includes('href="/account">{t.dash}'), "My space goes to the /account hub");
   assert.ok(!/href="\/client">\{t\.dash\}/.test(home), "My space never targets the coaching client portal");
   assert.ok(!/href="\/dashboard">\{t\.dash\}/.test(home), "My space never targets the coach dashboard");
+  assert.ok(!/href="\/progress">\{t\.dash\}/.test(home), "My space no longer skips the hub for /progress");
 });
 
 // ---------------------------------------------------------------------------

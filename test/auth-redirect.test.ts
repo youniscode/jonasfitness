@@ -112,7 +112,7 @@ test("F. external and malformed redirect targets are rejected", () => {
 });
 
 test("F2. valid local application paths are accepted", () => {
-  const accepted = ["/", "/progress", "/progress/founding", "/client", "/dashboard", "/progress/purchase", "/sign-in"];
+  const accepted = ["/", "/progress", "/progress/founding", "/client", "/dashboard", "/progress/purchase", "/account", "/sign-in"];
   for (const target of accepted) {
     assert.equal(isSafeAuthRedirect(target), true, `must accept: ${target}`);
     const { redirectUrl } = resolveAuthDestination(target);
@@ -142,20 +142,33 @@ test("H. /client behavior is not changed (deliberate entry keeps its return path
   assert.equal(redirectUrl, "/client", "explicit /client redirect preserved");
 });
 
-test("H2. explicit /dashboard and /progress redirect intent is preserved", () => {
+test("H2. explicit /dashboard, /progress and /account redirect intent is preserved", () => {
   assert.equal(resolveAuthDestination("/dashboard").redirectUrl, "/dashboard", "/dashboard intent preserved");
   assert.equal(resolveAuthDestination("/progress").redirectUrl, "/progress", "/progress intent preserved");
   assert.equal(resolveAuthDestination("/progress/founding").redirectUrl, "/progress/founding", "founding flow intent preserved");
+  assert.equal(resolveAuthDestination("/account").redirectUrl, "/account", "/account intent preserved");
 });
 
-test("H3. homepage public 'My space' CTA points to /progress, not /dashboard", () => {
+test("H3. homepage public 'My space' CTA points to /account, not /client or /dashboard", () => {
   const home = read("app/page.tsx");
-  assert.match(home, /dashboard-link" href="\/progress"/, "public account CTA targets the Progress product");
+  assert.match(home, /dashboard-link" href="\/account"/, "public account CTA targets the /account hub");
+  assert.doesNotMatch(home, /dashboard-link" href="\/client"/, "public account CTA never targets the client portal");
   assert.doesNotMatch(home, /dashboard-link" href="\/dashboard"/, "public account CTA never targets the coach-only dashboard");
+  assert.doesNotMatch(home, /dashboard-link" href="\/progress"/, "My space no longer skips the hub for /progress");
   // The coach dashboard stays reachable only through its own surface (explicit
   // /dashboard visits), never through the public homepage.
   assert.match(home, /dash:"Mon espace"/, "FR label kept");
   assert.match(home, /dash:"My space"/, "EN label kept");
+});
+
+test("H5. /account itself sends signed-out visitors through sign-in preserving /account", () => {
+  const account = read("app/account/page.tsx");
+  assert.match(account, /redirect\("\/sign-in\?redirect_url=\/account"\)/, "signed-out /account -> sign-in?redirect_url=/account");
+  // The explicit intent survives sign-in -> sign-up and back (round trip).
+  const step = resolveAuthDestination("/account").signUpUrl;
+  assert.equal(step, "/sign-up?redirect_url=%2Faccount");
+  const back = resolveAuthDestination(new URL(step, "http://local").searchParams.get("redirect_url"));
+  assert.equal(back.redirectUrl, "/account", "/account survives the sign-in <-> sign-up round trip");
 });
 
 test("H4. a normal Progress signup never reaches the 'Profil introuvable' client portal", () => {
