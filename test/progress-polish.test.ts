@@ -192,6 +192,7 @@ test("new polish copy exists in FR / EN / AR with parity and no U+2014", () => {
     "finishPartialTitle", "finishPartialYouCompleted", "finishPartialBody",
     "continueWorkout", "finishAnyway", "workoutSaved", "yourSetsLogged",
     "completedWord", "trendHint", "trendOneMore", "trendAria", "recentSessions",
+    "baseline", "noPBsTitle", "noPBsHint",
   ] as const;
   for (const lang of ["en", "fr", "ar"] as const) {
     const t = progressText(lang);
@@ -284,6 +285,34 @@ test("improving second session appears in Recent sessions and in Dashboard PB lo
   ]);
   assert.equal(summary.recentPRs.length, 1, "genuine improvement is a dashboard new PB");
   assert.equal(summary.recentPRs[0].weight, 75);
+});
+
+// ---------- Dashboard display semantics (pluralization, baseline, PB empty) ----------
+
+test("dashboard trend row pluralizes sessions and shows Baseline instead of +0 kg for one session", () => {
+  const src = read("app", "progress", "(product)", "ProgressDashboard.tsx");
+  assert.match(src, /item\.sessions === 1 \? t\.session : t\.sessions/, "1 session / 2 sessions pluralization");
+  assert.ok(!src.includes("item.sessions} {t.sessions}"), "no unpluralized session label on the dashboard");
+  assert.match(src, /item\.sessions === 1\s*\? <span><b>\{t\.baseline\}/, "single-session exercises display the baseline label");
+  assert.match(src, /t\.max\} \{fmt\(item\.records\.estimatedOneRepMax\)\} kg/, "baseline row still shows the actual Estimated 1RM");
+  assert.match(src, /item\.trend\.estimatedOneRepMax >= 0 \? "\+" : ""/, "2+ sessions restore the signed comparison delta");
+  assert.ok(!src.includes("<b>+{fmt(item.trend.estimatedOneRepMax)} kg</b>"), "no unconditional +0 kg comparison for a baseline");
+});
+
+test("dashboard recent-PB empty state uses PB-specific copy without the stray 'best' heading", () => {
+  const src = read("app", "progress", "(product)", "ProgressDashboard.tsx");
+  assert.match(src, /<strong>\{t\.noPBsTitle\}<\/strong><span>\{t\.noPBsHint\}<\/span>/, "PB-specific empty copy");
+  assert.ok(!src.includes("<strong>{t.noActiveWorkout}</strong><span>{t.dashboardEmptyHint}</span>"), "generic 'No active workout' empty state removed from the PR panel");
+  assert.match(src, /summary && summary\.recentPRs\.length > 0 && <h2>\{t\.pr\}<\/h2>/, "the 'best' subheading only renders with genuine PBs");
+  assert.equal(progressText("en").baseline, "Baseline");
+  assert.equal(progressText("fr").baseline, "Référence");
+  assert.equal(progressText("ar").baseline, "خط الأساس");
+  assert.equal(progressText("en").noPBsTitle, "No personal bests yet.");
+  assert.equal(progressText("fr").noPBsTitle, "Aucun record personnel pour le moment.");
+  assert.equal(progressText("ar").noPBsTitle, "لا توجد أرقام شخصية بعد.");
+  // Formal "vous" tone, matching the rest of the French product copy.
+  assert.equal(progressText("fr").noPBsHint, "Votre première séance établit la référence. Dépassez-la lors d'une prochaine séance pour créer un record personnel.");
+  assert.equal(progressText("en").noPBsHint, "Your first session sets the baseline. Beat it in a later workout to create a personal best.");
 });
 
 // ---------- Guard rails ----------

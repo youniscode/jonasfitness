@@ -96,16 +96,18 @@ export default function ProgressDashboard() {
             ? <div className="progress-empty"><strong>{t.dashboardEmptyTitle}</strong><span>{t.dashboardEmptyHint}</span><Link className="progress-cta" href="/progress/routines">{t.createRoutine}<span>→</span></Link></div>
             : <div className="progress-trend-list">{trends.map((item) => (
               <Link key={item.key} href={`/progress/history/${encodeURIComponent(item.key)}`} className="progress-trend-row">
-                <span><strong>{item.name}</strong><small>{item.sessions} {t.sessions} · {fmtDate(item.latestDate)}</small></span>
-                <span><b>+{fmt(item.trend.estimatedOneRepMax)} kg</b><small>{t.max}</small></span>
+                <span><strong>{item.name}</strong><small>{item.sessions} {item.sessions === 1 ? t.session : t.sessions} · {fmtDate(item.latestDate)}</small></span>
+                {item.sessions === 1
+                  ? <span><b>{t.baseline}</b><small>{t.max} {fmt(item.records.estimatedOneRepMax)} kg</small></span>
+                  : <span><b>{item.trend.estimatedOneRepMax >= 0 ? "+" : ""}{fmt(item.trend.estimatedOneRepMax)} kg</b><small>{t.max}</small></span>}
               </Link>
             ))}</div>}
         </section>
 
         <section className="progress-panel">
-          <div className="progress-panel-head"><div><p>{t.recentPRs}</p><h2>{t.pr}</h2></div></div>
+          <div className="progress-panel-head"><div><p>{t.recentPRs}</p>{summary && summary.recentPRs.length > 0 && <h2>{t.pr}</h2>}</div></div>
           {summary && summary.recentPRs.length === 0
-            ? <div className="progress-empty"><strong>{t.noActiveWorkout}</strong><span>{t.dashboardEmptyHint}</span></div>
+            ? <div className="progress-empty"><strong>{t.noPBsTitle}</strong><span>{t.noPBsHint}</span></div>
             : <div className="progress-pr-list">{(summary?.recentPRs ?? []).map((pr, index) => (
               <div key={`${pr.date}-${index}`}><span><b>{pr.exercise}</b><small>{fmtDate(pr.date)}</small></span><strong>{fmt(pr.weight)} kg <small>× {pr.reps}</small></strong></div>
             ))}</div>}
