@@ -115,6 +115,68 @@ test("the resting card markup carries no opacity or blanket disabled attribute",
   assert.equal((detail.match(/aria-label=\{t\.moveDown\}/g) ?? []).length, 2, "move down controls exist per row region");
 });
 
+// ---------------------------------------------------------------------------
+// Section headers: normal state must be inked and fully opaque
+// ---------------------------------------------------------------------------
+
+test("section headers carry explicit ink so inheritance can never wash them out", () => {
+  const headRule = lines.find((line) => line.startsWith(".progress-section-head{"));
+  assert.ok(headRule, "section head base rule exists");
+  assert.match(headRule ?? "", /color:var\(--ink\)/, "section head pins normal text to ink");
+  assert.doesNotMatch(headRule ?? "", /opacity|filter:|grayscale\(/, "section head normal state is never faded");
+  const nameRule = lines.find((line) => line.startsWith(".progress-section-head>strong{"));
+  assert.ok(nameRule, "section name rule exists");
+  assert.match(nameRule ?? "", /color:var\(--ink\);opacity:1/, "section name is explicit dark ink at full opacity");
+  assert.doesNotMatch(nameRule ?? "", /filter:|grayscale\(/, "section name is never filtered");
+});
+
+test("enabled section actions (rename/arrows/delete arm) are dark, opaque and not faded", () => {
+  const enabled = lines.find((line) => line.includes(".progress-section-actions .progress-ghost:not(.danger):not(:disabled)"));
+  assert.ok(enabled, "explicit enabled-ghost contrast rule exists");
+  assert.match(enabled ?? "", /color:#151712;opacity:1/, "enabled section actions are dark and fully opaque");
+  const dangerEnabled = lines.find((line) => line.includes(".progress-section-actions .progress-ghost.danger:not(:disabled)"));
+  assert.ok(dangerEnabled, "danger action keeps an explicit opaque enabled state");
+  assert.doesNotMatch(dangerEnabled ?? "", /color:/, "the danger enabled state never restyles the destructive color");
+});
+
+test("danger section actions keep their destructive red styling", () => {
+  const danger = lines.find((line) => line.startsWith(".progress-ghost.danger{"));
+  assert.ok(danger, "global danger ghost rule exists");
+  assert.match(danger ?? "", /color:#a23830/, "Delete section stays red");
+  assert.match(danger ?? "", /border-color:#e0b9b3/, "Delete section keeps its destructive border tint");
+});
+
+test("disabled section reorder arrows remain visibly disabled", () => {
+  const dimmed = lines.find((line) => line.startsWith(".progress-ghost:disabled{"));
+  assert.ok(dimmed, "generic disabled ghost dimming exists");
+  assert.match(dimmed ?? "", /opacity:\.45;cursor:default/, "disabled section arrows still dim like every disabled ghost");
+  for (const line of lines) {
+    if (!line.includes(".progress-ghost")) continue;
+    const hasEnabledSelector = line.includes(":not(:disabled)");
+    const dimsDisabled = /:disabled\{[^}]*opacity:\./.test(line) || /:disabled,\s*$/.test(line);
+    if (hasEnabledSelector) {
+      assert.doesNotMatch(line, /:disabled\{[^}]*opacity:1/, "no enabled rule may force disabled ghosts to full opacity");
+    }
+    void dimsDisabled;
+  }
+});
+
+test("section rename input and confirmation controls stay readable and destructive copy stays secondary", () => {
+  const renameInput = lines.find((line) => line.startsWith(".progress-section-rename input{"));
+  assert.match(renameInput ?? "", /color:#151712/, "rename input text is dark on white");
+  assert.doesNotMatch(renameInput ?? "", /opacity/, "rename input is never faded");
+  const confirmStrong = lines.find((line) => line.startsWith(".progress-section-confirm strong{"));
+  assert.ok(confirmStrong, "confirm title rule exists");
+  assert.doesNotMatch(confirmStrong ?? "", /opacity|filter:/, "confirm title is never faded");
+});
+
+test("the ungrouped header is a deliberate muted label, never a faded control", () => {
+  const ungrouped = lines.find((line) => line.startsWith(".progress-ungrouped-head>strong{"));
+  assert.ok(ungrouped, "ungrouped header rule exists");
+  assert.match(ungrouped ?? "", /color:#[0-9a-f]{6}/, "ungrouped label has an explicit color");
+  assert.doesNotMatch(ungrouped ?? "", /opacity|filter:/, "ungrouped label is not faded or filtered");
+});
+
 test("no U+2014 em dash in the touched stylesheet", () => {
   assert.ok(!css.includes("\u2014"), "progress.css contains a forbidden U+2014 em dash");
 });

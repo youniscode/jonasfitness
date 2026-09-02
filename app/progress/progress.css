@@ -126,14 +126,16 @@
 
 /* Routine sections + drag-and-drop */
 .progress-section{background:#fff;border:1px solid #e0e0d8;display:grid}
-.progress-section-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e6e6de;background:#f6f5ec;min-width:0}
-.progress-section-head>strong{font-size:13px;letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
+.progress-section-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e6e6de;background:#f6f5ec;min-width:0;color:var(--ink)}
+.progress-section-head>strong{color:var(--ink);opacity:1;font-size:13px;letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
 .progress-section-head>small{flex:none;background:#171a15;color:var(--lime);font-size:8px;font-weight:800;padding:2px 6px}
-.progress-section-grip{flex:none;color:#a9aca0;cursor:grab;font-size:13px;line-height:1;user-select:none}
+.progress-section-grip{flex:none;color:#878b80;cursor:grab;font-size:13px;line-height:1;user-select:none}
 .progress-section-grip[aria-hidden="true"]:empty{display:none}
 .progress-section-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-inline-start:auto;min-width:0}
 .progress-section-actions .progress-ghost{padding:6px 9px;font-size:9px}
 .progress-ghost.danger{color:#a23830;border-color:#e0b9b3}
+.progress-section-actions .progress-ghost:not(.danger):not(:disabled){color:#151712;opacity:1}
+.progress-section-actions .progress-ghost.danger:not(:disabled){opacity:1}
 .progress-section-head.dragover,.progress-exercise-card.dragover{box-shadow:inset 0 0 0 2px var(--lime)}
 .progress-section-rename{display:flex;flex:1;min-width:0}
 .progress-section-rename input{border:1px solid #cdcec5;background:#fff;padding:6px 8px;font-size:12px;color:#151712;width:100%;min-width:0}
