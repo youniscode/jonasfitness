@@ -34,6 +34,23 @@ async function dragByHandle(page: Page, handle: Locator, tx: number, ty: number)
   await page.mouse.up();
 }
 
+/** Fast-release drag: exactly like a normal user click-release. Pointer down,
+ *  one jump past the activation threshold, ONE direct pointermove over the
+ *  target, and pointer up with no settling delay - so no React state commit
+ *  can be relied upon between move and up. The drop must still commit. */
+async function fastDragByHandle(page: Page, handle: Locator, tx: number, ty: number) {
+  await handle.scrollIntoViewIfNeeded();
+  const box = await handle.boundingBox();
+  if (!box) throw new Error(`handle not visible: ${await handle.getAttribute("aria-label")}`);
+  const sx = box.x + box.width / 2;
+  const sy = box.y + box.height / 2;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx + 26, sy + 2, { steps: 2 }); // activate, no hovering
+  await page.mouse.move(tx, ty); // single direct dispatch, no intermediate steps
+  await page.mouse.up(); // immediately, no wait
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/dev/routine-sortable");
   await expect(page.getByRole("button", { name: "Move Straight-arm pulldown" })).toBeVisible();
@@ -133,6 +150,95 @@ test("fallback controls (arrows, Move-to-section select, section arrows) reorder
   await page.locator('button[aria-label="Move ↑"]:not(:disabled)').click();
   await expect(page.locator(".progress-section-head strong").first()).toHaveText("TRICEPS");
   await expect(page.getByTestId("last-section-order")).toHaveText("[2,1]");
+});
+
+test("fast release still commits: exact founder repro (drag Triceps pressdown over the top half of Overhead triceps extension, then drag it back)", async ({ page }) => {
+  const triceps = sectionBlock(page, "TRICEPS");
+  const names = cardNames(triceps);
+  await expect(names).toHaveText(["Overhead triceps extension", "Triceps pressdown"]);
+
+  // Grab Triceps pressdown and release it immediately over the TOP HALF of
+  // Overhead triceps extension - no settling time before mouseup.
+  const target = await names.first().boundingBox();
+  if (!target) throw new Error("target card missing");
+  await fastDragByHandle(page, page.getByRole("button", { name: "Move Triceps pressdown", exact: true }), target.x + target.width / 2, target.y + 8);
+
+  await expect(names).toHaveText(["Triceps pressdown", "Overhead triceps extension"]);
+  let payload = await lastPlacements(page);
+  expect(payload.map((p) => p.exerciseId)).toEqual([4, 5, 7, 6, 8]);
+  expect(payload.find((p) => p.exerciseId === 7)?.sectionId).toBe(2);
+  await expect(page.getByTestId("placement-count")).toHaveText("placement calls: 1"); // exactly one persistence call
+
+  // Drag it back: release over the BOTTOM HALF of Overhead triceps extension.
+  // Aim at the CARD element (the nested title <strong> is only ~22px tall and
+  // sits at the card's top, so title.bottom - 8 would land in the top half).
+  const targetBackCard = triceps.locator(".progress-exercise-card").nth(1);
+  const targetBack = await targetBackCard.boundingBox();
+  if (!targetBack) throw new Error("target card missing");
+  await fastDragByHandle(page, page.getByRole("button", { name: "Move Triceps pressdown", exact: true }), targetBack.x + targetBack.width / 2, targetBack.y + targetBack.height - 12);
+
+  await expect(names).toHaveText(["Overhead triceps extension", "Triceps pressdown"]);
+  payload = await lastPlacements(page);
+  expect(payload.map((p) => p.exerciseId)).toEqual([4, 5, 6, 7, 8]);
+  await expect(page.getByTestId("placement-count")).toHaveText("placement calls: 2");
+});
+
+test("the active card can never resolve as its own drop target (self-collision excluded)", async ({ page }) => {
+  // Drag the FIRST-registered card of BACK (Straight-arm pulldown) DOWN onto
+  // the BOTTOM HALF of Seated cable row: in the pre-fix collision set the
+  // dragged card is itself a droppable whose translated rect always contains
+  // the pointer, and for targets registered AFTER it the self card shadowed
+  // the destination - so this direction used to no-op. The drop must commit
+  // exactly once and move Straight-arm BELOW Seated.
+  const back = sectionBlock(page, "BACK");
+  const names = cardNames(back);
+  await expect(names).toHaveText(["Straight-arm pulldown", "Seated cable row"]);
+  const targetCard = back.locator(".progress-exercise-card").nth(1);
+  const card = await targetCard.boundingBox();
+  if (!card) throw new Error("target card missing");
+  // Bottom half of the CARD element (the title <strong> is only ~22px tall and
+  // sits at the card's top, so aiming at it would land in the top half).
+  await dragByHandle(
+    page,
+    page.getByRole("button", { name: "Move Straight-arm pulldown", exact: true }),
+    card.x + card.width / 2,
+    card.y + card.height - 12,
+  );
+
+  await expect(names).toHaveText(["Seated cable row", "Straight-arm pulldown"]);
+  const payload = await lastPlacements(page);
+  expect(payload.map((p) => p.exerciseId)).toEqual([5, 4, 6, 7, 8]);
+  await expect(page.getByTestId("placement-count")).toHaveText("placement calls: 1");
+});
+
+test("fast-release cross-section drag commits the membership change", async ({ page }) => {
+  // Triceps pressdown (TRICEPS) quickly released over the top half of the
+  // Seated cable row card (BACK): membership must become BACK in one call.
+  const back = sectionBlock(page, "BACK");
+  const target = await cardNames(back).nth(1).boundingBox();
+  if (!target) throw new Error("target card missing");
+  await fastDragByHandle(page, page.getByRole("button", { name: "Move Triceps pressdown", exact: true }), target.x + target.width / 2, target.y + 8);
+
+  await expect(cardNames(back)).toHaveText(["Straight-arm pulldown", "Triceps pressdown", "Seated cable row"]);
+  await expect(cardNames(sectionBlock(page, "TRICEPS"))).toHaveText(["Overhead triceps extension"]);
+  const payload = await lastPlacements(page);
+  expect(payload.map((p) => p.exerciseId)).toEqual([4, 7, 5, 6, 8]);
+  expect(payload.find((p) => p.exerciseId === 7)?.sectionId).toBe(1);
+  await expect(page.getByTestId("placement-count")).toHaveText("placement calls: 1");
+});
+
+test("fast-release section drag still commits the orderedIds payload", async ({ page }) => {
+  const backHeadBox = await sectionBlock(page, "BACK").locator(".progress-section-head").boundingBox();
+  if (!backHeadBox) throw new Error("BACK head missing");
+  await fastDragByHandle(
+    page,
+    page.getByRole("button", { name: "Move TRICEPS", exact: true }),
+    backHeadBox.x + backHeadBox.width / 2,
+    backHeadBox.y + 6,
+  );
+  await expect(page.locator(".progress-section-head strong").first()).toHaveText("TRICEPS");
+  await expect(page.getByTestId("last-section-order")).toHaveText("[2,1]");
+  await expect(page.getByTestId("section-count")).toHaveText("section calls: 1");
 });
 
 test("prescriptions are unchanged by any reorder", async ({ page }) => {

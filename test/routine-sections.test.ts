@@ -277,8 +277,8 @@ test("desktop drag is pointer-based (dnd-kit) with the handle as the only drag i
   assert.equal((sortable.match(/\{\.\.\.listeners\}/g) ?? []).length, 2, "listeners are bound only on the exercise handle and the section grip");
   assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{e\.name\}`\}/, "exercise handle carries an accessible label with the exercise name");
   assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{section\.name\}`\}/, "section grip carries an accessible label with the section name");
-  assert.match(sortable, /dropOnExercise\(activeIdNum, Number\(target\.id\.split\(":"\)\[1\]\), target\.before\)/, "card drops route to the shared placement engine with before/after");
-  assert.match(sortable, /dropIntoSection\(activeIdNum, target\.sectionId\)/, "dropping on a section header joins that section");
+  assert.match(sortable, /dropOnExercise\(activeIdNum, Number\(overId\.split\(":"\)\[1\]\), before\)/, "card drops route to the shared placement engine with before/after");
+  assert.match(sortable, /dropIntoSection\(activeIdNum, overData\.sectionId \?\? null\)/, "dropping on a section header joins that section");
   assert.match(sortable, /dropIntoSection\(activeIdNum, null\)/, "dropping on the ungrouped header ungroups the exercise");
 });
 

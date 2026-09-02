@@ -60,11 +60,14 @@ export default function RoutineSortableHarness() {
 function Harness() {
   const [routine, setRoutine] = useState<Routine>(fixture);
   const [lastPlacements, setLastPlacements] = useState("");
+  const [placementCount, setPlacementCount] = useState(0);
   const [lastSectionOrder, setLastSectionOrder] = useState("");
+  const [sectionCount, setSectionCount] = useState(0);
 
   // Mock server: applies a placements payload exactly like the real reorder
   // endpoint (dense positions + authoritative section membership) and returns
-  // the confirmed layout, which re-renders the list.
+  // the confirmed layout, which re-renders the list. Counters prove exactly
+  // one persistence call per drop.
   function applyPlacements(placements: Placement[]) {
     setRoutine((current) => ({
       ...current,
@@ -74,6 +77,7 @@ function Harness() {
       }),
     }));
     setLastPlacements(JSON.stringify(placements));
+    setPlacementCount((count) => count + 1);
   }
   function reorderSections(orderedIds: number[]) {
     setRoutine((current) => ({
@@ -84,6 +88,7 @@ function Harness() {
       }).filter((s): s is Section => Boolean(s)),
     }));
     setLastSectionOrder(JSON.stringify(orderedIds));
+    setSectionCount((count) => count + 1);
   }
 
   return (
@@ -103,8 +108,10 @@ function Harness() {
       />
       <h3 data-testid="payload-heading" style={{ marginTop: 28, fontSize: 12 }}>Last placements</h3>
       <pre data-testid="last-placements" style={{ fontSize: 10, background: "#f4f4ef", padding: 8 }}>{lastPlacements || "(none yet)"}</pre>
+      <p data-testid="placement-count" style={{ fontSize: 10 }}>placement calls: {placementCount}</p>
       <h3 style={{ marginTop: 12, fontSize: 12 }}>Last section order</h3>
       <pre data-testid="last-section-order" style={{ fontSize: 10, background: "#f4f4ef", padding: 8 }}>{lastSectionOrder || "(none yet)"}</pre>
+      <p data-testid="section-count" style={{ fontSize: 10 }}>section calls: {sectionCount}</p>
     </main>
   );
 }

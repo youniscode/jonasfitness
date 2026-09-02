@@ -117,7 +117,11 @@ const exerciseDragData = { kind: "exercise" };
 const cardDropData = { zone: "card" };
 const ungroupedDropData = { zone: "ungrouped" };
 
-type OverTarget = { id: string; zone: "card" | "head" | "ungrouped"; sectionId: number | null; before: boolean; top: number; height: number } | null;
+// Visual-feedback state ONLY. The persisted drop is derived exclusively from
+// the DragEndEvent (active/over/data/rect + live pointer ref), never from this
+// async React state: a user can release the pointer before the latest state
+// commit lands, and that must not swallow a valid drop.
+type OverTarget = { id: string; zone: "card" | "head" | "ungrouped"; before: boolean; top: number; height: number } | null;
 
 /** Insert a dragged item before/after the target, using the same rest-insert
  *  math as planMove so sections and exercises share one order engine. */
@@ -315,13 +319,18 @@ export default function RoutineSortable(props: RoutineSortableProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  // Collision strategy: prefer the droppable under the POINTER (the whole
-  // dragged card can span several rows/sections and area-based intersection
-  // then mis-targets), and only fall back to area intersection when the
-  // pointer sits in a gap between rows.
+  // Collision strategy: 1) the actively dragged item is excluded from the
+  // candidate set - it follows the pointer via its transform, so its own
+  // (translated) droppable rect contains the pointer at every moment and
+  // would otherwise shadow the real destination; 2) among the remaining
+  // droppables prefer the one under the POINTER (the whole dragged card can
+  // span several rows and area-based intersection then mis-targets); 3) only
+  // fall back to area intersection when the pointer sits in a gap between
+  // rows.
   const collisionDetection: CollisionDetection = (args) => {
-    const pointed = pointerWithin(args);
-    return pointed.length > 0 ? pointed : rectIntersection(args);
+    const candidates = args.droppableContainers.filter((container) => container.id !== args.active.id);
+    const pointed = pointerWithin({ ...args, droppableContainers: candidates });
+    return pointed.length > 0 ? pointed : rectIntersection({ ...args, droppableContainers: candidates });
   };
 
   // --- Placement operations (single engine shared with the arrows/selects) --
@@ -371,54 +380,51 @@ export default function RoutineSortable(props: RoutineSortableProps) {
   function handleDragStart() {
     setOverTarget(null);
   }
+  /** Visual only: records which droppable is hovered and which insertion half,
+   *  driven by the live pointer ref (updated on every pointermove, so no stale
+   *  React state). Never consulted to persist a drop. */
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
-    if (!over) { setOverTarget(null); return; }
-    const activeKind = String(active.id).startsWith("sec:") ? "section" : "exercise";
-    const overId = String(over.id);
-    if (overId === String(active.id)) { setOverTarget(null); return; }
-    const overData = (over.data.current ?? {}) as { zone?: string; sectionId?: number };
-    // onDragOver fires only when the hovered target CHANGES, so before/after is
-    // seeded here and kept fresh by handleDragMove using the live pointer.
+    if (!over || String(over.id) === String(active.id)) { setOverTarget(null); return; }
+    const overData = (over.data.current ?? {}) as { zone?: string };
+    if (overData.zone !== "card" && overData.zone !== "head" && overData.zone !== "ungrouped") { setOverTarget(null); return; }
     const top = over.rect?.top ?? 0;
     const height = over.rect?.height ?? 0;
     const before = height > 0 && pointerRef.current.y < top + height / 2;
-    if (activeKind === "section") {
-      if (overData.zone !== "head") { setOverTarget(null); return; }
-      setOverTarget({ id: overId, zone: "head", sectionId: overData.sectionId ?? null, before, top, height });
-    } else if (overData.zone === "card") {
-      setOverTarget({ id: overId, zone: "card", sectionId: null, before, top, height });
-    } else if (overData.zone === "head") {
-      setOverTarget({ id: overId, zone: "head", sectionId: overData.sectionId ?? null, before: false, top, height });
-    } else if (overData.zone === "ungrouped") {
-      setOverTarget({ id: overId, zone: "ungrouped", sectionId: null, before: false, top, height });
-    } else {
-      setOverTarget(null);
-    }
+    setOverTarget({ id: String(over.id), zone: overData.zone, before, top, height });
   }
   function handleDragMove() {
     // Pointer moves dozens of times per second while the target stays the same;
-    // recompute the insertion half so the indicator tracks the cursor.
+    // refresh the insertion-half indicator so it tracks the cursor.
     setOverTarget((current) => {
       if (!current || current.height <= 0) return current;
       const before = pointerRef.current.y < current.top + current.height / 2;
       return before === current.before ? current : { ...current, before };
     });
   }
+  /** EVENT-AUTHORITATIVE drop resolution: the persisted operation is derived
+   *  exclusively from event.over (its data, its rect and the final pointer
+   *  position), never from the asynchronously-flushed visual state. Only a
+   *  genuinely absent over - or a drop onto the dragged item itself - means
+   *  "no op". */
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    const target = overTarget;
     setOverTarget(null);
-    if (!over || !target || String(over.id) !== target.id) return; // dropped off any target: keep the confirmed layout
+    if (!over) return; // dropped outside any droppable: keep the confirmed layout
+    const overId = String(over.id);
+    if (overId === String(active.id)) return; // dropped onto itself
     const activeKind = String(active.id).startsWith("sec:") ? "section" : "exercise";
     const activeIdNum = Number(String(active.id).split(":")[1]);
     if (Number.isNaN(activeIdNum)) return;
-    if (target.zone === "card" && activeKind === "exercise") {
-      dropOnExercise(activeIdNum, Number(target.id.split(":")[1]), target.before);
-    } else if (target.zone === "head") {
-      if (activeKind === "exercise") dropIntoSection(activeIdNum, target.sectionId);
-      else if (target.sectionId !== null) dropSectionOn(activeIdNum, target.sectionId, target.before);
-    } else if (target.zone === "ungrouped" && activeKind === "exercise") {
+    const overData = (over.data.current ?? {}) as { zone?: "card" | "head" | "ungrouped"; sectionId?: number };
+    const rect = over.rect;
+    const before = !!rect && rect.height > 0 && pointerRef.current.y < rect.top + rect.height / 2;
+    if (overData.zone === "card" && activeKind === "exercise") {
+      dropOnExercise(activeIdNum, Number(overId.split(":")[1]), before);
+    } else if (overData.zone === "head") {
+      if (activeKind === "exercise") dropIntoSection(activeIdNum, overData.sectionId ?? null);
+      else if (overData.sectionId != null) dropSectionOn(activeIdNum, overData.sectionId, before);
+    } else if (overData.zone === "ungrouped" && activeKind === "exercise") {
       dropIntoSection(activeIdNum, null);
     }
   }

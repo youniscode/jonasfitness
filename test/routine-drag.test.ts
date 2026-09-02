@@ -54,9 +54,42 @@ test("drop targeting prefers the droppable under the pointer and only then falls
   assert.match(sortable, /\bpointerWithin\b/, "pointer-precision collision strategy imported");
   assert.match(sortable, /\brectIntersection\b/, "area-intersection fallback present for pointer gaps");
   const collision = slice(sortable, "const collisionDetection: CollisionDetection", "// --- Placement operations");
-  assert.match(collision, /const pointed = pointerWithin\(args\);/, "pointer position decides the drop target first");
-  assert.match(collision, /pointed\.length > 0 \? pointed : rectIntersection\(args\)/, "area intersection only when the pointer sits in a gap");
+  assert.match(collision, /droppableContainers\.filter\(\(container\) => container\.id !== args\.active\.id\)/, "the active dragged item is removed from collision candidates first");
+  assert.match(collision, /pointerWithin\(\{ \.\.\.args, droppableContainers: candidates \}\)/, "pointer position decides the drop target among the remaining droppables");
+  assert.match(collision, /rectIntersection\(\{ \.\.\.args, droppableContainers: candidates \}\)/, "area intersection fallback also excludes the dragged item");
   assert.match(sortable, /collisionDetection=\{collisionDetection\}/, "the strategy is wired into DndContext");
+});
+
+test("the actively dragged exercise can never collide with itself (self-exclusion never breaks other cards)", () => {
+  const collision = slice(sortable, "const collisionDetection: CollisionDetection", "// --- Placement operations");
+  assert.ok(collision.includes("container.id !== args.active.id"), "self is always filtered from the candidate set");
+  assert.equal((collision.match(/droppableContainers: candidates/g) ?? []).length, 2, "both pointerWithin and the gap fallback run against the active-excluded candidates");
+  // Every other card stays droppable: the cards still register their droppable
+  // with the same id as their draggable and the collision set is what changes.
+  assert.equal((sortable.match(/useDroppable\(\{ id: `ex:\$\{e\.id\}`, data: cardDropData \}\)/g) ?? []).length, 1, "card droppables remain registered for every exercise");
+});
+
+test("the final drop is resolved from the DragEndEvent, never from async visual state", () => {
+  const end = slice(sortable, "function handleDragEnd", "function handleDragCancel");
+  assert.doesNotMatch(end, /overTarget\b/, "handleDragEnd never reads the async visual state");
+  assert.match(end, /setOverTarget\(null\)/, "it only clears the visual indicator");
+  assert.match(end, /if \(!over\) return;/, "only a genuinely absent over means drop outside");
+  assert.match(end, /if \(overId === String\(active\.id\)\) return;/, "a drop onto the dragged item itself is the only other no-op");
+  assert.match(end, /overData\.zone === "card"/, "card drops derive from event.over data");
+  assert.match(end, /overData\.zone === "head"/, "section header drops derive from event.over data");
+  assert.match(end, /overData\.zone === "ungrouped"/, "ungrouped drops derive from event.over data");
+  assert.match(end, /pointerRef\.current\.y < rect\.top \+ rect\.height \/ 2/, "before/after derives from the final pointer Y against the event.over rect");
+  assert.ok(end.includes('dropOnExercise(activeIdNum, Number(overId.split(":")[1]), before)'), "card drop forwards the event-derived target id and half");
+  assert.ok(end.includes("dropIntoSection(activeIdNum, overData.sectionId ?? null)"), "header drops forward the event-derived section");
+});
+
+test("visual overTarget state is separate from the commit path (feedback-only)", () => {
+  const over = slice(sortable, "/** Visual only: records", "function handleDragMove");
+  assert.match(over, /Visual only/, "handleDragOver is documented as visual-only");
+  assert.ok(over.includes("setOverTarget({ id: String(over.id), zone: overData.zone, before, top, height })"), "the visual indicator is fed from event.over + live pointer");
+  assert.doesNotMatch(over, /dropOnExercise|dropIntoSection|dropSectionOn|onApplyPlacements|onReorderSections/, "handleDragOver never persists anything");
+  const move = slice(sortable, "function handleDragMove", "function handleDragEnd");
+  assert.doesNotMatch(move, /onApplyPlacements|onReorderSections|dropOnExercise/, "drag-move refresh never persists anything");
 });
 
 test("the insertion half (before/after) tracks the live pointer on every drag move", () => {
@@ -122,11 +155,9 @@ test("every exercise card and the ungrouped head register as drop targets", () =
   assert.match(cardDrop, /id: `ex:\$\{e\.id\}`/, "each card is a droppable");
   assert.match(cardDrop, /data: cardDropData/, "card drop zone metadata");
   assert.match(sortable, /useDroppable\(\{ id: "ungrouped", data: ungroupedDropData \}\)/, "ungrouped header is a droppable");
-  const over = slice(sortable, "function handleDragOver", "function handleDragEnd");
-  assert.match(over, /overData\.zone === "card"/, "card drops tracked");
-  assert.match(over, /overData\.zone === "head"/, "section head drops tracked");
-  assert.match(over, /overData\.zone === "ungrouped"/, "ungrouped drops tracked");
-  assert.match(over, /overId === String\(active\.id\)[\s\S]{0,80}?setOverTarget\(null\)/, "self-drops are ignored");
+  const over = slice(sortable, "/** Visual only: records", "function handleDragMove");
+  assert.match(over, /overData\.zone !== "card" && overData\.zone !== "head" && overData\.zone !== "ungrouped"/, "all drop zones recognised in the visual tracker");
+  assert.match(over, /String\(over\.id\) === String\(active\.id\)[\s\S]{0,80}?setOverTarget\(null\)/, "self-drops are ignored visually");
 });
 
 test("a drop next to an exercise in ANOTHER section is a membership move, not a same-section reorder", () => {
@@ -141,7 +172,7 @@ test("header drops and ungrouped drops route through the shared placement planne
   assert.match(sortable, /function planSectionOrder\(sections: Section\[\], draggedId: number, targetId: number, before: boolean\)/, "sections share a rest-insert order engine");
   const plan = slice(sortable, "function planSectionOrder", "// --- Exercise card");
   assert.match(plan, /before \? targetRestIndex : targetRestIndex \+ 1/, "section before/after uses the same insert math as exercises");
-  assert.match(sortable, /dropSectionOn\(activeIdNum, target\.sectionId, target\.before\)/, "section drags persist via the shared orderedIds path");
+  assert.match(sortable, /dropSectionOn\(activeIdNum, overData\.sectionId, before\)/, "section drags persist via the shared orderedIds path");
 });
 
 // ---------------------------------------------------------------------------
