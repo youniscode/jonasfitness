@@ -476,6 +476,29 @@ export function deriveRoutineExerciseOrder(
     .map((exercise) => exercise.id);
 }
 
+/**
+ * Canonical final placement list from a validated, complete placements array.
+ * The server stays authoritative about section blocks: exercises keep their
+ * REQUESTED relative order inside each of their target sections, blocks are
+ * emitted in section.position order, and ungrouped exercises always tail the
+ * routine. This is the exact sequence whose dense 1..N positions get written
+ * by reorderRoutineExercises - the placement order is persisted, never
+ * re-derived from pre-reorder positions.
+ */
+export function canonicalRoutinePlacements(
+  sections: { id: number; position: number }[],
+  placements: { exerciseId: number; sectionId: number | null }[],
+): { exerciseId: number; sectionId: number | null }[] {
+  const blocks: (number | null)[] = [...[...sections].sort((a, b) => a.position - b.position).map((section) => section.id), null];
+  const final: { exerciseId: number; sectionId: number | null }[] = [];
+  for (const block of blocks) {
+    for (const placement of placements) {
+      if ((placement.sectionId ?? null) === block) final.push(placement);
+    }
+  }
+  return final;
+}
+
 export type PublicSession = {
   id: number;
   routineId: number | null;

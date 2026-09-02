@@ -14,6 +14,7 @@ import { parseExercises } from "./workouts.ts";
 import {
   buildWorkoutExercisesFromRoutine,
   buildDashboardSummary,
+  canonicalRoutinePlacements,
   deriveRoutineExerciseOrder,
   previousPerformanceFor,
   publicRoutine,
@@ -315,9 +316,15 @@ export async function removeRoutineExercise(ownerId: string, routineId: number, 
  * Applies a complete final layout: `placements` lists EVERY exercise id in the
  * desired visual order with its target section (null = ungrouped). Sections are
  * validated to belong to this owner + routine, exercises likewise, so a cross-
- * routine or cross-owner assignment is impossible; the canonical dense
- * positions are then rewritten. Legacy callers may pass plain exercise ids
- * (`orderedIds`), which keep each exercise's current section membership.
+ * routine or cross-owner assignment is impossible. The requested placement
+ * SEQUENCE is then persisted directly - section membership AND the routine-
+ * wide dense `position` - in a two-phase, collision-safe write against the
+ * UNIQUE (routine_id, position) index. The server re-blocks the requested
+ * order into the canonical layout (sections by position, ungrouped last) while
+ * preserving the requested relative order inside each section; it never
+ * re-derives order from pre-reorder positions. Legacy callers may pass plain
+ * exercise ids (`orderedIds`), which keep each exercise's current section
+ * membership.
  */
 export async function reorderRoutineExercises(ownerId: string, routineId: number, order: (RoutinePlacement | number)[]) {
   const db = getDb();
@@ -328,7 +335,7 @@ export async function reorderRoutineExercises(ownerId: string, routineId: number
     const existing = await tx.select({ id: trainingRoutineExercises.id, sectionId: trainingRoutineExercises.sectionId })
       .from(trainingRoutineExercises)
       .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
-    const sections = await tx.select({ id: trainingRoutineSections.id }).from(trainingRoutineSections)
+    const sections = await tx.select({ id: trainingRoutineSections.id, position: trainingRoutineSections.position }).from(trainingRoutineSections)
       .where(and(eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
     const existingIds = new Set(existing.map((row) => row.id));
     const currentSection = new Map(existing.map((row) => [row.id, row.sectionId ?? null]));
@@ -346,11 +353,29 @@ export async function reorderRoutineExercises(ownerId: string, routineId: number
       if (placement.sectionId !== null && !validSectionIds.has(placement.sectionId)) return null;
     }
     if (seen.size !== existing.length) return null; // must describe the whole routine
-    for (const placement of placements) {
-      await tx.update(trainingRoutineExercises).set({ sectionId: placement.sectionId })
+    // Canonical final layout: keep the REQUESTED relative order inside each
+    // target section, but emit blocks in section.position order with ungrouped
+    // last - the server, not the client, decides block order, so a malformed
+    // client cannot interleave sections.
+    const finalPlacements = canonicalRoutinePlacements(
+      sections.map((section) => ({ id: section.id, position: section.position })),
+      placements,
+    );
+    // Two-phase, collision-safe write: phase 1 moves every owned exercise into
+    // a temporary position range so a swap can never transiently clash with the
+    // UNIQUE (routine_id, position) index; phase 2 writes the dense final
+    // sequence (position = placement index + 1) together with the section
+    // membership.
+    await tx.update(trainingRoutineExercises)
+      .set({ position: sql`${trainingRoutineExercises.position} + 100000` })
+      .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
+    for (const [index, placement] of finalPlacements.entries()) {
+      await tx.update(trainingRoutineExercises).set({ sectionId: placement.sectionId, position: index + 1 })
         .where(and(eq(trainingRoutineExercises.id, placement.exerciseId), eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
     }
-    await reindexRoutineOrder(tx, ownerId, routineId);
+    // Positions are already canonical and dense; deriving from pre-reorder
+    // positions here would discard a same-section reorder, and a redundant
+    // reindex against the new positions would be a no-op - so none is run.
     return routineLayout(tx, ownerId, routineId);
   });
 }

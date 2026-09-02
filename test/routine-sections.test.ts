@@ -140,8 +140,9 @@ test("reorderRoutineExercises accepts full placements, rejects cross-routine sec
   assert.match(fn, /!Number\.isInteger\(placement\.exerciseId\) \|\| !existingIds\.has\(placement\.exerciseId\) \|\| seen\.has\(placement\.exerciseId\)\) return null;/, "exercise ids must be owned and unique");
   assert.match(fn, /if \(placement\.sectionId !== null && !validSectionIds\.has\(placement\.sectionId\)\) return null;/, "section ids are validated against THIS routine's sections (cross-routine assignment impossible)");
   assert.match(fn, /if \(seen\.size !== existing\.length\) return null;/, "the placement list must describe the whole routine");
-  assert.match(fn, /set\(\{ sectionId: placement\.sectionId \}\)/, "section membership is persisted per placement");
-  assert.match(fn, /reindexRoutineOrder\(tx, ownerId, routineId\)/, "dense positions rewritten after membership changes");
+  assert.match(fn, /canonicalRoutinePlacements\(/, "the server re-blocks the validated list into the canonical layout");
+  assert.match(fn, /set\(\{ sectionId: placement\.sectionId, position: index \+ 1 \}\)/, "each placement persists BOTH section membership and its requested dense position");
+  assert.doesNotMatch(fn, /reindexRoutineOrder\(tx, ownerId, routineId\)/, "order is persisted from the requested sequence, never re-derived from pre-reorder positions");
 });
 
 test("addRoutineExercise verifies the target section belongs to the same owner + routine", () => {
