@@ -253,7 +253,8 @@ export default function RoutineDetail() {
     try {
       const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/reorder`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedIds: reordered.map((item) => item.id) }) });
       setRoutine(data.routine);
-    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setBusy(false); }
+      setError("");
+    } catch { setError(t.sectionReorderError); } finally { setBusy(false); }
   }
   async function dropSectionOn(targetSectionId: number, before: boolean) {
     if (!routine || !dragging || dragging.kind !== "section") return;
@@ -271,7 +272,8 @@ export default function RoutineDetail() {
     try {
       const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/reorder`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedIds: reordered.map((item) => item.id) }) });
       setRoutine(data.routine);
-    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setBusy(false); }
+      setError("");
+    } catch { setError(t.sectionReorderError); } finally { setBusy(false); }
     setDragging(null);
     setDragOverId(null);
   }

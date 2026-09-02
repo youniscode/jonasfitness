@@ -206,6 +206,12 @@ export async function reorderSections(ownerId: string, routineId: number, ordere
       if (!Number.isInteger(id) || !existingIds.has(id) || seen.has(id)) return null;
       seen.add(id);
     }
+    // Two-phase write: moving every section into a temporary non-conflicting
+    // position range first guarantees a swap can never transiently collide with
+    // the UNIQUE (routine_id, position) index (e.g. 2->1 while 1 is occupied).
+    await tx.update(trainingRoutineSections)
+      .set({ position: sql`${trainingRoutineSections.position} + 100000` })
+      .where(and(eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
     for (const [index, id] of orderedSectionIds.entries()) {
       await tx.update(trainingRoutineSections).set({ position: index + 1 })
         .where(and(eq(trainingRoutineSections.id, id), eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
