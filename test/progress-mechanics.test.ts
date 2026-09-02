@@ -140,6 +140,72 @@ test("progression indicator is deterministic (same input, same output)", () => {
   assert.deepEqual(progressionIndicator(sets, 8, 12), progressionIndicator(sets, 8, 12));
 });
 
+// A progression verdict must REQUIRE every prescribed working set to be
+// completed: 1-of-3 (or 2-of-3) completed sets is still IN PROGRESS and must
+// never produce an increase/hold/reduce recommendation.
+function partialSets(completedReps: number[], total: number, weight = 40) {
+  const template = buildWorkoutExercisesFromRoutine([PRESS], "Push", "en")[0].sets;
+  return template.slice(0, total).map((set, index) => index < completedReps.length
+    ? { ...set, weight, reps: completedReps[index], status: "completed" as const }
+    : { ...set, weight: null, reps: null, status: set.status });
+}
+
+test("progression verdict requires ALL prescribed sets: 0/1/2 of 3 stays insufficient, never upper_reached", () => {
+  assert.equal(progressionIndicator(partialSets([], 3), 8, 12).state, "insufficient", "0/3 completed");
+  const oneSet = progressionIndicator(partialSets([12], 3), 8, 12); // founder: only set 1 at 12 reps
+  assert.equal(oneSet.state, "insufficient");
+  assert.notEqual(oneSet.state, "upper_reached", "1 of 3 sets at 12 reps must NOT declare the progression target reached");
+  assert.equal(oneSet.completedSets, 1);
+  const twoSets = progressionIndicator(partialSets([12, 12], 3), 8, 12);
+  assert.equal(twoSets.state, "insufficient");
+  assert.notEqual(twoSets.state, "upper_reached", "2 of 3 sets at 12 reps must NOT declare the target reached");
+  assert.equal(twoSets.completedSets, 2);
+});
+
+test("full verdicts fire only at 3/3 completed sets", () => {
+  assert.equal(progressionIndicator(partialSets([12, 12, 12], 3), 8, 12).state, "upper_reached");
+  assert.equal(progressionIndicator(partialSets([12, 11, 10], 3), 8, 12).state, "in_range");
+  assert.equal(progressionIndicator(partialSets([12, 8, 7], 3), 8, 12).state, "below");
+});
+
+test("e1RM still updates from valid completed sets while the verdict is partial (founder 50x12 -> 70)", () => {
+  const partial = progressionIndicator(partialSets([12], 3, 50), 8, 12);
+  assert.equal(partial.state, "insufficient");
+  assert.equal(partial.estimatedOneRepMax, 70, "50kg x 12 -> e1RM 70kg even with sets 2-3 pending");
+  assert.equal(partial.completedSets, 1);
+  assert.ok(!partial.reason.toLowerCase().includes("ready to increase"), "no load-increase recommendation while sets remain");
+});
+
+test("partial-state copy is localized FR / EN / AR with pluralization and never claims 'Every working set'", () => {
+  const en1 = progressionIndicator(partialSets([12], 3, 50), 8, 12, "en");
+  assert.equal(en1.label, "Finish your working sets");
+  assert.equal(en1.reason, "1 of 3 sets completed. Complete all working sets to get a progression signal.");
+  assert.equal(progressionIndicator(partialSets([12, 12], 3, 50), 8, 12, "en").reason, "2 of 3 sets completed. Complete all working sets to get a progression signal.");
+  const fr = progressionIndicator(partialSets([12], 3, 50), 8, 12, "fr");
+  assert.equal(fr.label, "Terminez vos séries de travail");
+  assert.equal(fr.reason, "1 série sur 3 terminée. Terminez toutes les séries pour obtenir un signal de progression.");
+  assert.equal(progressionIndicator(partialSets([12, 12], 3, 50), 8, 12, "fr").reason, "2 séries sur 3 terminées. Terminez toutes les séries pour obtenir un signal de progression.");
+  const ar = progressionIndicator(partialSets([12], 3, 50), 8, 12, "ar");
+  assert.equal(ar.label, "أكمل مجموعات العمل");
+  assert.equal(ar.reason, "أُنجزت 1 من أصل 3 مجموعات. أكمل جميع المجموعات للحصول على إشارة التقدم.");
+  assert.ok(!en1.reason.includes("Every working set"), "partial copy never claims every working set hit the target");
+  assert.match(progressionIndicator(partialSets([12, 12, 12], 3), 8, 12).reason, /Every working set hit 12\+ reps\./, "the claim only appears once every prescribed set is complete");
+});
+
+test("progression copy stays free of U+2014 em dashes", () => {
+  const indicators = [
+    progressionIndicator(partialSets([], 3), 8, 12),
+    progressionIndicator(partialSets([12], 3), 8, 12, "en"),
+    progressionIndicator(partialSets([12], 3), 8, 12, "fr"),
+    progressionIndicator(partialSets([12], 3), 8, 12, "ar"),
+    progressionIndicator(partialSets([12, 12, 12], 3), 8, 12),
+    progressionIndicator(partialSets([12, 8, 7], 3), 8, 12),
+  ];
+  for (const indicator of indicators) {
+    assert.ok(!indicator.label.includes("\u2014") && !indicator.reason.includes("\u2014"), "no U+2014 em dash in progression copy");
+  }
+});
+
 test("estimateOneRepMax matches the shared history formula and guards invalid input", () => {
   const round1 = (value: number) => Number(value.toFixed(1));
   assert.equal(estimateOneRepMax(100, 10), round1(100 * (1 + 10 / 30)));

@@ -328,19 +328,52 @@ export type ProgressionIndicator = {
   completedSets: number;
 };
 
+export type ProgressionSignalLanguage = "en" | "fr" | "ar";
+
+/** Localized copy for the in-progress (partial) state: some - but not all -
+ *  prescribed working sets are complete, so no increase/hold/reduce verdict
+ *  may be announced yet. `done` is always >= 1 here (zero is its own state). */
+function partialSignalCopy(language: ProgressionSignalLanguage, done: number, total: number): { label: string; reason: string } {
+  if (language === "fr") {
+    const counted = `${done} ${done <= 1 ? "série" : "séries"} sur ${total} ${done <= 1 ? "terminée" : "terminées"}`;
+    return {
+      label: "Terminez vos séries de travail",
+      reason: `${counted}. Terminez toutes les séries pour obtenir un signal de progression.`,
+    };
+  }
+  if (language === "ar") {
+    return {
+      label: "أكمل مجموعات العمل",
+      reason: `أُنجزت ${done} من أصل ${total} مجموعات. أكمل جميع المجموعات للحصول على إشارة التقدم.`,
+    };
+  }
+  return {
+    label: "Finish your working sets",
+    reason: `${done} of ${total} sets completed. Complete all working sets to get a progression signal.`,
+  };
+}
+
 /**
  * Transparent double-progression signal for one exercise. The logic is entirely
- * deterministic and explainable:
+ * deterministic and explainable. A progression VERDICT only fires when EVERY
+ * prescribed working set is complete (completed.length === sets.length); while
+ * sets are still pending the state stays "insufficient" (in progress) so a
+ * 1-of-3 exercise whose first set hit the top of the range is never announced
+ * as ready to increase the load:
  *   - upper_reached : EVERY completed working set hit >= the target rep maximum -
- *                     the classic "time to add load" signal.
- *   - in_range      : completed reps sit inside the configured rep range.
- *   - below         : reps fell below the target minimum.
- *   - insufficient  : no completed working sets yet (nothing to judge).
+ *                     the classic "time to add load" signal (full exercise only).
+ *   - in_range      : completed reps sit inside the configured rep range (full).
+ *   - below         : reps fell below the target minimum (full).
+ *   - insufficient  : fewer than all prescribed sets are complete. Zero
+ *                     completed sets => "nothing logged yet"; partial => "finish
+ *                     your working sets" (localized FR/EN/AR). e1RM still
+ *                     updates from the valid completed sets while in progress.
  */
 export function progressionIndicator(
   sets: WorkoutSet[],
   targetRepMin: number,
   targetRepMax: number,
+  language: ProgressionSignalLanguage = "en",
 ): ProgressionIndicator {
   const min = Math.max(REPS_MIN, Number(targetRepMin) || REPS_DEFAULT_MIN);
   const max = Math.max(min, Number(targetRepMax) || REPS_DEFAULT_MAX);
@@ -349,6 +382,13 @@ export function progressionIndicator(
 
   if (!completed.length) {
     return { state: "insufficient", label: "No completed sets yet", reason: "Log at least one complete set to get a signal.", targetRepMin: min, targetRepMax: max, estimatedOneRepMax: 0, completedSets: 0 };
+  }
+  // No final signal from a partial exercise: e.g. 1 of 3 prescribed sets done
+  // at 12 reps is NOT "every working set hit 12+". The verdict must wait until
+  // all prescribed working sets are completed.
+  if (completed.length < sets.length) {
+    const copy = partialSignalCopy(language, completed.length, sets.length);
+    return { state: "insufficient", label: copy.label, reason: copy.reason, targetRepMin: min, targetRepMax: max, estimatedOneRepMax, completedSets: completed.length };
   }
 
   const allReps = completed.map((set) => set.reps as number);

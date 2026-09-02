@@ -29,7 +29,7 @@ function parseRepRange(target: string) {
 
 export default function WorkoutLogger() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useProgressLang();
+  const { lang, t } = useProgressLang();
   const [data, setData] = useState<Loaded | null>(null);
   const [workout, setWorkout] = useState<Session | null>(null);
   const [mode, setMode] = useState<"loading" | "live" | "summary" | "closed">("loading");
@@ -158,7 +158,7 @@ export default function WorkoutLogger() {
   if (!workout || !current) return <div className="progress-overlay"><strong>{t.error}</strong></div>;
   const previous = data?.previous[current.id];
   const range = parseRepRange(current.sets[0]?.target ?? "");
-  const indicator = progressionIndicator(current.sets, range.min, range.max);
+  const indicator = progressionIndicator(current.sets, range.min, range.max, lang);
   const completedCount = workout.exercises.flatMap((e) => e.sets).filter((s) => s.status === "completed").length;
   const totalSets = workout.exercises.flatMap((e) => e.sets).length;
 
