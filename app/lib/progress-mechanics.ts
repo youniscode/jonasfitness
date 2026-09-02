@@ -315,6 +315,93 @@ export function previousPerformanceFor(
   return result;
 }
 
+// --- Canonical personal-best evaluation ---------------------
+
+export type PersonalBestSet = { weight: number; reps: number; rir: string; estimatedOneRepMax: number };
+
+export type PersonalBestVerdict = {
+  isPersonalBest: boolean;
+  currentBestE1rm: number;
+  previousBestE1rm: number;
+  currentHeaviest: number;
+  previousHeaviest: number;
+  /** An ACTUAL completed set from the current session (never synthesized from
+   *  independent maxima): the set that produced the session's best estimated
+   *  1RM (ties go to the heavier weight). */
+  representativeSet: PersonalBestSet | null;
+};
+
+function validCompletedSets(sets: WorkoutSet[]) {
+  return sets.filter(isCompletedWorkoutSet).filter((set) => (set.weight ?? 0) > 0 && (set.reps ?? 0) > 0);
+}
+
+function bestSetOf(sets: WorkoutSet[]): PersonalBestSet | null {
+  const best = sets.reduce<WorkoutSet | null>((best, set) => {
+    if (!best) return set;
+    const e1rm = estimateOneRepMax(set.weight, set.reps);
+    const bestE1rm = estimateOneRepMax(best.weight, best.reps);
+    if (e1rm > bestE1rm || (e1rm === bestE1rm && (set.weight ?? 0) > (best.weight ?? 0))) return set;
+    return best;
+  }, null);
+  if (!best) return null;
+  return { weight: best.weight ?? 0, reps: best.reps ?? 0, rir: best.rir, estimatedOneRepMax: estimateOneRepMax(best.weight, best.reps) };
+}
+
+/**
+ * THE canonical Jonas Progress personal-best rule - the single source of truth
+ * used by the Dashboard Recent Personal Bests, the Dashboard PB count and the
+ * workout completion "New personal bests" summary (never two definitions):
+ *  - the FIRST-ever completed performance for an exercise is a BASELINE, never
+ *    a PB;
+ *  - a later session is a PB only when it beats the PRIOR HISTORICAL BEST (all
+ *    prior completed sessions, not just the immediately previous one) on at
+ *    least one measurable record dimension: higher best Estimated 1RM OR
+ *    higher heaviest successfully completed load;
+ *  - equal performance and regression are never PBs.
+ */
+export function evaluateExercisePersonalBest(currentSets: WorkoutSet[], priorSets: WorkoutSet[]): PersonalBestVerdict {
+  const current = validCompletedSets(currentSets);
+  const prior = validCompletedSets(priorSets);
+  const currentBestE1rm = current.length ? Math.max(0, ...current.map((set) => estimateOneRepMax(set.weight, set.reps))) : 0;
+  const previousBestE1rm = prior.length ? Math.max(0, ...prior.map((set) => estimateOneRepMax(set.weight, set.reps))) : 0;
+  const currentHeaviest = current.length ? Math.max(0, ...current.map((set) => set.weight ?? 0)) : 0;
+  const previousHeaviest = prior.length ? Math.max(0, ...prior.map((set) => set.weight ?? 0)) : 0;
+  const isPersonalBest = prior.length > 0 && (currentBestE1rm > previousBestE1rm || currentHeaviest > previousHeaviest);
+  return { isPersonalBest, currentBestE1rm, previousBestE1rm, currentHeaviest, previousHeaviest, representativeSet: bestSetOf(current) };
+}
+
+/**
+ * All prior completed sets for each current exercise, collected across EVERY
+ * earlier completed session (chronological) so a PB comparison targets the
+ * historical best - never only the most recent session. Matching follows the
+ * established previous-performance rule: stable programmeExerciseId first;
+ * only when no session ever carries that id, fall back to normalized name.
+ */
+export function priorCompletedSetsFor(
+  currentExercises: WorkoutExercise[],
+  historyRows: Array<{ completedAt: string | Date | null; exercises: WorkoutExercise[] }>,
+): Record<string, WorkoutSet[]> {
+  const ordered = [...historyRows].sort((a, b) => new Date(a.completedAt ?? 0).getTime() - new Date(b.completedAt ?? 0).getTime());
+  const result: Record<string, WorkoutSet[]> = {};
+  for (const current of currentExercises) {
+    const hasId = Boolean(current.programmeExerciseId);
+    const byId = hasId ? ordered.filter((row) => row.exercises.some((past) => past.programmeExerciseId === current.programmeExerciseId)) : [];
+    const byName = ordered.filter((row) => row.exercises.some((past) => normaliseName(past.name) === normaliseName(current.name)));
+    const sourceRows = byId.length > 0 ? byId : byName;
+    const matches = (past: WorkoutExercise) => (byId.length > 0
+      ? past.programmeExerciseId === current.programmeExerciseId
+      : normaliseName(past.name) === normaliseName(current.name));
+    const sets: WorkoutSet[] = [];
+    for (const row of sourceRows) {
+      for (const past of row.exercises) {
+        if (matches(past)) sets.push(...past.sets);
+      }
+    }
+    result[current.id] = sets;
+  }
+  return result;
+}
+
 // --- Deterministic progression indicator --------------------
 
 export type ProgressionState = "insufficient" | "below" | "in_range" | "upper_reached";
@@ -586,11 +673,14 @@ export function buildDashboardSummary(
   const completedFourWeeks = completed.filter((row) => row.completedAt && new Date(row.completedAt).getTime() >= now.getTime() - windowMs).length;
 
   // Per-exercise best-per-session tracking for PR detection and improvement count.
-  // PR detection walks sessions CHRONOLOGICALLY (oldest -> newest): a session
-  // only counts as a personal best when a PREVIOUS completed performance exists
-  // for that exercise and this session genuinely improves on it. The first-ever
-  // session establishes the baseline instead of being announced as a new PB.
+  // PR detection walks sessions CHRONOLOGICALLY (oldest -> newest) and delegates
+  // every verdict to the canonical evaluateExercisePersonalBest: a session only
+  // counts as a personal best when a PREVIOUS completed performance exists for
+  // that exercise and this session genuinely beats the prior historical best
+  // (higher best e1RM OR higher heaviest load). The first-ever session
+  // establishes the baseline instead of being announced as a new PB.
   const bestByExercise = new Map<string, { name: string; bestWeight: number; bestE1rm: number }>();
+  const priorSetsByExercise = new Map<string, WorkoutSet[]>();
   const recentPRs: DashboardSummary["recentPRs"] = [];
   for (const row of [...completed].reverse()) {
     if (!row.completedAt) continue;
@@ -598,18 +688,17 @@ export function buildDashboardSummary(
     for (const exercise of row.exercises) {
       const completedSets = exercise.sets.filter(isCompletedWorkoutSet).filter((set) => (set.weight ?? 0) > 0 && (set.reps ?? 0) > 0);
       if (!completedSets.length) continue;
-      const e1rm = Math.max(0, ...completedSets.map((set) => estimateOneRepMax(set.weight, set.reps)));
-      const heaviest = Math.max(0, ...completedSets.map((set) => set.weight ?? 0));
       const key = exercise.programmeExerciseId || normaliseName(exercise.name);
+      const verdict = evaluateExercisePersonalBest(completedSets, priorSetsByExercise.get(key) ?? []);
+      priorSetsByExercise.set(key, [...(priorSetsByExercise.get(key) ?? []), ...completedSets]);
       const prior = bestByExercise.get(key);
-      if (!prior) {
-        // First recorded performance: baseline only, never a "new PB".
-        bestByExercise.set(key, { name: exercise.name, bestWeight: heaviest, bestE1rm: e1rm });
-      } else if (e1rm > prior.bestE1rm || heaviest > prior.bestWeight) {
-        recentPRs.push({ date, exercise: exercise.name, weight: heaviest, reps: completedSets.find((s) => (s.weight ?? 0) === heaviest)?.reps ?? 0 });
-        bestByExercise.set(key, { name: exercise.name, bestWeight: Math.max(heaviest, prior.bestWeight), bestE1rm: Math.max(e1rm, prior.bestE1rm) });
-      } else {
-        bestByExercise.set(key, { name: exercise.name, bestWeight: prior.bestWeight, bestE1rm: prior.bestE1rm });
+      bestByExercise.set(key, {
+        name: exercise.name,
+        bestWeight: Math.max(verdict.currentHeaviest, prior?.bestWeight ?? 0),
+        bestE1rm: Math.max(verdict.currentBestE1rm, prior?.bestE1rm ?? 0),
+      });
+      if (verdict.isPersonalBest) {
+        recentPRs.push({ date, exercise: exercise.name, weight: verdict.representativeSet?.weight ?? 0, reps: verdict.representativeSet?.reps ?? 0 });
       }
     }
   }

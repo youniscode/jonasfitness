@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useProgressLang } from "../../progress-lang";
-import { progressionIndicator } from "../../../../lib/progress-mechanics";
+import { evaluateExercisePersonalBest, progressionIndicator } from "../../../../lib/progress-mechanics";
 import { isCompletedWorkoutSet } from "../../../../lib/workouts";
 
 type Set = { id: string; target: string; weight: number | null; reps: number | null; rir: string; note: string; status: "pending" | "completed" | "skipped" };
 type Exercise = { id: string; programmeExerciseId: string; name: string; nameFr?: string; nameAr?: string; target: string; focus: string; imageUrl: string; sets: Set[]; status: string };
 type Previous = { date: string | null; sets: Set[] };
 type Session = { id: number; title: string; exercises: Exercise[]; weightUnit: string; notes: string; status: string; startedAt: string; completedAt: string | null };
-type Loaded = { session: Session; previous: Record<string, Previous | undefined> };
+type Loaded = { session: Session; previous: Record<string, Previous | undefined>; priorSets: Record<string, Set[]> };
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -151,15 +151,16 @@ export default function WorkoutLogger() {
     const totalSets = workout.exercises.flatMap((e) => e.sets).length;
     const partial = completedSets < totalSets;
     const volume = flat.flatMap((e) => e.sets).filter((s) => s.status === "completed").reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
-    // A "new personal best" requires a PREVIOUS completed performance for that
-    // exercise: the first-ever logged session establishes the baseline instead.
+    // NEW PERSONAL BESTS uses the SAME canonical evaluator as the Dashboard:
+    // a first-ever session is a baseline, and a session only counts when its
+    // completed sets beat the PRIOR HISTORICAL BEST (higher best e1RM OR
+    // heavier load) - never just the immediately previous session, never a
+    // weight-only comparison. Unlogged exercises (no completed set) are
+    // excluded by the `flat` filter above and can never create a PB.
     const records = flat.filter((e) => {
-      const currentMax = Math.max(0, ...e.sets.filter((s) => s.status === "completed").map((s) => s.weight ?? 0));
-      const previous = data?.previous[e.id];
-      const previousSets = (previous?.sets ?? []).filter(isCompletedWorkoutSet);
-      if (!previous || previousSets.length === 0) return false;
-      const previousMax = Math.max(0, ...previousSets.map((s) => s.weight ?? 0));
-      return currentMax > previousMax && currentMax > 0;
+      const currentSets = e.sets.filter((s) => s.status === "completed");
+      if (!currentSets.length) return false;
+      return evaluateExercisePersonalBest(currentSets, data?.priorSets[e.id] ?? []).isPersonalBest;
     }).length;
     return (
       <div className="progress-overlay"><main className="progress-complete">

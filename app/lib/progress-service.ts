@@ -17,6 +17,7 @@ import {
   canonicalRoutinePlacements,
   deriveRoutineExerciseOrder,
   previousPerformanceFor,
+  priorCompletedSetsFor,
   publicRoutine,
   publicRoutineExercise,
   publicSession,
@@ -410,12 +411,17 @@ export async function getWorkout(ownerId: string, sessionId: number) {
   if (!row) return null;
   const exercises = parseRowExercises(row);
   const session = publicSession(row, exercises);
-  const previousRows = await db.select({ completedAt: trainingWorkoutSessions.completedAt, exercises: trainingWorkoutSessions.exercises })
+  const previousRows = await db.select({ id: trainingWorkoutSessions.id, completedAt: trainingWorkoutSessions.completedAt, exercises: trainingWorkoutSessions.exercises })
     .from(trainingWorkoutSessions)
     .where(and(eq(trainingWorkoutSessions.ownerId, ownerId), eq(trainingWorkoutSessions.status, "completed")))
     .orderBy(desc(trainingWorkoutSessions.completedAt)).limit(100);
-  const previous = previousPerformanceFor(exercises, previousRows.map((p) => ({ completedAt: p.completedAt, exercises: parseExercises(p.exercises) })));
-  return { session, previous };
+  // The current session must never count as its own "previous" history: when a
+  // completed workout is reopened, excluding it keeps both the LAST TIME bar
+  // and the canonical PB comparison against the prior historical best correct.
+  const priorRows = previousRows.filter((row) => row.id !== sessionId).map((p) => ({ completedAt: p.completedAt, exercises: parseExercises(p.exercises) }));
+  const previous = previousPerformanceFor(exercises, priorRows);
+  const priorSets = priorCompletedSetsFor(exercises, priorRows);
+  return { session, previous, priorSets };
 }
 
 export async function startWorkout(ownerId: string, routineId: number, language: ExerciseLanguage = "en") {
