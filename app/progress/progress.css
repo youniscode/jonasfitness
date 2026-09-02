@@ -71,12 +71,23 @@
 .progress-create-routine label{flex:1;display:grid;gap:6px;font-size:9px;color:#71756b}
 .progress-create-routine input,.progress-exercise-edit input,.progress-add-exercise input,.progress-add-form select,.progress-exercise-edit select,.progress-history-select select{border:1px solid #cdcec5;background:#fff;padding:11px;color:#151712;font-size:11px;width:100%}
 .progress-routine-list{display:grid;gap:8px;margin-top:6px}
-.progress-routine-card{display:flex;justify-content:space-between;align-items:center;gap:16px;background:#fff;border:1px solid #e0e0d8;padding:18px;text-decoration:none;color:inherit}
+.progress-routine-card{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e0e0d8;padding:18px;color:inherit}
 .progress-routine-card:hover{border-color:#10120e}
-.progress-routine-card>span:first-child{display:grid;gap:3px;min-width:0}
-.progress-routine-card strong{font-size:16px}
-.progress-routine-card small{font-size:8px;letter-spacing:.14em;color:#79805c;font-weight:800}
-.progress-routine-card>span:last-child{font-size:9px;color:#85887f;white-space:nowrap}
+.progress-routine-card-main{display:flex;justify-content:space-between;align-items:center;gap:16px;flex:1;min-width:0;text-decoration:none;color:inherit}
+.progress-routine-card-main>span:first-child{display:grid;gap:3px;min-width:0}
+.progress-routine-card-main strong{font-size:16px}
+.progress-routine-card-main small{font-size:8px;letter-spacing:.14em;color:#79805c;font-weight:800}
+.progress-routine-card-main>span:last-child{font-size:9px;color:#85887f;white-space:nowrap}
+.progress-routine-card-actions{display:flex;gap:8px;align-items:center;flex:none}
+.progress-routine-card-actions .progress-ghost{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;font-size:10px}
+.progress-routine-card-actions .progress-ghost.danger{color:#a23830;border-color:#e0b9b3}
+.progress-routine-card-editing{display:grid;gap:10px;align-items:stretch}
+.progress-routine-card-editing .progress-routine-card-actions{justify-content:flex-end}
+.progress-routine-field{display:grid;gap:6px;font-size:9px;color:#71756b}
+.progress-routine-field input,.progress-routine-field textarea{border:1px solid #cdcec5;background:#fff;padding:11px;color:#151712;font-size:11px;width:100%;resize:none}
+.progress-routine-confirm{display:flex;flex-direction:column;align-items:flex-start;gap:7px;max-width:360px}
+.progress-routine-confirm strong{font-size:13px}
+.progress-routine-confirm>span{font-size:10px;color:#71756b;line-height:1.5}
 
 .progress-routine-head{align-items:flex-end}
 .progress-routine-head>div:first-child{flex:1;min-width:0}
@@ -216,4 +227,8 @@
   .progress-set-head,.progress-set-body>div{grid-template-columns:22px 1fr 1fr 1fr 1fr 46px;gap:4px;padding:8px}
   .progress-set-body input{padding:8px 4px;font-size:13px}
   .progress-exercise-tabs button{padding:8px 10px}
+  .progress-routine-card{flex-wrap:wrap}
+  .progress-routine-card-actions{width:100%;justify-content:flex-end}
+  .progress-routine-card-actions .progress-ghost{flex:1;padding:12px 10px}
+  .progress-routine-confirm{max-width:none}
 }

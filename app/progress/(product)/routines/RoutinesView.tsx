@@ -21,6 +21,9 @@ export default function RoutinesView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   // Inline-effect fetch to satisfy react-hooks/set-state-in-effect.
   useEffect(() => {
@@ -32,6 +35,41 @@ export default function RoutinesView() {
     }).catch(() => { if (!cancelled) setError(t.error); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [t.error]);
+
+  function startEdit(routine: Routine) {
+    setEditingId(routine.id);
+    setConfirmingId(null);
+    setError("");
+  }
+
+  async function saveEdit(event: FormEvent<HTMLFormElement>, routine: Routine) {
+    event.preventDefault();
+    // Read the form BEFORE any await (React nulls event.currentTarget once the
+    // handler yields; the create flow above captures the element for the same reason).
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name") ?? "").trim();
+    const notes = String(form.get("notes") ?? "").trim();
+    if (!name) { setError(t.routineNameRequired); return; }
+    setBusyId(routine.id);
+    try {
+      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, notes }) });
+      setRoutines((current) => [data.routine, ...current.filter((item) => item.id !== routine.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      setEditingId(null);
+      setError("");
+    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); }
+    finally { setBusyId(null); }
+  }
+
+  async function remove(routine: Routine) {
+    setBusyId(routine.id);
+    try {
+      await json(`/api/progress/routines/${routine.id}`, { method: "DELETE" });
+      setRoutines((current) => current.filter((item) => item.id !== routine.id));
+      setConfirmingId(null);
+      setError("");
+    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); }
+    finally { setBusyId(null); }
+  }
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,12 +106,42 @@ export default function RoutinesView() {
       {loading ? <p className="progress-muted">{t.saving}</p> : routines.length === 0
         ? <div className="progress-empty"><strong>{t.noRoutines}</strong><span>{t.noRoutinesHint}</span></div>
         : <div className="progress-routine-list">
-            {routines.map((routine) => (
-              <Link key={routine.id} href={`/progress/routines/${routine.id}`} className="progress-routine-card">
-                <span><small>{routine.exercises.length} {t.exercises.toLowerCase()}</small><strong>{routine.name}</strong>{routine.notes && <span>{routine.notes}</span>}</span>
-                <span>{new Date(routine.updatedAt).toLocaleDateString(locale)}{routine.exercises.length > 0 ? ` · ${routine.exercises.length} ex` : ""}</span>
-              </Link>
-            ))}
+            {routines.map((routine) => editingId === routine.id
+              ? (
+                <form key={routine.id} className="progress-routine-card progress-routine-card-editing" onSubmit={(event) => void saveEdit(event, routine)}>
+                  <label className="progress-routine-field">{t.routineName}<input name="name" defaultValue={routine.name} maxLength={80} autoFocus /></label>
+                  <label className="progress-routine-field">{t.routineNotes}<textarea name="notes" defaultValue={routine.notes} maxLength={1200} rows={2} /></label>
+                  <div className="progress-routine-card-actions">
+                    <button className="progress-ghost primary" type="submit" disabled={busyId === routine.id}>{busyId === routine.id ? t.saving : t.save}</button>
+                    <button className="progress-ghost" type="button" disabled={busyId === routine.id} onClick={() => { setEditingId(null); setError(""); }}>{t.cancel}</button>
+                  </div>
+                </form>
+              )
+              : (
+                <div className="progress-routine-card" key={routine.id}>
+                  <Link href={`/progress/routines/${routine.id}`} className="progress-routine-card-main">
+                    <span><small>{routine.exercises.length} {t.exercises.toLowerCase()}</small><strong>{routine.name}</strong>{routine.notes && <span>{routine.notes}</span>}</span>
+                    <span>{new Date(routine.updatedAt).toLocaleDateString(locale)}{routine.exercises.length > 0 ? ` · ${routine.exercises.length} ex` : ""}</span>
+                  </Link>
+                  {confirmingId === routine.id
+                    ? (
+                      <div className="progress-routine-confirm">
+                        <strong>{t.deleteRoutineTitle}</strong>
+                        <span>{t.deleteRoutineBody}</span>
+                        <div className="progress-routine-card-actions">
+                          <button className="progress-ghost" type="button" disabled={busyId === routine.id} onClick={() => setConfirmingId(null)}>{t.cancel}</button>
+                          <button className="progress-ghost danger" type="button" disabled={busyId === routine.id} onClick={() => void remove(routine)}>{busyId === routine.id ? t.saving : t.deleteRoutineConfirm}</button>
+                        </div>
+                      </div>
+                    )
+                    : (
+                      <div className="progress-routine-card-actions">
+                        <button className="progress-ghost" type="button" onClick={() => startEdit(routine)}>{t.edit}</button>
+                        <button className="progress-ghost danger" type="button" onClick={() => { setConfirmingId(routine.id); setEditingId(null); }}>{t.delete}</button>
+                      </div>
+                    )}
+                </div>
+              ))}
           </div>}
     </section>
   );
