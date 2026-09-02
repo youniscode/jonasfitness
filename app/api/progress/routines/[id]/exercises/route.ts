@@ -21,7 +21,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const validation = validateExercisePrescription(body);
   if (!validation.ok) return Response.json({ error: validation.errors.join(" ") }, { status: 400 });
   const prescription = prescriptionToPersist(body)!;
-  const result = await addRoutineExercise(guarded.ownerId, routineId, prescription, languageOf(body.language));
+  const rawSectionId = body.sectionId ?? null;
+  let sectionId: number | null = null;
+  if (rawSectionId !== null) {
+    sectionId = Number(rawSectionId);
+    if (!Number.isInteger(sectionId) || sectionId <= 0) return Response.json({ error: "Section not found." }, { status: 400 });
+  }
+  const result = await addRoutineExercise(guarded.ownerId, routineId, prescription, languageOf(body.language), sectionId);
   if (!result) return Response.json({ error: "Routine not found." }, { status: 404 });
   return Response.json(result, { status: 201 });
 }

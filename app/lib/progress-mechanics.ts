@@ -48,6 +48,7 @@ export const RIR_DEFAULT = 2;
 export const WEIGHT_UNIT_DEFAULT: WeightUnit = "kg";
 export const PROGRESS_EXERCISE_NAME_MAX = 120;
 export const PROGRESS_ROUTINE_NAME_MAX = 80;
+export const PROGRESS_SECTION_NAME_MAX = 80;
 export const PROGRESS_NOTE_MAX = 1200;
 
 const round = (value: number, digits = 1) => Number(value.toFixed(digits));
@@ -377,18 +378,26 @@ export function progressionIndicator(
 
 // --- Public DTOs (never leak ownerId/internal wiring) --------
 
+export type PublicSection = {
+  id: number;
+  name: string;
+  position: number;
+};
+
 export type PublicRoutine = {
   id: number;
   name: string;
   notes: string;
   createdAt: string;
   updatedAt: string;
+  sections: PublicSection[];
   exercises: PublicExercise[];
 };
 
 export type PublicExercise = {
   id: number;
   position: number;
+  sectionId: number | null;
   exerciseId: string;
   name: string;
   nameFr: string;
@@ -401,12 +410,20 @@ export type PublicExercise = {
   notes: string;
 };
 
-export function publicRoutine(routine: { id: number; name: string; notes: string; createdAt: Date | string; updatedAt: Date | string }, exercises: PublicExercise[]): PublicRoutine {
-  return { id: routine.id, name: routine.name, notes: routine.notes, createdAt: new Date(routine.createdAt).toISOString(), updatedAt: new Date(routine.updatedAt).toISOString(), exercises: [...exercises].sort((a, b) => a.position - b.position) };
+export function publicRoutine(routine: { id: number; name: string; notes: string; createdAt: Date | string; updatedAt: Date | string }, exercises: PublicExercise[], sections: PublicSection[] = []): PublicRoutine {
+  return {
+    id: routine.id,
+    name: routine.name,
+    notes: routine.notes,
+    createdAt: new Date(routine.createdAt).toISOString(),
+    updatedAt: new Date(routine.updatedAt).toISOString(),
+    sections: [...sections].sort((a, b) => a.position - b.position),
+    exercises: [...exercises].sort((a, b) => a.position - b.position),
+  };
 }
 
 export type PublicRoutineExerciseRow = {
-  id: number; position: number; exerciseId: string; name: string; nameFr: string; nameAr: string;
+  id: number; position: number; sectionId: number | null; exerciseId: string; name: string; nameFr: string; nameAr: string;
   sets: number; targetRepMin: number; targetRepMax: number; targetRir: number; weightUnit: string; notes: string;
 };
 
@@ -414,6 +431,7 @@ export function publicRoutineExercise(row: PublicRoutineExerciseRow): PublicExer
   return {
     id: row.id,
     position: row.position,
+    sectionId: row.sectionId ?? null,
     exerciseId: row.exerciseId,
     name: row.name,
     nameFr: row.nameFr,
@@ -425,6 +443,37 @@ export function publicRoutineExercise(row: PublicRoutineExerciseRow): PublicExer
     weightUnit: row.weightUnit === "lb" ? "lb" : "kg",
     notes: row.notes,
   };
+}
+
+// --- Routine layout (user-defined sections) ---------------------------
+
+/** Trimmed section name, or "" when empty (mirrors validateRoutineName). */
+export function validateSectionName(value: unknown): string {
+  const name = typeof value === "string" ? value.trim().slice(0, PROGRESS_SECTION_NAME_MAX) : "";
+  return name;
+}
+
+/**
+ * Deterministic total order of a routine's exercises. User-defined sections are
+ * pure grouping labels: sections render in `position` order and their members
+ * (ordered by exercise position) come first, then ungrouped exercises (no
+ * section) follow in position order. Idempotent, so any membership/order change
+ * can be re-derived and written back into the routine-wide dense positions.
+ */
+export function deriveRoutineExerciseOrder(
+  sections: { id: number; position: number }[],
+  exercises: { id: number; position: number; sectionId: number | null }[],
+): number[] {
+  const sortedSections = [...sections].sort((a, b) => a.position - b.position);
+  const rank = new Map<number, number>(sortedSections.map((section, index) => [section.id, index]));
+  const ungroupedRank = sortedSections.length; // ungrouped is always the last block
+  return [...exercises]
+    .sort((a, b) => {
+      const rankA = a.sectionId === null ? ungroupedRank : rank.get(a.sectionId) ?? ungroupedRank;
+      const rankB = b.sectionId === null ? ungroupedRank : rank.get(b.sectionId) ?? ungroupedRank;
+      return rankA - rankB || a.position - b.position;
+    })
+    .map((exercise) => exercise.id);
 }
 
 export type PublicSession = {

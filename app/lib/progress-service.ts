@@ -7,19 +7,21 @@
  * exercises) run inside a transaction.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import { trainingRoutineExercises, trainingRoutines, trainingWorkoutSessions } from "../../db/schema";
+import { trainingRoutineExercises, trainingRoutineSections, trainingRoutines, trainingWorkoutSessions } from "../../db/schema";
 import { parseExercises } from "./workouts.ts";
 import {
   buildWorkoutExercisesFromRoutine,
   buildDashboardSummary,
+  deriveRoutineExerciseOrder,
   previousPerformanceFor,
   publicRoutine,
   publicRoutineExercise,
   publicSession,
   validateLoggedExercises,
   type ProgressPrescription,
+  type PublicRoutine,
   type WeightUnit,
 } from "./progress-mechanics.ts";
 import { buildExerciseHistory } from "./exercise-history.ts";
@@ -45,6 +47,51 @@ function toPrescription(row: ExerciseRow): ProgressPrescription {
   };
 }
 
+type Db = ReturnType<typeof getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** Owner+routine-scoped read of the routine's full layout (row + sections + exercises). */
+async function routineLayout(executor: Db | Tx, ownerId: string, routineId: number): Promise<{ routine: PublicRoutine } | null> {
+  const [routine] = await executor.select().from(trainingRoutines)
+    .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
+  if (!routine) return null;
+  const [sections, exercises] = await Promise.all([
+    executor.select().from(trainingRoutineSections)
+      .where(and(eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)))
+      .orderBy(trainingRoutineSections.position),
+    executor.select().from(trainingRoutineExercises)
+      .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)))
+      .orderBy(trainingRoutineExercises.position),
+  ]);
+  return { routine: publicRoutine(routine, exercises.map(publicRoutineExercise), sections.map((row) => ({ id: row.id, name: row.name, position: row.position }))) };
+}
+
+/**
+ * Re-derives the canonical routine-wide exercise order (sections by position,
+ * their members by position, then ungrouped) and writes it back as the dense
+ * routine-wide `position` sequence the unique (routine_id, position) index
+ * expects. The two-phase offset avoids transient unique violations while rows
+ * move to their final slots. Runs inside the caller's transaction.
+ */
+async function reindexRoutineOrder(executor: Db | Tx, ownerId: string, routineId: number) {
+  const [sections, exercises] = await Promise.all([
+    executor.select({ id: trainingRoutineSections.id, position: trainingRoutineSections.position }).from(trainingRoutineSections)
+      .where(and(eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId))),
+    executor.select({ id: trainingRoutineExercises.id, position: trainingRoutineExercises.position, sectionId: trainingRoutineExercises.sectionId }).from(trainingRoutineExercises)
+      .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId))),
+  ]);
+  const orderedIds = deriveRoutineExerciseOrder(sections, exercises);
+  if (!orderedIds.length) return;
+  await executor.update(trainingRoutineExercises)
+    .set({ position: sql`${trainingRoutineExercises.position} + 100000` })
+    .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
+  for (const [index, id] of orderedIds.entries()) {
+    await executor.update(trainingRoutineExercises)
+      .set({ position: index + 1 })
+      .where(and(eq(trainingRoutineExercises.id, id), eq(trainingRoutineExercises.ownerId, ownerId)));
+  }
+}
+
 // --- Routines --------------------------------------------
 
 export async function listRoutines(ownerId: string) {
@@ -52,30 +99,32 @@ export async function listRoutines(ownerId: string) {
   const routines = await db.select().from(trainingRoutines)
     .where(eq(trainingRoutines.ownerId, ownerId))
     .orderBy(desc(trainingRoutines.updatedAt));
-  const exerciseRows = await db.select().from(trainingRoutineExercises)
-    .where(eq(trainingRoutineExercises.ownerId, ownerId))
-    .orderBy(trainingRoutineExercises.position);
+  const [exerciseRows, sectionRows] = await Promise.all([
+    db.select().from(trainingRoutineExercises)
+      .where(eq(trainingRoutineExercises.ownerId, ownerId))
+      .orderBy(trainingRoutineExercises.position),
+    db.select().from(trainingRoutineSections)
+      .where(eq(trainingRoutineSections.ownerId, ownerId))
+      .orderBy(trainingRoutineSections.routineId, trainingRoutineSections.position),
+  ]);
   return routines.map((routine) => ({
-    ...publicRoutine(routine, exerciseRows.filter((e) => e.routineId === routine.id).map(publicRoutineExercise)),
+    ...publicRoutine(
+      routine,
+      exerciseRows.filter((e) => e.routineId === routine.id).map(publicRoutineExercise),
+      sectionRows.filter((s) => s.routineId === routine.id).map((row) => ({ id: row.id, name: row.name, position: row.position })),
+    ),
   }));
 }
 
 export async function getRoutine(ownerId: string, routineId: number) {
-  const db = getDb();
-  const [routine] = await db.select().from(trainingRoutines)
-    .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
-  if (!routine) return null;
-  const exercises = await db.select().from(trainingRoutineExercises)
-    .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)))
-    .orderBy(trainingRoutineExercises.position);
-  return { routine: publicRoutine(routine, exercises.map(publicRoutineExercise)) };
+  return routineLayout(getDb(), ownerId, routineId);
 }
 
 export async function createRoutine(ownerId: string, name: string, notes = "") {
   const db = getDb();
   const [routine] = await db.insert(trainingRoutines).values({ ownerId, name: name.trim().slice(0, 80), notes: notes.trim().slice(0, 1200) }).returning();
   void recordFirstRoutineCreated(ownerId);
-  return { routine: publicRoutine(routine, []) };
+  return { routine: publicRoutine(routine, [], []) };
 }
 
 export async function updateRoutineMeta(ownerId: string, routineId: number, name: string, notes: string) {
@@ -85,10 +134,7 @@ export async function updateRoutineMeta(ownerId: string, routineId: number, name
     .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId)))
     .returning();
   if (!routine) return null;
-  const exercises = await db.select().from(trainingRoutineExercises)
-    .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)))
-    .orderBy(trainingRoutineExercises.position);
-  return { routine: publicRoutine(routine, exercises.map(publicRoutineExercise)) };
+  return routineLayout(db, ownerId, routineId);
 }
 
 export async function deleteRoutine(ownerId: string, routineId: number) {
@@ -99,25 +145,108 @@ export async function deleteRoutine(ownerId: string, routineId: number) {
   return Boolean(deleted);
 }
 
-// --- Routine exercises ---------------------
+// --- Routine sections (user-defined grouping labels) -----
 
-export async function addRoutineExercise(ownerId: string, routineId: number, prescription: ProgressPrescription, language: ExerciseLanguage = "en") {
+export async function createSection(ownerId: string, routineId: number, name: string) {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [routine] = await tx.select({ id: trainingRoutines.id }).from(trainingRoutines)
       .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
     if (!routine) return null;
+    const [maxRow] = await tx.select({ max: trainingRoutineSections.position })
+      .from(trainingRoutineSections)
+      .where(eq(trainingRoutineSections.routineId, routineId))
+      .orderBy(desc(trainingRoutineSections.position)).limit(1);
+    await tx.insert(trainingRoutineSections).values({ routineId, ownerId, name: name.trim().slice(0, 80), position: (maxRow?.max ?? 0) + 1 });
+    return routineLayout(tx, ownerId, routineId);
+  });
+}
+
+export async function renameSection(ownerId: string, routineId: number, sectionId: number, name: string) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [updated] = await tx.update(trainingRoutineSections)
+      .set({ name: name.trim().slice(0, 80), updatedAt: new Date() })
+      .where(and(eq(trainingRoutineSections.id, sectionId), eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)))
+      .returning({ id: trainingRoutineSections.id });
+    if (!updated) return null;
+    return routineLayout(tx, ownerId, routineId);
+  });
+}
+
+export async function deleteSection(ownerId: string, routineId: number, sectionId: number) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: trainingRoutineSections.id }).from(trainingRoutineSections)
+      .where(and(eq(trainingRoutineSections.id, sectionId), eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId))).limit(1);
+    if (!existing) return null;
+    // Exercises are never deleted with a section: they become ungrouped.
+    await tx.update(trainingRoutineExercises)
+      .set({ sectionId: null })
+      .where(and(eq(trainingRoutineExercises.sectionId, sectionId), eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
+    await tx.delete(trainingRoutineSections)
+      .where(and(eq(trainingRoutineSections.id, sectionId), eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
+    await reindexRoutineOrder(tx, ownerId, routineId);
+    return routineLayout(tx, ownerId, routineId);
+  });
+}
+
+export async function reorderSections(ownerId: string, routineId: number, orderedSectionIds: number[]) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [routine] = await tx.select({ id: trainingRoutines.id }).from(trainingRoutines)
+      .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
+    if (!routine) return null;
+    const existing = await tx.select({ id: trainingRoutineSections.id }).from(trainingRoutineSections)
+      .where(and(eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
+    const existingIds = new Set(existing.map((row) => row.id));
+    if (orderedSectionIds.length !== existing.length) return null;
+    const seen = new Set<number>();
+    for (const id of orderedSectionIds) {
+      if (!Number.isInteger(id) || !existingIds.has(id) || seen.has(id)) return null;
+      seen.add(id);
+    }
+    for (const [index, id] of orderedSectionIds.entries()) {
+      await tx.update(trainingRoutineSections).set({ position: index + 1 })
+        .where(and(eq(trainingRoutineSections.id, id), eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
+    }
+    // Section blocks moved, so exercise positions follow the new canonical order.
+    await reindexRoutineOrder(tx, ownerId, routineId);
+    return routineLayout(tx, ownerId, routineId);
+  });
+}
+
+// --- Routine exercises ---------------------
+
+export type RoutinePlacement = { exerciseId: number; sectionId: number | null };
+
+/**
+ * Adds an exercise. `sectionId` (nullable) selects the target section; the new
+ * prescription is appended at the end of that section's block (ungrouped when
+ * null) and the canonical routine-wide order is rewritten afterwards.
+ */
+export async function addRoutineExercise(ownerId: string, routineId: number, prescription: ProgressPrescription, language: ExerciseLanguage = "en", sectionId: number | null = null) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [routine] = await tx.select({ id: trainingRoutines.id }).from(trainingRoutines)
+      .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
+    if (!routine) return null;
+    if (sectionId !== null) {
+      const [section] = await tx.select({ id: trainingRoutineSections.id }).from(trainingRoutineSections)
+        .where(and(eq(trainingRoutineSections.id, sectionId), eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId))).limit(1);
+      if (!section) return null;
+    }
     const [maxRow] = await tx.select({ max: trainingRoutineExercises.position })
       .from(trainingRoutineExercises)
       .where(eq(trainingRoutineExercises.routineId, routineId))
       .orderBy(desc(trainingRoutineExercises.position)).limit(1);
-    const nextPosition = (maxRow?.max ?? 0) + 1;
     const nameFr = prescription.nameFr && language !== "fr" ? prescription.nameFr : "";
     const nameAr = prescription.nameAr && language !== "ar" ? prescription.nameAr : "";
-    const [row] = await tx.insert(trainingRoutineExercises).values({
+    await tx.insert(trainingRoutineExercises).values({
       routineId,
       ownerId,
-      position: nextPosition,
+      sectionId,
+      position: (maxRow?.max ?? 0) + 1,
       exerciseId: prescription.exerciseId,
       name: prescription.name,
       nameFr,
@@ -128,8 +257,9 @@ export async function addRoutineExercise(ownerId: string, routineId: number, pre
       targetRir: prescription.targetRir,
       weightUnit: prescription.weightUnit,
       notes: prescription.notes,
-    }).returning();
-    return { exercise: publicRoutineExercise(row) };
+    });
+    await reindexRoutineOrder(tx, ownerId, routineId);
+    return routineLayout(tx, ownerId, routineId);
   });
 }
 
@@ -170,35 +300,52 @@ export async function removeRoutineExercise(ownerId: string, routineId: number, 
       ))
       .returning({ id: trainingRoutineExercises.id });
     if (!deleted) return null;
-    const remaining = await tx.select().from(trainingRoutineExercises)
-      .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)))
-      .orderBy(trainingRoutineExercises.position);
-    // Recompose positions so order remains dense.
-    await Promise.all(remaining.map((row, index) =>
-      tx.update(trainingRoutineExercises).set({ position: index + 1 }).where(eq(trainingRoutineExercises.id, row.id))));
-    const [routine] = await tx.select().from(trainingRoutines).where(eq(trainingRoutines.id, routineId)).limit(1);
-    return { routine: publicRoutine(routine, []) };
+    await reindexRoutineOrder(tx, ownerId, routineId);
+    return routineLayout(tx, ownerId, routineId);
   });
 }
 
-export async function reorderRoutineExercises(ownerId: string, routineId: number, orderedIds: number[]) {
+/**
+ * Applies a complete final layout: `placements` lists EVERY exercise id in the
+ * desired visual order with its target section (null = ungrouped). Sections are
+ * validated to belong to this owner + routine, exercises likewise, so a cross-
+ * routine or cross-owner assignment is impossible; the canonical dense
+ * positions are then rewritten. Legacy callers may pass plain exercise ids
+ * (`orderedIds`), which keep each exercise's current section membership.
+ */
+export async function reorderRoutineExercises(ownerId: string, routineId: number, order: (RoutinePlacement | number)[]) {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [routine] = await tx.select({ id: trainingRoutines.id }).from(trainingRoutines)
       .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
     if (!routine) return null;
-    const existing = await tx.select({ id: trainingRoutineExercises.id })
+    const existing = await tx.select({ id: trainingRoutineExercises.id, sectionId: trainingRoutineExercises.sectionId })
       .from(trainingRoutineExercises)
       .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
+    const sections = await tx.select({ id: trainingRoutineSections.id }).from(trainingRoutineSections)
+      .where(and(eq(trainingRoutineSections.routineId, routineId), eq(trainingRoutineSections.ownerId, ownerId)));
     const existingIds = new Set(existing.map((row) => row.id));
-    // Only the owner's own exercise ids, in the exact order supplied, are applied.
-    const valid = orderedIds.filter((id) => existingIds.has(id));
-    await Promise.all(valid.map((id, index) =>
-      tx.update(trainingRoutineExercises).set({ position: index + 1 }).where(and(eq(trainingRoutineExercises.id, id), eq(trainingRoutineExercises.ownerId, ownerId)))));
-    const exercises = await tx.select().from(trainingRoutineExercises)
-      .where(and(eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)))
-      .orderBy(trainingRoutineExercises.position);
-    return { exercises: exercises.map(publicRoutineExercise) };
+    const currentSection = new Map(existing.map((row) => [row.id, row.sectionId ?? null]));
+    const validSectionIds = new Set(sections.map((row) => row.id));
+    // Normalise plain ids (legacy orderedIds) to placements on current membership.
+    const placements: RoutinePlacement[] = order.map((item) =>
+      typeof item === "number"
+        ? { exerciseId: item, sectionId: currentSection.get(item) ?? null }
+        : { exerciseId: Number(item.exerciseId), sectionId: item.sectionId === null ? null : Number(item.sectionId) });
+    if (!placements.length) return null;
+    const seen = new Set<number>();
+    for (const placement of placements) {
+      if (!Number.isInteger(placement.exerciseId) || !existingIds.has(placement.exerciseId) || seen.has(placement.exerciseId)) return null;
+      seen.add(placement.exerciseId);
+      if (placement.sectionId !== null && !validSectionIds.has(placement.sectionId)) return null;
+    }
+    if (seen.size !== existing.length) return null; // must describe the whole routine
+    for (const placement of placements) {
+      await tx.update(trainingRoutineExercises).set({ sectionId: placement.sectionId })
+        .where(and(eq(trainingRoutineExercises.id, placement.exerciseId), eq(trainingRoutineExercises.routineId, routineId), eq(trainingRoutineExercises.ownerId, ownerId)));
+    }
+    await reindexRoutineOrder(tx, ownerId, routineId);
+    return routineLayout(tx, ownerId, routineId);
   });
 }
 

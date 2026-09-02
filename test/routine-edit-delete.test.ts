@@ -65,9 +65,12 @@ test("empty rename is rejected server-side before any write", () => {
 
 test("exercises and their order survive a rename", () => {
   const updateMeta = slice(service, "export async function updateRoutineMeta", "export async function deleteRoutine");
-  assert.match(updateMeta, /db\.select\(\)\.from\(trainingRoutineExercises\)[\s\S]*?\.orderBy\(trainingRoutineExercises\.position\)/, "exercises are re-read in position order after the update");
-  assert.match(updateMeta, /return \{ routine: publicRoutine\(routine, exercises\.map\(publicRoutineExercise\)\) \};/, "the renamed routine is returned WITH its exercises");
+  assert.match(updateMeta, /\.set\(\{ name: name\.trim\(\)\.slice\(0, 80\), notes: notes\.trim\(\)\.slice\(0, 1200\), updatedAt: new Date\(\) \}\)/, "rename updates only routine metadata");
+  assert.match(updateMeta, /return routineLayout\(db, ownerId, routineId\);/, "the renamed routine returns through the shared layout loader");
   assert.doesNotMatch(updateMeta, /\.delete\(/, "rename never deletes exercises");
+  const layout = slice(service, "async function routineLayout(", "async function reindexRoutineOrder");
+  assert.match(layout, /\.orderBy\(trainingRoutineExercises\.position\)/, "layout re-reads exercises in position order after the update");
+  assert.match(layout, /exercises\.map\(publicRoutineExercise\)/, "the renamed routine is returned WITH its exercises");
   const put = slice(routeId, "export async function PUT", "export async function DELETE");
   assert.match(put, /updateRoutineMeta\(guarded\.ownerId, routineId, name, typeof body\.notes === "string" \? body\.notes : ""\)/, "PUT preserves notes and passes no client owner");
 });

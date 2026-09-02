@@ -584,14 +584,39 @@ export const trainingRoutines = pgTable("training_routines", {
   createdAt: createdAt(),
 }, (table) => [index("training_routines_owner_updated_idx").on(table.ownerId, table.updatedAt)]);
 
+// User-defined ORGANIZATIONAL sections inside a routine (e.g. Legs, Shoulders,
+// Chest). They are pure grouping labels - never inferred anatomy. Deleting a
+// routine cascades to its sections; deleting a SECTION never deletes exercises
+// (training_routine_exercises.section_id is ON DELETE set null, so the
+// exercises simply become ungrouped). `position` orders the section headers;
+// the unique (routine_id, position) guard prevents two sections claiming the
+// same slot under a concurrent reorder.
+export const trainingRoutineSections = pgTable("training_routine_sections", {
+  id: serial("id").primaryKey(),
+  routineId: integer("routine_id").notNull().references(() => trainingRoutines.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: createdAt(),
+}, (table) => [
+  index("training_routine_sections_owner_routine_idx").on(table.ownerId, table.routineId),
+  uniqueIndex("training_routine_sections_routine_position_unique").on(table.routineId, table.position),
+]);
+
 // One prescription per exercise inside a routine template: working-set count
 // and target rep range (double progression). `position` preserves explicit
 // exercise ordering; the unique (routine_id, position) constraint prevents two
-// exercises claiming the same slot even under a concurrent reorder.
+// exercises claiming the same slot even under a concurrent reorder. Exercise
+// positions stay the routine-wide canonical order (sections are a derived
+// grouping layer on top). `section_id` is nullable: NULL means the exercise is
+// ungrouped, and deleting a section sets it back to NULL instead of deleting
+// the exercise.
 export const trainingRoutineExercises = pgTable("training_routine_exercises", {
   id: serial("id").primaryKey(),
   routineId: integer("routine_id").notNull().references(() => trainingRoutines.id, { onDelete: "cascade" }),
   ownerId: text("owner_id").notNull(),
+  sectionId: integer("section_id").references(() => trainingRoutineSections.id, { onDelete: "set null" }),
   position: integer("position").notNull(),
   // Canonical built-in catalogue id (builtin-*) or a stable custom-* slug.
   exerciseId: text("exercise_id").notNull(),
@@ -607,6 +632,7 @@ export const trainingRoutineExercises = pgTable("training_routine_exercises", {
   createdAt: createdAt(),
 }, (table) => [
   index("training_routine_exercises_owner_routine_idx").on(table.ownerId, table.routineId),
+  index("training_routine_exercises_section_idx").on(table.sectionId),
   uniqueIndex("training_routine_exercises_routine_position_unique").on(table.routineId, table.position),
 ]);
 
