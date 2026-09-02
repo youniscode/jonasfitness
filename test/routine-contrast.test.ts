@@ -7,7 +7,7 @@ const ROOT = process.cwd();
 const read = (...parts: string[]) => readFileSync(join(ROOT, ...parts), "utf8");
 
 const css = read("app", "progress", "progress.css");
-const detail = read("app", "progress", "(product)", "routines", "[id]", "RoutineDetail.tsx");
+const sortable = read("app", "progress", "(product)", "routines", "[id]", "RoutineSortable.tsx");
 const lines = css.split("\n");
 
 // ---------------------------------------------------------------------------
@@ -110,9 +110,10 @@ test("no whole-file filter/grayscale effects in the Progress stylesheet", () => 
 });
 
 test("the resting card markup carries no opacity or blanket disabled attribute", () => {
-  assert.doesNotMatch(detail, /className="progress-exercise-card"[^>]*(disabled|opacity)/, "card containers are never disabled/faded");
-  assert.equal((detail.match(/aria-label=\{t\.moveUp\}/g) ?? []).length, 2, "move up controls exist per row region");
-  assert.equal((detail.match(/aria-label=\{t\.moveDown\}/g) ?? []).length, 2, "move down controls exist per row region");
+  assert.doesNotMatch(sortable, /"progress-exercise-card"[^;,\n]{0,160}?(disabled|opacity)/, "the card class builder never fades or disables the row");
+  assert.doesNotMatch(sortable, /<div[^>]*className=\{className\}[^>]*(disabled|opacity=)/, "the card container element carries no disabled/opacity attribute");
+  assert.equal((sortable.match(/aria-label=\{t\.moveUp\}/g) ?? []).length, 1, "the shared card template exposes move up for every row region");
+  assert.equal((sortable.match(/aria-label=\{t\.moveDown\}/g) ?? []).length, 1, "the shared card template exposes move down for every row region");
 });
 
 // ---------------------------------------------------------------------------

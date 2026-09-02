@@ -157,9 +157,13 @@
 .progress-exercise-card,.progress-exercise-main,.progress-exercise-title{opacity:1;color:var(--ink)}
 .progress-exercise-actions button:disabled{opacity:.35;cursor:default}
 .progress-exercise-edit select:disabled,.progress-exercise-edit input:disabled,.progress-move-to-section select:disabled{opacity:.5;cursor:default}
-.progress-drag-handle{flex:none;align-self:center;display:inline-grid;place-items:center;width:34px;height:34px;color:#a9aca0;cursor:grab;font-size:16px;line-height:1;user-select:none;-webkit-user-drag:element;touch-action:none;border-radius:6px}
+.progress-drag-handle{flex:none;align-self:center;display:inline-grid;place-items:center;width:34px;height:34px;color:#a9aca0;cursor:grab;font-size:16px;line-height:1;user-select:none;touch-action:none;border-radius:6px}
 .progress-drag-handle:hover{color:#10120e;background:#eef0e2}
 .progress-drag-handle:active{cursor:grabbing}
+/* Pointer-based drag: the lifted node casts a soft shadow and both handles
+   switch to the grabbing cursor only while an actual drag is in progress. */
+.progress-exercise-card.progress-dragging,.progress-section-head.progress-dragging{position:relative;z-index:10;box-shadow:0 12px 28px rgba(16,18,14,.18)}
+.progress-drag-handle.progress-grabbing,.progress-section-grip.progress-grabbing{cursor:grabbing}
 .progress-move-to-section{display:grid;gap:3px;font-size:8px;color:#54584d;font-weight:700;min-width:0}
 .progress-move-to-section select{border:1px solid #c9cbc1;background:#fff;padding:6px;font-size:10px;color:#151712;width:100%;max-width:150px}
 

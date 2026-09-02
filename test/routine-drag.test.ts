@@ -7,6 +7,7 @@ const ROOT = process.cwd();
 const read = (...parts: string[]) => readFileSync(join(ROOT, ...parts), "utf8");
 
 const detail = read("app", "progress", "(product)", "routines", "[id]", "RoutineDetail.tsx");
+const sortable = read("app", "progress", "(product)", "routines", "[id]", "RoutineSortable.tsx");
 const text = read("app", "progress", "(product)", "progress-text.ts");
 const css = read("app", "progress", "progress.css");
 const exReorder = read("app", "api", "progress", "routines", "[id]", "exercises", "reorder", "route.ts");
@@ -22,105 +23,151 @@ function slice(src: string, from: string, to: string) {
 const tail820 = slice(css, "@media(max-width:820px){", "@media(max-width:520px){");
 
 // ---------------------------------------------------------------------------
-// dragstart: usable state + payload (some engines refuse to start a drag with
-// an empty dataTransfer, and the payload makes drops authoritative)
+// Native HTML5 drag is fully removed: no dataTransfer, no DOM drag events,
+// no draggable attributes, no webkit user-drag priming, no payload parser.
 // ---------------------------------------------------------------------------
 
-test("dragstart establishes the shared payload contract for exercises and sections", () => {
-  assert.ok(detail.includes("function handleDragStart("), "a single shared drag starter exists");
-  const starter = slice(detail, "function handleDragStart(", "// Inline-effect fetch");
-  assert.ok(starter.includes('event.dataTransfer.effectAllowed = "move"'), "move effect allowed");
-  assert.ok(starter.includes('event.dataTransfer.setData("text/plain", `${kind}:${id}`)'), "non-empty text/plain payload is set on every dragstart");
-  assert.ok(starter.includes("setDragging({ kind, id })"), "React drag state still seeded for hover gate");
-  const calls = (detail.match(/handleDragStart\(ev, "exercise", e\.id\)/g) ?? []).length;
-  assert.equal(calls, 2, "both exercise handles (grouped and ungrouped rows) route through the starter");
-  assert.ok(detail.includes('handleDragStart(e, "section", section.id)'), "section header drag routes through the starter");
+test("native HTML5 drag plumbing is gone (no draggable/dataTransfer/drop handlers)", () => {
+  for (const [name, src] of [["RoutineDetail.tsx", detail], ["RoutineSortable.tsx", sortable]] as const) {
+    assert.doesNotMatch(src, /dataTransfer/, `${name} never reads or writes dataTransfer`);
+    // DndContext's own onDragStart/onDragOver/onDragEnd props are dnd-kit's
+    // callback API; only native DOM elements must never carry drag props.
+    assert.doesNotMatch(src, /<(?:span|div|button|section|main|form|label)[^>]*\bon(DragStart|DragOver|DragLeave|Drop)=/, `${name} puts no native DOM drag event props on elements`);
+    assert.doesNotMatch(src, /\bdraggable\s*=/, `${name} sets no HTML draggable attribute`);
+    assert.doesNotMatch(src, /\bDragEvent\b/, `${name} imports no React DragEvent type`);
+    assert.doesNotMatch(src, /parseDragPayload|activeDrag/, `${name} no longer parses transfer payloads`);
+  }
+  assert.doesNotMatch(css, /-webkit-user-drag/, "webkit drag priming removed from the stylesheet");
 });
 
-test("drop handlers resolve the dragged item from the event payload with state as fallback", () => {
-  assert.ok(detail.includes("function parseDragPayload("), "payload parser exists");
-  assert.match(slice(detail, "function parseDragPayload(", "function activeDrag("), /\/\^\(section\|exercise\):\(\\d\+\)\$\//, "payload format is section|exercise:<id>");
-  assert.ok(detail.includes("function activeDrag("), "payload-first resolver exists");
-  const resolver = slice(detail, "function activeDrag(", "Sections in header order");
-  assert.ok(resolver.includes('event.dataTransfer.getData("text/plain")'), "reads the authoritative dataTransfer payload");
-  assert.ok(resolver.includes("return fallback;"), "falls back to React drag state when data is protected/unreadable");
-  const payloadGates = (detail.match(/const payload = activeDrag\(/g) ?? []).length;
-  assert.ok(payloadGates >= 4, "all drop sites (section head, ungrouped head, both card lists) resolve the payload");
+test("the pointer-based dnd-kit surface is wired as the only reorder path", () => {
+  assert.match(sortable, /from "@dnd-kit\/core"/, "dnd-kit core imported");
+  assert.match(sortable, /DndContext/, "DndContext present");
+  assert.match(sortable, /\bPointerSensor\b/, "PointerSensor present");
+  assert.match(sortable, /from "@dnd-kit\/sortable"/, "dnd-kit sortable imported");
+  assert.match(sortable, /\buseSortable\b/, "section heads are real sortable items");
+  assert.match(sortable, /\bSortableContext\b/, "SortableContext wraps the section list");
+  assert.match(sortable, /useSensor\(PointerSensor, \{ activationConstraint: \{ distance: 8 \} \}\)/, "8px activation distance so clicks never accidentally drag, deliberate moves do");
+});
+
+test("drop targeting prefers the droppable under the pointer and only then falls back to area intersection", () => {
+  assert.match(sortable, /\bpointerWithin\b/, "pointer-precision collision strategy imported");
+  assert.match(sortable, /\brectIntersection\b/, "area-intersection fallback present for pointer gaps");
+  const collision = slice(sortable, "const collisionDetection: CollisionDetection", "// --- Placement operations");
+  assert.match(collision, /const pointed = pointerWithin\(args\);/, "pointer position decides the drop target first");
+  assert.match(collision, /pointed\.length > 0 \? pointed : rectIntersection\(args\)/, "area intersection only when the pointer sits in a gap");
+  assert.match(sortable, /collisionDetection=\{collisionDetection\}/, "the strategy is wired into DndContext");
+});
+
+test("the insertion half (before/after) tracks the live pointer on every drag move", () => {
+  assert.match(sortable, /onPointerMove=\{\(event\) => \{ pointerRef\.current = \{ x: event\.clientX, y: event\.clientY \}; \}\}/, "the wrapper records every pointermove into a ref");
+  assert.ok(sortable.includes("onDragMove={handleDragMove}"), "DndContext recomputes on every drag move");
+  const move = slice(sortable, "function handleDragMove", "function handleDragEnd");
+  assert.match(move, /setOverTarget\(\(current\) => \{/, "drag move refreshes the recorded drop target");
+  assert.match(move, /pointerRef\.current\.y < current\.top \+ current\.height \/ 2/, "before/after derived from the live pointer against the target rect");
+  assert.match(move, /before === current\.before \? current : \{ \.\.\.current, before \}/, "state only updates when the half actually flips");
 });
 
 // ---------------------------------------------------------------------------
-// draggable target: only the handle is draggable, never the whole card
+// Handle-only drag initiation: the card is the transformed node, but only the
+// handle receives listeners, so sets/rep/RIR/selects/buttons stay interactive.
 // ---------------------------------------------------------------------------
 
-test("the drag handle is the only draggable element; cards stay interactive", () => {
-  assert.equal((detail.match(/draggable\s*$/gm) ?? []).length, 2, "exactly the two exercise handle spans are draggable");
-  assert.ok(detail.includes("draggable={sections.length > 1}"), "section headers are draggable only when there is something to order");
-  const cardBranches = (detail.match(/className=\{dragOverId\?\.startsWith\(/g) ?? []).length;
-  assert.equal(cardBranches, 2, "both card lists render through the drag-state className branch");
-  assert.doesNotMatch(detail, /className=\{dragOverId\?\.startsWith\([\s\S]{0,400}?draggable/, "the card branch never makes the card itself draggable, so fields remain clickable");
-});
-
-test("the handle suppresses text selection and exposes grab cursors and a 32-44px target", () => {
+test("exercise handles are usable 32-44px targets with grab/grabbing cursors and no text selection", () => {
   const rule = slice(css, ".progress-drag-handle{", "}\n.progress-drag-handle:hover");
   assert.ok(rule.includes("user-select:none"), "glyph cannot be selected while dragging");
-  assert.ok(rule.includes("-webkit-user-drag:element"), "webkit drag priming present");
-  assert.ok(rule.includes("touch-action:none"), "touch gesture does not hijack scrolling on the handle");
+  assert.doesNotMatch(rule, /-webkit-user-drag/, "no webkit drag priming on the handle");
+  assert.ok(rule.includes("touch-action:none"), "pointer-drag does not hijack scrolling gestures");
   assert.ok(rule.includes("cursor:grab"), "grab cursor on the handle");
   const width = Number(/(?:^|;)width:(\d+)px/.exec(rule)?.[1]);
   const height = Number(/(?:^|;)height:(\d+)px/.exec(rule)?.[1]);
   assert.ok(width >= 32 && width <= 44, `handle width ${width}px is a usable 32-44px target`);
   assert.ok(height >= 32 && height <= 44, `handle height ${height}px is a usable 32-44px target`);
-  assert.match(slice(css, ".progress-drag-handle:active{", "}"), /cursor:grabbing/, "grabbing cursor while actively dragging");
-  assert.match(slice(css, ".progress-drag-handle:hover{", "}"), /color:#10120e/, "hover darkens the handle so it reads as interactive");
+  assert.match(css, /\.progress-drag-handle\.progress-grabbing,\.progress-section-grip\.progress-grabbing\{cursor:grabbing\}/, "grabbing cursor only while an actual drag is in progress");
+  assert.match(css, /\.progress-exercise-card\.progress-dragging,\.progress-section-head\.progress-dragging\{position:relative;z-index:10;box-shadow:0 12px 28px/, "the lifted node casts a shadow during a drag");
+});
+
+test("the card is the transformed node but listeners live only on the handle span", () => {
+  assert.equal((sortable.match(/\{\.\.\.listeners\}/g) ?? []).length, 2, "listeners are bound only on the exercise handle and the section grip");
+  const card = slice(sortable, "const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable", "const { setNodeRef: setDropNodeRef }");
+  assert.match(card, /id: `ex:\$\{e\.id\}`/, "exercise draggable id is exercise-scoped");
+  assert.match(card, /data: exerciseDragData/, "draggable kind metadata");
+  assert.match(sortable, /ref=\{\(node\) => \{ setNodeRef\(node\); setDropNodeRef\(node\); \}\}/, "the card node carries both drag and drop refs");
+  assert.doesNotMatch(sortable, /className=\{[\s\S]{0,120}?\.\.\.listeners[\s\S]{0,80}?progress-exercise-card/, "the card container itself never receives drag listeners");
+  const handle = slice(sortable, "progress-drag-handle", "⠿</span>");
+  assert.match(handle, /\{\.\.\.attributes\}/, "draggable attributes on the handle");
+  assert.match(handle, /\{\.\.\.listeners\}/, "pointer listeners on the handle");
+  assert.match(handle, /aria-label=\{`\$\{t\.move\} \$\{e\.name\}`\}/, "accessible handle label names the exercise");
+  assert.match(handle, /onKeyDown=\{\(ev\) => \{[\s\S]{0,200}?ArrowUp[\s\S]{0,200}?ArrowDown/, "keyboard users can reorder straight from the focused handle");
+});
+
+test("section heads are sortable only via the grip and only when there is something to order", () => {
+  const head = slice(sortable, "const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable", "const targeted = overTarget?.zone === \"head\"");
+  assert.match(head, /id: `sec:\$\{section\.id\}`/, "section draggable id is section-scoped");
+  assert.match(head, /zone: "head", sectionId: section\.id/, "the head is simultaneously a drop target for exercises");
+  assert.match(head, /disabled: busy \|\| total < 2/, "a lone section cannot be dragged");
+  const gripMarkup = slice(sortable, "className={`progress-section-grip", ">⠿</span>");
+  assert.match(gripMarkup, /\{\.\.\.listeners\}/, "only the grip starts a section drag");
+  assert.match(gripMarkup, /aria-label=\{`\$\{t\.move\} \$\{section\.name\}`\}/, "grip label names the section");
 });
 
 // ---------------------------------------------------------------------------
-// drop wiring: same-section insertion, cross-section membership, ungrouped
+// Drop routing: cards, section heads and the ungrouped head are droppable;
+// a drop next to a card of another section changes membership, never a
+// same-section reorder (the previously reported cross-section bug).
 // ---------------------------------------------------------------------------
 
-test("same-section drop computes before/after and funnels into the shared reorder path", () => {
-  assert.match(detail, /void dropExercise\(payload\.id, e\.id, ev\.clientY < rect\.top \+ rect\.height \/ 2\)/, "drop classifies before/after by cursor position");
-  const dropFn = slice(detail, "async function dropExercise(", "async function dropIntoSection(");
-  assert.match(dropFn, /planMove\(routine, draggedId, "same", before \? targetIndex : targetIndex \+ 1\)/, "before/after maps to canonical insertion index");
-  assert.ok(dropFn.includes("if (draggedId === targetExerciseId) return;"), "self-drop is a no-op");
-  assert.ok(dropFn.includes("await applyPlacements("), "same-section drop persists through the shared placement endpoint");
+test("every exercise card and the ungrouped head register as drop targets", () => {
+  const cardDrop = slice(sortable, "const { setNodeRef: setDropNodeRef } = useDroppable", "const targeted = overTarget?.zone === \"card\"");
+  assert.match(cardDrop, /id: `ex:\$\{e\.id\}`/, "each card is a droppable");
+  assert.match(cardDrop, /data: cardDropData/, "card drop zone metadata");
+  assert.match(sortable, /useDroppable\(\{ id: "ungrouped", data: ungroupedDropData \}\)/, "ungrouped header is a droppable");
+  const over = slice(sortable, "function handleDragOver", "function handleDragEnd");
+  assert.match(over, /overData\.zone === "card"/, "card drops tracked");
+  assert.match(over, /overData\.zone === "head"/, "section head drops tracked");
+  assert.match(over, /overData\.zone === "ungrouped"/, "ungrouped drops tracked");
+  assert.match(over, /overId === String\(active\.id\)[\s\S]{0,80}?setOverTarget\(null\)/, "self-drops are ignored");
 });
 
-test("cross-section and ungrouped drops move membership to the target block end", () => {
-  assert.match(detail, /void dropIntoSection\(payload\.id, section\.id\)/, "dropping on a section header joins that section");
-  assert.match(detail, /void dropIntoSection\(payload\.id, null\)/, "dropping on the ungrouped header ungroups the exercise");
-  const dropInto = slice(detail, "async function dropIntoSection(", "// --- Sections");
-  assert.match(dropInto, /planMove\(routine, draggedId, sectionId, null\)/, "membership change targets the chosen block end");
+test("a drop next to an exercise in ANOTHER section is a membership move, not a same-section reorder", () => {
+  const drop = slice(sortable, "function dropOnExercise", "function dropIntoSection");
+  assert.ok(drop.includes("const targetSection = full[targetIndex].sectionId ?? null;"), "target section read from the destination exercise");
+  assert.match(drop, /const sameSection = \(dragged\.sectionId \?\? null\) === targetSection;/, "same-section only when memberships match");
+  assert.match(drop, /planMove\(routine, draggedId, sameSection \? "same" : targetSection, before \? targetIndex : targetIndex \+ 1\)/, "cross-section card drops pass the real section id into the planner");
 });
 
-test("section drag-and-drop still flows through the same reorder endpoint as the arrows", () => {
-  const dropSection = slice(detail, "async function dropSectionOn(", "async function startWorkout");
-  assert.match(dropSection, /reordered\.splice\(/, "drag computes the same swapped ordering as the arrows");
-  assert.match(dropSection, /`\/api\/progress\/routines\/\$\{routine\.id\}\/sections\/reorder`/, "section drag persists via the shared sections reorder endpoint");
-  assert.match(slice(detail, "async function moveSection(", "async function dropSectionOn("), /`\/api\/progress\/routines\/\$\{routine\.id\}\/sections\/reorder`/, "arrow reorder uses the identical endpoint");
-});
-
-test("fallback controls (arrows + Move to section) remain intact and independent of drag", () => {
-  assert.match(detail, /aria-label=\{t\.moveUp\} disabled=\{index === 0\} onClick=\{\(\) => void moveExerciseInGroup\(e, -1\)\}/, "move-up fallback present");
-  assert.match(detail, /aria-label=\{t\.moveDown\} disabled=\{index === group\.length - 1\} onClick=\{\(\) => void moveExerciseInGroup\(e, 1\)\}/, "move-down fallback present");
-  const moveGroup = slice(detail, "async function moveExerciseInGroup(", "async function moveExerciseToSection(");
-  assert.ok(moveGroup.includes("await applyPlacements(planMove(routine, e.id, \"same\""), "arrows share the placement planner");
-  assert.match(detail, /onChange=\{\(ev\) => void moveExerciseToSection\(e, ev\.target\.value === "" \? null : Number\(ev\.target\.value\)\)\}/, "Move-to-section select reachable on touch/keyboard");
+test("header drops and ungrouped drops route through the shared placement planner", () => {
+  assert.match(sortable, /function dropIntoSection\(draggedId: number, sectionId: number \| null\) \{[\s\S]{0,120}?planMove\(routine, draggedId, sectionId, null\)/, "header/ungrouped drops append to the target block end");
+  assert.match(sortable, /function planSectionOrder\(sections: Section\[\], draggedId: number, targetId: number, before: boolean\)/, "sections share a rest-insert order engine");
+  const plan = slice(sortable, "function planSectionOrder", "// --- Exercise card");
+  assert.match(plan, /before \? targetRestIndex : targetRestIndex \+ 1/, "section before/after uses the same insert math as exercises");
+  assert.match(sortable, /dropSectionOn\(activeIdNum, target\.sectionId, target\.before\)/, "section drags persist via the shared orderedIds path");
 });
 
 // ---------------------------------------------------------------------------
-// persistence + error handling: the server response is the only source of truth
+// Fallbacks + persistence + error handling (unchanged contract)
 // ---------------------------------------------------------------------------
+
+test("fallback controls (arrows, Move-to-section select, section arrows) remain intact and independent of drag", () => {
+  assert.match(sortable, /aria-label=\{t\.moveUp\} disabled=\{index === 0\} onClick=\{\(\) => onMove\(e, -1\)\}/, "move-up fallback present");
+  assert.match(sortable, /aria-label=\{t\.moveDown\} disabled=\{index === groupLength - 1\} onClick=\{\(\) => onMove\(e, 1\)\}/, "move-down fallback present");
+  assert.match(sortable, /onChange=\{\(ev\) => onMoveToSection\(e, ev\.target\.value === "" \? null : Number\(ev\.target\.value\)\)\}/, "Move-to-section select reachable on touch/keyboard");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} ↑`\}/, "section arrow up present");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} ↓`\}/, "section arrow down present");
+  assert.match(sortable, /keyboard users can reorder straight from the focused handle|onKeyDown=\{\(ev\) => \{[\s\S]{0,40}?ArrowUp/, "focused handles offer keyboard reordering");
+});
 
 test("reorder requests replace state only with the server layout and fail with the localized error", () => {
-  const apply = slice(detail, "async function applyPlacements(", "async function moveExerciseInGroup(");
+  const apply = slice(detail, "async function applyPlacements(", "async function reorderSections(");
   const beforeFetch = apply.slice(0, apply.indexOf("await json"));
   assert.ok(!beforeFetch.includes("setRoutine("), "no optimistic local reorder - the old layout stays visible until the server confirms");
   assert.match(apply, /setRoutine\(data\.routine\)/, "state is replaced by the confirmed server layout");
   assert.match(apply, /`\/api\/progress\/routines\/\$\{routine\.id\}\/exercises\/reorder`/, "persists through the secure reorder endpoint");
   assert.match(apply, /catch \{ setError\(t\.reorderError\); \}/, "failures show the localized safe message, never raw details");
-  assert.ok((detail.match(/exercises\/reorder/g) ?? []).length >= 1, "drag paths use the reorder endpoint");
   assert.match(detail, /body: JSON\.stringify\(\{ placements \}\)/, "the placements model is sent");
+  const sectionOrder = slice(detail, "async function reorderSections(", "// --- Sections");
+  assert.match(sectionOrder, /`\/api\/progress\/routines\/\$\{routine\.id\}\/sections\/reorder`/, "section order persists via its own secure endpoint");
+  assert.match(sectionOrder, /catch \{ setError\(t\.sectionReorderError\); \}/, "section reorder failures show the localized message");
 });
 
 test("reorderError is localized in EN/FR/AR and never leaks server details", () => {
@@ -134,17 +181,17 @@ test("reorderError is localized in EN/FR/AR and never leaks server details", () 
 });
 
 test("drag/drop never touches prescriptions, workouts or the exercise PATCH path", () => {
-  const ordering = slice(detail, "// --- Ordering + section membership", "// --- Sections");
+  const ordering = slice(sortable, "function moveExerciseInGroup", "// --- Section order");
   assert.ok(!ordering.includes("persistExercise"), "reordering cannot edit prescription data");
-  assert.ok(!ordering.includes("removeExercise"), "reordering cannot remove exercises");
+  assert.ok(!ordering.includes("removeExercise") && !ordering.includes("onRemove"), "reordering cannot remove exercises");
   assert.ok(!ordering.includes("/workouts"), "reordering cannot start or rewrite workout history");
-  assert.ok(!ordering.includes("PATCH"), "reordering only PUTs the reorder endpoint");
+  assert.ok(!ordering.includes("PATCH"), "reordering only reorders");
   assert.ok(exReorder.includes("placements"), "reorder API accepts the placements model");
   assert.ok(exReorder.includes("guarded.ownerId"), "reorder stays owner-scoped server-side");
 });
 
 // ---------------------------------------------------------------------------
-// visual contract: insertion indicator, resting rows, mobile, RTL, em dashes
+// Visual contract: insertion indicator, resting rows, mobile, RTL, em dashes
 // ---------------------------------------------------------------------------
 
 test("dragover keeps the row ring and adds a precise before/after insertion line", () => {
@@ -158,16 +205,17 @@ test("dragover keeps the row ring and adds a precise before/after insertion line
 });
 
 test("drag visuals never fade normal content and only disabled controls dim", () => {
-  assert.match(slice(css, "/* Resting exercise rows", "}\n.progress-drag-handle{" ) + ".", /opacity:1/, "resting rows are fully opaque");
+  assert.match(slice(css, "/* Resting exercise rows", "}\n.progress-drag-handle{") + ".", /opacity:1/, "resting rows are fully opaque");
   const dragover = css.split("\n").find((line) => line.includes(".progress-exercise-card.dragover") && line.includes("{"));
-  assert.ok(dragover && !/opacity|filter|color:/.test(dragover), "dragover only highlights, never fades or recolors");
+  assert.ok(dragover && !/opacity|filter|color:/.test(dragover ?? ""), "dragover only highlights, never fades or recolors");
+  assert.match(css, /\.progress-exercise-card\.progress-dragging,\.progress-section-head\.progress-dragging\{[^}]*box-shadow/, "lift state is a shadow, never a fade");
   assert.ok((css.match(/[\w-]+:disabled/g) ?? []).length >= 3, "dimming is scoped exclusively to :disabled controls");
 });
 
 test("mobile hides only the mouse handles and keeps every accessible fallback", () => {
   assert.match(tail820, /\.progress-section-grip,\.progress-drag-handle\{display:none\}/, "mouse-only drag affordances hidden below 820px");
-  assert.ok(detail.includes('aria-label={t.moveUp}'), "move up survives on touch");
-  assert.ok(detail.includes('aria-label={t.moveDown}'), "move down survives on touch");
+  assert.ok(sortable.includes("aria-label={t.moveUp}"), "move up survives on touch");
+  assert.ok(sortable.includes("aria-label={t.moveDown}"), "move down survives on touch");
   assert.match(tail820, /\.progress-exercise-actions \.progress-move-to-section\{flex:1;min-width:120px\}/, "Move-to-section broadens on touch");
 });
 
@@ -176,5 +224,5 @@ test("drag CSS stays RTL-safe and the touched files stay free of U+2014", () => 
   assert.doesNotMatch(dragCss, /\b(left|right|float):/, "no physical positioning in the drag layout");
   assert.match(dragCss, /margin-inline-start:auto/, "RTL-aware inline-end alignment retained");
   assert.ok(!dragCss.includes("\u2014"), "no U+2014 in the drag CSS");
-  assert.ok(!detail.includes("\u2014") && !text.includes("\u2014"), "no U+2014 in the component or dictionary");
+  assert.ok(!detail.includes("\u2014") && !sortable.includes("\u2014") && !text.includes("\u2014"), "no U+2014 in the component or dictionary");
 });

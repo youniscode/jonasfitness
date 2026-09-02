@@ -10,6 +10,7 @@ const schema = read("db", "schema.ts");
 const mechanics = read("app", "lib", "progress-mechanics.ts");
 const service = read("app", "lib", "progress-service.ts");
 const detail = read("app", "progress", "(product)", "routines", "[id]", "RoutineDetail.tsx");
+const sortable = read("app", "progress", "(product)", "routines", "[id]", "RoutineSortable.tsx");
 const listView = read("app", "progress", "(product)", "routines", "RoutinesView.tsx");
 const text = read("app", "progress", "(product)", "progress-text.ts");
 const css = read("app", "progress", "progress.css");
@@ -221,25 +222,25 @@ test("Add section form is always available, requires a trimmed name and caps at 
   assert.match(detail, /<label>\{t\.sectionName\}<input value=\{newSection\} maxLength=\{80\} onChange=\{\(event\) => setNewSection\(event\.target\.value\)\} placeholder=\{t\.addSection\} \/><\/label>/, "section name input with 80-char cap");
   assert.match(detail, /disabled=\{busy \|\| !newSection\.trim\(\)\}/, "empty names cannot be submitted");
   assert.ok(detail.includes("async function addSection("), "create handler exists");
-  const add = slice(detail, "async function addSection(", "async function saveSectionRename(");
+  const add = slice(detail, "async function addSection(", "async function renameSection(");
   assert.match(add, /method: "POST"/, "sections POST used");
   assert.match(add, /`\/api\/progress\/routines\/\$\{routine\.id\}\/sections`/, "targets the sections endpoint");
 });
 
 test("each section header offers rename, reorder, delete actions and a count, with the destructive delete behind confirmation", () => {
-  assert.match(detail, /<span className="progress-section-grip" aria-hidden="true">⠿<\/span>/, "drag grip rendered");
-  assert.match(detail, /<strong>\{section\.name\}<\/strong>/, "section name rendered");
-  assert.match(detail, /<small>\{group\.length\}<\/small>/, "member count chip");
-  assert.match(detail, /\{renamingSectionId !== section\.id && <button className="progress-ghost" type="button" onClick=\{\(\) => \{ setRenamingSectionId\(section\.id\); setSectionRename\(section\.name\); \}\}>\{t\.rename\}<\/button>\}/, "Rename arms the inline editor");
-  assert.match(detail, /aria-label=\{`\$\{t\.move\} ↑`\} disabled=\{sectionIndex === 0\}/, "move up with accessible label and boundary disable");
-  assert.match(detail, /aria-label=\{`\$\{t\.move\} ↓`\} disabled=\{sectionIndex === sections\.length - 1\}/, "move down with accessible label and boundary disable");
-  assert.match(detail, /className="progress-ghost danger" type="button" onClick=\{\(\) => setConfirmDeleteSection\(section\.id\)\}>/, "delete uses danger styling and only arms confirmation");
-  assert.match(detail, /<button className="progress-ghost danger" type="button" disabled=\{busy\} onClick=\{\(\) => void removeSection\(section\)\}>/, "actual deletion only reachable from the confirm block");
-  assert.equal((detail.match(/void removeSection\(section\)/g) ?? []).length, 1, "destructive delete is reachable only from confirmation");
+  assert.match(sortable, /<strong>\{section\.name\}<\/strong>/, "section name rendered");
+  assert.match(sortable, /<small>\{count\}<\/small>/, "member count chip");
+  assert.match(sortable, /onStartRename=\{\(item\) => \{ setRenamingSectionId\(item\.id\); setSectionRename\(item\.name\); \}\}/, "Rename arms the inline editor");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} ↑`\} disabled=\{index === 0\}/, "move up with accessible label and boundary disable");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} ↓`\} disabled=\{index === total - 1\}/, "move down with accessible label and boundary disable");
+  assert.match(sortable, /className="progress-ghost danger" type="button" onClick=\{\(\) => onRequestDelete\(section\)\}/, "delete uses danger styling and only arms confirmation");
+  assert.match(sortable, /<button className="progress-ghost danger" type="button" disabled=\{busy\} onClick=\{\(\) => onDeleteConfirm\(section\)\}>/, "actual deletion only reachable from the confirm block");
+  assert.equal((sortable.match(/onDeleteConfirm\(section\)/g) ?? []).length, 1, "destructive delete is reachable only from confirmation");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{section\.name\}`\}/, "section grip exposes an accessible drag label naming the section");
 });
 
 test("deleting a section shows an explicit confirm with localized title and body before any request", () => {
-  const confirm = slice(detail, "className=\"progress-section-confirm\"", "</div>");
+  const confirm = slice(sortable, "className=\"progress-section-confirm\"", "</div>");
   assert.ok(confirm.includes("<strong>{t.deleteSection}</strong>"), "confirm title");
   assert.ok(confirm.includes("<span>{t.deleteSectionBody}</span>"), "confirm body states exercises stay");
   assert.ok(confirm.includes("{t.cancel}"), "Cancel present");
@@ -247,57 +248,62 @@ test("deleting a section shows an explicit confirm with localized title and body
 });
 
 test("rename section submits the inline editor and cancels on empty/blur without a request", () => {
-  const renameFn = slice(detail, "async function saveSectionRename(", "async function removeSection(");
-  assert.match(renameFn, /if \(!sectionRename\.trim\(\)\) \{ setRenamingSectionId\(null\); return; \}/, "empty rename closes without a request");
+  const renameFn = slice(detail, "async function renameSection(", "async function deleteSection(");
   assert.match(renameFn, /method: "PATCH"/, "rename uses PATCH");
   assert.match(renameFn, /`\/api\/progress\/routines\/\$\{routine\.id\}\/sections\/\$\{section\.id\}`/, "PATCH targets the section endpoint");
-  assert.match(detail, /<form className="progress-section-rename" onSubmit=\{\(event\) => \{ event\.preventDefault\(\); void saveSectionRename\(section\); \}\}>/, "inline rename form");
-  assert.match(detail, /<input value=\{sectionRename\} maxLength=\{80\} autoFocus onChange=\{\(event\) => setSectionRename\(event\.target\.value\)\} onBlur=\{\(\) => void saveSectionRename\(section\)\} aria-label=\{t\.sectionName\} \/>/, "rename input with cap, focus and blur-save");
+  assert.match(sortable, /if \(!sectionRename\.trim\(\)\) \{ setRenamingSectionId\(null\); return; \}/, "empty rename closes without a request");
+  assert.match(sortable, /<form className="progress-section-rename" onSubmit=\{\(event\) => \{ event\.preventDefault\(\); onRenameSave\(section\); \}\}>/, "inline rename form");
+  assert.match(sortable, /<input value=\{sectionRename\} maxLength=\{80\} autoFocus onChange=\{\(event\) => onRenameChange\(event\.target\.value\)\} onBlur=\{\(\) => onRenameSave\(section\)\} aria-label=\{t\.sectionName\} \/>/, "rename input with cap, focus and blur-save");
 });
 
 test("every exercise card exposes accessible move up/down, a Move-to-section select and removal", () => {
-  assert.match(detail, /<button type="button" aria-label=\{t\.moveUp\} disabled=\{index === 0\} onClick=\{\(\) => void moveExerciseInGroup\(e, -1\)\}>↑<\/button>/, "move up accessible");
-  assert.match(detail, /<button type="button" aria-label=\{t\.moveDown\} disabled=\{index === group\.length - 1\} onClick=\{\(\) => void moveExerciseInGroup\(e, 1\)\}>↓<\/button>/, "move down accessible in sections");
-  assert.ok(detail.includes('className="progress-move-to-section"'), "move-to-section control present");
-  assert.equal((detail.match(/<option value="">\{t\.ungrouped\}<\/option>/g) ?? []).length, 3, "ungrouped option offered in add-exercise select, section cards and the ungrouped tail");
-  assert.match(detail, /<select value=\{e\.sectionId === null \? "" : String\(e\.sectionId\)\} disabled=\{busy\} onChange=\{\(ev\) => void moveExerciseToSection\(e, ev\.target\.value === "" \? null : Number\(ev\.target\.value\)\)\}>/, "section cards keep a live membership select");
-  assert.ok(detail.includes("async function moveExerciseToSection("), "membership change handler exists");
-  const move = slice(detail, "async function moveExerciseToSection(", "async function dropExercise(");
+  assert.match(sortable, /<button type="button" aria-label=\{t\.moveUp\} disabled=\{index === 0\} onClick=\{\(\) => onMove\(e, -1\)\}>↑<\/button>/, "move up accessible");
+  assert.match(sortable, /<button type="button" aria-label=\{t\.moveDown\} disabled=\{index === groupLength - 1\} onClick=\{\(\) => onMove\(e, 1\)\}>↓<\/button>/, "move down accessible in sections");
+  assert.ok(sortable.includes('className="progress-move-to-section"'), "move-to-section control present");
+  assert.equal((detail.match(/<option value="">\{t\.ungrouped\}<\/option>/g) ?? []).length, 1, "add-exercise panel offers ungrouped");
+  assert.equal((sortable.match(/<option value="">\{t\.ungrouped\}<\/option>/g) ?? []).length, 1, "the shared card template offers ungrouped for both grouped and tail rows");
+  assert.match(sortable, /<select value=\{e\.sectionId === null \? "" : String\(e\.sectionId\)\} disabled=\{busy\} onChange=\{\(ev\) => onMoveToSection\(e, ev\.target\.value === "" \? null : Number\(ev\.target\.value\)\)\}>/, "cards keep a live membership select");
+  assert.ok(sortable.includes("function moveExerciseToSection("), "membership change handler exists");
+  const move = slice(sortable, "function moveExerciseToSection(", "function dropOnExercise(");
   assert.match(move, /planMove\(routine, e\.id, sectionId, null\)/, "move-to-section targets the chosen section end");
-  assert.ok(detail.includes("function planMove("), "pure placement planner exists");
+  assert.ok(sortable.includes("function planMove("), "pure placement planner exists");
 });
 
-test("desktop drag handle exists for exercises and section headers, with keyboard-safe controls kept", () => {
-  assert.match(detail, /className="progress-drag-handle"\s*\n\s*draggable\s*\n\s*role="button"\s*\n\s*aria-label=\{`\$\{t\.move\} \$\{e\.name\}`\}/, "exercise drag handle with accessible label");
-  assert.match(detail, /draggable=\{sections\.length > 1\}/, "section headers draggable when more than one");
-  assert.match(detail, /onDragStart=\{\(ev\) => handleDragStart\(ev, "exercise", e\.id\)\}/, "exercise drag start records the dragged id via the shared starter");
-  assert.match(detail, /handleDragStart\(e, "section", section\.id\)/, "section drag start records the dragged id");
-  assert.match(detail, /dropExercise\(payload\.id, e\.id, ev\.clientY < rect\.top \+ rect\.height \/ 2\)/, "drop before/after the target exercise");
-  assert.match(detail, /void dropIntoSection\(payload\.id, section\.id\)/, "dragging an exercise onto a section header moves it into that section");
-  assert.match(detail, /void dropIntoSection\(payload\.id, null\)/, "dragging onto the ungrouped header ungroups the exercise");
+test("desktop drag is pointer-based (dnd-kit) with the handle as the only drag initiator", () => {
+  assert.match(sortable, /DndContext/, "dnd-kit DndContext present");
+  assert.match(sortable, /useDraggable/, "pointer-based draggables in use");
+  assert.match(sortable, /useSensor\(PointerSensor, \{ activationConstraint: \{ distance: 8 \} \}\)/, "8px activation distance prevents accidental drags");
+  assert.match(sortable, /className=\{`progress-drag-handle\$\{isDragging \? " progress-grabbing" : ""\}`\}/, "exercise handle is the draggable affordance");
+  assert.equal((sortable.match(/\{\.\.\.listeners\}/g) ?? []).length, 2, "listeners are bound only on the exercise handle and the section grip");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{e\.name\}`\}/, "exercise handle carries an accessible label with the exercise name");
+  assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{section\.name\}`\}/, "section grip carries an accessible label with the section name");
+  assert.match(sortable, /dropOnExercise\(activeIdNum, Number\(target\.id\.split\(":"\)\[1\]\), target\.before\)/, "card drops route to the shared placement engine with before/after");
+  assert.match(sortable, /dropIntoSection\(activeIdNum, target\.sectionId\)/, "dropping on a section header joins that section");
+  assert.match(sortable, /dropIntoSection\(activeIdNum, null\)/, "dropping on the ungrouped header ungroups the exercise");
 });
 
 test("sections render as grouped blocks and exercises re-sort into their section under canonical order", () => {
-  assert.match(detail, /<div className="progress-section" key=\{section\.id\}>/, "section block per group");
-  assert.ok(detail.includes('className={`progress-section-head'), "section header rendered");
-  assert.match(detail, /<div className="progress-exercise-order">\{String\(index \+ 1\)\.padStart\(2, "0"\)\}<\/div>/, "order badge inside each block is 1-based per block");
-  assert.ok(detail.includes("function canonicalExercises("), "canonical order helper exists");
-  assert.ok(detail.includes("function membersOf("), "membership helper exists");
-  const canonical = slice(detail, "function canonicalExercises(", "function membersOf(");
+  assert.match(sortable, /<div className="progress-section" key=\{section\.id\}>/, "section block per group");
+  assert.ok(sortable.includes('"progress-section-head"'), "section header rendered");
+  assert.match(sortable, /<div className="progress-exercise-order">\{String\(index \+ 1\)\.padStart\(2, "0"\)\}<\/div>/, "order badge inside each block is 1-based per block");
+  assert.ok(sortable.includes("function canonicalExercises("), "canonical order helper exists");
+  assert.ok(sortable.includes("function membersOf("), "membership helper exists");
+  const canonical = slice(sortable, "function canonicalExercises(", "function membersOf(");
   assert.match(canonical, /sectionRank\(routine\.sections, a\.sectionId\) - sectionRank\(routine\.sections, b\.sectionId\) \|\| a\.position - b\.position/, "blocks ordered by section then position");
 });
 
 test("routines without any section still load and list their exercises (backward compatibility)", () => {
-  assert.ok(detail.includes("const ungroupedMembers = membersOf(routine, null);"), "ungrouped members derived from the routine");
-  assert.match(detail, /\(sections\.length > 0 \? ungroupedMembers\.length > 0 : totalExercises > 0\) &&/, "flat (no-section) routines render their exercises");
-  assert.match(detail, /\{sections\.length > 0 && \([\s\S]*?<strong>\{t\.ungrouped\}<\/strong>/, "Ungrouped header only labels the tail when sections exist");
-  assert.match(detail, /\{ungroupedMembers\.map\(\(e, index\) => \(/, "ungrouped members rendered");
-  assert.match(detail, /\bungroupedMembers\.length - 1\}/, "ungrouped boundary uses the same member list");
+  assert.ok(sortable.includes("const ungroupedMembers = useMemo(() => membersOf(routine, null), [routine]);"), "ungrouped members derived from the routine");
+  assert.match(sortable, /\(sections\.length > 0 \? ungroupedMembers\.length > 0 : totalExercises > 0\) &&/, "flat (no-section) routines render their exercises");
+  assert.match(sortable, /sections\.length > 0 && <UngroupedHead/, "Ungrouped header only renders when sections exist");
+  assert.match(sortable, /<strong>\{t\.ungrouped\}<\/strong>/, "ungrouped header label present");
+  assert.match(sortable, /\{ungroupedMembers\.map\(\(e, i\) => \(/, "ungrouped members rendered");
+  assert.match(sortable, /disabled=\{index === groupLength - 1\}/, "boundary uses the same member list length");
 });
 
 test("zero-exercise empty state says No exercises yet (never No routines yet)", () => {
-  assert.match(detail, /\{totalExercises === 0 && <div className="progress-empty"><strong>\{t\.noExercises\}<\/strong><span>\{t\.noExercisesHint\}<\/span><\/div>\}/, "detail empty state uses the corrected copy keys");
-  assert.doesNotMatch(detail, /noRoutines|No routines yet\./, "RoutineDetail never shows the routines-list empty copy");
+  assert.match(sortable, /\{totalExercises === 0 && <div className="progress-empty"><strong>\{t\.noExercises\}<\/strong><span>\{t\.noExercisesHint\}<\/span><\/div>\}/, "sortable empty state uses the corrected copy keys");
+  assert.doesNotMatch(sortable, /noRoutines|No routines yet\./, "the sortable surface never shows the routines-list empty copy");
   assert.doesNotMatch(detail, /noExercises: "No routines yet\."/, "the wrong string is not defined");
 });
 
@@ -356,17 +362,18 @@ test("section/reorder copy exists in FR, EN and AR with natural translations", (
   assert.ok(text.includes('noExercisesHint: "أضف تمرينك الأول لبناء هذا الروتين."'), "AR empty-state hint");
 });
 
-test("the detail UI draws every section/reorder action from the dictionary (no hardcoded English labels)", () => {
-  assert.doesNotMatch(detail, />Add section<|>Section name<|>Rename<|>Delete section<|>Move to section<|>Ungrouped<|>Move up<|>Move down<|>Done<|>Delete section\?<|>No exercises yet\.</, "labels come from t.* only");
+test("the routine UI draws every section/reorder action from the dictionary (no hardcoded English labels)", () => {
+  assert.doesNotMatch(detail + sortable, />Add section<|>Section name<|>Rename<|>Delete section<|>Move to section<|>Ungrouped<|>Move up<|>Move down<|>Done<|>Delete section\?<|>No exercises yet\.</, "labels come from t.* only");
   assert.match(detail, /\{t\.addSection\}/, "add section localized");
-  assert.match(detail, /\{t\.rename\}/, "rename localized");
-  assert.match(detail, /\{t\.deleteSection\}/, "delete localized");
-  assert.match(detail, /\{t\.moveToSection\}/, "move-to-section localized");
+  assert.match(sortable, /\{t\.rename\}/, "rename localized");
+  assert.match(sortable, /\{t\.deleteSection\}/, "delete localized");
+  assert.match(sortable, /\{t\.moveToSection\}/, "move-to-section localized");
 });
 
 test("no U+2014 em dash anywhere in the edited files", () => {
   const files = [
     ["RoutineDetail.tsx", detail],
+    ["RoutineSortable.tsx", sortable],
     ["RoutinesView.tsx", listView],
     ["progress-text.ts", text],
     ["progress.css", css],
@@ -392,8 +399,8 @@ test("mobile keeps accessible move controls and hides only the mouse drag handle
   assert.match(tablet, /\.progress-section-grip,\.progress-drag-handle\{display:none\}/, "mouse drag handles hidden below 820px");
   assert.match(tablet, /\.progress-exercise-actions\{flex-direction:row;flex-wrap:wrap;align-items:center\}/, "action buttons wrap for touch");
   assert.match(tablet, /\.progress-exercise-actions \.progress-move-to-section\{flex:1;min-width:120px\}/, "move-to-section keeps touch width");
-  assert.match(detail, /aria-label=\{t\.moveUp\}/, "Move up accessible control present");
-  assert.match(detail, /aria-label=\{t\.moveDown\}/, "Move down accessible control present");
+  assert.match(sortable, /aria-label=\{t\.moveUp\}/, "Move up accessible control present");
+  assert.match(sortable, /aria-label=\{t\.moveDown\}/, "Move down accessible control present");
   const base = slice(css, ".progress-section-head{", ".progress-section-grip");
   assert.match(base, /min-width:0/, "section headers can shrink (no horizontal overflow)");
 });

@@ -2,98 +2,16 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useState } from "react";
 import { useProgressLang } from "../../progress-lang";
 import { builtInExercises, exerciseSearchText } from "../../../../lib/exercise-catalogue";
-
-type PublicExercise = { id: number; position: number; sectionId: number | null; exerciseId: string; name: string; nameFr: string; nameAr: string; sets: number; targetRepMin: number; targetRepMax: number; targetRir: number; weightUnit: string; notes: string };
-type Section = { id: number; name: string; position: number };
-type Routine = { id: number; name: string; notes: string; createdAt: string; updatedAt: string; sections: Section[]; exercises: PublicExercise[] };
-type Placement = { exerciseId: number; sectionId: number | null };
+import RoutineSortable, { orderedSections, type Placement, type PublicExercise, type Routine, type Section } from "./RoutineSortable";
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   const data = await response.json().catch(() => ({})) as T & { error?: string };
   if (!response.ok) throw new Error(data?.error ?? "error");
   return data;
-}
-
-type DragPayload = { kind: "section" | "exercise"; id: number };
-
-function parseDragPayload(raw: string): DragPayload | null {
-  const match = /^(section|exercise):(\d+)$/.exec(raw);
-  return match ? { kind: match[1] as DragPayload["kind"], id: Number(match[2]) } : null;
-}
-
-/** Authoritative dragged item: prefers the dataTransfer payload (which also
- *  makes some engines actually start the drag), falling back to React state. */
-function activeDrag(event: DragEvent<HTMLElement>, fallback: DragPayload | null): DragPayload | null {
-  try {
-    const parsed = parseDragPayload(event.dataTransfer.getData("text/plain"));
-    if (parsed) return parsed;
-  } catch { /* drag data is only readable in dragstart/drop in most engines */ }
-  return fallback;
-}
-
-/** Sections in header order. */
-function orderedSections(routine: Routine): Section[] {
-  return [...routine.sections].sort((a, b) => a.position - b.position);
-}
-
-/** Rank of a section (0..n-1); the ungrouped block always ranks last (n). */
-function sectionRank(sections: Section[], sectionId: number | null): number {
-  if (sectionId === null) return sections.length;
-  const index = [...sections].sort((a, b) => a.position - b.position).findIndex((section) => section.id === sectionId);
-  return index === -1 ? sections.length : index;
-}
-
-/** Canonical flat exercise order: section blocks by section order, then ungrouped. */
-function canonicalExercises(routine: Routine): PublicExercise[] {
-  return [...routine.exercises].sort((a, b) =>
-    sectionRank(routine.sections, a.sectionId) - sectionRank(routine.sections, b.sectionId) || a.position - b.position);
-}
-
-function membersOf(routine: Routine, sectionId: number | null): PublicExercise[] {
-  return canonicalExercises(routine).filter((exercise) => (exercise.sectionId ?? null) === sectionId);
-}
-
-/**
- * New placements after moving `draggedId`. `targetSection`:
- *  - "same" keeps membership (pure reorder),
- *  - a section id (or null) moves the exercise into that section/ungrouped at
- *    the end of the block (used by section drops and the Move-to-section UI),
- * plus `insertAt`: canonical index (of the full list) after which ordering
- * applies for within-list drops. Returns the full final placements payload.
- */
-function planMove(
-  routine: Routine,
-  draggedId: number,
-  targetSection: number | "same" | null,
-  insertAt: number | null,
-): Placement[] {
-  const full = canonicalExercises(routine);
-  const dragged = full.find((exercise) => exercise.id === draggedId);
-  if (!dragged) return [];
-  const rest = full.filter((exercise) => exercise.id !== draggedId);
-  let finalIds: number[] = [];
-  if (insertAt === null) {
-    const groups: number[][] = orderedSections(routine).map(() => []);
-    groups.push([]); // ungrouped tail block
-    for (const exercise of rest) groups[sectionRank(routine.sections, exercise.sectionId)].push(exercise.id);
-    const target = targetSection === "same" ? dragged.sectionId : targetSection;
-    groups[sectionRank(routine.sections, target)].push(dragged.id);
-    finalIds = groups.flat();
-  } else {
-    const restIds = rest.map((exercise) => exercise.id);
-    const originalIndex = full.findIndex((exercise) => exercise.id === draggedId);
-    let index = insertAt;
-    if (originalIndex !== -1 && originalIndex < index) index -= 1;
-    finalIds = [...restIds.slice(0, index), dragged.id, ...restIds.slice(index)];
-  }
-  const placementSection = targetSection === "same"
-    ? dragged.sectionId
-    : targetSection;
-  return finalIds.map((id) => ({ exerciseId: id, sectionId: id === draggedId ? placementSection : (full.find((exercise) => exercise.id === id)?.sectionId ?? null) }));
 }
 
 export default function RoutineDetail() {
@@ -117,20 +35,6 @@ export default function RoutineDetail() {
   const [unit, setUnit] = useState<"kg" | "lb">("kg");
   const [saving, setSaving] = useState(false);
   const [newSection, setNewSection] = useState("");
-  const [renamingSectionId, setRenamingSectionId] = useState<number | null>(null);
-  const [sectionRename, setSectionRename] = useState("");
-  const [confirmDeleteSection, setConfirmDeleteSection] = useState<number | null>(null);
-  // Drag state (desktop enhancement; keyboard/mobile use the buttons + selects).
-  const [dragging, setDragging] = useState<DragPayload | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-
-  function handleDragStart(event: DragEvent<HTMLElement>, kind: "section" | "exercise", id: number) {
-    // A non-empty dataTransfer is required for the drag to initiate in
-    // WebKit/Firefox, and makes the drop authoritative over React state.
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", `${kind}:${id}`);
-    setDragging({ kind, id });
-  }
 
   // Inline-effect fetch to satisfy react-hooks/set-state-in-effect.
   useEffect(() => {
@@ -155,6 +59,9 @@ export default function RoutineDetail() {
   function updateExercise(eid: number, patch: Partial<PublicExercise>) {
     setRoutine((current) => current && { ...current, exercises: current.exercises.map((e) => e.id === eid ? { ...e, ...patch } : e) });
   }
+  function patchExercise(e: PublicExercise, patch: Partial<PublicExercise>) {
+    updateExercise(e.id, patch);
+  }
   async function persistExercise(e: PublicExercise) {
     if (!routine) return;
     try {
@@ -171,7 +78,7 @@ export default function RoutineDetail() {
     } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); }
   }
 
-  // --- Exercise add / edit ----------------------------------------------
+  // --- Exercise add / remove ----------------------------------------------
   async function addExercise() {
     if (!routine) return;
     setSaving(true);
@@ -196,7 +103,7 @@ export default function RoutineDetail() {
     } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setBusy(false); }
   }
 
-  // --- Ordering + section membership ------------------------------------
+  // --- Ordering + section membership (single shared endpoints) --------------
   async function applyPlacements(placements: Placement[]) {
     if (!routine) return;
     setBusy(true);
@@ -206,37 +113,17 @@ export default function RoutineDetail() {
       setError("");
     } catch { setError(t.reorderError); } finally { setBusy(false); }
   }
-  async function moveExerciseInGroup(e: PublicExercise, direction: -1 | 1) {
+  async function reorderSections(orderedIds: number[]) {
     if (!routine) return;
-    const full = canonicalExercises(routine);
-    const index = full.findIndex((item) => item.id === e.id);
-    const target = full[index + direction];
-    if (!target || (target.sectionId ?? null) !== (e.sectionId ?? null)) return;
-    await applyPlacements(planMove(routine, e.id, "same", direction === 1 ? index + 2 : index));
-  }
-  async function moveExerciseToSection(e: PublicExercise, sectionId: number | null) {
-    if (!routine) return;
-    if ((e.sectionId ?? null) === sectionId) return;
-    await applyPlacements(planMove(routine, e.id, sectionId, null));
-  }
-  async function dropExercise(draggedId: number, targetExerciseId: number, before: boolean) {
-    if (!routine) return;
-    const full = canonicalExercises(routine);
-    const targetIndex = full.findIndex((exercise) => exercise.id === targetExerciseId);
-    if (targetIndex === -1) return;
-    if (draggedId === targetExerciseId) return;
-    await applyPlacements(planMove(routine, draggedId, "same", before ? targetIndex : targetIndex + 1));
-    setDragging(null);
-    setDragOverId(null);
-  }
-  async function dropIntoSection(draggedId: number, sectionId: number | null) {
-    if (!routine) return;
-    await applyPlacements(planMove(routine, draggedId, sectionId, null));
-    setDragging(null);
-    setDragOverId(null);
+    setBusy(true);
+    try {
+      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/reorder`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedIds }) });
+      setRoutine(data.routine);
+      setError("");
+    } catch { setError(t.sectionReorderError); } finally { setBusy(false); }
   }
 
-  // --- Sections ---------------------------------------------------------
+  // --- Sections ------------------------------------------------------------
   async function addSection() {
     if (!routine || !newSection.trim()) return;
     setBusy(true);
@@ -246,60 +133,21 @@ export default function RoutineDetail() {
       setNewSection("");
     } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setBusy(false); }
   }
-  async function saveSectionRename(section: Section) {
+  async function renameSection(section: Section, name: string) {
     if (!routine) return;
-    if (!sectionRename.trim()) { setRenamingSectionId(null); return; }
     setBusy(true);
     try {
-      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/${section.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: sectionRename.trim() }) });
+      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/${section.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
       setRoutine(data.routine);
-      setRenamingSectionId(null);
     } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setBusy(false); }
   }
-  async function removeSection(section: Section) {
+  async function deleteSection(section: Section) {
     if (!routine) return;
     setBusy(true);
     try {
       const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/${section.id}`, { method: "DELETE" });
       setRoutine(data.routine);
-      setConfirmDeleteSection(null);
     } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setBusy(false); }
-  }
-  async function moveSection(section: Section, direction: -1 | 1) {
-    if (!routine) return;
-    const sections = orderedSections(routine);
-    const index = sections.findIndex((item) => item.id === section.id);
-    const target = sections[index + direction];
-    if (!target) return;
-    const reordered = [...sections];
-    [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
-    setBusy(true);
-    try {
-      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/reorder`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedIds: reordered.map((item) => item.id) }) });
-      setRoutine(data.routine);
-      setError("");
-    } catch { setError(t.sectionReorderError); } finally { setBusy(false); }
-  }
-  async function dropSectionOn(draggedId: number, targetSectionId: number, before: boolean) {
-    if (!routine) return;
-    const sections = orderedSections(routine);
-    const fromIndex = sections.findIndex((section) => section.id === draggedId);
-    const toIndex = sections.findIndex((section) => section.id === targetSectionId);
-    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) { setDragging(null); setDragOverId(null); return; }
-    const reordered = [...sections];
-    const [moved] = reordered.splice(fromIndex, 1);
-    let insertAt = toIndex;
-    if (before && fromIndex > toIndex) insertAt = toIndex;
-    if (!before && fromIndex < toIndex) insertAt = toIndex; // already shifted: same visual slot
-    reordered.splice(insertAt, 0, moved);
-    setBusy(true);
-    try {
-      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/sections/reorder`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderedIds: reordered.map((item) => item.id) }) });
-      setRoutine(data.routine);
-      setError("");
-    } catch { setError(t.sectionReorderError); } finally { setBusy(false); }
-    setDragging(null);
-    setDragOverId(null);
   }
   async function startWorkout() {
     if (!routine) return;
@@ -318,7 +166,6 @@ export default function RoutineDetail() {
 
   const sections = orderedSections(routine);
   const totalExercises = routine.exercises.length;
-  const ungroupedMembers = membersOf(routine, null);
   const matches = query.trim()
     ? builtInExercises.filter((e) => exerciseSearchText(e).includes(query.trim().toLowerCase())).slice(0, 12)
     : [];
@@ -367,192 +214,18 @@ export default function RoutineDetail() {
         </div>
       )}
 
-      <div className="progress-exercise-list">
-        {totalExercises > 0 && <p>{t.exercises} · {totalExercises}</p>}
-        {sections.map((section) => {
-          const group = membersOf(routine, section.id);
-          const sectionIndex = sections.findIndex((item) => item.id === section.id);
-          return (
-            <div className="progress-section" key={section.id}>
-              {confirmDeleteSection === section.id ? (
-                <div className="progress-section-confirm">
-                  <strong>{t.deleteSection}</strong>
-                  <span>{t.deleteSectionBody}</span>
-                  <div className="progress-section-actions">
-                    <button className="progress-ghost" type="button" disabled={busy} onClick={() => setConfirmDeleteSection(null)}>{t.cancel}</button>
-                    <button className="progress-ghost danger" type="button" disabled={busy} onClick={() => void removeSection(section)}>{t.deleteSection}</button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`progress-section-head${dragOverId === `section:${section.id}` ? " dragover" : ""}`}
-                  draggable={sections.length > 1}
-                  onDragStart={(e) => { if (sections.length > 1) handleDragStart(e, "section", section.id); }}
-                  onDragEnd={() => { setDragging(null); setDragOverId(null); }}
-                  onDragOver={(e) => {
-                    const payload = activeDrag(e, dragging);
-                    if (payload?.kind === "section" && payload.id !== section.id) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverId(`section:${section.id}`); }
-                    else if (payload?.kind === "exercise") { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverId(`section:${section.id}`); }
-                  }}
-                  onDragLeave={() => setDragOverId((current) => current === `section:${section.id}` ? null : current)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const payload = activeDrag(e, dragging);
-                    if (!payload) return;
-                    if (payload.kind === "section") { const rect = e.currentTarget.getBoundingClientRect(); void dropSectionOn(payload.id, section.id, e.clientY < rect.top + rect.height / 2); }
-                    else if (payload.kind === "exercise") { void dropIntoSection(payload.id, section.id); }
-                  }}
-                >
-                  <span className="progress-section-grip" aria-hidden="true">⠿</span>
-                  {renamingSectionId === section.id ? (
-                    <form className="progress-section-rename" onSubmit={(event) => { event.preventDefault(); void saveSectionRename(section); }}>
-                      <input value={sectionRename} maxLength={80} autoFocus onChange={(event) => setSectionRename(event.target.value)} onBlur={() => void saveSectionRename(section)} aria-label={t.sectionName} />
-                    </form>
-                  ) : (
-                    <strong>{section.name}</strong>
-                  )}
-                  <small>{group.length}</small>
-                  <span className="progress-section-actions">
-                    {renamingSectionId !== section.id && <button className="progress-ghost" type="button" onClick={() => { setRenamingSectionId(section.id); setSectionRename(section.name); }}>{t.rename}</button>}
-                    <button className="progress-ghost" type="button" aria-label={`${t.move} ↑`} disabled={sectionIndex === 0} onClick={() => void moveSection(section, -1)}>↑</button>
-                    <button className="progress-ghost" type="button" aria-label={`${t.move} ↓`} disabled={sectionIndex === sections.length - 1} onClick={() => void moveSection(section, 1)}>↓</button>
-                    <button className="progress-ghost danger" type="button" onClick={() => setConfirmDeleteSection(section.id)}>{t.deleteSection}</button>
-                  </span>
-                </div>
-              )}
-              {group.map((e, index) => (
-                <div
-                  key={e.id}
-                  className={dragOverId?.startsWith(`exercise:${e.id}:`)
-                    ? `progress-exercise-card dragover${dragOverId === `exercise:${e.id}:before` ? " drop-before" : " drop-after"}`
-                    : "progress-exercise-card"}
-                  onDragOver={(ev) => {
-                    const payload = activeDrag(ev, dragging);
-                    if (payload?.kind === "exercise" && payload.id !== e.id) {
-                      ev.preventDefault();
-                      ev.dataTransfer.dropEffect = "move";
-                      const rect = ev.currentTarget.getBoundingClientRect();
-                      setDragOverId(`exercise:${e.id}:${ev.clientY < rect.top + rect.height / 2 ? "before" : "after"}`);
-                    }
-                  }}
-                  onDragLeave={() => setDragOverId((current) => current?.startsWith(`exercise:${e.id}:`) ? null : current)}
-                  onDrop={(ev) => {
-                    ev.preventDefault();
-                    const payload = activeDrag(ev, dragging);
-                    if (!payload || payload.kind !== "exercise" || payload.id === e.id) return;
-                    const rect = ev.currentTarget.getBoundingClientRect();
-                    void dropExercise(payload.id, e.id, ev.clientY < rect.top + rect.height / 2);
-                  }}
-                >
-                  <div className="progress-exercise-order">{String(index + 1).padStart(2, "0")}</div>
-                  <div className="progress-exercise-main">
-                    <div className="progress-exercise-title">
-                      <span
-                        className="progress-drag-handle"
-                        draggable
-                        role="button"
-                        aria-label={`${t.move} ${e.name}`}
-                        title={t.move}
-                        onDragStart={(ev) => handleDragStart(ev, "exercise", e.id)}
-                        onDragEnd={() => { setDragging(null); setDragOverId(null); }}
-                        onKeyDown={(ev) => {
-                          // Keyboard reordering stays on the arrow buttons; the
-                          // handle is a drag affordance only.
-                          if (ev.key === "ArrowUp" || ev.key === "ArrowDown") ev.preventDefault();
-                        }}
-                      >⠿</span>
-                      <strong>{e.name}</strong>
-                      <span className="progress-exercise-prescription">{e.sets}×{e.targetRepMin === e.targetRepMax ? e.targetRepMax : `${e.targetRepMin}–${e.targetRepMax}`} · RIR {e.targetRir} · {e.weightUnit}</span>
-                    </div>
-                    <div className="progress-exercise-edit">
-                      <label>{t.workingSets}<select value={e.sets} onChange={(ev) => updateExercise(e.id, { sets: Number(ev.target.value) })} onBlur={() => persistExercise(e)}>{[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-                      <label>{t.repRange}<span className="progress-rep-range"><input type="number" min={1} max={40} value={e.targetRepMin} onChange={(ev) => updateExercise(e.id, { targetRepMin: Number(ev.target.value) })} onBlur={() => persistExercise(e)} /><i>–</i><input type="number" min={1} max={40} value={e.targetRepMax} onChange={(ev) => updateExercise(e.id, { targetRepMax: Number(ev.target.value) })} onBlur={() => persistExercise(e)} /></span></label>
-                      <label>{t.targetRir}<select value={e.targetRir} onChange={(ev) => updateExercise(e.id, { targetRir: Number(ev.target.value) })} onBlur={() => persistExercise(e)}>{[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-                    </div>
-                  </div>
-                  <div className="progress-exercise-actions">
-                    <button type="button" aria-label={t.moveUp} disabled={index === 0} onClick={() => void moveExerciseInGroup(e, -1)}>↑</button>
-                    <button type="button" aria-label={t.moveDown} disabled={index === group.length - 1} onClick={() => void moveExerciseInGroup(e, 1)}>↓</button>
-                    <label className="progress-move-to-section">{t.moveToSection}<select value={e.sectionId === null ? "" : String(e.sectionId)} disabled={busy} onChange={(ev) => void moveExerciseToSection(e, ev.target.value === "" ? null : Number(ev.target.value))}>
-                      <option value="">{t.ungrouped}</option>
-                      {sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
-                    </select></label>
-                    <button type="button" className="progress-remove" disabled={busy} onClick={() => void removeExercise(e)}>{t.remove}</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-        {(sections.length > 0 ? ungroupedMembers.length > 0 : totalExercises > 0) && (
-          <div className="progress-section">
-            {sections.length > 0 && (
-              <div className="progress-section-head progress-ungrouped-head" onDragOver={(e) => { const payload = activeDrag(e, dragging); if (payload?.kind === "exercise") { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverId("ungrouped"); } }} onDragLeave={() => setDragOverId((current) => current === "ungrouped" ? null : current)} onDrop={(e) => { e.preventDefault(); const payload = activeDrag(e, dragging); if (payload?.kind === "exercise") void dropIntoSection(payload.id, null); }}>
-                <span className="progress-section-grip" aria-hidden="true" />
-                <strong>{t.ungrouped}</strong>
-                <small>{ungroupedMembers.length}</small>
-              </div>
-            )}
-            {ungroupedMembers.map((e, index) => (
-              <div
-                key={e.id}
-                className={dragOverId?.startsWith(`exercise:${e.id}:`)
-                  ? `progress-exercise-card dragover${dragOverId === `exercise:${e.id}:before` ? " drop-before" : " drop-after"}`
-                  : "progress-exercise-card"}
-                onDragOver={(ev) => {
-                  const payload = activeDrag(ev, dragging);
-                  if (payload?.kind === "exercise" && payload.id !== e.id) {
-                    ev.preventDefault();
-                    ev.dataTransfer.dropEffect = "move";
-                    const rect = ev.currentTarget.getBoundingClientRect();
-                    setDragOverId(`exercise:${e.id}:${ev.clientY < rect.top + rect.height / 2 ? "before" : "after"}`);
-                  }
-                }}
-                onDragLeave={() => setDragOverId((current) => current?.startsWith(`exercise:${e.id}:`) ? null : current)}
-                onDrop={(ev) => {
-                  ev.preventDefault();
-                  const payload = activeDrag(ev, dragging);
-                  if (!payload || payload.kind !== "exercise" || payload.id === e.id) return;
-                  const rect = ev.currentTarget.getBoundingClientRect();
-                  void dropExercise(payload.id, e.id, ev.clientY < rect.top + rect.height / 2);
-                }}
-              >
-                <div className="progress-exercise-order">{String(index + 1).padStart(2, "0")}</div>
-                <div className="progress-exercise-main">
-                  <div className="progress-exercise-title">
-                    <span
-                      className="progress-drag-handle"
-                      draggable
-                      role="button"
-                      aria-label={`${t.move} ${e.name}`}
-                      title={t.move}
-                      onDragStart={(ev) => handleDragStart(ev, "exercise", e.id)}
-                      onDragEnd={() => { setDragging(null); setDragOverId(null); }}
-                    >⠿</span>
-                    <strong>{e.name}</strong>
-                    <span className="progress-exercise-prescription">{e.sets}×{e.targetRepMin === e.targetRepMax ? e.targetRepMax : `${e.targetRepMin}–${e.targetRepMax}`} · RIR {e.targetRir} · {e.weightUnit}</span>
-                  </div>
-                  <div className="progress-exercise-edit">
-                    <label>{t.workingSets}<select value={e.sets} onChange={(ev) => updateExercise(e.id, { sets: Number(ev.target.value) })} onBlur={() => persistExercise(e)}>{[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-                    <label>{t.repRange}<span className="progress-rep-range"><input type="number" min={1} max={40} value={e.targetRepMin} onChange={(ev) => updateExercise(e.id, { targetRepMin: Number(ev.target.value) })} onBlur={() => persistExercise(e)} /><i>–</i><input type="number" min={1} max={40} value={e.targetRepMax} onChange={(ev) => updateExercise(e.id, { targetRepMax: Number(ev.target.value) })} onBlur={() => persistExercise(e)} /></span></label>
-                    <label>{t.targetRir}<select value={e.targetRir} onChange={(ev) => updateExercise(e.id, { targetRir: Number(ev.target.value) })} onBlur={() => persistExercise(e)}>{[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-                  </div>
-                </div>
-                <div className="progress-exercise-actions">
-                  <button type="button" aria-label={t.moveUp} disabled={index === 0} onClick={() => void moveExerciseInGroup(e, -1)}>↑</button>
-                  <button type="button" aria-label={t.moveDown} disabled={index === ungroupedMembers.length - 1} onClick={() => void moveExerciseInGroup(e, 1)}>↓</button>
-                  <label className="progress-move-to-section">{t.moveToSection}<select value="" disabled={busy} onChange={(ev) => void moveExerciseToSection(e, ev.target.value === "" ? null : Number(ev.target.value))}>
-                    <option value="">{t.ungrouped}</option>
-                    {sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
-                  </select></label>
-                  <button type="button" className="progress-remove" disabled={busy} onClick={() => void removeExercise(e)}>{t.remove}</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {totalExercises === 0 && <div className="progress-empty"><strong>{t.noExercises}</strong><span>{t.noExercisesHint}</span></div>}
-      </div>
+      <RoutineSortable
+        routine={routine}
+        t={t}
+        busy={busy}
+        onApplyPlacements={applyPlacements}
+        onReorderSections={reorderSections}
+        onPatchExercise={patchExercise}
+        onPersistExercise={(e) => void persistExercise(e)}
+        onRemoveExercise={(e) => void removeExercise(e)}
+        onRenameSection={(section, name) => void renameSection(section, name)}
+        onDeleteSection={(section) => void deleteSection(section)}
+      />
 
       <p className="progress-fineprint">{t.routinesAdvanced}</p>
     </section>

@@ -9,6 +9,7 @@ const read = (...parts: string[]) => readFileSync(join(ROOT, ...parts), "utf8");
 const service = read("app", "lib", "progress-service.ts");
 const mechanics = read("app", "lib", "progress-mechanics.ts");
 const detail = read("app", "progress", "(product)", "routines", "[id]", "RoutineDetail.tsx");
+const sortable = read("app", "progress", "(product)", "routines", "[id]", "RoutineSortable.tsx");
 const sectionsReorderRoute = read("app", "api", "progress", "routines", "[id]", "sections", "reorder", "route.ts");
 const text = read("app", "progress", "(product)", "progress-text.ts");
 const css = read("app", "progress", "progress.css");
@@ -93,21 +94,23 @@ test("the whole reorder runs inside a single transaction (any failure rolls back
 });
 
 test("both the arrow buttons and desktop drag call the same safe endpoint", () => {
-  const moveSection = slice(detail, "async function moveSection(", "async function dropSectionOn(");
-  const dropSection = slice(detail, "async function dropSectionOn(", "async function startWorkout(");
-  for (const [name, fn] of [["arrow moveSection", moveSection], ["drag dropSectionOn", dropSection]] as const) {
-    assert.equal((fn.match(/sections\/reorder`/g) ?? []).length, 1, `${name} PUTs the shared reorder endpoint`);
-    assert.equal((fn.match(/method: "PUT"/g) ?? []).length, 1, `${name} uses exactly one PUT`);
-    assert.match(fn, /JSON\.stringify\(\{ orderedIds: reordered\.map\(\(item\) => item\.id\) \}\)/, `${name} sends the full ordered section id list`);
+  const endpoint = slice(detail, "async function reorderSections(", "// --- Sections");
+  assert.equal((endpoint.match(/sections\/reorder`/g) ?? []).length, 1, "RoutineDetail owns exactly one section-reorder PUT");
+  assert.equal((endpoint.match(/method: "PUT"/g) ?? []).length, 1, "section reorder uses exactly one PUT");
+  assert.match(endpoint, /JSON\.stringify\(\{ orderedIds \}\)/, "sends the full ordered section id list");
+  const arrowFn = slice(sortable, "function moveSection(", "function dropSectionOn(");
+  const dragFn = slice(sortable, "function dropSectionOn(", "// --- dnd-kit lifecycle");
+  for (const [name, fn] of [["arrow moveSection", arrowFn], ["drag dropSectionOn", dragFn]] as const) {
+    assert.ok(fn.includes("onReorderSections("), `${name} routes through the shared reorder callback`);
   }
+  assert.equal((sortable.match(/onReorderSections\(/g) ?? []).length, 2, "both paths reach the same persisted endpoint");
 });
 
 test("section reorder failures surface a localized message without database details", () => {
-  assert.equal((detail.match(/setError\(t\.sectionReorderError\)/g) ?? []).length, 2, "both section reorder paths use the localized failure copy");
-  const moveSection = slice(detail, "async function moveSection(", "async function dropSectionOn(");
-  const dropSection = slice(detail, "async function dropSectionOn(", "async function startWorkout(");
-  assert.doesNotMatch(moveSection, /issue\.message/, "arrow path never shows a raw server/SQL message");
-  assert.doesNotMatch(dropSection, /issue\.message/, "drag path never shows a raw server/SQL message");
+  assert.equal((detail.match(/setError\(t\.sectionReorderError\)/g) ?? []).length, 1, "the shared section reorder path uses the localized failure copy");
+  const endpoint = slice(detail, "async function reorderSections(", "// --- Sections");
+  assert.doesNotMatch(endpoint, /issue\.message/, "the section reorder path never shows a raw server/SQL message");
+  assert.doesNotMatch(sortable, /setError\(|issue\.message/, "the drag surface delegates failures upward and never renders raw details");
   assert.equal((text.match(/sectionReorderError: /g) ?? []).length, 3, "failure key present in FR, EN and AR");
   assert.ok(text.includes('sectionReorderError: "Could not reorder sections. Try again."'), "EN failure copy");
   assert.ok(text.includes('sectionReorderError: "Impossible de réorganiser les sections. Réessayez."'), "FR failure copy");
@@ -115,7 +118,7 @@ test("section reorder failures surface a localized message without database deta
 });
 
 test("no U+2014 em dash in the edited files", () => {
-  for (const [name, src] of [["progress-service.ts", service], ["RoutineDetail.tsx", detail], ["progress-text.ts", text], ["progress.css", css]] as const) {
+  for (const [name, src] of [["progress-service.ts", service], ["RoutineDetail.tsx", detail], ["RoutineSortable.tsx", sortable], ["progress-text.ts", text], ["progress.css", css]] as const) {
     assert.ok(!src.includes("\u2014"), `${name} contains a forbidden U+2014 em dash`);
   }
 });
