@@ -270,11 +270,11 @@ test("every exercise card exposes accessible move up/down, a Move-to-section sel
 test("desktop drag handle exists for exercises and section headers, with keyboard-safe controls kept", () => {
   assert.match(detail, /className="progress-drag-handle"\s*\n\s*draggable\s*\n\s*role="button"\s*\n\s*aria-label=\{`\$\{t\.move\} \$\{e\.name\}`\}/, "exercise drag handle with accessible label");
   assert.match(detail, /draggable=\{sections\.length > 1\}/, "section headers draggable when more than one");
-  assert.match(detail, /onDragStart=\{\(ev\) => \{ setDragging\(\{ kind: "exercise", id: e\.id \}\)/, "exercise drag start records the dragged id");
-  assert.match(detail, /setDragging\(\{ kind: "section", id: section\.id \}\)/, "section drag start records the dragged id");
-  assert.match(detail, /dropExercise\(e\.id, ev\.clientY < rect\.top \+ rect\.height \/ 2\)/, "drop before/after the target exercise");
-  assert.match(detail, /void dropIntoSection\(section\.id\)/, "dragging an exercise onto a section header moves it into that section");
-  assert.match(detail, /void dropIntoSection\(null\)/, "dragging onto the ungrouped header ungroups the exercise");
+  assert.match(detail, /onDragStart=\{\(ev\) => handleDragStart\(ev, "exercise", e\.id\)\}/, "exercise drag start records the dragged id via the shared starter");
+  assert.match(detail, /handleDragStart\(e, "section", section\.id\)/, "section drag start records the dragged id");
+  assert.match(detail, /dropExercise\(payload\.id, e\.id, ev\.clientY < rect\.top \+ rect\.height \/ 2\)/, "drop before/after the target exercise");
+  assert.match(detail, /void dropIntoSection\(payload\.id, section\.id\)/, "dragging an exercise onto a section header moves it into that section");
+  assert.match(detail, /void dropIntoSection\(payload\.id, null\)/, "dragging onto the ungrouped header ungroups the exercise");
 });
 
 test("sections render as grouped blocks and exercises re-sort into their section under canonical order", () => {
