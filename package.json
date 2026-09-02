@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next",
     "test": "node --test \"test/**/*.test.ts\"",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chrome",
     "db:generate": "drizzle-kit generate",
     "db:push": "dotenv -e .env.local -- drizzle-kit push",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -17,10 +17,22 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { ProgressText } from "../../progress-text";
 
-export type PublicExercise = { id: number; position: number; sectionId: number | null; exerciseId: string; name: string; nameFr: string; nameAr: string; sets: number; targetRepMin: number; targetRepMax: number; targetRir: number; weightUnit: string; notes: string };
-export type Section = { id: number; name: string; position: number };
-export type Routine = { id: number; name: string; notes: string; createdAt: string; updatedAt: string; sections: Section[]; exercises: PublicExercise[] };
-export type Placement = { exerciseId: number; sectionId: number | null };
+import {
+  orderedSections,
+  canonicalExercises,
+  membersOf,
+  planMove,
+  planSectionOrder,
+  type PublicExercise,
+  type Section,
+  type Routine,
+  type Placement,
+} from "./routineLayout";
+
+// Re-export the layout engine so existing consumers (RoutineDetail, the dev
+// harness) keep compiling against this module.
+export { orderedSections, canonicalExercises, membersOf, planMove } from "./routineLayout";
+export type { PublicExercise, Section, Routine, Placement } from "./routineLayout";
 
 /** The subset of dictionary keys this surface renders. */
 export type RoutineSortableText = Pick<
@@ -43,98 +55,16 @@ export type RoutineSortableProps = {
   onDeleteSection: (section: Section) => void | Promise<void>;
 };
 
-// --- Shared layout model ---------------------------------------------------
-// The routine keeps one dense (routine-global) exercise position sequence; a
-// section is a pure grouping layer over it. Canonical order: section blocks
-// by section.position, then each member by position, then ungrouped.
-
-/** Sections in header (position) order. */
-export function orderedSections(routine: Routine): Section[] {
-  return [...routine.sections].sort((a, b) => a.position - b.position);
-}
-
-/** Rank of a section (0..n-1); the ungrouped block always ranks last (n). */
-function sectionRank(sections: Section[], sectionId: number | null): number {
-  if (sectionId === null) return sections.length;
-  const index = [...sections].sort((a, b) => a.position - b.position).findIndex((section) => section.id === sectionId);
-  return index === -1 ? sections.length : index;
-}
-
-/** Canonical flat exercise order: section blocks by section order, then ungrouped. */
-export function canonicalExercises(routine: Routine): PublicExercise[] {
-  return [...routine.exercises].sort((a, b) =>
-    sectionRank(routine.sections, a.sectionId) - sectionRank(routine.sections, b.sectionId) || a.position - b.position);
-}
-
-export function membersOf(routine: Routine, sectionId: number | null): PublicExercise[] {
-  return canonicalExercises(routine).filter((exercise) => (exercise.sectionId ?? null) === sectionId);
-}
-
-/**
- * New placements after moving `draggedId`. `targetSection`:
- *  - "same" keeps membership (pure reorder),
- *  - a section id (or null) moves the exercise into that section/ungrouped at
- *    the end of the block (section/ungrouped header drops, Move-to-section),
- * plus `insertAt`: canonical index (of the full list) after which ordering
- * applies for within-list drops. When `insertAt` is used with a real section
- * target, the dragged exercise takes that section's id: dropping next to an
- * exercise of another section is a membership move, never a same-section
- * reorder. Returns the full final placements payload.
- */
-export function planMove(
-  routine: Routine,
-  draggedId: number,
-  targetSection: number | "same" | null,
-  insertAt: number | null,
-): Placement[] {
-  const full = canonicalExercises(routine);
-  const dragged = full.find((exercise) => exercise.id === draggedId);
-  if (!dragged) return [];
-  const rest = full.filter((exercise) => exercise.id !== draggedId);
-  let finalIds: number[] = [];
-  if (insertAt === null) {
-    const groups: number[][] = orderedSections(routine).map(() => []);
-    groups.push([]); // ungrouped tail block
-    for (const exercise of rest) groups[sectionRank(routine.sections, exercise.sectionId)].push(exercise.id);
-    const target = targetSection === "same" ? dragged.sectionId : targetSection;
-    groups[sectionRank(routine.sections, target)].push(dragged.id);
-    finalIds = groups.flat();
-  } else {
-    const restIds = rest.map((exercise) => exercise.id);
-    const originalIndex = full.findIndex((exercise) => exercise.id === draggedId);
-    let index = insertAt;
-    if (originalIndex !== -1 && originalIndex < index) index -= 1;
-    finalIds = [...restIds.slice(0, index), dragged.id, ...restIds.slice(index)];
-  }
-  const placementSection = targetSection === "same"
-    ? dragged.sectionId
-    : targetSection;
-  return finalIds.map((id) => ({ exerciseId: id, sectionId: id === draggedId ? placementSection : (full.find((exercise) => exercise.id === id)?.sectionId ?? null) }));
-}
-
 // --- Drag metadata (stable object identities for dnd-kit data) -------------
 const exerciseDragData = { kind: "exercise" };
 const cardDropData = { zone: "card" };
 const ungroupedDropData = { zone: "ungrouped" };
 
-// Visual-feedback state ONLY. The persisted drop is derived exclusively from
-// the DragEndEvent (active/over/data/rect + live pointer ref), never from this
+// Visual-feedback state ONLY. The persisted order is derived exclusively from
+// the DragEndEvent (active/over ids + canonical indexes), never from this
 // async React state: a user can release the pointer before the latest state
 // commit lands, and that must not swallow a valid drop.
 type OverTarget = { id: string; zone: "card" | "head" | "ungrouped"; before: boolean; top: number; height: number } | null;
-
-/** Insert a dragged item before/after the target, using the same rest-insert
- *  math as planMove so sections and exercises share one order engine. */
-function planSectionOrder(sections: Section[], draggedId: number, targetId: number, before: boolean): number[] | null {
-  const rest = sections.filter((section) => section.id !== draggedId);
-  const targetRestIndex = rest.findIndex((section) => section.id === targetId);
-  if (targetRestIndex === -1) return null;
-  const insertAt = before ? targetRestIndex : targetRestIndex + 1;
-  const dragged = sections.find((section) => section.id === draggedId);
-  if (!dragged) return null;
-  const next: Section[] = [...rest.slice(0, insertAt), dragged, ...rest.slice(insertAt)];
-  return next.map((section) => section.id);
-}
 
 // --- Exercise card: draggable via handle, droppable as a drop target -------
 function ExerciseCard({
@@ -304,11 +234,6 @@ export default function RoutineSortable(props: RoutineSortableProps) {
   const [renamingSectionId, setRenamingSectionId] = useState<number | null>(null);
   const [sectionRename, setSectionRename] = useState("");
   const [confirmDeleteSection, setConfirmDeleteSection] = useState<number | null>(null);
-  // Live pointer position during a drag. DndContext does not expose pointer
-  // coordinates, so the wrapper records every pointermove into a ref; the
-  // insertion half (before/after) is recomputed from it on each drag move.
-  const pointerRef = useRef({ x: 0, y: 0 });
-
   const sections = useMemo(() => orderedSections(routine), [routine]);
   const totalExercises = routine.exercises.length;
   const ungroupedMembers = useMemo(() => membersOf(routine, null), [routine]);
@@ -345,16 +270,22 @@ export default function RoutineSortable(props: RoutineSortableProps) {
     if ((e.sectionId ?? null) === sectionId) return;
     void onApplyPlacements(planMove(routine, e.id, sectionId, null));
   }
-  /** Drop next to a specific exercise card. When that card belongs to another
-   *  section, the drop is a membership move (the dragged exercise takes the
-   *  target section), never a same-section reorder. */
-  function dropOnExercise(draggedId: number, targetExerciseId: number, before: boolean) {
+  /** Drop next to a specific exercise card. Placement is DETERMINISTIC - the
+   *  pointer's release coordinates play no part, so a fast release can never
+   *  resolve as "same order" and silently no-op:
+   *   - same-section drops: direction comes from the canonical indexes (dragged
+   *     BELOW the target => lands BEFORE it; ABOVE => lands AFTER it), and
+   *   - cross-section card drops: inserted immediately BEFORE the target card
+   *     and take its section (membership move, never a same-section reorder). */
+  function dropOnExercise(draggedId: number, targetExerciseId: number) {
     const full = canonicalExercises(routine);
     const targetIndex = full.findIndex((exercise) => exercise.id === targetExerciseId);
-    const dragged = full.find((exercise) => exercise.id === draggedId);
-    if (!dragged || targetIndex === -1 || draggedId === targetExerciseId) return;
+    const draggedIndex = full.findIndex((exercise) => exercise.id === draggedId);
+    if (draggedIndex === -1 || targetIndex === -1 || draggedId === targetExerciseId) return;
+    const dragged = full[draggedIndex];
     const targetSection = full[targetIndex].sectionId ?? null;
     const sameSection = (dragged.sectionId ?? null) === targetSection;
+    const before = sameSection ? draggedIndex > targetIndex : true;
     void onApplyPlacements(planMove(routine, draggedId, sameSection ? "same" : targetSection, before ? targetIndex : targetIndex + 1));
   }
   function dropIntoSection(draggedId: number, sectionId: number | null) {
@@ -370,7 +301,13 @@ export default function RoutineSortable(props: RoutineSortableProps) {
     [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
     void onReorderSections(reordered.map((item) => item.id));
   }
-  function dropSectionOn(draggedId: number, targetSectionId: number, before: boolean) {
+  /** Section drops are also index-deterministic: dragged below the target =>
+   *  lands before it, above => lands after it. No pointer/release state. */
+  function dropSectionOn(draggedId: number, targetSectionId: number) {
+    const draggedIndex = sections.findIndex((section) => section.id === draggedId);
+    const targetIndex = sections.findIndex((section) => section.id === targetSectionId);
+    if (draggedIndex === -1 || targetIndex === -1) return;
+    const before = draggedIndex > targetIndex;
     const ids = planSectionOrder(sections, draggedId, targetSectionId, before);
     if (!ids) return;
     void onReorderSections(ids);
@@ -380,33 +317,43 @@ export default function RoutineSortable(props: RoutineSortableProps) {
   function handleDragStart() {
     setOverTarget(null);
   }
-  /** Visual only: records which droppable is hovered and which insertion half,
-   *  driven by the live pointer ref (updated on every pointermove, so no stale
-   *  React state). Never consulted to persist a drop. */
+  /** Visual only: records which droppable is hovered and which insertion half.
+   *  The half uses the SAME deterministic rule the commit uses (canonical
+   *  indexes for card targets), so the indicator never lies about where the
+   *  drop will land - but this state is never read at drag end: a fast release
+   *  cannot be swallowed by a stale commit. */
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
     if (!over || String(over.id) === String(active.id)) { setOverTarget(null); return; }
-    const overData = (over.data.current ?? {}) as { zone?: string };
+    const overData = (over.data.current ?? {}) as { zone?: "card" | "head" | "ungrouped" };
     if (overData.zone !== "card" && overData.zone !== "head" && overData.zone !== "ungrouped") { setOverTarget(null); return; }
-    const top = over.rect?.top ?? 0;
-    const height = over.rect?.height ?? 0;
-    const before = height > 0 && pointerRef.current.y < top + height / 2;
-    setOverTarget({ id: String(over.id), zone: overData.zone, before, top, height });
-  }
-  function handleDragMove() {
-    // Pointer moves dozens of times per second while the target stays the same;
-    // refresh the insertion-half indicator so it tracks the cursor.
-    setOverTarget((current) => {
-      if (!current || current.height <= 0) return current;
-      const before = pointerRef.current.y < current.top + current.height / 2;
-      return before === current.before ? current : { ...current, before };
-    });
+    const overId = String(over.id);
+    const activeId = String(active.id);
+    if (overData.zone === "card") {
+      // Sections dragged over cards show no card highlight: their drop targets
+      // are the section heads. Exercises use the index-deterministic half.
+      if (activeId.startsWith("sec:")) { setOverTarget(null); return; }
+      const full = canonicalExercises(routine);
+      const activeIndex = full.findIndex((exercise) => exercise.id === Number(activeId.split(":")[1]));
+      const overIndex = full.findIndex((exercise) => exercise.id === Number(overId.split(":")[1]));
+      const sameSection = activeIndex !== -1 && overIndex !== -1 && (full[activeIndex].sectionId ?? null) === (full[overIndex].sectionId ?? null);
+      setOverTarget({ id: overId, zone: "card", before: sameSection ? activeIndex > overIndex : true, top: over.rect?.top ?? 0, height: over.rect?.height ?? 0 });
+      return;
+    }
+    if (overData.zone === "head" && overId.startsWith("sec:") && activeId.startsWith("sec:")) {
+      const sectionsOrdered = orderedSections(routine);
+      const activeIndex = sectionsOrdered.findIndex((section) => section.id === Number(activeId.split(":")[1]));
+      const overIndex = sectionsOrdered.findIndex((section) => section.id === Number(overId.split(":")[1]));
+      setOverTarget({ id: overId, zone: "head", before: activeIndex > overIndex, top: over.rect?.top ?? 0, height: over.rect?.height ?? 0 });
+      return;
+    }
+    setOverTarget({ id: overId, zone: overData.zone, before: false, top: over.rect?.top ?? 0, height: over.rect?.height ?? 0 });
   }
   /** EVENT-AUTHORITATIVE drop resolution: the persisted operation is derived
-   *  exclusively from event.over (its data, its rect and the final pointer
-   *  position), never from the asynchronously-flushed visual state. Only a
-   *  genuinely absent over - or a drop onto the dragged item itself - means
-   *  "no op". */
+   *  exclusively from event.over (its id and zone metadata) plus the canonical
+   *  indexes of the current server-confirmed layout. No pointer coordinates,
+   *  no async React state: only a genuinely absent over - or a drop onto the
+   *  dragged item itself - means "no op". */
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setOverTarget(null);
@@ -417,13 +364,11 @@ export default function RoutineSortable(props: RoutineSortableProps) {
     const activeIdNum = Number(String(active.id).split(":")[1]);
     if (Number.isNaN(activeIdNum)) return;
     const overData = (over.data.current ?? {}) as { zone?: "card" | "head" | "ungrouped"; sectionId?: number };
-    const rect = over.rect;
-    const before = !!rect && rect.height > 0 && pointerRef.current.y < rect.top + rect.height / 2;
     if (overData.zone === "card" && activeKind === "exercise") {
-      dropOnExercise(activeIdNum, Number(overId.split(":")[1]), before);
+      dropOnExercise(activeIdNum, Number(overId.split(":")[1]));
     } else if (overData.zone === "head") {
       if (activeKind === "exercise") dropIntoSection(activeIdNum, overData.sectionId ?? null);
-      else if (overData.sectionId != null) dropSectionOn(activeIdNum, overData.sectionId, before);
+      else if (overData.sectionId != null) dropSectionOn(activeIdNum, overData.sectionId);
     } else if (overData.zone === "ungrouped" && activeKind === "exercise") {
       dropIntoSection(activeIdNum, null);
     }
@@ -433,14 +378,13 @@ export default function RoutineSortable(props: RoutineSortableProps) {
   }
 
   return (
-    <div className="progress-exercise-list" onPointerMove={(event) => { pointerRef.current = { x: event.clientX, y: event.clientY }; }}>
+    <div className="progress-exercise-list">
       {totalExercises > 0 && <p>{t.exercises} · {totalExercises}</p>}
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
-        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >

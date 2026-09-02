@@ -15,9 +15,17 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],
+  projects: [
+    // Drive the already-installed Google Chrome - no browser download.
+    { name: "chrome", use: { channel: "chrome" } },
+    // Same interaction suite in Microsoft Edge when installed. Edge is NOT a
+    // CI requirement and is only ever run explicitly
+    // (`npx playwright test --project=edge`); the repo's `test:e2e` script
+    // stays Chrome-only so an absent Edge cannot break the default suite.
+    { name: "edge", use: { channel: "msedge" } },
+  ],
   use: {
     baseURL: BASE,
-    channel: "chrome", // drive the already-installed Google Chrome, no browser download
     headless: true,
     // Tall enough that the whole fixture (BACK + TRICEPS + ungrouped) is above
     // the fold: synthetic pointer drags cannot scroll the page, so every drop

@@ -11,6 +11,7 @@ const mechanics = read("app", "lib", "progress-mechanics.ts");
 const service = read("app", "lib", "progress-service.ts");
 const detail = read("app", "progress", "(product)", "routines", "[id]", "RoutineDetail.tsx");
 const sortable = read("app", "progress", "(product)", "routines", "[id]", "RoutineSortable.tsx");
+const layout = read("app", "progress", "(product)", "routines", "[id]", "routineLayout.ts");
 const listView = read("app", "progress", "(product)", "routines", "RoutinesView.tsx");
 const text = read("app", "progress", "(product)", "progress-text.ts");
 const css = read("app", "progress", "progress.css");
@@ -266,7 +267,8 @@ test("every exercise card exposes accessible move up/down, a Move-to-section sel
   assert.ok(sortable.includes("function moveExerciseToSection("), "membership change handler exists");
   const move = slice(sortable, "function moveExerciseToSection(", "function dropOnExercise(");
   assert.match(move, /planMove\(routine, e\.id, sectionId, null\)/, "move-to-section targets the chosen section end");
-  assert.ok(sortable.includes("function planMove("), "pure placement planner exists");
+  assert.equal((layout.match(/export function planMove\(/g) ?? []).length, 1, "pure placement planner exists in the engine module");
+  assert.match(sortable, /export \{ orderedSections, canonicalExercises, membersOf, planMove \} from "\.\/routineLayout";/, "the component imports and re-exports the planner");
 });
 
 test("desktop drag is pointer-based (dnd-kit) with the handle as the only drag initiator", () => {
@@ -277,7 +279,7 @@ test("desktop drag is pointer-based (dnd-kit) with the handle as the only drag i
   assert.equal((sortable.match(/\{\.\.\.listeners\}/g) ?? []).length, 2, "listeners are bound only on the exercise handle and the section grip");
   assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{e\.name\}`\}/, "exercise handle carries an accessible label with the exercise name");
   assert.match(sortable, /aria-label=\{`\$\{t\.move\} \$\{section\.name\}`\}/, "section grip carries an accessible label with the section name");
-  assert.match(sortable, /dropOnExercise\(activeIdNum, Number\(overId\.split\(":"\)\[1\]\), before\)/, "card drops route to the shared placement engine with before/after");
+  assert.match(sortable, /dropOnExercise\(activeIdNum, Number\(overId\.split\(":"\)\[1\]\)\)/, "card drops route to the shared placement engine (index-deterministic inside)");
   assert.match(sortable, /dropIntoSection\(activeIdNum, overData\.sectionId \?\? null\)/, "dropping on a section header joins that section");
   assert.match(sortable, /dropIntoSection\(activeIdNum, null\)/, "dropping on the ungrouped header ungroups the exercise");
 });
@@ -286,9 +288,9 @@ test("sections render as grouped blocks and exercises re-sort into their section
   assert.match(sortable, /<div className="progress-section" key=\{section\.id\}>/, "section block per group");
   assert.ok(sortable.includes('"progress-section-head"'), "section header rendered");
   assert.match(sortable, /<div className="progress-exercise-order">\{String\(index \+ 1\)\.padStart\(2, "0"\)\}<\/div>/, "order badge inside each block is 1-based per block");
-  assert.ok(sortable.includes("function canonicalExercises("), "canonical order helper exists");
-  assert.ok(sortable.includes("function membersOf("), "membership helper exists");
-  const canonical = slice(sortable, "function canonicalExercises(", "function membersOf(");
+  assert.equal((layout.match(/export function canonicalExercises\(/g) ?? []).length, 1, "canonical order helper exists");
+  assert.equal((layout.match(/export function membersOf\(/g) ?? []).length, 1, "membership helper exists");
+  const canonical = slice(layout, "export function canonicalExercises(", "export function membersOf(");
   assert.match(canonical, /sectionRank\(routine\.sections, a\.sectionId\) - sectionRank\(routine\.sections, b\.sectionId\) \|\| a\.position - b\.position/, "blocks ordered by section then position");
 });
 

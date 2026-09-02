@@ -152,52 +152,57 @@ test("fallback controls (arrows, Move-to-section select, section arrows) reorder
   await expect(page.getByTestId("last-section-order")).toHaveText("[2,1]");
 });
 
-test("fast release still commits: exact founder repro (drag Triceps pressdown over the top half of Overhead triceps extension, then drag it back)", async ({ page }) => {
+test("fast release still commits: exact founder repro [6,7]->[7,6]->[6,7] with logged payload", async ({ page }) => {
   const triceps = sectionBlock(page, "TRICEPS");
   const names = cardNames(triceps);
+
+  // BEFORE: canonical TRICEPS block is [6,7] (Overhead above Pressdown).
   await expect(names).toHaveText(["Overhead triceps extension", "Triceps pressdown"]);
 
-  // Grab Triceps pressdown and release it immediately over the TOP HALF of
-  // Overhead triceps extension - no settling time before mouseup.
+  // Grab Triceps pressdown and release it immediately, one direct pointermove
+  // over the Overhead card, no settling time before mouseup. Placement is
+  // index-deterministic (7 sits BELOW 6 => lands BEFORE 6), so the exact
+  // release coordinates on the card cannot resolve the drop as a no-op.
   const target = await names.first().boundingBox();
   if (!target) throw new Error("target card missing");
   await fastDragByHandle(page, page.getByRole("button", { name: "Move Triceps pressdown", exact: true }), target.x + target.width / 2, target.y + 8);
 
-  await expect(names).toHaveText(["Triceps pressdown", "Overhead triceps extension"]);
-  let payload = await lastPlacements(page);
+  // REQUEST payload (harness logs the placements sent to the mock server):
+  // [4,5,7,6,8] - the TRICEPS block became [7,6], NOT the unchanged [6,7].
+  const payload = await lastPlacements(page);
   expect(payload.map((p) => p.exerciseId)).toEqual([4, 5, 7, 6, 8]);
+  expect(payload.map((p) => p.exerciseId)).not.toEqual([4, 5, 6, 7, 8]);
   expect(payload.find((p) => p.exerciseId === 7)?.sectionId).toBe(2);
   await expect(page.getByTestId("placement-count")).toHaveText("placement calls: 1"); // exactly one persistence call
 
-  // Drag it back: release over the BOTTOM HALF of Overhead triceps extension.
-  // Aim at the CARD element (the nested title <strong> is only ~22px tall and
-  // sits at the card's top, so title.bottom - 8 would land in the top half).
+  // CONFIRMED server response re-rendered the DOM: 01 Pressdown, 02 Overhead.
+  await expect(names).toHaveText(["Triceps pressdown", "Overhead triceps extension"]);
+
+  // Drag it back: 7 now sits ABOVE 6, so the same rule lands it AFTER 6 and
+  // the original order returns.
   const targetBackCard = triceps.locator(".progress-exercise-card").nth(1);
   const targetBack = await targetBackCard.boundingBox();
   if (!targetBack) throw new Error("target card missing");
   await fastDragByHandle(page, page.getByRole("button", { name: "Move Triceps pressdown", exact: true }), targetBack.x + targetBack.width / 2, targetBack.y + targetBack.height - 12);
 
   await expect(names).toHaveText(["Overhead triceps extension", "Triceps pressdown"]);
-  payload = await lastPlacements(page);
-  expect(payload.map((p) => p.exerciseId)).toEqual([4, 5, 6, 7, 8]);
+  const back = await lastPlacements(page);
+  expect(back.map((p) => p.exerciseId)).toEqual([4, 5, 6, 7, 8]);
   await expect(page.getByTestId("placement-count")).toHaveText("placement calls: 2");
 });
 
 test("the active card can never resolve as its own drop target (self-collision excluded)", async ({ page }) => {
-  // Drag the FIRST-registered card of BACK (Straight-arm pulldown) DOWN onto
-  // the BOTTOM HALF of Seated cable row: in the pre-fix collision set the
-  // dragged card is itself a droppable whose translated rect always contains
-  // the pointer, and for targets registered AFTER it the self card shadowed
-  // the destination - so this direction used to no-op. The drop must commit
-  // exactly once and move Straight-arm BELOW Seated.
+  // Drag the first card of BACK (Straight-arm pulldown) DOWN onto Seated cable
+  // row: in the pre-fix collision set the dragged card was itself a droppable
+  // whose translated rect always contains the pointer, so this direction used
+  // to no-op. The drop must commit exactly once and move Straight-arm BELOW
+  // Seated (index-deterministic: 4 above 5 => lands AFTER 5).
   const back = sectionBlock(page, "BACK");
   const names = cardNames(back);
   await expect(names).toHaveText(["Straight-arm pulldown", "Seated cable row"]);
   const targetCard = back.locator(".progress-exercise-card").nth(1);
   const card = await targetCard.boundingBox();
   if (!card) throw new Error("target card missing");
-  // Bottom half of the CARD element (the title <strong> is only ~22px tall and
-  // sits at the card's top, so aiming at it would land in the top half).
   await dragByHandle(
     page,
     page.getByRole("button", { name: "Move Straight-arm pulldown", exact: true }),
