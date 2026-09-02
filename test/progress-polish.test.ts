@@ -151,7 +151,7 @@ test("history desktop layout uses two real columns without a phantom 1px track",
   const layout = css.match(/\.progress-history-layout\{[^}]*\}/)?.[0] ?? "";
   assert.ok(layout.includes("grid-template-columns:minmax(0,1fr) minmax(0,1fr)"), "two balanced content columns");
   assert.ok(!layout.includes("1px"), "no phantom 1px separator column");
-  assert.match(css, /@media\(max-width:820px\)\{[^@]*\.progress-history-layout\{grid-template-columns:1fr\}/, "mobile stacks to one column");
+  assert.match(css, /@media\(max-width:820px\)\{[^@]*\.progress-history-layout\{grid-template-columns:1fr[^}]*\}/, "mobile stacks to one column");
   assert.match(css, /\.progress-history-recent>div\{[^}]*flex-wrap:wrap[^}]*\}/, "recent rows wrap instead of one-word-per-line");
   assert.match(css, /\.progress-history-recent strong\{[^}]*white-space:nowrap[^}]*\}/, "weight x reps pair never wraps per word");
 });

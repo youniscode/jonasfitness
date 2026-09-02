@@ -20,6 +20,7 @@ export type ProgressText = { [K in keyof typeof text.en]: string };
 const text = {
   en: {
     brand: "JONAS PROGRESS · PROGRESS",
+    brandShort: "JONAS PROGRESS",
     navDashboard: "Dashboard",
     navRoutines: "Routines",
     navHistory: "History",
@@ -182,6 +183,7 @@ const text = {
   },
   fr: {
     brand: "JONAS PROGRESS · PROGRESSION",
+    brandShort: "JONAS PROGRESS",
     navDashboard: "Tableau de bord",
     navRoutines: "Routines",
     navHistory: "Historique",
@@ -335,6 +337,7 @@ const text = {
   },
   ar: {
     brand: "JONAS PROGRESS · تقدّم",
+    brandShort: "JONAS PROGRESS",
     navDashboard: "لوحة القيادة",
     navRoutines: "الروتينات",
     navHistory: "السجل",

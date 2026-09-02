@@ -201,6 +201,6 @@ test("mobile actions stay usable and cannot overflow horizontally", () => {
   const mobile = tail(css, "@media(max-width:520px){");
   assert.match(mobile, /\.progress-routine-card\{flex-wrap:wrap\}/, "card wraps on small screens");
   assert.match(mobile, /\.progress-routine-card-actions\{width:100%;justify-content:flex-end\}/, "actions take their own full row");
-  assert.match(mobile, /\.progress-routine-card-actions \.progress-ghost\{flex:1;padding:12px 10px\}/, "touch-sized full-width buttons");
+  assert.match(mobile, /\.progress-routine-card-actions \.progress-ghost\{flex:1;padding:13px 10px;min-height:44px\}/, "touch-sized full-width buttons (44px+ target)");
   assert.match(css, /\.progress-routine-card-main\{[^}]*min-width:0/, "card main content can shrink so nothing forces overflow");
 });

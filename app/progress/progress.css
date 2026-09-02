@@ -2,9 +2,10 @@
    Self-service training log UI. Serious, minimal, data-driven.
    Dark ink + lime accents, mobile-first (used in the gym). */
 
-.progress-page{min-height:100vh;background:#f0efE7;color:var(--ink);}
+.progress-page{min-height:100vh;min-height:100dvh;background:#f0efE7;color:var(--ink);}
 .progress-header{position:sticky;top:0;z-index:30;height:66px;background:#10120e;color:#f3f2ea;padding:0 16px;display:flex;align-items:center;gap:14px;border-bottom:1px solid rgba(255,255,255,.1);}
 .progress-brand{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:760;letter-spacing:.12em;white-space:nowrap}
+.progress-brand-short{display:none}
 .progress-brand .brand-mark{width:30px;height:30px;display:grid;place-items:center;background:var(--lime);color:var(--ink);font-size:12px;transform:skew(-7deg);letter-spacing:-.06em}
 .progress-nav{display:flex;gap:6px;margin-left:auto}
 .progress-nav a{padding:9px 12px;color:#8e9387;font-size:11px;border-left:1px solid transparent}
@@ -168,7 +169,7 @@
 .progress-move-to-section select{border:1px solid #c9cbc1;background:#fff;padding:6px;font-size:10px;color:#151712;width:100%;max-width:150px}
 
 /* Logger */
-.progress-overlay{min-height:100vh;background:#10120e;color:#f3f2ea;width:100%}
+.progress-overlay{min-height:100vh;min-height:100dvh;background:#10120e;color:#f3f2ea;width:100%}
 .progress-logger-head{height:62px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid #2a2e26;position:sticky;top:0;background:#10120e;z-index:20}
 .progress-logger-head a{color:#9aa091;font-size:10px;text-decoration:none}
 .progress-logger-head strong{font-size:12px;letter-spacing:.04em}
@@ -214,7 +215,7 @@
 .progress-progress-count{margin-left:auto;color:#8b9180;font-size:10px}
 .progress-discard{background:transparent;border:1px solid #a23830;color:#e0b0aa;padding:10px 12px;font-size:10px;cursor:pointer}
 /* In-product partial-workout confirmation (dark logger theme; no window.confirm) */
-.progress-confirm-backdrop{position:fixed;inset:0;background:rgba(16,18,14,.74);display:grid;place-items:center;z-index:60;padding:16px}
+.progress-confirm-backdrop{position:fixed;inset:0;background:rgba(16,18,14,.74);display:grid;place-items:center;z-index:60;padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom))}
 .progress-confirm-panel{background:#1a1e17;border:1px solid #3a3f35;color:#f3f2ea;max-width:420px;width:100%;padding:20px;display:grid;gap:10px}
 .progress-confirm-panel>strong{font-size:16px;letter-spacing:-.02em}
 .progress-confirm-panel>span{font-size:11px;color:#a7aba0;line-height:1.6}
@@ -265,11 +266,51 @@
 .rtl-site .progress-header,.rtl-site .progress-lang{direction:ltr}
 
 @media(max-width:820px){
-  .progress-kpi-grid{grid-template-columns:1fr 1fr}
-  .progress-dash-grid,.progress-history-layout{grid-template-columns:1fr}
+  /* Mobile shell: compact top bar (JP + JONAS PROGRESS only), the three
+     destinations move into a fixed bottom tab bar, language switcher stays in
+     the account area. Safe-area insets keep the notch and home indicator clear. */
+  .progress-header{height:calc(60px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 12px 0;gap:10px}
+  .progress-brand{font-size:10px;gap:8px}
+  .progress-brand-full{display:none}
+  .progress-brand-short{display:inline}
+  .progress-name{display:none}
+  .progress-header-end{gap:8px;margin-inline-start:4px}
+  .progress-lang button{padding:8px 6px}
+  .progress-nav{position:fixed;inset-inline:0;bottom:0;z-index:40;display:flex;gap:0;margin-inline:0;background:#10120e;border-top:1px solid rgba(255,255,255,.12);padding-bottom:env(safe-area-inset-bottom)}
+  .progress-nav a{flex:1;display:flex;align-items:center;justify-content:center;min-height:56px;padding:8px 4px;text-align:center;font-size:10px;line-height:1.2;border-left:0;border-top:2px solid transparent}
+  .progress-nav a.active,.progress-nav a:hover{color:#fff;border-color:var(--lime)}
+  .progress-content{padding:22px 14px calc(76px + env(safe-area-inset-bottom))}
+  .rtl-site .progress-nav{direction:rtl}
+  /* Dashboard mobile density: tighter hero, consistent gaps, 2x2 KPI stays */
+  .progress-dash-head{margin-bottom:14px;gap:12px}
+  .progress-dash-head h1{font-size:clamp(30px,8vw,44px);margin:6px 0}
+  .progress-kpi-grid{gap:12px;grid-template-columns:1fr 1fr}
+  .progress-kpi-grid article{padding:14px}
+  .progress-kpi-grid strong{font-size:30px;margin-top:10px}
+  .progress-kpi-grid span{font-size:8px}
+  .progress-dash-grid{gap:12px;grid-template-columns:1fr}
+  .progress-panel{padding:16px}
+  .progress-active-card{padding:14px;gap:12px}
+  .progress-active-card strong{font-size:17px}
+  .progress-trend-row,.progress-pr-list>div{flex-wrap:wrap;gap:6px 12px}
+  .progress-trend-row>span:last-child{white-space:nowrap;text-align:right}
+  .progress-pr-list>div>strong{white-space:nowrap}
+  .progress-pr-list b{overflow-wrap:anywhere}
+  /* History mobile: full-width selector, 2x2 records, full-width chart */
+  .progress-history-layout{grid-template-columns:1fr;gap:12px}
+  .progress-history-select{max-width:none}
+  .progress-records article{padding:14px}
+  .progress-records strong{font-size:19px}
+  .progress-chart svg{height:130px}
+  .progress-chart-empty{height:130px}
+  .progress-history-recent{padding:12px}
+  /* Routine detail: thumb-friendly primary controls */
+  .progress-start{width:100%;justify-content:center;min-height:48px}
+  .progress-routine-toolbar .progress-ghost{min-height:44px;display:inline-flex;align-items:center}
+  .progress-section-actions .progress-ghost{min-height:44px;display:inline-flex;align-items:center}
+  .progress-move-to-section select{min-height:44px}
   .progress-add-form{grid-template-columns:1fr 1fr}
   .progress-routine-head{align-items:flex-start;flex-direction:column}
-  .progress-start{width:100%;justify-content:center}
   .progress-exercise-edit{grid-template-columns:1fr 1fr 1fr}
   .progress-section-grip,.progress-drag-handle{display:none}
   .progress-add-section{align-items:stretch;flex-direction:column}
@@ -277,21 +318,46 @@
   .progress-exercise-actions .progress-move-to-section{flex:1;min-width:120px}
 }
 @media(max-width:520px){
-  .progress-header{padding:0 10px;gap:8px}
-  .progress-nav a{padding:8px 8px;font-size:10px}
-  .progress-name{display:none}
-  .progress-content{padding:26px 10px 70px}
+  /* Narrowest phones (375/390): compact everything, 44px+ touch targets, 16px
+     inputs (prevents iOS auto-zoom), dialog fits the viewport, safe areas. */
+  .progress-header{padding:env(safe-area-inset-top) 10px 0;gap:8px}
+  .progress-nav a{font-size:9px;padding:6px 2px}
+  .progress-content{padding:18px 10px calc(76px + env(safe-area-inset-bottom))}
   .progress-dash-head{flex-direction:column;align-items:flex-start}
   .progress-last-session{text-align:left}
   .progress-kpi-grid{grid-template-columns:1fr 1fr;gap:8px}
-  .progress-exercise-card{grid-template-columns:1fr;gap:8px}.progress-exercise-actions{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-end}.progress-exercise-actions button{min-width:44px}
+  .progress-kpi-grid article{padding:12px}
+  .progress-kpi-grid strong{font-size:26px}
+  .progress-panel{padding:14px}
+  .progress-trend-row strong,.progress-pr-list b{font-size:11px}
+  .progress-create-routine{flex-direction:column;align-items:stretch;padding:12px}
+  .progress-create-routine .progress-cta{min-height:48px;justify-content:center}
+  .progress-exercise-card{grid-template-columns:1fr;gap:8px}
+  .progress-exercise-actions{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+  .progress-exercise-actions button{min-width:44px;min-height:44px}
+  .progress-exercise-title strong{font-size:16px}
+  .progress-add-form{grid-template-columns:1fr}
+  .progress-add-form input,.progress-add-form select{padding:12px 10px;font-size:16px;min-height:44px}
   .progress-set-head,.progress-set-body>div{grid-template-columns:22px 1fr 1fr 1fr 1fr 46px;gap:4px;padding:8px}
-  .progress-set-body input{padding:8px 4px;font-size:13px}
-  .progress-exercise-tabs button{padding:8px 10px}
+  .progress-set-body input{padding:11px 4px;font-size:16px;min-height:44px}
+  .progress-set-body button{min-height:44px;padding:11px 6px;font-size:12px}
+  .progress-set-body strong{font-size:11px}
+  .progress-exercise-tabs button{padding:8px 10px;min-width:36px;min-height:40px}
+  .progress-logger-top h1{font-size:24px}
+  .progress-logger-top .progress-cta{min-height:48px}
+  .progress-rest-timer button{min-height:44px;padding:11px 12px}
+  .progress-logger-foot .progress-ghost,.progress-logger-foot .progress-discard{min-height:44px;padding:12px 10px}
+  .progress-logger-live{padding:18px 12px calc(84px + env(safe-area-inset-bottom))}
   .progress-section-head{flex-wrap:wrap}
   .progress-section-actions{margin-inline-start:0;width:100%}
+  .progress-section-actions .progress-ghost{min-height:44px;padding:11px 10px}
   .progress-routine-card{flex-wrap:wrap}
+  .progress-routine-card-main{flex-wrap:wrap;gap:8px}
+  .progress-routine-card-main>span:last-child{font-size:9px}
   .progress-routine-card-actions{width:100%;justify-content:flex-end}
-  .progress-routine-card-actions .progress-ghost{flex:1;padding:12px 10px}
+  .progress-routine-card-actions .progress-ghost{flex:1;padding:13px 10px;min-height:44px}
   .progress-routine-confirm{max-width:none}
+  .progress-confirm-backdrop{padding:max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))}
+  .progress-confirm-panel{padding:16px}
+  .progress-confirm-actions button{min-height:48px;padding:13px 16px;flex:1}
 }

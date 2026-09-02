@@ -20,9 +20,11 @@ function Nav({ children }: { children: React.ReactNode }) {
   return (
     <main dir={rtl ? "rtl" : "ltr"} className={`progress-page ${baseClass}`}>
       <header className="progress-header">
-        <Link className="progress-brand" href="/progress"><span className="brand-mark">JP</span><span>{t.brand}</span></Link>
+        {/* Full brand on desktop; the compact brand (no · PROGRESSION tagline) is
+            shown at the mobile breakpoint via CSS to keep the top bar narrow. */}
+        <Link className="progress-brand" href="/progress" aria-label={t.brand}><span className="brand-mark">JP</span><span className="progress-brand-full">{t.brand}</span><span className="progress-brand-short">{t.brandShort}</span></Link>
         <nav className="progress-nav" aria-label="Progress">
-          {links.map((link) => <Link key={link.href} className={link.active ? "active" : ""} href={link.href}>{link.label}</Link>)}
+          {links.map((link) => <Link key={link.href} className={link.active ? "active" : ""} href={link.href} aria-current={link.active ? "page" : undefined}>{link.label}</Link>)}
         </nav>
         <div className="progress-header-end">
           <div className="progress-lang">{progressLocales.map((l) => <button type="button" key={l.code} className={lang === l.code ? "active" : ""} onClick={() => setLang(l.code)}>{l.label}</button>)}</div>
