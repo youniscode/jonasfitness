@@ -36,6 +36,7 @@ export default function WorkoutLogger() {
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmingFinish, setConfirmingFinish] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
   const [restRunning, setRestRunning] = useState(false);
   const saveTimer = useRef<number | null>(null);
@@ -101,11 +102,9 @@ export default function WorkoutLogger() {
     }) }));
     if (completing) { setRestSeconds(90); setRestRunning(true); }
   }
-  async function finishWorkout() {
+  async function completeWorkout() {
     const latest = workoutRef.current ?? workout;
     if (!latest) return;
-    const completedSets = latest.exercises.flatMap((e) => e.sets).filter((s) => s.status === "completed").length;
-    if (completedSets === 0) { setMessage(t.saveError); return; }
     setSaving(true);
     try {
       const saved = await request<{ session: Session }>(`/api/progress/workouts/${latest.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ exercises: latest.exercises, notes: latest.notes, status: "completed" }) });
@@ -113,9 +112,23 @@ export default function WorkoutLogger() {
       setWorkout(saved.session);
       setMode("summary");
       setMessage("");
+      setConfirmingFinish(false);
     } catch (issue) {
       setMessage(issue instanceof Error ? issue.message : t.finishError);
     } finally { setSaving(false); }
+  }
+  // Finish gating: 0 completed sets refuses (existing behavior); a partial
+  // workout (some but not all prescribed sets done) opens an in-product
+  // confirmation instead of silently completing; a full workout completes
+  // directly. No window.confirm for the partial flow.
+  function requestFinish() {
+    const latest = workoutRef.current ?? workout;
+    if (!latest) return;
+    const completedSets = latest.exercises.flatMap((e) => e.sets).filter((s) => s.status === "completed").length;
+    if (completedSets === 0) { setMessage(t.saveError); return; }
+    const totalSets = latest.exercises.flatMap((e) => e.sets).length;
+    if (completedSets < totalSets) { setConfirmingFinish(true); return; }
+    void completeWorkout();
   }
   async function discardWorkout() {
     const latest = workoutRef.current ?? workout;
@@ -135,15 +148,22 @@ export default function WorkoutLogger() {
   if (mode === "summary" && workout) {
     const flat = workout.exercises.filter((e) => e.sets.some((s) => s.status === "completed"));
     const completedSets = flat.flatMap((e) => e.sets).filter((s) => s.status === "completed").length;
+    const totalSets = workout.exercises.flatMap((e) => e.sets).length;
+    const partial = completedSets < totalSets;
     const volume = flat.flatMap((e) => e.sets).filter((s) => s.status === "completed").reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+    // A "new personal best" requires a PREVIOUS completed performance for that
+    // exercise: the first-ever logged session establishes the baseline instead.
     const records = flat.filter((e) => {
       const currentMax = Math.max(0, ...e.sets.filter((s) => s.status === "completed").map((s) => s.weight ?? 0));
-      const previousMax = Math.max(0, ...(data?.previous[e.id]?.sets ?? []).map((s) => s.weight ?? 0));
+      const previous = data?.previous[e.id];
+      const previousSets = (previous?.sets ?? []).filter(isCompletedWorkoutSet);
+      if (!previous || previousSets.length === 0) return false;
+      const previousMax = Math.max(0, ...previousSets.map((s) => s.weight ?? 0));
       return currentMax > previousMax && currentMax > 0;
     }).length;
     return (
       <div className="progress-overlay"><main className="progress-complete">
-        <p>{t.kicker}</p><h1>{t.workoutComplete}</h1><h2>{workout.title}</h2><span>{t.everySetLogged}</span>
+        <p>{t.kicker}</p><h1>{partial ? t.workoutSaved : t.workoutComplete}</h1><h2>{workout.title}</h2><span>{partial ? `${completedSets} ${t.of} ${totalSets} ${t.sets} ${t.completedWord}. ` : ""}{t.yourSetsLogged}</span>
         <div className="progress-complete-kpis">
           <article><small>{t.completedSets}</small><strong>{completedSets}</strong></article>
           <article><small>{t.volume}</small><strong>{Math.round(volume)} {workout.weightUnit}</strong></article>
@@ -172,7 +192,7 @@ export default function WorkoutLogger() {
       <main className="progress-logger-live">
         <div className="progress-logger-top">
           <div><p>{t.kicker}</p><h1>{current.name}</h1><span>{t.exerciseOf} {exerciseIndex + 1} {t.of} {workout.exercises.length}</span></div>
-          <button className="progress-cta" onClick={() => void finishWorkout()}>{t.finish}<span>✓</span></button>
+          <button className="progress-cta" onClick={() => void requestFinish()}>{t.finish}<span>✓</span></button>
         </div>
 
         <nav className="progress-exercise-tabs" aria-label={t.exerciseOf}>{workout.exercises.map((exercise, index) => (
@@ -215,6 +235,19 @@ export default function WorkoutLogger() {
           <button type="button" className="progress-discard" onClick={() => void discardWorkout()}>{t.discard}</button>
         </footer>
       </main>
+
+      {confirmingFinish && workout && (
+        <div className="progress-confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="progress-finish-confirm-title">
+          <div className="progress-confirm-panel">
+            <strong id="progress-finish-confirm-title">{t.finishPartialTitle}</strong>
+            <span>{t.finishPartialYouCompleted} {completedCount} {t.of} {totalSets} {t.sets}. {t.finishPartialBody}</span>
+            <div className="progress-confirm-actions">
+              <button type="button" className="progress-ghost" onClick={() => setConfirmingFinish(false)} disabled={saving}>{t.continueWorkout}</button>
+              <button type="button" className="progress-cta" onClick={() => void completeWorkout()} disabled={saving}>{t.finishAnyway}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

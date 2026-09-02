@@ -586,9 +586,13 @@ export function buildDashboardSummary(
   const completedFourWeeks = completed.filter((row) => row.completedAt && new Date(row.completedAt).getTime() >= now.getTime() - windowMs).length;
 
   // Per-exercise best-per-session tracking for PR detection and improvement count.
+  // PR detection walks sessions CHRONOLOGICALLY (oldest -> newest): a session
+  // only counts as a personal best when a PREVIOUS completed performance exists
+  // for that exercise and this session genuinely improves on it. The first-ever
+  // session establishes the baseline instead of being announced as a new PB.
   const bestByExercise = new Map<string, { name: string; bestWeight: number; bestE1rm: number }>();
   const recentPRs: DashboardSummary["recentPRs"] = [];
-  for (const row of completed) {
+  for (const row of [...completed].reverse()) {
     if (!row.completedAt) continue;
     const date = new Date(row.completedAt).toISOString();
     for (const exercise of row.exercises) {
@@ -598,10 +602,13 @@ export function buildDashboardSummary(
       const heaviest = Math.max(0, ...completedSets.map((set) => set.weight ?? 0));
       const key = exercise.programmeExerciseId || normaliseName(exercise.name);
       const prior = bestByExercise.get(key);
-      if (!prior || e1rm > prior.bestE1rm || heaviest > prior.bestWeight) {
+      if (!prior) {
+        // First recorded performance: baseline only, never a "new PB".
+        bestByExercise.set(key, { name: exercise.name, bestWeight: heaviest, bestE1rm: e1rm });
+      } else if (e1rm > prior.bestE1rm || heaviest > prior.bestWeight) {
         recentPRs.push({ date, exercise: exercise.name, weight: heaviest, reps: completedSets.find((s) => (s.weight ?? 0) === heaviest)?.reps ?? 0 });
-        bestByExercise.set(key, { name: exercise.name, bestWeight: Math.max(heaviest, prior?.bestWeight ?? 0), bestE1rm: Math.max(e1rm, prior?.bestE1rm ?? 0) });
-      } else if (prior) {
+        bestByExercise.set(key, { name: exercise.name, bestWeight: Math.max(heaviest, prior.bestWeight), bestE1rm: Math.max(e1rm, prior.bestE1rm) });
+      } else {
         bestByExercise.set(key, { name: exercise.name, bestWeight: prior.bestWeight, bestE1rm: prior.bestE1rm });
       }
     }
@@ -613,7 +620,9 @@ export function buildDashboardSummary(
     lastWorkoutAt: completed[0]?.completedAt ? new Date(completed[0].completedAt).toISOString() : null,
     exercisesImproving: bestByExercise.size > 0 && completed.length >= 2 ? bestByExercise.size : 0,
     exercisesTracked: bestByExercise.size,
-    recentPRs: recentPRs.slice(0, 6),
-    consistencyPercent: completed.length === 0 ? null : Math.round((completedFourWeeks / Math.max(1, Math.ceil(28 / 7)))),
+    // PRs were collected chronologically; newest first for the "recent" list.
+    recentPRs: recentPRs.reverse().slice(0, 6),
+    // 4-session / 4-week definition: 1/4 -> 25%, 4/4 -> 100%, capped at 100%.
+    consistencyPercent: completed.length === 0 ? null : Math.min(100, Math.round((completedFourWeeks / 4) * 100)),
   };
 }

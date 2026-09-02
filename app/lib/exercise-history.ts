@@ -19,6 +19,15 @@ export type ExerciseHistoryPoint = {
   volume: number;
   bestSetVolume: number;
   estimatedOneRepMax: number;
+  /**
+   * ONE actual logged set (never a fabricated pair): the completed set that
+   * produced this point's estimated 1RM - the established performance
+   * definition. A displayed "weight x reps" pair must come from this set so
+   * the athlete is never shown a heaviest-weight-from-A x most-reps-from-B
+   * combination they never performed. bestWeight/bestReps above remain the
+   * standalone per-session extremes for the LOAD / BEST REPS record cards.
+   */
+  bestSet: { weight: number; reps: number; rir: string; estimatedOneRepMax: number };
 };
 
 export type ExerciseHistoryItem = {
@@ -63,6 +72,19 @@ export function buildExerciseHistory(rows: WorkoutHistoryRow[]): ExerciseHistory
         const repetitions = Math.min(set.reps ?? 0, 20);
         return weight > 0 && repetitions > 0 ? weight * (1 + repetitions / 30) : 0;
       });
+      // Representative set for display: the one with the highest estimated 1RM
+      // (ties go to the heavier weight), so its weight x reps pair is a real
+      // logged set and its e1RM agrees exactly with the point's estimate.
+      const bestSet = sets.reduce((best, set) => {
+        const e1rm = set.weight !== null && (set.reps ?? 0) > 0
+          ? (set.weight ?? 0) * (1 + Math.min(set.reps ?? 0, 20) / 30)
+          : 0;
+        const bestE1rm = best.weight !== null && (best.reps ?? 0) > 0
+          ? (best.weight ?? 0) * (1 + Math.min(best.reps ?? 0, 20) / 30)
+          : 0;
+        if (e1rm > bestE1rm || (e1rm === bestE1rm && (set.weight ?? 0) > (best.weight ?? 0))) return set;
+        return best;
+      });
       const point: ExerciseHistoryPoint = {
         workoutId: workout.id,
         workoutTitle: workout.title,
@@ -74,6 +96,14 @@ export function buildExerciseHistory(rows: WorkoutHistoryRow[]): ExerciseHistory
         volume: round(setVolumes.reduce((sum, value) => sum + value, 0)),
         bestSetVolume: round(Math.max(...setVolumes)),
         estimatedOneRepMax: round(Math.max(...estimatedMaxes)),
+        bestSet: {
+          weight: bestSet.weight ?? 0,
+          reps: bestSet.reps ?? 0,
+          rir: bestSet.rir,
+          estimatedOneRepMax: round(bestSet.weight !== null && (bestSet.reps ?? 0) > 0
+            ? (bestSet.weight ?? 0) * (1 + Math.min(bestSet.reps ?? 0, 20) / 30)
+            : 0),
+        },
       };
       const key = exerciseKey(exercise);
       const existing = grouped.get(key);

@@ -121,7 +121,7 @@ export default function RoutinesView() {
                 <div className="progress-routine-card" key={routine.id}>
                   <Link href={`/progress/routines/${routine.id}`} className="progress-routine-card-main">
                     <span><small>{routine.exercises.length} {t.exercises.toLowerCase()}</small><strong>{routine.name}</strong>{routine.notes && <span>{routine.notes}</span>}</span>
-                    <span>{new Date(routine.updatedAt).toLocaleDateString(locale)}{routine.exercises.length > 0 ? ` · ${routine.exercises.length} ex` : ""}</span>
+                    <span>{new Date(routine.updatedAt).toLocaleDateString(locale)}</span>
                   </Link>
                   {confirmingId === routine.id
                     ? (
