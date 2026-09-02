@@ -116,12 +116,12 @@
 .progress-exercise-order{width:32px;height:32px;display:grid;place-items:center;background:#171a15;color:var(--lime);font-size:12px;font-weight:800}
 .progress-exercise-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
 .progress-exercise-title strong{font-size:15px}
-.progress-exercise-prescription{font-size:9px;color:#65713e;letter-spacing:.06em;font-weight:700}
+.progress-exercise-prescription{font-size:9px;color:#546126;letter-spacing:.06em;font-weight:700}
 .progress-exercise-edit{display:grid;grid-template-columns:90px 1fr 90px;gap:10px;margin-top:10px}
-.progress-exercise-edit label{font-size:8px;color:#71756b;display:grid;gap:4px}
+.progress-exercise-edit label{font-size:8px;color:#54584d;font-weight:700;display:grid;gap:4px}
 .progress-exercise-edit .progress-rep-range{display:flex;align-items:center;gap:4px}
 .progress-exercise-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
-.progress-exercise-actions button{min-width:30px;border:1px solid #d7d8cf;background:#fff;cursor:pointer;font-size:11px;padding:6px}
+.progress-exercise-actions button{min-width:30px;border:1px solid #c9cbc1;background:#fff;cursor:pointer;font-size:11px;padding:6px;color:#151712}
 .progress-remove{color:#a23830;border-color:#e0b9b3!important}
 
 /* Routine sections + drag-and-drop */
@@ -142,13 +142,19 @@
 .progress-section-confirm>span{font-size:10px;color:#71756b;line-height:1.5}
 .progress-ungrouped-head{background:#fff}
 .progress-ungrouped-head>strong{color:#6c7065;text-transform:uppercase;font-size:9px;letter-spacing:.14em;font-weight:800}
-.progress-section .progress-exercise-card{border:0;border-bottom:1px solid #ecece5}
+.progress-section .progress-exercise-card{border:0;border-bottom:1px solid #e2e3db}
 .progress-exercise-card.dragover{position:relative}
+/* Resting exercise rows are always fully active: section, drag/reorder and
+   ungrouped states must never fade normal content. Only :disabled controls
+   may dim, so enabled controls stay clearly distinguishable from disabled. */
+.progress-exercise-card,.progress-exercise-main,.progress-exercise-title{opacity:1;color:var(--ink)}
+.progress-exercise-actions button:disabled{opacity:.35;cursor:default}
+.progress-exercise-edit select:disabled,.progress-exercise-edit input:disabled,.progress-move-to-section select:disabled{opacity:.5;cursor:default}
 .progress-drag-handle{flex:none;color:#a9aca0;cursor:grab;font-size:14px;line-height:1;padding:2px;user-select:none;-webkit-user-drag:element}
 .progress-drag-handle:hover{color:#10120e}
 .progress-drag-handle:active{cursor:grabbing}
-.progress-move-to-section{display:grid;gap:3px;font-size:8px;color:#71756b;min-width:0}
-.progress-move-to-section select{border:1px solid #d7d8cf;background:#fff;padding:6px;font-size:10px;color:#151712;width:100%;max-width:150px}
+.progress-move-to-section{display:grid;gap:3px;font-size:8px;color:#54584d;font-weight:700;min-width:0}
+.progress-move-to-section select{border:1px solid #c9cbc1;background:#fff;padding:6px;font-size:10px;color:#151712;width:100%;max-width:150px}
 
 /* Logger */
 .progress-overlay{min-height:100vh;background:#10120e;color:#f3f2ea;width:100%}
