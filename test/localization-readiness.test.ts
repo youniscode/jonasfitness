@@ -122,7 +122,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   // FR
   assert.ok(home.includes("Obtenir Jonas Progress · 19 €"), "FR hero CTA");
   assert.ok(home.includes("Tu t’entraînes déjà."), "FR headline");
-  assert.ok(home.includes("Maintenant, sache si tu progresses."), "FR headline 2");
+  assert.ok(home.includes("Sache si tu progresses."), "FR headline 2");
   assert.ok(home.includes("PRÉCÉDENT → OBJECTIF → RÉEL"), "FR progression model");
   assert.ok(home.includes("19 € une seule fois"), "FR price");
   assert.ok(home.includes("Obtenir Jonas Progress"), "FR CTA");
@@ -130,7 +130,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   // EN
   assert.ok(home.includes("Get Jonas Progress · €19"), "EN hero CTA");
   assert.ok(home.includes("You already train."), "EN headline");
-  assert.ok(home.includes("Now know if you’re progressing."), "EN headline 2");
+  assert.ok(home.includes("Know if you’re progressing."), "EN headline 2");
   assert.ok(home.includes("PREVIOUS → TARGET → ACTUAL"), "EN progression model");
   assert.ok(home.includes("€19 one-time"), "EN price");
   assert.ok(home.includes("Get Jonas Progress"), "EN CTA");
@@ -138,7 +138,7 @@ test("homepage Progress copy is fr/en/ar with the progression model, price and p
   // AR
   assert.ok(home.includes("احصل على Jonas Progress · 19 €"), "AR hero CTA");
   assert.ok(home.includes("أنت تتدرّب بالفعل."), "AR headline");
-  assert.ok(home.includes("الآن اعرف إن كنت تتقدّم فعلاً."), "AR headline 2");
+  assert.ok(home.includes("اعرف إن كنت تتقدّم."), "AR headline 2");
   assert.ok(home.includes("السابق ← الهدف ← الفعلي"), "AR progression model");
   assert.ok(home.includes("19 € دفعة واحدة"), "AR price");
   assert.ok(home.includes("احصل على Jonas Progress"), "AR CTA");
