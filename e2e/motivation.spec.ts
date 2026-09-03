@@ -77,11 +77,19 @@ test("achievements page: EARNED cards with dates, NEXT rows with current/target 
 
   const next = page.locator(".progress-milestone-next");
   await expect(next).toHaveCount(5);
-  // Sorted by smallest remaining gap: 9/10 first, then 3/4, 2/5, 40/100, 620/1000.
+  // NEXT is sorted by progressPercent desc (never raw remaining amount):
+  // 9/10=90%, 3/4=75%, 620/1000=62%, then the 2/5=40% vs 40/100=40% tie in
+  // deterministic definition order (five_pbs before hundred_sets).
   await expect(next.nth(0)).toContainText("10 séances");
   await expect(next.nth(0)).toContainText("9 / 10");
   await expect(next.nth(1)).toContainText("4 semaines d'affilée");
   await expect(next.nth(1)).toContainText("3 / 4");
+  await expect(next.nth(2)).toContainText("1 000 kg de volume cumulé");
+  await expect(next.nth(2)).toContainText("620 / 1 000");
+  await expect(next.nth(3)).toContainText("5 records personnels");
+  await expect(next.nth(3)).toContainText("2 / 5");
+  await expect(next.nth(4)).toContainText("100 séries de travail");
+  await expect(next.nth(4)).toContainText("40 / 100");
 
   const bar = next.nth(0).locator(".progress-milestone-bar");
   const track = (await bar.boundingBox())!;

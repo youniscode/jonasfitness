@@ -90,6 +90,30 @@ export type MilestoneEvaluation = {
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
+/** Stable definition order of MILESTONES, used to break progressPercent ties in
+ *  the NEXT presentation list deterministically (id is the final fallback). */
+const MILESTONE_ORDER = new Map<MilestoneId, number>(MILESTONES.map((milestone, index) => [milestone.id, index]));
+
+/**
+ * Compares two milestones for the unearned NEXT presentation list: higher
+ * progressPercent first. Ties break by milestone definition order (the stable
+ * centralized MILESTONES order), then by milestone id - always deterministic.
+ * Raw remaining amount (threshold - currentValue) is never compared, because
+ * thresholds have different units across kinds (workouts vs PBs vs sets vs kg).
+ */
+export function compareNextMilestones(a: MilestoneState, b: MilestoneState): number {
+  if (a.progressPercent !== b.progressPercent) return b.progressPercent - a.progressPercent;
+  const orderDiff = (MILESTONE_ORDER.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (MILESTONE_ORDER.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+  if (orderDiff !== 0) return orderDiff;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** The unearned milestones for the NEXT section, ordered by closeness to
+ *  completion (highest progressPercent first). Earned milestones never appear. */
+export function nextMilestones(milestones: readonly MilestoneState[]): MilestoneState[] {
+  return [...milestones].filter((milestone) => !milestone.isEarned).sort(compareNextMilestones);
+}
+
 /** Mirrors the private normaliseName in progress-mechanics so the per-exercise
  *  key (programmeExerciseId || normalized name) is byte-identical to the
  *  Dashboard PB walk - the parity test enforces this contract. */

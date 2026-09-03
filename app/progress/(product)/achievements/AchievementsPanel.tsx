@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useProgressLang } from "../progress-lang";
 import { milestoneTitle, progressLocale } from "../progress-text";
-import type { MilestoneEvaluation } from "../../../lib/progress-milestones";
+import { nextMilestones, type MilestoneEvaluation } from "../../../lib/progress-milestones";
 
 async function fetchEvaluation(): Promise<MilestoneEvaluation> {
   const response = await fetch("/api/progress/achievements");
@@ -32,12 +32,13 @@ export default function AchievementsPanel() {
 
   if (!evaluation && !error) return <section className="progress-base" />;
 
+  // Earned stays chronological (newest first, by its earnedAt session date).
   const earned = evaluation
     ? [...evaluation.milestones].filter((m) => m.isEarned).sort((a, b) => (b.earnedAt ?? "").localeCompare(a.earnedAt ?? ""))
     : [];
-  const next = evaluation
-    ? [...evaluation.milestones].filter((m) => !m.isEarned).sort((a, b) => (a.threshold - a.currentValue) - (b.threshold - b.currentValue))
-    : [];
+  // NEXT is ordered by closeness to completion (highest progressPercent first,
+  // deterministic definition-order tie-break), never by raw remaining amount.
+  const next = evaluation ? nextMilestones(evaluation.milestones) : [];
   const anyEarned = earned.length > 0;
 
   return (

@@ -166,13 +166,40 @@ export default function BodyweightPanel() {
 
   const changeValue = trend.changeKg !== null ? displayWeight(trend.changeKg) : null;
 
+  // The add-entry form is ONE implementation shared by the populated page (its
+  // "add measurement" panel) and the zero-entry state (shown directly under
+  // the empty message so the page ends naturally above the fixed nav).
+  const unitToggle = (
+    <div className="progress-bw-unit" role="group" aria-label={t.unit}>
+      {(["kg", "lb"] as const).map((choice) => <button key={choice} type="button" className={unit === choice ? "active" : ""} onClick={() => { setUnit(choice); persistBodyweightUnit(choice); setEditingId(null); }}>{choice === "kg" ? t.kg : t.lb}</button>)}
+    </div>
+  );
+  const weightFields = (
+    <div className="progress-bw-form">
+      <label>{t.measurementDate}<input type="date" value={date} max={localDateInput(new Date())} onChange={(e) => setDate(e.target.value)} /></label>
+      <label>{t.weightField}<input type="text" inputMode="decimal" placeholder="80" value={weight} onChange={(e) => setWeight(e.target.value)} /></label>
+      <button type="button" className="progress-cta" disabled={busy} onClick={() => { void submit(); }}>{t.add}<span>→</span></button>
+    </div>
+  );
+  const addEntryPanel = (
+    <section className="progress-panel">
+      <div className="progress-panel-head"><div><p>{t.addMeasurement}</p></div></div>
+      {unitToggle}
+      {weightFields}
+      {formError && <p className="progress-error" role="alert">{formError}</p>}
+    </section>
+  );
+
   return (
     <section className="progress-base">
       <div className="progress-dash-head"><div><p>{t.kicker}</p><h1>{t.bodyweightTitle}</h1><span>{t.bodyweightIntro}</span></div></div>
       {error && <p className="progress-error" role="alert">{error}</p>}
 
       {entries === null ? null : entries.length === 0 ? (
-        <div className="progress-empty"><strong>{t.noEntries}</strong><span>{t.noEntriesHint}</span></div>
+        <div className="progress-bw-empty">
+          <div className="progress-empty"><strong>{t.noEntries}</strong><span>{t.noEntriesHint}</span></div>
+          {addEntryPanel}
+        </div>
       ) : (
         <>
           <div className="progress-bw-latest">
@@ -195,18 +222,7 @@ export default function BodyweightPanel() {
                 ? <div className="progress-chart-empty"><strong>{points.length === 1 ? `${fmtWeight(chartValues[0])} ${unit}` : "-"}</strong><span>{t.trendOneMore}</span></div>
                 : <div className="progress-chart"><div className="progress-chart-head"><b>{fmtWeight(chartLow)}–{fmtWeight(chartHigh)} {unit}</b><span>{points.length} {t.sessions.toLowerCase()}</span></div><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={t.trendAria}><path d="M2 16H96M2 52H96M2 88H96" className="progress-chart-grid" /><polyline points={polyline} fill="none" vectorEffect="non-scaling-stroke" /></svg><div className="progress-chart-dates"><span>{fmtDate(points[0].measuredAt)}</span><span>{fmtDate(points[points.length - 1].measuredAt)}</span></div></div>}
             </section>
-            <section className="progress-panel">
-              <div className="progress-panel-head"><div><p>{t.addMeasurement}</p></div></div>
-              <div className="progress-bw-unit" role="group" aria-label={t.unit}>
-                {(["kg", "lb"] as const).map((choice) => <button key={choice} type="button" className={unit === choice ? "active" : ""} onClick={() => { setUnit(choice); persistBodyweightUnit(choice); setEditingId(null); }}>{choice === "kg" ? t.kg : t.lb}</button>)}
-              </div>
-              <div className="progress-bw-form">
-                <label>{t.measurementDate}<input type="date" value={date} max={localDateInput(new Date())} onChange={(e) => setDate(e.target.value)} /></label>
-                <label>{t.weightField}<input type="text" inputMode="decimal" placeholder="80" value={weight} onChange={(e) => setWeight(e.target.value)} /></label>
-                <button type="button" className="progress-cta" disabled={busy} onClick={() => { void submit(); }}>{t.add}<span>→</span></button>
-              </div>
-              {formError && <p className="progress-error" role="alert">{formError}</p>}
-            </section>
+            {addEntryPanel}
           </div>
           <section className="progress-panel">
             <div className="progress-panel-head"><div><p>{t.historyLabel}</p></div></div>

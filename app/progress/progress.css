@@ -119,6 +119,11 @@
 .progress-bw-confirm{display:grid;gap:6px;width:100%}
 .progress-bw-confirm strong{font-size:13px}
 .progress-bw-confirm>span{font-size:10px;color:#71756b;line-height:1.5}
+/* Bodyweight zero-entry state: the empty message is followed immediately by
+   the shared add-entry form so the page ends naturally above the fixed nav.
+   Natural document flow only - no forced min-height, no spacer blocks. */
+.progress-bw-empty{display:grid;gap:12px;margin-top:4px}
+.progress-bw-empty .progress-empty{margin-top:0;padding:24px 18px}
 
 /* Routines */
 .progress-create-routine{display:flex;gap:10px;align-items:flex-end;background:#fff;border:1px solid #dedfd6;padding:14px;margin-bottom:14px}

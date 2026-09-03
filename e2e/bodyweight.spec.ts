@@ -141,10 +141,91 @@ test("local validation rejects an empty weight with localized copy", async ({ pa
   await expect(page.locator(".progress-error", { hasText: "Saisissez un poids." })).toBeVisible();
 });
 
-test("empty state shows the no-measurements hint", async ({ page }) => {
+/** Vertical gap between the zero-entry content (empty card + add form) and the
+ *  top of the fixed bottom nav: >= 0 means the form clears the nav, a small
+ *  bounded value means the page ends naturally without a giant dead region. */
+async function emptyNavGap(page: Page) {
+  const wrapper = page.locator(".progress-bw-empty");
+  const nav = page.locator(".progress-nav");
+  const wrapperBox = await wrapper.boundingBox();
+  const navBox = await nav.boundingBox();
+  return navBox!.y - (wrapperBox!.y + wrapperBox!.height);
+}
+
+async function todayInput(): Promise<string> {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+}
+
+test("empty state at 375x667: copy card, then the add form; first measurement transitions to the populated page", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/dev/progress-bodyweight?seed=empty");
+
+  // Approved copy stays on the card.
+  await expect(page.locator(".progress-empty")).toContainText("Aucun relevé pour le moment.");
+  await expect(page.locator(".progress-empty")).toContainText("Ajoutez votre premier relevé");
+
+  // The KG/LB toggle, date, weight and Add controls are part of the empty
+  // state, immediately below the message - no second form, same classes.
+  const unit = page.locator(".progress-bw-unit");
+  const form = page.locator(".progress-bw-form");
+  await expect(unit).toBeVisible();
+  await expect(unit.locator("button")).toHaveCount(2);
+  await expect(form).toBeVisible();
+  const input = form.locator("input[inputmode=decimal]");
+  expect(await input.evaluate((el) => getComputedStyle(el).fontSize), "16px input prevents iOS zoom").toBe("16px");
+  expect((await input.boundingBox())!.height, "weight input target").toBeGreaterThanOrEqual(44);
+  const addButton = form.locator(".progress-cta");
+  expect((await addButton.boundingBox())!.height, "Add target").toBeGreaterThanOrEqual(44);
+
+  // The fixed bottom nav neither covers the form nor leaves a giant void.
+  expect(await emptyNavGap(page), "form clears the fixed nav at 375").toBeGreaterThanOrEqual(40);
+  expect(await emptyNavGap(page), "no large dead-space regression at 375").toBeLessThanOrEqual(220);
+  expect(await overflowPx(page), "no horizontal overflow").toBeLessThanOrEqual(1);
+
+  // Adding the first measurement transitions to the populated architecture.
+  await form.locator("input[type=date]").fill(await todayInput());
+  await input.fill("82");
+  await addButton.click();
+  await expect(page.locator(".progress-bw-latest")).toBeVisible();
+  await expect(page.locator(".progress-bw-latest strong").first()).toContainText("82");
+  await expect(page.locator(".progress-empty")).toHaveCount(0);
+  await expect(page.locator(".progress-bw-row")).toHaveCount(1);
+});
+
+test("empty state at 390/393/430: form clears the fixed nav, dead space bounded, no overflow", async ({ page }) => {
+  for (const [width, height] of [[390, 844], [393, 852], [430, 932]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/dev/progress-bodyweight?seed=empty");
+    await expect(page.locator(".progress-bw-form .progress-cta")).toBeVisible();
+    const gap = await emptyNavGap(page);
+    expect(gap, `form clears the fixed nav at ${width}x${height}`).toBeGreaterThanOrEqual(40);
+    expect(gap, `dead-space regression guard at ${width}x${height}`).toBeLessThanOrEqual(360);
+    expect(await overflowPx(page), `no horizontal overflow at ${width}x${height}`).toBeLessThanOrEqual(1);
+    const input = page.locator(".progress-bw-form input[inputmode=decimal]");
+    expect(await input.evaluate((el) => getComputedStyle(el).fontSize), `input font at ${width}px`).toBe("16px");
+    expect((await input.boundingBox())!.height, `weight input target at ${width}px`).toBeGreaterThanOrEqual(44);
+    expect((await page.locator(".progress-bw-unit button").first().boundingBox())!.height, `unit toggle target at ${width}px`).toBeGreaterThanOrEqual(44);
+  }
+});
+
+test("RTL: Arabic empty bodyweight page keeps the form mirrored and usable", async ({ page }) => {
+  await page.addInitScript(() => {
+    try { window.localStorage.setItem("jonas-progress-lang", "ar"); } catch { /* storage may be disabled */ }
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dev/progress-bodyweight?seed=empty");
-  await expect(page.locator(".progress-empty")).toContainText("Aucun relevé pour le moment.");
+  await expect(page.locator("main.progress-page")).toHaveAttribute("dir", "rtl");
+  await expect(page.locator(".progress-dash-head h1")).toHaveText("وزن الجسم");
+  await expect(page.locator(".progress-empty")).toContainText("لا توجد قياسات بعد.");
+  const unit = page.locator(".progress-bw-unit");
+  await expect(unit).toBeVisible();
+  await expect(unit.locator("button").first()).toHaveText("kg");
+  const addButton = page.locator(".progress-bw-form .progress-cta");
+  await expect(addButton).toBeVisible();
+  expect((await addButton.boundingBox())!.height, "RTL Add target").toBeGreaterThanOrEqual(44);
+  expect(await emptyNavGap(page), "RTL form clears the fixed nav").toBeGreaterThanOrEqual(40);
+  expect(await overflowPx(page), "RTL no horizontal overflow").toBeLessThanOrEqual(1);
 });
 
 test("bodyweight at 375/393/430: no overflow, 16px inputs, 44px unit/action targets", async ({ page }) => {

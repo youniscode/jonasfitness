@@ -53,11 +53,17 @@ async function main() {
   await shot("bodyweight-375-bottom", "/dev/progress-bodyweight?seed=full", 375, 667, true);
   await shot("bodyweight-430", "/dev/progress-bodyweight?seed=full", 430, 932);
 
+  // NEW: bodyweight zero-entry state now ends with the add form (375/390/430).
+  await shot("bodyweight-empty-375", "/dev/progress-bodyweight?seed=empty", 375, 667);
+  await shot("bodyweight-empty-390", "/dev/progress-bodyweight?seed=empty", 390, 844);
+  await shot("bodyweight-empty-430", "/dev/progress-bodyweight?seed=empty", 430, 932);
+
   // Arabic RTL at 390 (persisted via localStorage like the live app).
   await page.evaluate(() => { try { localStorage.setItem("jonas-progress-lang", "ar"); } catch { /* noop */ } });
   await shot("dashboard-motivation-390-ar", "/dev/progress-motivation?seed=some", 390, 844);
   await shot("achievements-390-ar", "/dev/progress-achievements?seed=mixed", 390, 844);
   await shot("bodyweight-390-ar", "/dev/progress-bodyweight?seed=full", 390, 844);
+  await shot("bodyweight-empty-390-ar", "/dev/progress-bodyweight?seed=empty", 390, 844);
 
   await browser.close();
   server.kill();
