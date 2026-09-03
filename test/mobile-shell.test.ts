@@ -75,8 +75,13 @@ test("44px+ touch targets on narrow phones for primary interactions", () => {
 
 test("workout logger: 16px inputs prevent iOS auto-zoom and controls clear the bottom nav", () => {
   assert.match(mobile520, /\.progress-set-body input\{[^}]*font-size:16px/, "16px input text prevents iOS auto-zoom");
-  assert.match(mobile520, /\.progress-logger-live\{[^}]*calc\(84px \+ env\(safe-area-inset-bottom\)\)/, "logger content clears the bottom nav + safe area");
+  assert.match(mobile520, /\.progress-logger-live\{[^}]*calc\(40px \+ env\(safe-area-inset-bottom\)\)/, "logger content clears the bottom nav + safe area");
   assert.match(mobile520, /\.progress-logger-foot \.progress-ghost,[^}]*min-height:44px/, "Previous/Next/Discard 44px");
+  // The dark logger screen itself ends exactly at the fixed nav: the overlay's
+  // min-height is the viewport minus shell header, content pad and nav, so a
+  // short workout never leaves a large dark void above the tab bar.
+  assert.match(mobile520, /\.progress-overlay-live\{[^}]*min-height:calc\(100dvh - 60px - 18px - 56px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)/, "logger overlay fills down to the fixed nav");
+  assert.match(mobile820, /\.progress-content:has\(\.progress-overlay-live\)\{[^}]*padding-bottom:calc\(56px \+ env\(safe-area-inset-bottom\)\)/, "logger page bottom padding ends at the nav");
 });
 
 // ---------- Partial-workout dialog ----------

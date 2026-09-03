@@ -184,7 +184,7 @@ export default function WorkoutLogger() {
   const totalSets = workout.exercises.flatMap((e) => e.sets).length;
 
   return (
-    <div className="progress-overlay">
+    <div className="progress-overlay progress-overlay-live">
       <header className="progress-logger-head">
         <Link href="/progress/routines">← {t.backToRoutines}</Link>
         <strong>{workout.title}</strong>
@@ -230,9 +230,9 @@ export default function WorkoutLogger() {
         <textarea className="progress-logger-note" placeholder={t.notePlaceholder} rows={2} value={workout.notes} onChange={(e) => patch((w) => ({ ...w, notes: e.target.value }))} />
 
         <footer className="progress-logger-foot">
-          <button type="button" className="progress-ghost" disabled={exerciseIndex === 0} onClick={() => setExerciseIndex((i) => i - 1)}>← {t.previousExercise}</button>
+          <button type="button" className="progress-ghost progress-prev" disabled={exerciseIndex === 0} onClick={() => setExerciseIndex((i) => i - 1)}>← {t.previousExercise}</button>
           <span className="progress-progress-count">{completedCount}/{totalSets} · {message || t.autosave}</span>
-          <button type="button" className="progress-ghost" disabled={exerciseIndex === workout.exercises.length - 1} onClick={() => setExerciseIndex((i) => i + 1)}>{t.nextExercise} →</button>
+          <button type="button" className="progress-ghost progress-next" disabled={exerciseIndex === workout.exercises.length - 1} onClick={() => setExerciseIndex((i) => i + 1)}>{t.nextExercise} →</button>
           <button type="button" className="progress-discard" onClick={() => void discardWorkout()}>{t.discard}</button>
         </footer>
       </main>

@@ -187,7 +187,7 @@
 .progress-prev-bar>small{color:#8b9180;font-size:8px;letter-spacing:.14em;font-weight:800}
 .progress-prev-bar p{color:#6f7468;font-size:10px;margin:0}
 .progress-prev-sets{display:flex;gap:8px;flex-wrap:wrap}
-.progress-prev-sets b{font-size:13px;color:#dfffb0;border-left:2px solid var(--lime);padding-left:8px}
+.progress-prev-sets b{font-size:13px;color:#dfffb0;border-inline-start:2px solid var(--lime);padding-inline-start:8px}
 .progress-indicator{border:1px solid #3a3f35;padding:12px 14px;margin-bottom:16px;display:grid;gap:4px}
 .progress-indicator span{font-size:12px;font-weight:800;letter-spacing:.02em}
 .progress-indicator em{font-style:normal;font-size:10px;color:#a7aba0;line-height:1.5}
@@ -316,6 +316,11 @@
   .progress-add-section{align-items:stretch;flex-direction:column}
   .progress-exercise-actions{flex-direction:row;flex-wrap:wrap;align-items:center}
   .progress-exercise-actions .progress-move-to-section{flex:1;min-width:120px}
+  /* Active workout logger: the dark screen ends exactly at the fixed bottom
+     nav (no forced 100vh void below the controls) and the page's own bottom
+     padding is trimmed so the nav never reveals the light page background. */
+  .progress-content:has(.progress-overlay-live){padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+  .progress-overlay-live{min-height:calc(100dvh - 60px - 22px - 56px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
 }
 @media(max-width:520px){
   /* Narrowest phones (375/390): compact everything, 44px+ touch targets, 16px
@@ -360,4 +365,29 @@
   .progress-confirm-backdrop{padding:max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))}
   .progress-confirm-panel{padding:16px}
   .progress-confirm-actions button{min-height:48px;padding:13px 16px;flex:1}
+  /* Workout logger: one-handed density between sets. Finish stays lime and
+     reachable but stops competing with the per-set workflow; the stepper
+     tightens; the footer becomes one compact nav group (Prev | Next above
+     the saved count, Discard below) instead of four disconnected blocks. */
+  .progress-overlay-live{min-height:calc(100dvh - 60px - 18px - 56px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+  .progress-logger-live{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
+  .progress-logger-head strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .progress-logger-head a,.progress-logger-head span{flex:none}
+  .progress-logger-top h1{font-size:24px;margin:6px 0 2px}
+  .progress-logger-top .progress-cta{min-height:44px;padding:10px 14px;font-size:10px}
+  .progress-exercise-tabs{gap:4px;margin:12px 0 10px}
+  .progress-exercise-tabs button{padding:8px 9px;min-width:34px;min-height:42px}
+  .progress-prev-bar{padding:10px 12px;margin-bottom:10px;gap:10px}
+  .progress-prev-sets b{color:#ecffb5}
+  .progress-set-body span{color:#a6ac96}
+  .progress-set-head,.progress-set-body>div{gap:3px;padding:6px}
+  .progress-rest-timer{padding:10px 12px;margin:12px 0;gap:10px}
+  .progress-logger-note{font-size:16px;padding:10px 12px;margin-bottom:12px}
+  .progress-logger-foot{display:grid;grid-template-areas:"prev next" "count count" "discard discard";grid-template-columns:1fr 1fr;gap:8px;align-items:stretch;margin-top:12px}
+  .progress-logger-foot .progress-prev{grid-area:prev}
+  .progress-logger-foot .progress-next{grid-area:next}
+  .progress-logger-foot .progress-ghost,.progress-logger-foot .progress-discard{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 10px}
+  .progress-progress-count{grid-area:count;justify-self:center;margin-inline:0}
+  .progress-discard{grid-area:discard}
+  .progress-logger-foot .progress-next{border-color:var(--lime);color:var(--lime);font-weight:800}
 }
