@@ -682,6 +682,26 @@ export const mealPlanAssignments = pgTable("meal_plan_assignments", {
     .where(sql`${table.active} = true`),
 ]);
 
+// A self-service athlete's manual bodyweight ledger (Motivation v0.1).
+// Owner-scoped by the ATHLETE'S OWN Clerk user id and deliberately SEPARATE
+// from the coach/client-scoped client_body_measurements table: a
+// self-directed Progress customer has no coach-owned clients row, and this
+// record is a plain measurement with no body-composition fields. Canonical
+// storage is kg (matching clients.currentWeight and the whole coaching
+// domain); the UI converts lb input at the API boundary, so the ledger never
+// stores a unit column. No BMI, no body-fat %, no targets, no medical
+// interpretation - one row per manual measurement, edit/delete owner-scoped.
+export const bodyweightEntries = pgTable("bodyweight_entries", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  measuredAt: timestamp("measured_at", { withTimezone: true }).notNull().defaultNow(),
+  weightKg: doublePrecision("weight_kg").notNull(),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("bodyweight_entries_owner_measured_idx").on(table.ownerId, table.measuredAt),
+]);
+
 // -----------------------------------------------------------------
 // Phase 2 - Jonas Fitness Progress commercial layer (Founding Access).
 //

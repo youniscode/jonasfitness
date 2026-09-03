@@ -9,7 +9,8 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import { trainingRoutineExercises, trainingRoutineSections, trainingRoutines, trainingWorkoutSessions } from "../../db/schema";
+import { bodyweightEntries, trainingRoutineExercises, trainingRoutineSections, trainingRoutines, trainingWorkoutSessions } from "../../db/schema";
+import { BODYWEIGHT_HISTORY_LIMIT, publicBodyweightEntry } from "./bodyweight.ts";
 import { parseExercises } from "./workouts.ts";
 import {
   buildWorkoutExercisesFromRoutine,
@@ -28,6 +29,8 @@ import {
 } from "./progress-mechanics.ts";
 import { buildExerciseHistory } from "./exercise-history.ts";
 import type { ExerciseLanguage } from "./exercise-catalogue.ts";
+import { evaluateMilestones } from "./progress-milestones.ts";
+import { PROGRESS_STREAK_TIME_ZONE } from "./progress-motivation.ts";
 import { recordFirstRoutineCreated, recordFirstWorkoutCompleted, recordFirstWorkoutStarted } from "./payments-service";
 
 type ExerciseRow = typeof trainingRoutineExercises.$inferSelect;
@@ -509,19 +512,89 @@ export async function dashboard(ownerId: string) {
     exercises: trainingWorkoutSessions.exercises,
     completedAt: trainingWorkoutSessions.completedAt,
     startedAt: trainingWorkoutSessions.startedAt,
+    weightUnit: trainingWorkoutSessions.weightUnit,
   }).from(trainingWorkoutSessions)
     .where(and(eq(trainingWorkoutSessions.ownerId, ownerId), eq(trainingWorkoutSessions.status, "completed")))
     .orderBy(desc(trainingWorkoutSessions.completedAt)).limit(500);
   const history = buildExerciseHistory(rows);
+  const evaluation = evaluateMilestones(
+    rows.map((row) => ({ completedAt: row.completedAt, exercises: parseExercises(row.exercises), weightUnit: row.weightUnit })),
+    new Date(),
+    PROGRESS_STREAK_TIME_ZONE,
+  );
   return {
     summary: buildDashboardSummary(rows.map((row) => ({ completedAt: row.completedAt, exercises: parseExercises(row.exercises) }))),
     history: {
       improvingExercises: history.filter((item) => item.trend.estimatedOneRepMax > 0).length,
       trackedExercises: history.filter((item) => item.sessions >= 2).length,
     },
+    motivation: {
+      currentStreakWeeks: evaluation.motivation.currentStreakWeeks,
+      longestStreakWeeks: evaluation.motivation.longestStreakWeeks,
+      workoutsThisMonth: evaluation.motivation.workoutsThisMonth,
+      latestMilestoneId: evaluation.latestMilestoneId,
+    },
   };
+}
+
+// --- Motivation + achievements (derived at read time, zero persistence) ----
+
+export async function achievements(ownerId: string) {
+  const db = getDb();
+  const rows = await db.select({
+    completedAt: trainingWorkoutSessions.completedAt,
+    exercises: trainingWorkoutSessions.exercises,
+    weightUnit: trainingWorkoutSessions.weightUnit,
+  }).from(trainingWorkoutSessions)
+    .where(and(eq(trainingWorkoutSessions.ownerId, ownerId), eq(trainingWorkoutSessions.status, "completed")))
+    .orderBy(desc(trainingWorkoutSessions.completedAt)).limit(500);
+  return evaluateMilestones(
+    rows.map((row) => ({ completedAt: row.completedAt, exercises: parseExercises(row.exercises), weightUnit: row.weightUnit, status: "completed" })),
+    new Date(),
+    PROGRESS_STREAK_TIME_ZONE,
+  );
 }
 
 function isCompleted(set: { status: string; weight: number | null; reps: number | null; rir: string }) {
   return set.status === "completed" || (set.weight !== null && set.reps !== null && set.reps > 0);
+}
+
+// --- Bodyweight (owner-scoped CRUD, canonical kg) -------------------------
+
+export async function listBodyweight(ownerId: string) {
+  const db = getDb();
+  const rows = await db.select().from(bodyweightEntries)
+    .where(eq(bodyweightEntries.ownerId, ownerId))
+    .orderBy(desc(bodyweightEntries.measuredAt))
+    .limit(BODYWEIGHT_HISTORY_LIMIT);
+  return { entries: rows.map(publicBodyweightEntry) };
+}
+
+export async function createBodyweightEntry(ownerId: string, input: { weightKg: number; measuredAt: string }) {
+  const db = getDb();
+  const [row] = await db.insert(bodyweightEntries).values({
+    ownerId,
+    weightKg: input.weightKg,
+    measuredAt: new Date(input.measuredAt),
+  }).returning();
+  return publicBodyweightEntry(row);
+}
+
+/** Updates only when the entry belongs to the owner; null otherwise (404). */
+export async function updateBodyweightEntry(ownerId: string, entryId: number, input: { weightKg: number; measuredAt: string }) {
+  const db = getDb();
+  const [row] = await db.update(bodyweightEntries)
+    .set({ weightKg: input.weightKg, measuredAt: new Date(input.measuredAt), updatedAt: new Date() })
+    .where(and(eq(bodyweightEntries.id, entryId), eq(bodyweightEntries.ownerId, ownerId)))
+    .returning();
+  return row ? publicBodyweightEntry(row) : null;
+}
+
+/** Deletes only when the entry belongs to the owner; false otherwise (404). */
+export async function deleteBodyweightEntry(ownerId: string, entryId: number) {
+  const db = getDb();
+  const [deleted] = await db.delete(bodyweightEntries)
+    .where(and(eq(bodyweightEntries.id, entryId), eq(bodyweightEntries.ownerId, ownerId)))
+    .returning({ id: bodyweightEntries.id });
+  return Boolean(deleted);
 }

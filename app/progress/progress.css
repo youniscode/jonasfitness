@@ -67,6 +67,59 @@
 .progress-active-card strong{display:block;font-size:20px;margin:4px 0}
 .progress-active-card span{color:#9aa091;font-size:9px}
 
+/* Motivation + achievements */
+.progress-motivation{background:#10120e;color:#f3f2ea;padding:18px;display:grid;gap:16px;margin:4px 0 14px}
+.progress-motivation-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.progress-motivation-stats article{display:grid;gap:6px;border-inline-start:3px solid var(--lime);padding-inline-start:12px;min-width:0}
+.progress-motivation-stats small{color:#8b9180;font-size:8px;letter-spacing:.14em;font-weight:800}
+.progress-motivation-stats strong{font-size:28px;letter-spacing:-.04em}
+.progress-motivation-stats span{color:#9aa091;font-size:9px}
+.progress-motivation-stats article.name strong{font-size:16px;letter-spacing:-.02em;line-height:1.25;overflow-wrap:anywhere}
+.progress-motivation-actions{display:flex;gap:8px;flex-wrap:wrap}
+.progress-motivation-actions .progress-ghost{background:transparent;color:#c6cbb9;border-color:#3a3f35;display:inline-flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px}
+.progress-achievements-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.progress-milestone-list{display:grid;gap:6px}
+.progress-milestone-card{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #ecece5;border-inline-start:3px solid var(--lime);padding:14px 2px 14px 12px}
+.progress-milestone-card strong{font-size:14px;overflow-wrap:anywhere}
+.progress-milestone-card span{font-size:9px;color:#85887f;white-space:nowrap}
+.progress-milestone-next{display:grid;gap:8px;border-top:1px solid #ecece5;padding:14px 2px}
+.progress-milestone-next>span{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.progress-milestone-next strong{font-size:13px;overflow-wrap:anywhere}
+.progress-milestone-next small{font-size:9px;color:#85887f;white-space:nowrap}
+.progress-milestone-bar{height:8px;background:#e8e8e0;overflow:hidden}
+.progress-milestone-bar i{display:block;height:100%;background:var(--lime)}
+
+/* Bodyweight */
+.progress-bw-latest{background:#10120e;color:#f3f2ea;padding:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:4px 0 14px;flex-wrap:wrap}
+.progress-bw-latest>div{display:grid;gap:6px}
+.progress-bw-latest small{color:#8b9180;font-size:8px;letter-spacing:.14em;font-weight:800}
+.progress-bw-latest strong{font-size:38px;letter-spacing:-.05em;line-height:1}
+.progress-bw-latest strong i{font-style:normal;font-size:16px;letter-spacing:-.02em;color:#9aa091;font-weight:500}
+.progress-bw-latest span{color:#9aa091;font-size:9px}
+.progress-bw-delta{border-inline-start:3px solid var(--lime);padding-inline-start:12px;text-align:right}
+.progress-bw-delta strong{font-size:20px}
+.progress-bw-delta strong.down{color:#e0b0aa}
+.progress-bw-unit{display:flex;border:1px solid #10120e;margin:0 0 12px;align-self:flex-start}
+.progress-bw-unit button{border:0;background:#fff;padding:10px 18px;font-size:10px;font-weight:800;cursor:pointer;color:#71756b}
+.progress-bw-unit button.active{background:#10120e;color:var(--lime)}
+.progress-bw-form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:4px}
+.progress-bw-form label,.progress-bw-edit label{font-size:9px;color:#71756b;display:grid;gap:5px}
+.progress-bw-form input,.progress-bw-edit input{border:1px solid #cdcec5;background:#fff;padding:11px;color:#151712;font-size:11px;width:100%}
+.progress-bw-form .progress-cta{min-height:40px;padding:11px 14px}
+.progress-bw-list{display:grid;gap:0}
+.progress-bw-row{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #ecece5;padding:12px 2px;min-width:0}
+.progress-bw-row>span{display:grid;gap:2px;min-width:0}
+.progress-bw-row b{font-size:14px;white-space:nowrap}
+.progress-bw-row small{font-size:9px;color:#85887f}
+.progress-bw-row-actions{display:flex;gap:8px;align-items:center;flex:none}
+.progress-bw-row-actions .progress-ghost{padding:8px 12px;font-size:10px}
+.progress-bw-row-actions .progress-ghost.danger{color:#a23830;border-color:#e0b9b3}
+.progress-bw-edit{display:flex;gap:10px;align-items:end;flex-wrap:wrap;width:100%}
+.progress-bw-edit label{flex:1;min-width:110px}
+.progress-bw-confirm{display:grid;gap:6px;width:100%}
+.progress-bw-confirm strong{font-size:13px}
+.progress-bw-confirm>span{font-size:10px;color:#71756b;line-height:1.5}
+
 /* Routines */
 .progress-create-routine{display:flex;gap:10px;align-items:flex-end;background:#fff;border:1px solid #dedfd6;padding:14px;margin-bottom:14px}
 .progress-create-routine label{flex:1;display:grid;gap:6px;font-size:9px;color:#71756b}
@@ -290,6 +343,10 @@
   .progress-kpi-grid span{font-size:8px}
   .progress-dash-grid{gap:12px;grid-template-columns:1fr}
   .progress-panel{padding:16px}
+  .progress-achievements-grid{grid-template-columns:1fr}
+  .progress-motivation-stats article{padding-inline-start:10px}
+  .progress-bw-form{grid-template-columns:1fr 1fr}
+  .progress-bw-form .progress-cta{grid-column:1 / -1;min-height:48px;justify-content:center}
   .progress-active-card{padding:14px;gap:12px}
   .progress-active-card strong{font-size:17px}
   .progress-trend-row,.progress-pr-list>div{flex-wrap:wrap;gap:6px 12px}
@@ -330,6 +387,11 @@
   .progress-content{padding:18px 10px calc(76px + env(safe-area-inset-bottom))}
   .progress-dash-head{flex-direction:column;align-items:flex-start}
   .progress-last-session{text-align:left}
+  .progress-motivation{padding:14px;gap:12px}
+  .progress-motivation-stats{gap:8px}
+  .progress-motivation-stats strong{font-size:24px}
+  .progress-motivation-stats article.name strong{font-size:15px}
+  .progress-motivation-actions .progress-ghost{flex:1;justify-content:center}
   .progress-kpi-grid{grid-template-columns:1fr 1fr;gap:8px}
   .progress-kpi-grid article{padding:12px}
   .progress-kpi-grid strong{font-size:26px}
@@ -365,6 +427,17 @@
   .progress-confirm-backdrop{padding:max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))}
   .progress-confirm-panel{padding:16px}
   .progress-confirm-actions button{min-height:48px;padding:13px 16px;flex:1}
+  .progress-bw-latest{padding:14px;gap:12px}
+  .progress-bw-latest strong{font-size:32px}
+  .progress-bw-unit button{min-height:44px;flex:1;padding:11px 14px}
+  .progress-bw-unit{align-self:stretch}
+  .progress-bw-form input,.progress-bw-edit input{padding:12px 10px;font-size:16px;min-height:44px}
+  .progress-bw-row{flex-wrap:wrap;gap:8px}
+  .progress-bw-row>span{min-width:0}
+  .progress-bw-row-actions{width:100%;justify-content:flex-end}
+  .progress-bw-row-actions .progress-ghost{flex:1;justify-content:center;display:inline-flex;align-items:center;min-height:44px;padding:12px 10px}
+  .progress-bw-edit .progress-cta,.progress-bw-edit .progress-ghost{min-height:44px}
+  .progress-bw-confirm .progress-bw-row-actions .progress-ghost{flex:1}
   /* Workout logger: one-handed density between sets. Finish stays lime and
      reachable but stops competing with the per-set workflow; the stepper
      tightens; the footer becomes one compact nav group (Prev | Next above

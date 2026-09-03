@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useProgressLang } from "./progress-lang";
-import { progressLocale } from "./progress-text";
+import { milestoneTitle, progressLocale } from "./progress-text";
+import type { MilestoneId } from "../../lib/progress-milestones";
 
 type Summary = {
   completedWorkouts: number;
@@ -13,6 +14,12 @@ type Summary = {
   exercisesTracked: number;
   recentPRs: Array<{ date: string; exercise: string; weight: number; reps: number }>;
   consistencyPercent: number | null;
+};
+type Motivation = {
+  currentStreakWeeks: number;
+  longestStreakWeeks: number;
+  workoutsThisMonth: number;
+  latestMilestoneId: MilestoneId | null;
 };
 type HistoryItem = { key: string; name: string; nameFr?: string; nameAr?: string; sessions: number; latestDate: string; records: { heaviestWeight: number; estimatedOneRepMax: number }; trend: { estimatedOneRepMax: number } };
 type ActiveSession = { id: number; title: string; startedAt: string; status: string };
@@ -27,6 +34,7 @@ async function json<T>(url: string): Promise<T> {
 export default function ProgressDashboard() {
   const { lang, t } = useProgressLang();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [motivation, setMotivation] = useState<Motivation | null>(null);
   const [trends, setTrends] = useState<HistoryItem[]>([]);
   const [active, setActive] = useState<ActiveSession | null>(null);
   const [historyMeta, setHistoryMeta] = useState<{ improvingExercises: number; trackedExercises: number } | null>(null);
@@ -37,12 +45,13 @@ export default function ProgressDashboard() {
     (async () => {
       try {
         const [dashboard, history, workouts] = await Promise.all([
-          json<{ summary: Summary; history: { improvingExercises: number; trackedExercises: number } }>("/api/progress/dashboard"),
+          json<{ summary: Summary; history: { improvingExercises: number; trackedExercises: number }; motivation: Motivation }>("/api/progress/dashboard"),
           json<{ exercises: HistoryItem[] }>("/api/progress/history"),
           json<{ active: ActiveSession | null; history: unknown }>("/api/progress/workouts"),
         ]);
         if (cancelled) return;
         setSummary(dashboard.summary);
+        setMotivation(dashboard.motivation);
         setHistoryMeta(dashboard.history);
         setTrends(history.exercises.slice(0, 6));
         setActive(workouts.active);
@@ -86,6 +95,20 @@ export default function ProgressDashboard() {
           <article><small>{t.consistency}</small><strong>{summary.consistencyPercent ?? 0}%</strong><span>{`${summary.completedWorkoutsFourWeeks} / 4 · ${t.consistencyHint}`}</span></article>
           <article className="lime"><small>{t.exercisesImproving}</small><strong>{historyMeta?.improvingExercises ?? 0}</strong><span>{t.exercisesTracked} · {historyMeta?.trackedExercises ?? 0}</span></article>
           <article><small>{t.recentPRs}</small><strong>{summary.recentPRs.length}</strong><span>{t.pr}</span></article>
+        </div>
+      )}
+
+      {motivation && (
+        <div className="progress-motivation">
+          <div className="progress-motivation-stats">
+            <article><small>{t.currentStreak}</small><strong>{motivation.currentStreakWeeks}</strong><span>{motivation.currentStreakWeeks === 1 ? t.weekWord : t.weekWordPlural}</span></article>
+            <article><small>{t.thisMonth}</small><strong>{motivation.workoutsThisMonth}</strong><span>{motivation.workoutsThisMonth === 1 ? t.workoutWord : t.workoutWordPlural}</span></article>
+            <article className="name"><small>{t.latestMilestone}</small><strong>{motivation.latestMilestoneId ? milestoneTitle(lang, motivation.latestMilestoneId) : t.noneYet}</strong></article>
+          </div>
+          <div className="progress-motivation-actions">
+            <Link className="progress-ghost" href="/progress/achievements">{t.viewAchievements}<span>→</span></Link>
+            <Link className="progress-ghost" href="/progress/bodyweight">{t.bodyweight}<span>→</span></Link>
+          </div>
         </div>
       )}
 
