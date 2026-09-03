@@ -14,6 +14,16 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+/**
+ * Maps a thrown failure to a user-presentable message. A server 500 returns an
+ * HTML error page (no JSON), so json() falls back to the literal message
+ * "error" - here that token is treated as "no useful server message" and the
+ * caller shows the localized generic error (t.error) instead.
+ */
+function messageOf(issue: unknown): string {
+  return issue instanceof Error && issue.message && issue.message !== "error" ? issue.message : "";
+}
+
 export default function RoutinesView() {
   const { lang, t } = useProgressLang();
   const locale = progressLocale(lang);
@@ -56,7 +66,7 @@ export default function RoutinesView() {
       setRoutines((current) => [data.routine, ...current.filter((item) => item.id !== routine.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       setEditingId(null);
       setError("");
-    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); }
+    } catch (issue) { setError(messageOf(issue) || t.error); }
     finally { setBusyId(null); }
   }
 
@@ -67,7 +77,7 @@ export default function RoutinesView() {
       setRoutines((current) => current.filter((item) => item.id !== routine.id));
       setConfirmingId(null);
       setError("");
-    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); }
+    } catch (issue) { setError(messageOf(issue) || t.error); }
     finally { setBusyId(null); }
   }
 
@@ -87,7 +97,7 @@ export default function RoutinesView() {
       // Navigate straight to the new routine to add exercises.
       window.location.href = `/progress/routines/${data.routine.id}`;
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : t.error);
+      setError(messageOf(issue) || t.error);
     } finally { setCreating(false); }
   }
 

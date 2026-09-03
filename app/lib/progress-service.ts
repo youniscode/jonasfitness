@@ -429,7 +429,7 @@ export async function getWorkout(ownerId: string, sessionId: number) {
 
 export async function startWorkout(ownerId: string, routineId: number, language: ExerciseLanguage = "en") {
   const db = getDb();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [routine] = await tx.select().from(trainingRoutines)
       .where(and(eq(trainingRoutines.id, routineId), eq(trainingRoutines.ownerId, ownerId))).limit(1);
     if (!routine) return null;
@@ -454,9 +454,14 @@ export async function startWorkout(ownerId: string, routineId: number, language:
       startedAt: now,
       updatedAt: now,
     }).returning();
-    void recordFirstWorkoutStarted(ownerId);
     return { session: publicSession(row, parseRowExercises(row)) };
   });
+  // Best-effort analytics run AFTER the product transaction commits - never
+  // inside it - and only when a session was actually started (never on the
+  // active-conflict or missing-routine outcomes). recordFirstWorkoutStarted
+  // never throws, so this can never fail or roll back the workout.
+  if (result && !("conflict" in result)) void recordFirstWorkoutStarted(ownerId);
+  return result;
 }
 
 export async function saveWorkout(ownerId: string, sessionId: number, input: { exercisesInput: unknown; notes?: string; status: "active" | "completed" | "discarded" }) {

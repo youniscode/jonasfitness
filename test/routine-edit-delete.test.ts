@@ -147,8 +147,8 @@ test("failure surfaces through the page error alert (user-visible error state)",
   assert.match(view, /<p className="progress-error" role="alert">\{error\}<\/p>/, "existing accessible error region");
   const saveEdit = slice(view, "async function saveEdit(", "async function remove(");
   const removeFn = slice(view, "async function remove(", "async function create(");
-  assert.match(saveEdit, /setError\(issue instanceof Error \? issue\.message : t\.error\)/, "rename failures reach the page alert");
-  assert.match(removeFn, /setError\(issue instanceof Error \? issue\.message : t\.error\)/, "delete failures reach the page alert");
+  assert.match(saveEdit, /setError\(messageOf\(issue\) \|\| t\.error\)/, "rename failures reach the page alert (localized fallback)");
+  assert.match(removeFn, /setError\(messageOf\(issue\) \|\| t\.error\)/, "delete failures reach the page alert (localized fallback)");
 });
 
 // ---------------------------------------------------------------------------

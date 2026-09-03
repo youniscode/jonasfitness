@@ -211,15 +211,33 @@ export async function recordValidationEvent(ownerId: string, eventName: string, 
 /**
  * Reusable activation-event helpers, keyed so a user's FIRST routine / first
  * workout / first completion is counted exactly once in the funnel.
+ *
+ * ANALYTICS-ISOLATION INVARIANT: a first-action event is SECONDARY to the
+ * product write (routine created / workout started / workout completed) that
+ * triggers it. These helpers therefore NEVER reject: a duplicate insert is
+ * already a no-op (recordValidationEvent uses ON CONFLICT DO NOTHING on the
+ * unique (owner, event_name, dedupe_key) triple), and any genuine database
+ * failure is logged and swallowed here. Call sites may fire-and-forget
+ * (`void ...`) without risking an unhandled rejection, and a product write
+ * can never fail, 500, or roll back because a historical activation event
+ * already exists for the same owner (e.g. after a routine/training reset that
+ * preserved validation history).
  */
-export async function recordFirstRoutineCreated(ownerId: string) {
-  await recordValidationEvent(ownerId, "progress_routine_created", "first");
+async function recordFirstActivationEvent(ownerId: string, eventName: string): Promise<void> {
+  try {
+    await recordValidationEvent(ownerId, eventName, "first");
+  } catch (error) {
+    console.error(`[progress-analytics] could not record ${eventName} for owner ${ownerId}:`, error);
+  }
 }
-export async function recordFirstWorkoutStarted(ownerId: string) {
-  await recordValidationEvent(ownerId, "progress_workout_started", "first");
+export function recordFirstRoutineCreated(ownerId: string): Promise<void> {
+  return recordFirstActivationEvent(ownerId, "progress_routine_created");
 }
-export async function recordFirstWorkoutCompleted(ownerId: string) {
-  await recordValidationEvent(ownerId, "progress_workout_completed", "first");
+export function recordFirstWorkoutStarted(ownerId: string): Promise<void> {
+  return recordFirstActivationEvent(ownerId, "progress_workout_started");
+}
+export function recordFirstWorkoutCompleted(ownerId: string): Promise<void> {
+  return recordFirstActivationEvent(ownerId, "progress_workout_completed");
 }
 
 // --- Validation metrics -------------------------------

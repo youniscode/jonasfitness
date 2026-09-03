@@ -35,9 +35,15 @@ test("successful routine POST clears the error and navigates to the new routine 
   assert.match(createFn, /window\.location\.href = `\/progress\/routines\/\$\{data\.routine\.id\}`/, "browser navigates to /progress/routines/{newId}");
 });
 
-test("failed routine POST still shows the error and restoring the creating state", () => {
-  assert.match(createFn, /catch \(issue\) \{\s*setError\(issue instanceof Error \? issue\.message : t\.error\);?\s*\}/, "failure surfaces the error message");
+test("failed routine POST shows a message (localized fallback) and restores the creating state", () => {
+  assert.match(createFn, /catch \(issue\) \{\s*setError\(messageOf\(issue\) \|\| t\.error\);?\s*\}/, "failure surfaces the error message, localized when the server gave none");
   assert.match(createFn, /finally \{ setCreating\(false\); \}/, "creating state restored in all outcomes");
+});
+
+test("the raw literal \"error\" fallback from a non-JSON 500 never reaches the user", () => {
+  const helper = src.slice(src.indexOf("function messageOf("), src.indexOf("export default function RoutinesView"));
+  assert.match(helper, /issue instanceof Error && issue\.message && issue\.message !== "error" \? issue\.message : ""/, "a non-JSON server failure resolves to the localized generic instead of the literal 'error'");
+  assert.doesNotMatch(createFn, /setError\("error"\)/, "the literal token is never rendered directly");
 });
 
 test("the routine creation flow issues exactly one POST (no duplicate creation)", () => {
