@@ -6,11 +6,15 @@ import { join } from "node:path";
 import { sanitizeAttribution } from "../app/lib/attribution.ts";
 import {
   computeFirst50Report,
+  computeValidationMetrics,
   isPaidProgressEntitlement,
+  resolveCheckoutCampaign,
   validationSignal,
+  INTERNAL_VALIDATION_CAMPAIGN,
   TARGETED_PROSPECTS,
   type First50Input,
 } from "../app/lib/payments-domain.ts";
+import { parseInternalValidationOwnerIds } from "../app/lib/payments-config-validation.ts";
 
 // ---------------------------------------------------------------------------
 // First-50 launch tracking: buy-click funnel, sanitized attribution, active
@@ -143,8 +147,8 @@ test("revoked/refunded buyers stay historical but never count as active paid cus
     // u2 was refunded and revoked - only u1 has an ACTIVE entitlement.
     activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
     orderRows: [
-      { ownerId: "u1", amountMinor: 1900, status: "paid", source: "Direct" },
-      { ownerId: "u2", amountMinor: 1900, status: "refunded", source: "Direct" },
+      { ownerId: "u1", amountMinor: 1900, status: "paid", source: "Direct", campaign: null },
+      { ownerId: "u2", amountMinor: 1900, status: "refunded", source: "Direct", campaign: null },
     ],
   }));
   assert.equal(report.purchases, 2, "both purchases remain visible historically");
@@ -172,8 +176,8 @@ test("full funnel computes distinct owners, conversions and source breakdown", (
     ],
     activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
     orderRows: [
-      { ownerId: "u1", amountMinor: 1900, status: "paid", source: "Instagram" },
-      { ownerId: "u2", amountMinor: 1900, status: "created", source: "Instagram" },
+      { ownerId: "u1", amountMinor: 1900, status: "paid", source: "Instagram", campaign: null },
+      { ownerId: "u2", amountMinor: 1900, status: "created", source: "Instagram", campaign: null },
     ],
   }));
   assert.equal(report.offerViewers, 2);
@@ -191,7 +195,7 @@ test("full funnel computes distinct owners, conversions and source breakdown", (
 
 test("orders without attribution group under '(not set)'", () => {
   const report = computeFirst50Report(input({
-    orderRows: [{ ownerId: "u1", amountMinor: 1900, status: "paid", source: null }],
+    orderRows: [{ ownerId: "u1", amountMinor: 1900, status: "paid", source: null, campaign: null }],
     validationRows: [{ ownerId: "u1", eventName: "founding_purchase_completed" }],
     activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
   }));
@@ -242,7 +246,7 @@ test("fixture: 2 manual_test + 1 commercial entitlement => 1 paid customer (NOT 
       { ownerId: "buyer", source: "stripe_checkout", status: "active" },
     ],
     orderRows: [
-      { ownerId: "buyer", amountMinor: 1900, status: "paid", source: "Instagram" },
+      { ownerId: "buyer", amountMinor: 1900, status: "paid", source: "Instagram", campaign: null },
     ],
     // Founder/test activity must NOT lift paid activation metrics.
     ownedRoutines: new Map([["founder", 1], ["hist-test", 1], ["buyer", 1]]),
@@ -314,6 +318,177 @@ test("isPaidProgressEntitlement is the single commercial paid-customer predicate
   assert.equal(isPaidProgressEntitlement(row("manual_test", "active")), false);
   assert.equal(isPaidProgressEntitlement(row("grant", "active")), false);
   assert.equal(isPaidProgressEntitlement(row("stripe_checkout", "revoked")), false);
+});
+
+// ---------- 5c. Internal live-purchase exclusion (campaign internal_validation) ----------
+//
+// The real €19 internal QA purchase is genuine Stripe commerce (order paid,
+// source stripe_checkout) but must NEVER count as First-50 prospect #1. The
+// exclusion is derived from the PERSISTED order campaign marker
+// (acquisitionCampaign = internal_validation), never hardcoded user ids, and
+// applies only to First-50 cohort metrics - the transaction stays visible via
+// the internal diagnostics and in general commerce data.
+
+test("fixture: prospect paid + internal QA paid + manual_test entitlement => First-50 sees ONLY the prospect", () => {
+  const report = computeFirst50Report(input({
+    validationRows: [
+      // Prospect A: full funnel + purchase event.
+      { ownerId: "prospect", eventName: "founding_offer_viewed" },
+      { ownerId: "prospect", eventName: "founding_buy_clicked" },
+      { ownerId: "prospect", eventName: "founding_checkout_started" },
+      { ownerId: "prospect", eventName: "founding_purchase_completed" },
+      // Internal QA (B): same real funnel, but campaign = internal_validation.
+      { ownerId: "internal", eventName: "founding_offer_viewed" },
+      { ownerId: "internal", eventName: "founding_buy_clicked" },
+      { ownerId: "internal", eventName: "founding_checkout_started" },
+      { ownerId: "internal", eventName: "founding_purchase_completed" },
+    ],
+    activeEntitlements: [
+      // C: manual_test founder entitlement - never commercial.
+      { ownerId: "founder", source: "manual_test", status: "active" },
+      // B and A both hold REAL stripe_checkout entitlements (both really paid).
+      { ownerId: "internal", source: "stripe_checkout", status: "active" },
+      { ownerId: "prospect", source: "stripe_checkout", status: "active" },
+    ],
+    orderRows: [
+      { ownerId: "prospect", amountMinor: 1900, status: "paid", source: "Instagram", campaign: "first50" },
+      { ownerId: "internal", amountMinor: 1900, status: "paid", source: "Direct", campaign: INTERNAL_VALIDATION_CAMPAIGN },
+    ],
+    // Internal QA owner did real dogfooding - must NEVER lift cohort activation.
+    ownedRoutines: new Map([["internal", 1], ["prospect", 1]]),
+    ownedWorkouts: new Map([["internal", 1], ["prospect", 1]]),
+    completedWorkouts: new Map([["internal", 1], ["prospect", 1]]),
+  }));
+  // First-50 cohort sees ONLY the prospect.
+  assert.equal(report.purchases, 1, "internal QA purchase is NOT prospect #1");
+  assert.equal(report.activePaidCustomers, 1, "internal owner is not a First-50 paid customer");
+  assert.equal(report.netPaidRevenueEur, 19, "First-50 revenue = prospect only");
+  assert.equal(report.createdFirstRoutine, 1, "internal routines never lift cohort activation");
+  assert.equal(report.startedFirstWorkout, 1);
+  assert.equal(report.completedFirstWorkout, 1);
+  assert.equal(report.manualValidationRatePct, 2, "1 cohort purchase / 50 prospects");
+  assert.equal(report.offerViewers, 1, "internal funnel events excluded from cohort funnel");
+  assert.equal(report.buyClicks, 1);
+  assert.equal(report.checkoutStarts, 1);
+  // Internal diagnostics make the real QA transaction visible (never as cohort).
+  assert.equal(report.internalValidationPurchases, 1);
+  assert.equal(report.internalValidationRevenueEur, 19);
+  assert.equal(report.manualTestEntitlements, 1, "manual_test diagnostic unchanged");
+  // Source breakdown is cohort-only.
+  assert.deepEqual(report.sources, [{ source: "Instagram", checkoutStarts: 1, purchases: 1, revenueEur: 19 }]);
+});
+
+test("internal_validation refunded: First-50 metrics unchanged, internal revenue follows existing refund semantics", () => {
+  const report = computeFirst50Report(input({
+    validationRows: [
+      { ownerId: "prospect", eventName: "founding_purchase_completed" },
+      // Historical purchase event stays even after the full refund (truth).
+      { ownerId: "internal", eventName: "founding_purchase_completed" },
+    ],
+    activeEntitlements: [
+      { ownerId: "prospect", source: "stripe_checkout", status: "active" },
+      { ownerId: "internal", source: "stripe_checkout", status: "revoked" }, // revoked after refund
+    ],
+    orderRows: [
+      { ownerId: "prospect", amountMinor: 1900, status: "paid", source: "Instagram", campaign: null },
+      { ownerId: "internal", amountMinor: 1900, status: "refunded", source: "Direct", campaign: INTERNAL_VALIDATION_CAMPAIGN },
+    ],
+    ownedRoutines: new Map([["internal", 1]]),
+    ownedWorkouts: new Map([["internal", 1]]),
+    completedWorkouts: new Map([["internal", 1]]),
+  }));
+  assert.equal(report.purchases, 1, "First-50 purchases unchanged by internal refund");
+  assert.equal(report.activePaidCustomers, 1);
+  assert.equal(report.netPaidRevenueEur, 19, "First-50 revenue unchanged");
+  assert.equal(report.fullRefunds, 0, "internal QA refund is not a First-50 cohort refund");
+  assert.equal(report.createdFirstRoutine, 0, "internal owner never contributes to cohort activation");
+  // Internal diagnostics: purchase stays historical, net revenue drops to 0.
+  assert.equal(report.internalValidationPurchases, 1, "1 historical completed internal purchase");
+  assert.equal(report.internalValidationRevenueEur, 0, "internal net revenue follows refund semantics (€0 after full refund)");
+});
+
+test("a normal stripe purchase with NO campaign is NOT accidentally excluded", () => {
+  const report = computeFirst50Report(input({
+    validationRows: [{ ownerId: "u1", eventName: "founding_purchase_completed" }],
+    activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
+    orderRows: [{ ownerId: "u1", amountMinor: 1900, status: "paid", source: "Instagram", campaign: null }],
+    ownedRoutines: new Map([["u1", 1]]),
+  }));
+  assert.equal(report.purchases, 1);
+  assert.equal(report.activePaidCustomers, 1);
+  assert.equal(report.createdFirstRoutine, 1);
+  assert.equal(report.internalValidationPurchases, 0);
+});
+
+test("campaign matching is EXACT: internal-validation (hyphen) is NOT treated as internal", () => {
+  const report = computeFirst50Report(input({
+    validationRows: [{ ownerId: "u1", eventName: "founding_purchase_completed" }],
+    activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
+    orderRows: [{ ownerId: "u1", amountMinor: 1900, status: "paid", source: "Direct", campaign: "internal-validation" }],
+    ownedRoutines: new Map([["u1", 1]]),
+  }));
+  assert.equal(report.purchases, 1, "hyphenated variant counts as a cohort purchase");
+  assert.equal(report.internalValidationPurchases, 0, "only the exact marker excludes");
+});
+
+// ---------- 5d. Server-side campaign resolution (spoof-proof) ----------
+
+test("allowlisted internal owner is ALWAYS tagged internal_validation (deterministic launch)", () => {
+  const allowlist = new Set(["user_internal"]);
+  assert.equal(resolveCheckoutCampaign(null, "user_internal", allowlist), INTERNAL_VALIDATION_CAMPAIGN);
+  assert.equal(resolveCheckoutCampaign("first50", "user_internal", allowlist), INTERNAL_VALIDATION_CAMPAIGN);
+  assert.equal(resolveCheckoutCampaign(INTERNAL_VALIDATION_CAMPAIGN, "user_internal", allowlist), INTERNAL_VALIDATION_CAMPAIGN);
+});
+
+test("a normal customer can NEVER self-exclude by sending internal_validation", () => {
+  const allowlist = new Set(["user_internal"]);
+  assert.equal(resolveCheckoutCampaign(INTERNAL_VALIDATION_CAMPAIGN, "attacker", allowlist), null, "marker stripped for non-allowlisted owner");
+  assert.equal(resolveCheckoutCampaign(INTERNAL_VALIDATION_CAMPAIGN, "attacker", new Set()), null, "empty allowlist = feature inert");
+});
+
+test("other campaigns pass through unchanged for everyone", () => {
+  const allowlist = new Set(["user_internal"]);
+  assert.equal(resolveCheckoutCampaign("launch", "attacker", allowlist), "launch");
+  assert.equal(resolveCheckoutCampaign("launch", "user_internal", allowlist), INTERNAL_VALIDATION_CAMPAIGN, "allowlisted owner always gets the marker");
+  assert.equal(resolveCheckoutCampaign(null, "attacker", allowlist), null);
+});
+
+test("checkout route resolves campaign server-side from the owner allowlist, never the raw client value", () => {
+  const route = read("app", "api", "progress", "checkout", "route.ts");
+  assert.match(route, /resolveCheckoutCampaign\(sanitized\?\.campaign, userId, getInternalValidationOwnerIds\(\)\)/, "campaign resolved server-side against the allowlist");
+  assert.match(route, /getInternalValidationOwnerIds\(\)/, "allowlist read from server config");
+  assert.match(route, /const attribution = sanitized \? \{ \.\.\.sanitized, campaign: campaign \?\? "" \} : null;/, "resolved campaign flows into the sanitized attribution");
+});
+
+test("INTERNAL_VALIDATION_OWNER_IDS parses comma-separated exact owner ids", () => {
+  assert.deepEqual(parseInternalValidationOwnerIds(undefined), []);
+  assert.deepEqual(parseInternalValidationOwnerIds(""), []);
+  assert.deepEqual(parseInternalValidationOwnerIds("user_a"), ["user_a"]);
+  assert.deepEqual(parseInternalValidationOwnerIds("user_a,user_b,user_c"), ["user_a", "user_b", "user_c"]);
+  assert.deepEqual(parseInternalValidationOwnerIds(" user_a , user_b "), ["user_a", "user_b"], "whitespace tolerated");
+  assert.deepEqual(parseInternalValidationOwnerIds('"user_a","user_b"'), ["user_a", "user_b"], "quote artifacts tolerated");
+  assert.deepEqual(parseInternalValidationOwnerIds("user_a,,user_b,"), ["user_a", "user_b"], "empty entries dropped");
+  assert.deepEqual(parseInternalValidationOwnerIds(" user_a , "), ["user_a"]);
+});
+
+test("validation metrics exclude internal-validation owners from paid customers and ratios", () => {
+  const metrics = computeValidationMetrics({
+    entitlements: [
+      { ownerId: "internal", source: "stripe_checkout", status: "active" },
+      { ownerId: "prospect", source: "stripe_checkout", status: "active" },
+    ],
+    ownedRoutines: new Map([["internal", 1], ["prospect", 1]]),
+    ownedWorkouts: new Map([["internal", 1], ["prospect", 1]]),
+    completedWorkouts: new Map([["internal", 1], ["prospect", 1]]),
+    internalValidationOwners: new Set(["internal"]),
+  });
+  assert.equal(metrics.paidCustomers, 1, "internal owner not counted as cohort paid customer");
+  assert.equal(metrics.createdFirstRoutine, 1, "internal activation excluded from cohort");
+  assert.equal(metrics.startedFirstWorkout, 1);
+  assert.equal(metrics.completedFirstWorkout, 1);
+  assert.equal(metrics.purchaseToRoutine, 100);
+  assert.equal(metrics.purchaseToWorkoutStart, 100);
+  assert.equal(metrics.purchaseToWorkoutComplete, 100);
 });
 
 // ---------- 6. Validation signal ----------

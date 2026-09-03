@@ -136,6 +136,20 @@ export function resolveDevTestBypassEnabled(value: string | undefined, env: Runt
   return !isProduction(env) && (value ?? "").trim() === "true";
 }
 
+// --- INTERNAL_VALIDATION_OWNER_IDS ---------------------
+// Exact Clerk user-id allowlist for the internal live-validation purchase.
+// Orders initiated by these owners are tagged with the reserved
+// `internal_validation` campaign server-side, so the real €19 Stripe purchase
+// is excluded from First-50 cohort metrics (but stays real commerce). An
+// absent/empty value is safe: it simply means no internal owner is configured.
+
+export function parseInternalValidationOwnerIds(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((entry) => entry.trim().replace(/^["']+|["']+$/g, ""))
+    .filter((entry) => entry.length > 0);
+}
+
 // --- NEXT_PUBLIC_APP_URL / APP_URL ---------------------
 // A valid absolute http(s) origin. Production requires https. Returns the
 // normalized ORIGIN (protocol + host) so redirect URLs are never derived from

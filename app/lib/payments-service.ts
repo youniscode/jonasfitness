@@ -22,7 +22,7 @@ import {
   trainingWorkoutSessions,
 } from "../../db/schema";
 
-import { computeValidationMetrics, computeFirst50Report, FOUNDING_ACCESS_PRODUCT_KEY as FOUNDING_KEY } from "./payments-domain.ts";
+import { computeValidationMetrics, computeFirst50Report, INTERNAL_VALIDATION_CAMPAIGN, FOUNDING_ACCESS_PRODUCT_KEY as FOUNDING_KEY } from "./payments-domain.ts";
 
 // --- Entitlements ------------------------------------
 
@@ -233,7 +233,7 @@ export async function recordFirstWorkoutCompleted(ownerId: string) {
 export async function getValidationMetrics() {
   const db = getDb();
 
-  const [entitledRows, routineRows, workoutRows, completedRows, paidDollarsRows] = await Promise.all([
+  const [entitledRows, routineRows, workoutRows, completedRows, paidDollarsRows, internalOwnerRows] = await Promise.all([
     // ACTIVE entitlements only: a refunded/revoked buyer stays visible
     // historically (order/refund records) but is NOT an active paid customer.
     db.select({ ownerId: productEntitlements.ownerId, source: productEntitlements.source, status: productEntitlements.status }).from(productEntitlements)
@@ -245,6 +245,11 @@ export async function getValidationMetrics() {
     db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions),
     db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions).where(eq(trainingWorkoutSessions.status, "completed")),
     db.select({ total: sql<number>`sum(${commerceOrders.amountMinor})` }).from(commerceOrders).where(eq(commerceOrders.status, "paid")),
+    // Internal live-validation owners, derived from PERSISTED order
+    // attribution (never hardcoded user ids): their real purchases are
+    // commercially real but excluded from the paid/activation cohort metrics.
+    db.select({ ownerId: commerceOrders.ownerId }).from(commerceOrders)
+      .where(eq(commerceOrders.acquisitionCampaign, INTERNAL_VALIDATION_CAMPAIGN)),
   ]);
 
   const ownedRoutines = new Map<string, number>();
@@ -255,7 +260,8 @@ export async function getValidationMetrics() {
   for (const r of completedRows) completedWorkouts.set(r.ownerId, (completedWorkouts.get(r.ownerId) ?? 0) + 1);
 
   const grossRevenueMinor = Number(paidDollarsRows?.[0]?.total) || 0;
-  const metrics = computeValidationMetrics({ entitlements: entitledRows, ownedRoutines, ownedWorkouts, completedWorkouts });
+  const internalValidationOwners = new Set(internalOwnerRows.map((r) => r.ownerId));
+  const metrics = computeValidationMetrics({ entitlements: entitledRows, ownedRoutines, ownedWorkouts, completedWorkouts, internalValidationOwners });
   return { ...metrics, grossRevenueMinor };
 }
 
@@ -280,6 +286,7 @@ export async function getFirst50Report() {
       amountMinor: commerceOrders.amountMinor,
       status: commerceOrders.status,
       source: commerceOrders.acquisitionSource,
+      campaign: commerceOrders.acquisitionCampaign,
     }).from(commerceOrders).where(eq(commerceOrders.productKey, FOUNDING_KEY)),
     db.select({ ownerId: trainingRoutines.ownerId }).from(trainingRoutines),
     db.select({ ownerId: trainingWorkoutSessions.ownerId }).from(trainingWorkoutSessions),

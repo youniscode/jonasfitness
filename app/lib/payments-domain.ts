@@ -98,6 +98,33 @@ export function isPaidProgressEntitlement(entitlement: EntitlementRow): boolean 
   return entitlement.status === "active" && COMMERCIAL_ENTITLEMENT_SOURCES.has(entitlement.source);
 }
 
+/**
+ * Reserved attribution campaign for the internal live-validation purchase. The
+ * transaction is a REAL Stripe purchase (source stays stripe_checkout) but is
+ * excluded from First-50 cohort metrics via this campaign marker on the order.
+ */
+export const INTERNAL_VALIDATION_CAMPAIGN = "internal_validation";
+
+/**
+ * Resolves the campaign to persist on a checkout order, server-side.
+ *
+ * SECURITY: `internal_validation` is a reserved marker that excludes an order
+ * from First-50 cohort metrics, so it must never be spoofable by ordinary
+ * customers. It is honoured ONLY for allowlisted internal-validation owners:
+ *  - allowlisted owner        -> always internal_validation (deterministic launch)
+ *  - anyone else sending it   -> stripped to null (self-exclusion impossible)
+ *  - any other campaign       -> passed through unchanged (already sanitized)
+ */
+export function resolveCheckoutCampaign(
+  clientCampaign: string | null | undefined,
+  ownerId: string,
+  internalValidationOwnerIds: ReadonlySet<string>,
+): string | null {
+  if (internalValidationOwnerIds.has(ownerId)) return INTERNAL_VALIDATION_CAMPAIGN;
+  if (clientCampaign === INTERNAL_VALIDATION_CAMPAIGN) return null;
+  return clientCampaign ?? null;
+}
+
 /** Deterministic metrics from a seeded/store shape - pure, testable. */
 export interface MetricsInput {
   /** ACTIVE progress_founding entitlement rows (ownerId + provenance source). */
@@ -105,6 +132,12 @@ export interface MetricsInput {
   ownedRoutines: Map<string, number>;
   ownedWorkouts: Map<string, number>; // started per owner
   completedWorkouts: Map<string, number>; // completed per owner
+  /**
+   * Owners whose purchases are internal live-validation (campaign
+   * internal_validation): commercially real but NEVER First-50 cohort members.
+   * Their paid-customer + activation counts are excluded from these metrics.
+   */
+  internalValidationOwners?: ReadonlySet<string>;
 }
 export interface ValidationMetrics {
   paidCustomers: number;
@@ -131,7 +164,7 @@ export interface First50Input {
   /** ACTIVE progress_founding entitlement rows (ownerId + provenance source). */
   activeEntitlements: EntitlementRow[];
   /** Raw commerce order rows for the Progress product. */
-  orderRows: { ownerId: string; amountMinor: number; status: string; source: string | null }[];
+  orderRows: { ownerId: string; amountMinor: number; status: string; source: string | null; campaign: string | null }[];
   ownedRoutines: Map<string, number>;
   ownedWorkouts: Map<string, number>;
   completedWorkouts: Map<string, number>;
@@ -157,6 +190,14 @@ export interface First50Report {
    * deleted). NEVER presented as commercial success.
    */
   manualTestEntitlements: number;
+  /**
+   * INTERNAL diagnostic - real Stripe purchases by internal-validation owners
+   * (campaign internal_validation). Commercially real, but NEVER First-50
+   * prospect conversions. Never presented as cohort success.
+   */
+  internalValidationPurchases: number;
+  /** INTERNAL diagnostic - paid internal-validation order revenue in EUR. */
+  internalValidationRevenueEur: number;
   fullRefunds: number;
   netPaidRevenueEur: number;
   buyClickToCheckoutPct: number | null;
@@ -194,25 +235,52 @@ function pct(part: number, whole: number): number | null {
  * customers, revenue and the post-purchase ratios.
  */
 export function computeFirst50Report(input: First50Input): First50Report {
-  const owners = (name: string) => new Set(input.validationRows.filter((r) => r.eventName === name).map((r) => r.ownerId));
-  const offerViewers = owners("founding_offer_viewed");
-  const buyClickers = owners("founding_buy_clicked");
-  const checkoutStarters = owners("founding_checkout_started");
-  const purchasers = owners("founding_purchase_completed");
+  // Internal live-validation owners: owners whose order attribution carries the
+  // reserved internal_validation campaign. Their purchases are REAL Stripe
+  // commerce but are deliberately NOT First-50 prospect conversions - every
+  // cohort metric below excludes them, surfacing only via the internal
+  // diagnostics (never as prospect success).
+  const internalValidationOwners = new Set(
+    input.orderRows.filter((o) => o.campaign === INTERNAL_VALIDATION_CAMPAIGN).map((o) => o.ownerId),
+  );
+  const isCohortOwner = (ownerId: string) => !internalValidationOwners.has(ownerId);
 
-  const paidOrders = input.orderRows.filter((o) => o.status === "paid");
-  const fullRefunds = input.orderRows.filter((o) => o.status === "refunded");
+  const ownersOf = (name: string) => new Set(input.validationRows.filter((r) => r.eventName === name).map((r) => r.ownerId));
+  const cohortOwnersOf = (name: string) => new Set(
+    input.validationRows.filter((r) => r.eventName === name && isCohortOwner(r.ownerId)).map((r) => r.ownerId),
+  );
+  const offerViewers = cohortOwnersOf("founding_offer_viewed");
+  const buyClickers = cohortOwnersOf("founding_buy_clicked");
+  const checkoutStarters = cohortOwnersOf("founding_checkout_started");
+  const purchasers = cohortOwnersOf("founding_purchase_completed");
+  // Internal diagnostics mirror the event-based purchase definition.
+  const internalPurchasers = new Set(
+    [...ownersOf("founding_purchase_completed")].filter((o) => internalValidationOwners.has(o)),
+  );
+
+  // Cohort orders exclude internal-validation orders; internal revenue follows
+  // the same paid-order semantics as net paid revenue (a refunded order drops
+  // out of revenue while the historical purchase event stays visible).
+  const cohortOrders = input.orderRows.filter((o) => isCohortOwner(o.ownerId));
+  const internalOrders = input.orderRows.filter((o) => internalValidationOwners.has(o.ownerId));
+  const paidOrders = cohortOrders.filter((o) => o.status === "paid");
+  const fullRefunds = cohortOrders.filter((o) => o.status === "refunded");
   const netPaidRevenueMinor = paidOrders.reduce((sum, o) => sum + o.amountMinor, 0);
+  const internalValidationRevenueMinor = internalOrders
+    .filter((o) => o.status === "paid")
+    .reduce((sum, o) => sum + o.amountMinor, 0);
 
-  // Source breakdown: every order row is one checkout started; paid orders are
-  // purchases; revenue sums paid amounts only (refunds never add revenue).
+  // Source breakdown: every cohort order row is one checkout started; paid
+  // orders are purchases; revenue sums paid amounts only (refunds never add
+  // revenue). Internal-validation orders are excluded from the cohort
+  // breakdown and visible only via the internal diagnostics.
   const sourceMap = new Map<string, SourceRow>();
   const rowFor = (source: string): SourceRow => {
     let row = sourceMap.get(source);
     if (!row) { row = { source, checkoutStarts: 0, purchases: 0, revenueEur: 0 }; sourceMap.set(source, row); }
     return row;
   };
-  for (const order of input.orderRows) rowFor(order.source || "(not set)").checkoutStarts += 1;
+  for (const order of cohortOrders) rowFor(order.source || "(not set)").checkoutStarts += 1;
   for (const order of paidOrders) {
     const row = rowFor(order.source || "(not set)");
     row.purchases += 1;
@@ -223,14 +291,16 @@ export function computeFirst50Report(input: First50Input): First50Report {
     .toSorted((a, b) => b.revenueEur - a.revenueEur || b.purchases - a.purchases || a.source.localeCompare(b.source));
 
   // Paid customers = owners with an ACTIVE entitlement whose source is a real
-  // commercial purchase. manual_test/grant entitlements grant access but are
-  // never commercial revenue - they must not inflate paid counts or activation.
+  // commercial purchase, MINUS internal-validation owners (real commerce, but
+  // not prospects). manual_test/grant entitlements grant access but are never
+  // commercial revenue - they must not inflate paid counts or activation.
   const paidEntitledOwners = new Set(input.activeEntitlements.filter(isPaidProgressEntitlement).map((e) => e.ownerId));
+  const cohortPaidEntitledOwners = new Set([...paidEntitledOwners].filter(isCohortOwner));
   const manualTestEntitlements = input.activeEntitlements.filter((e) => e.source === "manual_test").length;
-  const activePaidCustomers = paidEntitledOwners.size;
-  const createdFirstRoutine = [...paidEntitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
-  const startedFirstWorkout = [...paidEntitledOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
-  const completedFirstWorkout = [...paidEntitledOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
+  const activePaidCustomers = cohortPaidEntitledOwners.size;
+  const createdFirstRoutine = [...cohortPaidEntitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
+  const startedFirstWorkout = [...cohortPaidEntitledOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
+  const completedFirstWorkout = [...cohortPaidEntitledOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
 
   return {
     targetedProspects: TARGETED_PROSPECTS,
@@ -240,6 +310,8 @@ export function computeFirst50Report(input: First50Input): First50Report {
     purchases: purchasers.size,
     activePaidCustomers,
     manualTestEntitlements,
+    internalValidationPurchases: internalPurchasers.size,
+    internalValidationRevenueEur: Math.round(internalValidationRevenueMinor / 100),
     fullRefunds: fullRefunds.length,
     netPaidRevenueEur: Math.round(netPaidRevenueMinor / 100),
     buyClickToCheckoutPct: pct(checkoutStarters.size, buyClickers.size),
@@ -255,12 +327,15 @@ export function computeFirst50Report(input: First50Input): First50Report {
 
 export function computeValidationMetrics(input: MetricsInput): ValidationMetrics {
   // Same commercial paid-customer definition as the First-50 report: only
-  // ACTIVE entitlements with a real commercial source count.
+  // ACTIVE entitlements with a real commercial source count, MINUS
+  // internal-validation owners (real commerce, but never cohort members).
+  const excluded = input.internalValidationOwners ?? new Set<string>();
   const paidOwners = new Set(input.entitlements.filter(isPaidProgressEntitlement).map((e) => e.ownerId));
-  const paidCustomers = paidOwners.size;
-  const createdFirstRoutine = [...paidOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
-  const startedFirstWorkout = [...paidOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
-  const completedFirstWorkout = [...paidOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
+  const cohortPaidOwners = new Set([...paidOwners].filter((o) => !excluded.has(o)));
+  const paidCustomers = cohortPaidOwners.size;
+  const createdFirstRoutine = [...cohortPaidOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
+  const startedFirstWorkout = [...cohortPaidOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
+  const completedFirstWorkout = [...cohortPaidOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
   const ratio = (a: number) => (paidCustomers === 0 ? null : Math.round((a / paidCustomers) * 1000) / 10);
   return {
     paidCustomers,

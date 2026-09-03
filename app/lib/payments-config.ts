@@ -33,6 +33,7 @@
 
 import {
   ConfigValidationError,
+  parseInternalValidationOwnerIds,
   resolveDevTestBypassEnabled,
   resolvePaywallEnabled,
   resolvePaymentMode,
@@ -78,6 +79,18 @@ export function isProgressPaywallEnabled(): boolean {
  */
 export function isProgressDevTestBypassEnabled(): boolean {
   return resolveDevTestBypassEnabled(process.env.PROGRESS_DEV_TEST_BYPASS, currentRuntimeEnv(process.env.NODE_ENV));
+}
+
+/**
+ * Exact Clerk user-id allowlist (INTERNAL_VALIDATION_OWNER_IDS) for the
+ * internal live-validation purchase. Orders initiated by these owners are
+ * tagged with the reserved `internal_validation` campaign SERVER-SIDE, so a
+ * real Stripe purchase never becomes First-50 prospect #1. Empty = no internal
+ * owner configured (feature inert, nothing is excluded). Values are exact
+ * owner ids - never emails - and are never exposed to the client.
+ */
+export function getInternalValidationOwnerIds(): Set<string> {
+  return new Set(parseInternalValidationOwnerIds(process.env.INTERNAL_VALIDATION_OWNER_IDS));
 }
 
 /**

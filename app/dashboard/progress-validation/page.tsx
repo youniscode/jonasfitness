@@ -20,8 +20,14 @@ export default async function ProgressValidationPage() {
     // INTERNAL diagnostic only - test/founder manual_test entitlements are
     // preserved (never deleted) but are NOT commercial success.
     ["Manual/test entitlements (internal - never commercial)", report.manualTestEntitlements],
+    // INTERNAL diagnostic only - the real €19 internal validation purchase is
+    // genuine Stripe commerce but is NEVER a First-50 prospect conversion. It
+    // stays visible here so the coach can reconcile: total real purchases may
+    // be 1 while First-50 prospect purchases are still 0.
+    ["Internal validation purchases (internal - never First-50)", report.internalValidationPurchases],
+    ["Internal validation revenue (internal - never First-50)", `€${report.internalValidationRevenueEur}`],
     ["Full refunds", report.fullRefunds],
-    ["Net paid revenue", `€${report.netPaidRevenueEur}`],
+    ["Net paid revenue (First-50 cohort)", `€${report.netPaidRevenueEur}`],
     ["Buy click → checkout", pct(report.buyClickToCheckoutPct)],
     ["Checkout → purchase", pct(report.checkoutToPurchasePct)],
     ["Manual validation rate (purchases / 50)", pct(report.manualValidationRatePct)],

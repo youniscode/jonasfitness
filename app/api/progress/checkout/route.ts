@@ -1,8 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { createFoundingCheckout } from "../../../lib/stripe";
-import { getStripeCommerceConfig, FOUNDING_ACCESS_PRODUCT_KEY } from "../../../lib/payments-config";
+import { getInternalValidationOwnerIds, getStripeCommerceConfig, FOUNDING_ACCESS_PRODUCT_KEY } from "../../../lib/payments-config";
 import { getActiveEntitlement, recordCheckoutOrder, recordValidationEvent } from "../../../lib/payments-service";
-import { FOUNDING_AMOUNT_MINOR, FOUNDING_CURRENCY } from "../../../lib/payments-domain";
+import { FOUNDING_AMOUNT_MINOR, FOUNDING_CURRENCY, resolveCheckoutCampaign } from "../../../lib/payments-domain";
 import { sanitizeAttribution } from "../../../lib/attribution";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,15 @@ export async function POST(request: Request) {
 
   // Sanitize optional first-touch attribution; null when absent/invalid.
   const body = await request.json().catch(() => ({})) as { attribution?: unknown };
-  const attribution = sanitizeAttribution(body.attribution);
+  const sanitized = sanitizeAttribution(body.attribution);
+  // The campaign is resolved SERVER-SIDE: the reserved `internal_validation`
+  // marker is honoured only for allowlisted internal-validation owners (their
+  // real €19 purchase is excluded from First-50 cohort metrics). A normal
+  // customer can never self-exclude - the marker is stripped for everyone
+  // else. An allowlisted owner always gets it, so the internal checkout is
+  // deterministic without any customer-visible button or special URL.
+  const campaign = resolveCheckoutCampaign(sanitized?.campaign, userId, getInternalValidationOwnerIds());
+  const attribution = sanitized ? { ...sanitized, campaign: campaign ?? "" } : null;
 
   try {
     const session = await createFoundingCheckout({
