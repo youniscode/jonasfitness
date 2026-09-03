@@ -10,6 +10,7 @@ const schema = read("db", "schema.ts");
 const mechanics = read("app", "lib", "progress-mechanics.ts");
 const service = read("app", "lib", "progress-service.ts");
 const detail = read("app", "progress", "(product)", "routines", "[id]", "RoutineDetail.tsx");
+const panel = read("app", "progress", "(product)", "routines", "[id]", "AddExercisePanel.tsx");
 const sortable = read("app", "progress", "(product)", "routines", "[id]", "RoutineSortable.tsx");
 const layout = read("app", "progress", "(product)", "routines", "[id]", "routineLayout.ts");
 const listView = read("app", "progress", "(product)", "routines", "RoutinesView.tsx");
@@ -262,7 +263,7 @@ test("every exercise card exposes accessible move up/down, a Move-to-section sel
   assert.match(sortable, /<button type="button" aria-label=\{t\.moveUp\} disabled=\{index === 0\} onClick=\{\(\) => onMove\(e, -1\)\}>↑<\/button>/, "move up accessible");
   assert.match(sortable, /<button type="button" aria-label=\{t\.moveDown\} disabled=\{index === groupLength - 1\} onClick=\{\(\) => onMove\(e, 1\)\}>↓<\/button>/, "move down accessible in sections");
   assert.ok(sortable.includes('className="progress-move-to-section"'), "move-to-section control present");
-  assert.equal((detail.match(/<option value="">\{t\.ungrouped\}<\/option>/g) ?? []).length, 1, "add-exercise panel offers ungrouped");
+  assert.equal((panel.match(/<option value="">\{t\.ungrouped\}<\/option>/g) ?? []).length, 1, "add-exercise panel offers ungrouped");
   assert.equal((sortable.match(/<option value="">\{t\.ungrouped\}<\/option>/g) ?? []).length, 1, "the shared card template offers ungrouped for both grouped and tail rows");
   assert.match(sortable, /<select value=\{e\.sectionId === null \? "" : String\(e\.sectionId\)\} disabled=\{busy\} onChange=\{\(ev\) => onMoveToSection\(e, ev\.target\.value === "" \? null : Number\(ev\.target\.value\)\)\}>/, "cards keep a live membership select");
   assert.ok(sortable.includes("function moveExerciseToSection("), "membership change handler exists");

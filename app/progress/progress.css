@@ -160,11 +160,25 @@
 .progress-add-section input{border:1px solid #cdcec5;background:#fff;padding:11px;color:#151712;font-size:11px;width:100%}
 .progress-add-exercise{background:#fff;border:1px solid #10120e;padding:18px;margin-bottom:18px;display:grid;gap:12px}
 .progress-add-exercise label{font-size:9px;color:#71756b;display:grid;gap:5px}
-.progress-catalogue-results{max-height:220px;overflow:auto;border:1px solid #e5e5dd}
-.progress-catalogue-results button{display:flex;justify-content:space-between;width:100%;border:0;border-bottom:1px solid #efefe9;background:#fff;padding:11px;text-align:left;cursor:pointer}
-.progress-catalogue-results button:hover{background:#f1fbc9}
-.progress-catalogue-results strong{font-size:12px}
+.progress-add-exercise input:focus-visible,.progress-add-exercise select:focus-visible,.progress-catalogue-results button:focus-visible,.progress-custom-toggle:focus-visible{outline:2px solid #9cc94f;outline-offset:1px}
+.progress-catalogue-results{max-height:240px;overflow:auto;border:1px solid #e5e5dd}
+.progress-catalogue-results button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;border-bottom:1px solid #efefe9;background:#fff;padding:11px;text-align:start;cursor:pointer;min-width:0}
+.progress-catalogue-results button>span{display:grid;gap:2px;min-width:0;text-align:start}
+.progress-catalogue-results button:hover:not(:disabled){background:#f1fbc9}
+.progress-catalogue-results button.active{background:#eef7d2;box-shadow:inset 3px 0 0 var(--lime)}
+.progress-catalogue-results button:disabled{opacity:.5;cursor:default}
+.progress-catalogue-results button.adding:disabled{opacity:1}
+.progress-catalogue-results strong{font-size:12px;overflow-wrap:anywhere}
 .progress-catalogue-results small{font-size:8px;color:#85887f}
+.progress-catalogue-results em{font-style:normal;font-size:9px;font-weight:800;color:#546126;white-space:nowrap}
+.progress-results-busy{background:#fbfaf3}
+.progress-add-feedback{font-size:10px;color:#3d5220;font-weight:800;display:flex;align-items:center;gap:6px;margin:0}
+.progress-add-feedback i{font-style:normal;color:var(--lime);background:#10120e;width:18px;height:18px;display:inline-grid;place-items:center;font-size:11px;flex:none}
+.progress-custom-row{display:flex;align-items:center;gap:10px;border-top:1px dashed #dedfd5;padding-top:12px}
+.progress-custom-row>span{font-size:10px;color:#71756b}
+.progress-custom-toggle{display:inline-flex;align-items:center;justify-content:space-between;gap:14px;margin-inline-start:auto}
+.progress-custom-form{display:grid;gap:12px;border-top:1px dashed #dedfd5;padding-top:12px}
+.progress-custom-form .progress-cta{justify-self:start;min-width:180px}
 .progress-add-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end}
 .progress-add-form .progress-rep-range{display:flex;align-items:center;gap:4px}
 .progress-rep-range input{width:100%}
@@ -372,6 +386,8 @@
   .progress-section-actions .progress-ghost{min-height:44px;display:inline-flex;align-items:center}
   .progress-move-to-section select{min-height:44px}
   .progress-add-form{grid-template-columns:1fr 1fr}
+  .progress-custom-row{flex-wrap:wrap}
+  .progress-custom-toggle{min-height:44px;margin-inline-start:0}
   .progress-routine-head{align-items:flex-start;flex-direction:column}
   .progress-exercise-edit{grid-template-columns:1fr 1fr 1fr}
   .progress-section-grip,.progress-drag-handle{display:none}
@@ -410,6 +426,17 @@
   .progress-exercise-title strong{font-size:16px}
   .progress-add-form{grid-template-columns:1fr}
   .progress-add-form input,.progress-add-form select{padding:12px 10px;font-size:16px;min-height:44px}
+  .progress-add-exercise{padding:14px 10px}
+  .progress-add-exercise>label>input{font-size:16px;padding:12px 10px;min-height:44px}
+  .progress-catalogue-results button{min-height:44px;padding:10px 8px}
+  .progress-catalogue-results strong{font-size:14px}
+  .progress-catalogue-results small{font-size:9px}
+  .progress-custom-form input{font-size:16px;padding:12px 10px;min-height:44px}
+  .progress-custom-row{padding-top:10px;gap:8px}
+  .progress-custom-row>span{font-size:11px}
+  .progress-custom-toggle{min-height:44px;padding:11px 13px;font-size:10px}
+  .progress-add-feedback{font-size:12px}
+  .progress-custom-form .progress-cta{justify-self:stretch;min-height:48px;justify-content:center}
   .progress-set-head,.progress-set-body>div{grid-template-columns:22px 1fr 1fr 1fr 1fr 46px;gap:4px;padding:8px}
   .progress-set-body input{padding:11px 4px;font-size:16px;min-height:44px}
   .progress-set-body button{min-height:44px;padding:11px 6px;font-size:12px}

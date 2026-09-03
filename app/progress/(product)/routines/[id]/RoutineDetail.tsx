@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useProgressLang } from "../../progress-lang";
-import { builtInExercises, exerciseSearchText } from "../../../../lib/exercise-catalogue";
+import AddExercisePanel, { type AddExerciseDraft } from "./AddExercisePanel";
 import RoutineSortable, { orderedSections, type Placement, type PublicExercise, type Routine, type Section } from "./RoutineSortable";
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -24,16 +24,6 @@ export default function RoutineDetail() {
   const [starting, setStarting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<(typeof builtInExercises)[number] | null>(null);
-  const [customName, setCustomName] = useState("");
-  const [addSectionId, setAddSectionId] = useState<string>("");
-  const [sets, setSets] = useState(3);
-  const [repMin, setRepMin] = useState(8);
-  const [repMax, setRepMax] = useState(12);
-  const [rir, setRir] = useState(2);
-  const [unit, setUnit] = useState<"kg" | "lb">("kg");
-  const [saving, setSaving] = useState(false);
   const [newSection, setNewSection] = useState("");
 
   // Inline-effect fetch to satisfy react-hooks/set-state-in-effect.
@@ -46,15 +36,6 @@ export default function RoutineDetail() {
     }).catch(() => { if (!cancelled) setError(t.notFound); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, t.error, t.notFound]);
-
-  // Default the add-exercise target to the first section (or ungrouped) when
-  // the panel first opens (seeded from the click handler, never from an effect).
-  function openAddPanel() {
-    if (!addOpen && routine && addSectionId === "") {
-      setAddSectionId(routine.sections.length > 0 ? String(routine.sections[0].id) : "");
-    }
-    setAddOpen((value) => !value);
-  }
 
   function updateExercise(eid: number, patch: Partial<PublicExercise>) {
     setRoutine((current) => current && { ...current, exercises: current.exercises.map((e) => e.id === eid ? { ...e, ...patch } : e) });
@@ -79,20 +60,14 @@ export default function RoutineDetail() {
   }
 
   // --- Exercise add / remove ----------------------------------------------
-  async function addExercise() {
-    if (!routine) return;
-    setSaving(true);
-    const name = selected ? selected.name : customName.trim();
-    if (!name || repMax < repMin) { setError(t.error); setSaving(false); return; }
-    const sectionId = addSectionId === "" ? null : Number(addSectionId);
-    const payload = selected
-      ? { exerciseId: selected.id, name: selected.name, nameFr: selected.nameFr, nameAr: selected.nameAr, sets, targetRepMin: repMin, targetRepMax: repMax, targetRir: rir, weightUnit: unit, notes: "", language: lang, sectionId }
-      : { name, exerciseId: `custom-${name.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 40)}`, sets, targetRepMin: repMin, targetRepMax: repMax, targetRir: rir, weightUnit: unit, notes: "", language: lang, sectionId };
-    try {
-      const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/exercises`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-      setRoutine(data.routine);
-      setAddOpen(false); setQuery(""); setSelected(null); setCustomName(""); setAddSectionId("");
-    } catch (issue) { setError(issue instanceof Error ? issue.message : t.error); } finally { setSaving(false); }
+  // Shared by the catalogue instant-add path and the custom-exercise form. The
+  // draft goes through the exact same routine-exercise POST; the confirmed
+  // server response replaces the routine so the new card appears from
+  // server-confirmed state (never an optimistic phantom row).
+  async function addDraft(draft: AddExerciseDraft) {
+    if (!routine) throw new Error(t.notFound);
+    const data = await json<{ routine: Routine }>(`/api/progress/routines/${routine.id}/exercises`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) });
+    setRoutine(data.routine);
   }
   async function removeExercise(e: PublicExercise) {
     if (!routine) return;
@@ -166,9 +141,6 @@ export default function RoutineDetail() {
 
   const sections = orderedSections(routine);
   const totalExercises = routine.exercises.length;
-  const matches = query.trim()
-    ? builtInExercises.filter((e) => exerciseSearchText(e).includes(query.trim().toLowerCase())).slice(0, 12)
-    : [];
 
   return (
     <section className="progress-base">
@@ -183,7 +155,7 @@ export default function RoutineDetail() {
       {error && <p className="progress-error" role="alert">{error}</p>}
 
       <div className="progress-routine-toolbar">
-        <button className="progress-ghost primary" onClick={openAddPanel}>{t.addExercise}<span>+</span></button>
+        <button className="progress-ghost primary" aria-expanded={addOpen} onClick={() => setAddOpen((value) => !value)}>{t.addExercise}<span>+</span></button>
       </div>
 
       <form className="progress-add-section" onSubmit={(event) => { event.preventDefault(); void addSection(); }}>
@@ -192,26 +164,14 @@ export default function RoutineDetail() {
       </form>
 
       {addOpen && (
-        <div className="progress-add-exercise">
-          <label>{t.exerciseName}<input value={query} onChange={(e) => { setQuery(e.target.value); setSelected(null); }} placeholder={t.searchCatalogue} /></label>
-          {matches.length > 0 && !selected && (
-            <div className="progress-catalogue-results">{matches.map((e) => <button key={e.id} type="button" onClick={() => { setSelected(e); setQuery(e.name); }}><strong>{e.name}</strong><small>{e.muscleGroup} · {e.equipment}</small></button>)}</div>
-          )}
-          {!selected && <label>{t.orCustom}<input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder={t.customExercise} /></label>}
-          {routine.sections.length > 0 && (
-            <label>{t.moveToSection}<select value={addSectionId} onChange={(e) => setAddSectionId(e.target.value)}>
-              <option value="">{t.ungrouped}</option>
-              {sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
-            </select></label>
-          )}
-          <div className="progress-add-form">
-            <label>{t.workingSets}<select value={sets} onChange={(e) => setSets(Number(e.target.value))}>{[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-            <label>{t.repRange}<span className="progress-rep-range"><input type="number" min={1} max={40} value={repMin} onChange={(e) => setRepMin(Number(e.target.value))} /><i>–</i><input type="number" min={1} max={40} value={repMax} onChange={(e) => setRepMax(Number(e.target.value))} /></span></label>
-            <label>{t.targetRir}<select value={rir} onChange={(e) => setRir(Number(e.target.value))}>{[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-            <label>{t.unit}<select value={unit} onChange={(e) => setUnit(e.target.value as "kg" | "lb")}><option value="kg">kg</option><option value="lb">lb</option></select></label>
-          </div>
-          <button className="progress-cta" disabled={saving || (!selected && !customName.trim())} onClick={() => void addExercise()}>{t.add}<span>+</span></button>
-        </div>
+        <AddExercisePanel
+          t={t}
+          lang={lang}
+          sections={sections}
+          defaultSectionId={sections.length > 0 ? sections[0].id : null}
+          onAdd={addDraft}
+          onClose={() => setAddOpen(false)}
+        />
       )}
 
       <RoutineSortable

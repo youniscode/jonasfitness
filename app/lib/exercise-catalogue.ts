@@ -38,6 +38,64 @@ export function exerciseSearchText(exercise: ExerciseDefinition): string {
     .toLowerCase();
 }
 
+// ---------------------------------------------------------------------------
+// Ranked catalogue search (add-exercise picker)
+//
+// Deterministic, tiered relevance for the self-service picker. Name relevance
+// always beats broad category metadata:
+//
+//   tier 1  name prefix / token-prefix / exact name match (any language)
+//   tier 2  name substring match (any language)
+//   tier 3  primary muscle-group match
+//   tier 4  equipment match
+//
+// Every whitespace token of the query must match SOMETHING on the exercise
+// (multi-word AND semantics), and the WORST tier across tokens decides an
+// exercise's rank - so a result can never ride to the top on a strong name
+// token while a weak metadata token would have excluded it. Within the same
+// rank, more name-level token hits win, then the stable catalogue order
+// breaks ties. Pure function: same query always returns the same slice.
+// ---------------------------------------------------------------------------
+
+const catalogueTokenPrefix = (haystack: string, token: string) => {
+  return haystack.startsWith(token) || haystack.split(" ").some((word) => word.startsWith(token));
+};
+
+function catalogueTokenTier(exercise: ExerciseDefinition, token: string): number | null {
+  const names = [exercise.name, exercise.nameFr, exercise.nameAr]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const nameTokenMatch = names.some((name) => name === token || catalogueTokenPrefix(name, token));
+  if (nameTokenMatch) return 1;
+  const nameSubstringMatch = names.some((name) => name.includes(token));
+  if (nameSubstringMatch) return 2;
+  const muscle = exercise.muscleGroup.trim().toLowerCase();
+  if (muscle && (muscle.includes(token) || catalogueTokenPrefix(muscle, token))) return 3;
+  const equipment = exercise.equipment.trim().toLowerCase();
+  if (equipment && (equipment.includes(token) || catalogueTokenPrefix(equipment, token))) return 4;
+  return null;
+}
+
+/** Ranked catalogue results for a search query (deterministic, testable). */
+export function searchCatalogue(query: string, limit = 12): ExerciseDefinition[] {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+  const ranked: { exercise: ExerciseDefinition; worstTier: number; nameHits: number; index: number }[] = [];
+  builtInExercises.forEach((exercise, index) => {
+    let worstTier = 0;
+    let nameHits = 0;
+    for (const token of tokens) {
+      const tier = catalogueTokenTier(exercise, token);
+      if (tier === null) return; // every token must match the exercise
+      if (tier <= 2) nameHits += 1;
+      worstTier = Math.max(worstTier, tier);
+    }
+    ranked.push({ exercise, worstTier, nameHits, index });
+  });
+  ranked.sort((a, b) => a.worstTier - b.worstTier || b.nameHits - a.nameHits || a.index - b.index);
+  return ranked.slice(0, limit).map((entry) => entry.exercise);
+}
+
 const builtIn = (
   id: string,
   name: string,
