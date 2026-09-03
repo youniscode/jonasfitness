@@ -9,6 +9,10 @@ export type ExerciseDefinition = {
   imageUrl: string;
   videoUrl: string;
   isCustom: boolean;
+  /** Alternate gym-language names that must find this exercise in search.
+   *  One canonical exercise + aliases, never duplicate catalogue rows.
+   *  Normalised to lowercase before matching. Optional for legacy callers. */
+  aliases?: string[];
 };
 
 export type ExerciseLanguage = "fr" | "en" | "ar";
@@ -42,37 +46,58 @@ export function exerciseSearchText(exercise: ExerciseDefinition): string {
 // Ranked catalogue search (add-exercise picker)
 //
 // Deterministic, tiered relevance for the self-service picker. Name relevance
-// always beats broad category metadata:
+// always beats broad category metadata, and aliases sit just behind the
+// canonical name (one canonical exercise + aliases, never duplicate rows):
 //
-//   tier 1  name prefix / token-prefix / exact name match (any language)
-//   tier 2  name substring match (any language)
-//   tier 3  primary muscle-group match
-//   tier 4  equipment match
+//   tier 0  canonical name exact match (any language)
+//   tier 1  canonical English-name standalone-word match
+//   tier 2  any-language name word match / alias standalone-word match
+//   tier 3  canonical name word-prefix match (meaningful tokens only)
+//   tier 4  alias word-prefix match (meaningful tokens only)
+//   tier 5  canonical-name or alias substring match
+//   tier 6  primary muscle-group match
+//   tier 7  equipment match
 //
-// Every whitespace token of the query must match SOMETHING on the exercise
-// (multi-word AND semantics), and the WORST tier across tokens decides an
-// exercise's rank - so a result can never ride to the top on a strong name
-// token while a weak metadata token would have excluded it. Within the same
-// rank, more name-level token hits win, then the stable catalogue order
-// breaks ties. Pure function: same query always returns the same slice.
+// Standalone-word matches always beat word-prefix matches, so a real lifter
+// phrase such as "t bar" ranks the T-bar rows above exercises that merely
+// share a prefix ("Barbell hip thrust" ~ "bar"). Single-character tokens can
+// never trigger prefix tiers - a bare "t" must not outrank a genuine match
+// through coincidence. Every whitespace token of the query must match
+// SOMETHING on the exercise (multi-word AND semantics), and the WORST tier
+// across tokens decides an exercise's rank - so a result can never ride to
+// the top on a strong name token while a weak metadata token would have
+// excluded it. Within the same rank, more name-level token hits win, then the
+// stable catalogue order breaks ties. Pure function: same query always
+// returns the same slice.
 // ---------------------------------------------------------------------------
 
 const catalogueTokenPrefix = (haystack: string, token: string) => {
   return haystack.startsWith(token) || haystack.split(" ").some((word) => word.startsWith(token));
 };
 
+const catalogueWords = (value: string) => value.split(/\s+/).filter(Boolean);
+
 function catalogueTokenTier(exercise: ExerciseDefinition, token: string): number | null {
   const names = [exercise.name, exercise.nameFr, exercise.nameAr]
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
-  const nameTokenMatch = names.some((name) => name === token || catalogueTokenPrefix(name, token));
-  if (nameTokenMatch) return 1;
-  const nameSubstringMatch = names.some((name) => name.includes(token));
-  if (nameSubstringMatch) return 2;
+  const aliases = (exercise.aliases ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean);
+  if (names.some((name) => name === token)) return 0;
+  const englishName = exercise.name.trim().toLowerCase();
+  const aliasWords = aliases.flatMap(catalogueWords);
+  const anyNameWords = names.flatMap(catalogueWords);
+  // A standalone word in the canonical English name is the strongest everyday hit.
+  if (catalogueWords(englishName).includes(token)) return 1;
+  // Exact standalone words elsewhere (FR/AR names, aliases) sit just behind it.
+  if (anyNameWords.includes(token) || aliasWords.includes(token)) return 2;
+  const prefixAllowed = token.length >= 2; // a single character must never win on a prefix
+  if (prefixAllowed && names.some((name) => catalogueTokenPrefix(name, token))) return 3;
+  if (prefixAllowed && aliases.some((alias) => catalogueTokenPrefix(alias, token))) return 4;
+  if (names.some((name) => name.includes(token)) || aliases.some((alias) => alias.includes(token))) return 5;
   const muscle = exercise.muscleGroup.trim().toLowerCase();
-  if (muscle && (muscle.includes(token) || catalogueTokenPrefix(muscle, token))) return 3;
+  if (muscle && (muscle.includes(token) || (prefixAllowed && catalogueTokenPrefix(muscle, token)))) return 6;
   const equipment = exercise.equipment.trim().toLowerCase();
-  if (equipment && (equipment.includes(token) || catalogueTokenPrefix(equipment, token))) return 4;
+  if (equipment && (equipment.includes(token) || (prefixAllowed && catalogueTokenPrefix(equipment, token)))) return 7;
   return null;
 }
 
@@ -87,7 +112,7 @@ export function searchCatalogue(query: string, limit = 12): ExerciseDefinition[]
     for (const token of tokens) {
       const tier = catalogueTokenTier(exercise, token);
       if (tier === null) return; // every token must match the exercise
-      if (tier <= 2) nameHits += 1;
+      if (tier <= 4) nameHits += 1; // canonical-name or alias word-level hit
       worstTier = Math.max(worstTier, tier);
     }
     ranked.push({ exercise, worstTier, nameHits, index });
@@ -105,29 +130,34 @@ const builtIn = (
   equipment: string,
   instructions: string,
   imageUrl = "",
-): ExerciseDefinition => ({ id: `builtin-${id}`, name, nameFr, nameAr, muscleGroup, equipment, instructions, imageUrl, videoUrl: "", isCustom: false });
+  aliases: string[] = [],
+): ExerciseDefinition => ({ id: `builtin-${id}`, name, nameFr, nameAr, muscleGroup, equipment, instructions, imageUrl, videoUrl: "", isCustom: false, aliases });
 
-export const builtInExercises: ExerciseDefinition[] = [
+// The Jonas Coach catalogue: every exercise the client-programme engine may
+// offer (movement-pattern + tier + intelligence + image coverage live here).
+// This set is STABLE - existing ids/slugs must never be renamed or removed
+// because routines, workout snapshots and history reference them.
+export const coachCatalogueExercises: ExerciseDefinition[] = [
   builtIn("barbell-bench-press", "Barbell bench press", "Développé couché barre", "ضغط الصدر بالبار", "Chest", "Barbell", "Set the shoulder blades, keep the feet planted and lower the bar under control to the lower chest.", "/exercises/barbell-bench-press.webp"),
   builtIn("incline-dumbbell-press", "Incline dumbbell press", "Développé incliné haltères", "ضغط مائل بالدمبل", "Chest", "Dumbbells", "Use a moderate incline, keep the wrists stacked and press without lifting the shoulders.", "/exercises/incline-dumbbell-press.webp"),
   builtIn("cable-fly", "Cable fly", "Écarté à la poulie", "تفتيح الصدر بالكابل", "Chest", "Cable", "Keep a soft elbow bend and bring the upper arms together without losing ribcage control.", "/exercises/cable-fly.webp"),
   builtIn("pull-up", "Pull-up", "Traction", "عقلة", "Back", "Bodyweight", "Start from a controlled hang, drive the elbows down and avoid swinging.", "/exercises/pull-up.webp"),
-  builtIn("lat-pulldown", "Lat pulldown", "Tirage vertical", "سحب الكابل للأسفل", "Back", "Cable", "Keep the torso stable and pull the elbows toward the hips.", "/exercises/lat-pulldown.webp"),
+  builtIn("lat-pulldown", "Lat pulldown", "Tirage vertical", "سحب الكابل للأسفل", "Back", "Cable", "Keep the torso stable and pull the elbows toward the hips.", "/exercises/lat-pulldown.webp", ["pulldown", "lat pull down", "lat pull-down"]),
   builtIn("seated-cable-row", "Seated cable row", "Tirage horizontal assis", "سحب الكابل جالسًا", "Back", "Cable", "Brace the trunk, pull toward the lower ribs and control the reach forward.", "/exercises/seated-cable-row.webp"),
   builtIn("barbell-row", "Barbell row", "Rowing barre", "تمرين التجديف بالبار", "Back", "Barbell", "Hold a stable hip hinge and row the bar without using momentum from the torso.", "/exercises/barbell-row.webp"),
   builtIn("back-squat", "Barbell back squat", "Squat arrière barre", "القرفصاء الخلفي بالبار", "Quadriceps", "Barbell", "Brace before descending, keep balanced pressure through the whole foot and stand with the hips and chest together.", "/exercises/back-squat.webp"),
-  builtIn("leg-press", "Leg press", "Presse à cuisses", "ضغط الأرجل", "Quadriceps", "Machine", "Use a controlled depth that keeps the pelvis stable and drive through the whole foot.", "/exercises/leg-press.webp"),
+  builtIn("leg-press", "Leg press", "Presse à cuisses", "ضغط الأرجل", "Quadriceps", "Machine", "Use a controlled depth that keeps the pelvis stable and drive through the whole foot.", "/exercises/leg-press.webp", ["45 degree leg press", "45-degree leg press", "leg sled"]),
   builtIn("bulgarian-split-squat", "Bulgarian split squat", "Fente bulgare", "القرفصاء البلغاري", "Quadriceps", "Dumbbells", "Keep the front foot planted, descend under control and drive through the working leg.", "/exercises/bulgarian-split-squat.webp"),
-  builtIn("romanian-deadlift", "Romanian deadlift", "Soulevé de terre roumain", "الرفعة الميتة الرومانية", "Hamstrings", "Barbell", "Push the hips back with a braced trunk and keep the bar close to the legs.", "/exercises/romanian-deadlift.webp"),
+  builtIn("romanian-deadlift", "Romanian deadlift", "Soulevé de terre roumain", "الرفعة الميتة الرومانية", "Hamstrings", "Barbell", "Push the hips back with a braced trunk and keep the bar close to the legs.", "/exercises/romanian-deadlift.webp", ["rdl"]),
   builtIn("seated-leg-curl", "Seated leg curl", "Leg curl assis", "ثني الأرجل جالسًا", "Hamstrings", "Machine", "Keep the hips secured against the pad and control both directions.", "/exercises/seated-leg-curl.webp"),
   builtIn("hip-thrust", "Barbell hip thrust", "Hip thrust barre", "رفع الورك بالبار", "Glutes", "Barbell", "Keep the ribs down and finish by extending the hips without overextending the lower back.", "/exercises/hip-thrust.webp"),
   builtIn("standing-calf-raise", "Standing calf raise", "Extension des mollets debout", "رفع السمانة وقوفًا", "Calves", "Machine", "Use a full comfortable range and pause briefly at the top and bottom.", "/exercises/standing-calf-raise.webp"),
   builtIn("overhead-press", "Overhead press", "Développé militaire", "ضغط الكتفين فوق الرأس", "Shoulders", "Barbell", "Brace the trunk, press vertically and finish with the arms aligned over the body.", "/exercises/overhead-press.webp"),
   builtIn("lateral-raise", "Dumbbell lateral raise", "Élévations latérales haltères", "رفرفة جانبية بالدمبل", "Shoulders", "Dumbbells", "Lead with the elbows and raise under control without shrugging.", "/exercises/lateral-raise.webp"),
-  builtIn("rear-delt-fly", "Rear-delt fly", "Élévations postérieures", "تفتيح الكتف الخلفي", "Shoulders", "Machine", "Keep the chest supported and move through the rear shoulders rather than the lower back.", "/exercises/rear-delt-fly.webp"),
+  builtIn("rear-delt-fly", "Rear-delt fly", "Élévations postérieures", "تفتيح الكتف الخلفي", "Shoulders", "Machine", "Keep the chest supported and move through the rear shoulders rather than the lower back.", "/exercises/rear-delt-fly.webp", ["rear delt fly", "rear fly"]),
   builtIn("barbell-curl", "Barbell curl", "Curl barre", "تمرين البايسبس بالبار", "Biceps", "Barbell", "Keep the upper arms quiet and curl without leaning back.", "/exercises/barbell-curl.webp"),
   builtIn("incline-curl", "Incline dumbbell curl", "Curl incliné haltères", "بايسبس مائل بالدمبل", "Biceps", "Dumbbells", "Keep the shoulders back and extend the elbow fully under control.", "/exercises/incline-curl.webp"),
-  builtIn("triceps-pressdown", "Triceps pressdown", "Extension des triceps à la poulie", "سحب الترايسبس للأسفل", "Triceps", "Cable", "Keep the elbows close to the torso and extend without moving the shoulders.", "/exercises/triceps-pressdown.webp"),
+  builtIn("triceps-pressdown", "Triceps pressdown", "Extension des triceps à la poulie", "سحب الترايسبس للأسفل", "Triceps", "Cable", "Keep the elbows close to the torso and extend without moving the shoulders.", "/exercises/triceps-pressdown.webp", ["pressdown", "pushdown", "cable pushdown", "straight bar pressdown", "straight-bar pressdown"]),
   builtIn("overhead-triceps-extension", "Overhead triceps extension", "Extension des triceps au-dessus de la tête", "تمديد الترايسبس فوق الرأس", "Triceps", "Cable", "Keep the upper arms stable and use a controlled stretch behind the head.", "/exercises/overhead-triceps-extension.webp"),
   builtIn("plank", "Plank", "Planche", "تمرين البلانك", "Core", "Bodyweight", "Brace the trunk and maintain a straight line without holding your breath.", "/exercises/plank.webp"),
   builtIn("cable-crunch", "Cable crunch", "Crunch à la poulie", "شد البطن بالكابل", "Core", "Cable", "Flex through the trunk under control without pulling with the arms.", "/exercises/cable-crunch.webp"),
@@ -152,7 +182,7 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("one-arm-cable-row", "One-arm cable row", "Rowing unilatéral à la poulie", "تجديف الكابل بذراع واحدة", "Back", "Cable", "Brace with one hand on the frame and pull the handle toward the hip without rotating the trunk.", "/exercises/one-arm-cable-row.webp"),
   builtIn("machine-row", "Machine row", "Rowing machine", "التجديف بالآلة", "Back", "Machine", "Set the chest against the pad and pull the handles back without lifting the torso.", "/exercises/machine-row.webp"),
   builtIn("incline-machine-chest-press", "Incline machine chest press", "Développé incliné machine", "ضغط الصدر المائل بالآلة", "Chest", "Machine", "Set the seat so the handles meet the upper chest and press without shrugging.", "/exercises/incline-machine-chest-press.webp"),
-  builtIn("pec-deck-fly", "Pec deck fly", "Écarté à la machine pec deck", "فراشة الصدر بالآلة", "Chest", "Machine", "Set the seat so the handles align with the chest and bring the pads together with a soft elbow bend.", "/exercises/pec-deck-fly.webp"),
+  builtIn("pec-deck-fly", "Pec deck fly", "Écarté à la machine pec deck", "فراشة الصدر بالآلة", "Chest", "Machine", "Set the seat so the handles align with the chest and bring the pads together with a soft elbow bend.", "/exercises/pec-deck-fly.webp", ["pec deck", "machine fly"]),
   builtIn("cable-chest-fly", "Cable chest fly", "Écarté poitrine à la poulie", "فرد الصدر بالكابل", "Chest", "Cable", "Keep a soft elbow bend and bring the hands together without losing ribcage control.", "/exercises/cable-chest-fly.webp"),
   builtIn("machine-lateral-raise", "Machine lateral raise", "Élévation latérale machine", "الرفرفة الجانبية بالآلة", "Shoulders", "Machine", "Set the seat and raise with the elbows leading, without shrugging or swinging.", "/exercises/machine-lateral-raise.webp"),
   builtIn("reverse-pec-deck", "Reverse pec deck", "Oiseau à la machine", "تفتيح الكتف الخلفي بالآلة", "Shoulders", "Machine", "Keep the chest on the pad and open the arms through the rear shoulders.", "/exercises/reverse-pec-deck.webp"),
@@ -162,8 +192,8 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("pallof-press", "Pallof press", "Pallof press", "تمرين بالوف الضغط", "Core", "Cable", "Brace the trunk and press the cable out in front without rotating the hips.", "/exercises/pallof-press.webp"),
   builtIn("cable-lateral-raise", "Cable lateral raise", "Élévation latérale à la poulie", "الرفرفة الجانبية بالكابل", "Shoulders", "Cable", "Lead with the elbows and raise under control without shrugging.", "/exercises/cable-lateral-raise.webp"),
   // Library expansion #2 (25 net-new): machines, cables and bodyweight staples.
-  builtIn("adductor-machine", "Adductor machine", "Machine adducteurs", "آلة تقريب الفخذين", "Adductors", "Machine", "Squeeze the legs together under control and return slowly without using momentum.", "/exercises/adductor-machine.webp"),
-  builtIn("abductor-machine", "Abductor machine", "Machine abducteurs", "آلة إبعاد الفخذين", "Abductors", "Machine", "Press the legs apart under control and return slowly without leaning forward.", "/exercises/abductor-machine.webp"),
+  builtIn("adductor-machine", "Adductor machine", "Machine adducteurs", "آلة تقريب الفخذين", "Adductors", "Machine", "Squeeze the legs together under control and return slowly without using momentum.", "/exercises/adductor-machine.webp", ["hip adduction machine", "inner thigh machine"]),
+  builtIn("abductor-machine", "Abductor machine", "Machine abducteurs", "آلة إبعاد الفخذين", "Abductors", "Machine", "Press the legs apart under control and return slowly without leaning forward.", "/exercises/abductor-machine.webp", ["hip abduction machine", "outer thigh machine"]),
   builtIn("seated-calf-raise", "Seated calf raise", "Extension des mollets assis", "رفع السمانة جالسًا", "Calves", "Machine", "Use a full comfortable range with the knees bent and pause at the top and bottom.", "/exercises/seated-calf-raise.webp"),
   builtIn("leg-press-calf-raise", "Leg press calf raise", "Extension des mollets à la presse", "رفع السمانة بآلة ضغط الأرجل", "Calves", "Machine", "Place the balls of the feet on the platform edge and push through a full range.", "/exercises/leg-press-calf-raise.webp"),
   builtIn("walking-lunge", "Walking lunge", "Fente marchée", "الاندفاع بالمشي", "Quadriceps", "Bodyweight", "Keep the torso upright and step forward with a controlled knee bend on each side.", "/exercises/walking-lunge.webp"),
@@ -171,9 +201,9 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("step-up", "Step-up", "Montée sur marche", "الصعود على الصندوق", "Quadriceps", "Bodyweight", "Drive through the working heel to step up and lower under control.", "/exercises/step-up.webp"),
   builtIn("single-leg-press", "Single-leg press", "Presse unilatérale", "ضغط الأرجل بساق واحدة", "Quadriceps", "Machine", "Keep the pelvis stable and press through the whole foot of the working leg.", "/exercises/single-leg-press.webp"),
   builtIn("smith-split-squat", "Smith split squat", "Split squat à la Smith machine", "سبليت سكوات بآلة سميث", "Quadriceps", "Machine", "Set a staggered stance under the bar and descend under control on the working leg.", "/exercises/smith-split-squat.webp"),
-  builtIn("t-bar-row", "T-bar row", "Rowing T-bar", "تجديف T بار", "Back", "Barbell", "Keep the chest up and row the load toward the lower ribs without torso momentum.", "/exercises/t-bar-row.webp"),
+  builtIn("t-bar-row", "T-bar row", "Rowing T-bar", "تجديف T بار", "Back", "Barbell", "Keep the chest up and row the load toward the lower ribs without torso momentum.", "/exercises/t-bar-row.webp", ["t bar", "t bar rows"]),
   builtIn("one-arm-dumbbell-row", "One-arm dumbbell row", "Rowing haltère unilatéral", "تجديف الدمبل بذراع واحدة", "Back", "Dumbbells", "Support the torso with one hand and pull the dumbbell to the hip without rotating.", "/exercises/one-arm-dumbbell-row.webp"),
-  builtIn("straight-arm-pulldown", "Straight-arm pulldown", "Tirage bras tendus", "سحب الكابل بأذرع مستقيمة", "Back", "Cable", "Keep the arms long and pull the cable down to the thighs with a braced trunk.", "/exercises/straight-arm-pulldown.webp"),
+  builtIn("straight-arm-pulldown", "Straight-arm pulldown", "Tirage bras tendus", "سحب الكابل بأذرع مستقيمة", "Back", "Cable", "Keep the arms long and pull the cable down to the thighs with a braced trunk.", "/exercises/straight-arm-pulldown.webp", ["straight arm pulldown", "straight arm pushdown"]),
   builtIn("face-pull", "Face pull", "Face pull", "سحب الوجه", "Shoulders", "Cable", "Pull the rope toward the face with the elbows high and finish through the rear shoulders.", "/exercises/face-pull.webp"),
   builtIn("machine-pullover", "Machine pullover", "Pull-over machine", "آلة البول أوفر", "Back", "Machine", "Keep the chest stable and pull the lever down in a long arc without bending the elbows.", "/exercises/machine-pullover.webp"),
   builtIn("standard-push-up", "Standard push-up", "Pompes classiques", "تمرين الضغط القياسي", "Chest", "Bodyweight", "Keep a straight line from head to heels and lower the chest to just above the floor.", "/exercises/standard-push-up.webp"),
@@ -181,7 +211,7 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("arnold-press", "Arnold press", "Développé Arnold", "ضغط أرنولد", "Shoulders", "Dumbbells", "Rotate the palms from facing you to pressing overhead with a braced trunk.", "/exercises/arnold-press.webp"),
   builtIn("hammer-curl", "Hammer curl", "Curl marteau", "بايسبس هامر", "Biceps", "Dumbbells", "Curl with a neutral grip and keep the upper arms quiet without leaning back.", "/exercises/hammer-curl.webp"),
   builtIn("rope-hammer-curl", "Rope hammer curl", "Curl marteau à la corde", "بايسبس هامر بالحبل", "Biceps", "Cable", "Keep the elbows pinned and curl the rope with a neutral grip.", "/exercises/rope-hammer-curl.webp"),
-  builtIn("skull-crusher", "Skull crusher", "Barre au front", "سكول كرشر", "Triceps", "Barbell", "Keep the upper arms stable and lower the bar toward the forehead under control.", "/exercises/skull-crusher.webp"),
+  builtIn("skull-crusher", "Skull crusher", "Barre au front", "سكول كرشر", "Triceps", "Barbell", "Keep the upper arms stable and lower the bar toward the forehead under control.", "/exercises/skull-crusher.webp", ["french press", "lying triceps extension", "ez bar skull crusher", "ez-bar skull crusher", "skull crushers", "skullcrusher", "skullcrushers"]),
   builtIn("assisted-dip", "Assisted dip", "Dips assistés", "الغطس المساعد", "Triceps", "Machine", "Use a light assist and control the descent without bouncing at the bottom.", "/exercises/assisted-dip.webp"),
   builtIn("ab-crunch-machine", "Ab crunch machine", "Machine à crunch", "آلة تمارين البطن", "Core", "Machine", "Curl the trunk against the pad under control and return slowly.", "/exercises/ab-crunch-machine.webp"),
   builtIn("hanging-knee-raise", "Hanging knee raise", "Relevé de genoux suspendu", "رفع الركبتين معلقًا", "Core", "Bodyweight", "Brace the trunk and raise the knees to hip height without swinging.", "/exercises/hanging-knee-raise.webp"),
@@ -219,6 +249,107 @@ export const builtInExercises: ExerciseDefinition[] = [
   builtIn("single-arm-cable-triceps-extension", "Single-arm cable triceps extension", "Extension triceps à la poulie à un bras", "تمديد ترايسبس بالكابل بذراع واحدة", "Triceps", "Cable", "Keep the elbow stable and extend fully under control without rotating the torso.", "/exercises/single-arm-cable-triceps-extension.webp"),
   builtIn("high-row-machine", "High row machine", "Rowing haut à la machine", "سحب علوي أفقي على الجهاز", "Back", "Machine", "Keep the chest supported and drive the elbows high and back without excessive shrugging.", "/exercises/high-row-machine.webp"),
 ];
+
+// ---------------------------------------------------------------------------
+// Jonas Progress lifter-catalogue expansion (progress-only)
+//
+// Large practical commercial-gym coverage for the self-service Progress add-
+// exercise picker. These entries deliberately have NO image/instructions and
+// NO coach movement-pattern/tier/intelligence records: they power Progress
+// search + instant add only and never enter the Jonas Coach catalogue, AI
+// candidate pools, fallback drafts or compact-catalogue prompts (see
+// coachCatalogueExercises above). Existing slugs are never touched.
+// ---------------------------------------------------------------------------
+export const progressLifterExercises: ExerciseDefinition[] = [
+  // --- Chest ---
+  builtIn("decline-barbell-bench-press", "Decline barbell bench press", "Développé couché décliné à la barre", "ضغط الصدر المائل للأسفل بالبار", "Chest", "Barbell", "", "", ["decline bench press", "decline bench", "barbell decline press", "decline chest press"]),
+  builtIn("decline-dumbbell-press", "Decline dumbbell press", "Développé décliné haltères", "ضغط الصدر المائل للأسفل بالدمبل", "Chest", "Dumbbells", "", "", ["decline dumbbell bench press", "decline db press"]),
+  builtIn("smith-machine-bench-press", "Smith machine bench press", "Développé couché à la Smith machine", "ضغط الصدر على جهاز سميث", "Chest", "Machine", "", "", ["smith bench press", "smith machine press"]),
+  builtIn("smith-machine-decline-press", "Smith machine decline press", "Développé décliné à la Smith machine", "ضغط الصدر المائل للأسفل على جهاز سميث", "Chest", "Machine", "", "", ["smith decline press"]),
+  builtIn("dumbbell-fly", "Dumbbell fly", "Écarté haltères", "تفتيح الصدر بالدمبل", "Chest", "Dumbbells", "", "", ["dumbbell chest fly", "flat dumbbell fly", "db fly"]),
+  builtIn("high-to-low-cable-fly", "High-to-low cable fly", "Écarté à la poulie haute vers basse", "تفتيح بالكابل من الأعلى إلى الأسفل", "Chest", "Cable", "", "", ["high to low fly", "high low cable fly"]),
+  builtIn("low-to-high-cable-fly", "Low-to-high cable fly", "Écarté à la poulie basse vers haute", "تفتيح بالكابل من الأسفل إلى الأعلى", "Chest", "Cable", "", "", ["low to high fly", "low high cable fly"]),
+  builtIn("weighted-push-up", "Weighted push-up", "Pompes lestées", "تمرين الضغط بالأوزان", "Chest", "Bodyweight", "", "", ["weighted pushup", "plate push up"]),
+  builtIn("plate-loaded-chest-press", "Plate-loaded chest press", "Développé couché à charges libres", "ضغط الصدر بآلة الألواح", "Chest", "Machine", "", "", ["plate loaded press", "plate loaded chest press"]),
+  // --- Back ---
+  builtIn("wide-grip-lat-pulldown", "Wide-grip lat pulldown", "Tirage vertical prise large", "سحب الكابل للأسفل بقبضة واسعة", "Back", "Cable", "", "", ["wide pulldown", "wide grip pulldown"]),
+  builtIn("close-grip-lat-pulldown", "Close-grip lat pulldown", "Tirage vertical prise serrée", "سحب الكابل للأسفل بقبضة ضيقة", "Back", "Cable", "", "", ["close grip pulldown", "v bar pulldown"]),
+  builtIn("reverse-grip-lat-pulldown", "Reverse-grip lat pulldown", "Tirage vertical prise inversée", "سحب الكابل للأسفل بقبضة عكسية", "Back", "Cable", "", "", ["underhand lat pulldown", "reverse pulldown"]),
+  builtIn("single-arm-lat-pulldown", "Single-arm lat pulldown", "Tirage vertical unilatéral", "سحب الكابل للأسفل بذراع واحدة", "Back", "Cable", "", "", ["one arm lat pulldown", "single arm pulldown"]),
+  builtIn("pendlay-row", "Pendlay row", "Rowing Pendlay", "تجديف بندلي", "Back", "Barbell", "", "", ["pendlay barbell row"]),
+  builtIn("chest-supported-t-bar-row", "Chest-supported T-bar row", "Rowing T-bar buste appuyé", "تجديف T بار مدعوم الصدر", "Back", "Barbell", "", "", ["chest supported t bar", "t bar row chest supported"]),
+  builtIn("close-grip-cable-row", "Close-grip cable row", "Tirage horizontal prise serrée", "سحب الكابل بقبضة ضيقة", "Back", "Cable", "", "", ["close grip seated row", "v bar row"]),
+  builtIn("wide-grip-cable-row", "Wide-grip cable row", "Tirage horizontal prise large", "سحب الكابل بقبضة واسعة", "Back", "Cable", "", "", ["wide grip seated row"]),
+  builtIn("chest-supported-dumbbell-row", "Chest-supported dumbbell row", "Rowing haltères buste appuyé", "تجديف الدمبل مدعوم الصدر", "Back", "Dumbbells", "", "", ["incline dumbbell row", "db row chest supported"]),
+  builtIn("seal-row", "Seal row", "Rowing sur banc plat", "تجديف على المقعد", "Back", "Barbell", "", "", []),
+  builtIn("weighted-pull-up", "Weighted pull-up", "Tractions lestées", "عقلة بالأوزان", "Back", "Bodyweight", "", "", ["weighted pullup"]),
+  builtIn("weighted-chin-up", "Weighted chin-up", "Tractions supination lestées", "عقلة سفلية بالأوزان", "Back", "Bodyweight", "", "", ["weighted chinup"]),
+  builtIn("plate-loaded-row", "Plate-loaded row", "Rowing à charges libres", "تجديف بآلة الألواح", "Back", "Machine", "", "", ["plate loaded row", "plate loaded machine row"]),
+  builtIn("barbell-shrug", "Barbell shrug", "Shrug barre", "هز الكتفين بالبار", "Back", "Barbell", "", "", ["barbell shoulder shrug"]),
+  // --- Shoulders ---
+  builtIn("seated-barbell-shoulder-press", "Seated barbell shoulder press", "Développé épaules assis à la barre", "ضغط الكتفين بالبار جالسًا", "Shoulders", "Barbell", "", "", ["seated barbell press", "seated overhead press"]),
+  builtIn("dumbbell-shoulder-press", "Dumbbell shoulder press", "Développé épaules haltères debout", "ضغط الكتفين بالدمبل وقوفًا", "Shoulders", "Dumbbells", "", "", ["standing dumbbell shoulder press", "db overhead press"]),
+  builtIn("smith-machine-shoulder-press", "Smith machine shoulder press", "Développé épaules à la Smith machine", "ضغط الكتفين على جهاز سميث", "Shoulders", "Machine", "", "", ["smith shoulder press", "smith overhead press"]),
+  builtIn("front-raise", "Front raise", "Élévations frontales haltères", "رفع أمامي بالدمبل", "Shoulders", "Dumbbells", "", "", ["dumbbell front raise", "front delt raise"]),
+  builtIn("cable-rear-delt-fly", "Cable rear delt fly", "Élévations postérieures à la poulie", "تفتيح الكتف الخلفي بالكابل", "Shoulders", "Cable", "", "", ["rear delt cable fly", "cable rear fly"]),
+  builtIn("dumbbell-rear-delt-fly", "Dumbbell rear delt fly", "Élévations postérieures haltères", "تفتيح الكتف الخلفي بالدمبل", "Shoulders", "Dumbbells", "", "", ["db rear delt fly", "bent over reverse fly"]),
+  builtIn("upright-row", "Upright row", "Rowing debout", "سحب عامودي", "Shoulders", "Barbell", "", "", ["upright barbell row"]),
+  // --- Biceps ---
+  builtIn("dumbbell-curl", "Dumbbell curl", "Curl haltères", "بايسبس بالدمبل", "Biceps", "Dumbbells", "", "", ["dumbbell biceps curl", "db curl"]),
+  builtIn("alternating-dumbbell-curl", "Alternating dumbbell curl", "Curl haltères alterné", "بايسبس متناوب بالدمبل", "Biceps", "Dumbbells", "", "", ["alternating curl", "alternating dumbbell curls"]),
+  builtIn("ez-bar-curl", "EZ-bar curl", "Curl barre EZ", "بايسبس بالبار المائل", "Biceps", "EZ bar", "", "", ["ez bar biceps curl", "ez bar curl"]),
+  builtIn("cross-body-hammer-curl", "Cross-body hammer curl", "Curl marteau croisé", "بايسبس هامر متقاطع", "Biceps", "Dumbbells", "", "", ["cross body hammer curl", "cross body curl"]),
+  builtIn("ez-bar-preacher-curl", "EZ-bar preacher curl", "Curl pupitre barre EZ", "بايسبس مقعد الكاهن بالبار المائل", "Biceps", "EZ bar", "", "", ["ez preacher curl", "ez bar preacher curl"]),
+  builtIn("spider-curl", "Spider curl", "Curl spider", "بايسبس سبايدر", "Biceps", "Dumbbells", "", "", ["spider curl dumbbells"]),
+  builtIn("concentration-curl", "Concentration curl", "Curl concentration", "بايسبس تركيز", "Biceps", "Dumbbells", "", "", ["concentration curls"]),
+  builtIn("reverse-curl", "Reverse curl", "Curl inversé", "بايسبس عكسي", "Biceps", "EZ bar", "", "", ["reverse ez bar curl", "reverse grip curl"]),
+  // --- Triceps ---
+  builtIn("rope-pressdown", "Rope pressdown", "Extension des triceps à la corde", "سحب الترايسبس بالحبل", "Triceps", "Cable", "", "", ["rope pushdown", "cable rope pressdown"]),
+  builtIn("reverse-grip-pressdown", "Reverse-grip pressdown", "Extension des triceps prise inversée", "سحب الترايسبس بقبضة عكسية", "Triceps", "Cable", "", "", ["reverse grip pushdown", "underhand pressdown"]),
+  builtIn("dumbbell-overhead-triceps-extension", "Dumbbell overhead triceps extension", "Extension des triceps haltères au-dessus de la tête", "تمديد الترايسبس بالدمبل فوق الرأس", "Triceps", "Dumbbells", "", "", ["dumbbell overhead extension", "db overhead extension"]),
+  builtIn("dumbbell-skull-crusher", "Dumbbell skull crusher", "Barre au front haltères", "سكول كرشر بالدمبل", "Triceps", "Dumbbells", "", "", ["dumbbell lying triceps extension", "db skull crusher", "dumbbell skull crushers", "db skull crushers"]),
+  builtIn("bench-dip", "Bench dip", "Dips sur banc", "غطس على المقعد", "Triceps", "Bodyweight", "", "", ["chair dip", "bench dips"]),
+  builtIn("triceps-extension-machine", "Triceps extension machine", "Extension des triceps machine", "تمديد الترايسبس بالآلة", "Triceps", "Machine", "", "", ["machine triceps extension", "seated triceps machine"]),
+  // --- Quadriceps ---
+  builtIn("front-squat", "Front squat", "Squat avant", "قرفصاء أمامية", "Quadriceps", "Barbell", "", "", ["barbell front squat", "front squat barbell"]),
+  builtIn("pendulum-squat", "Pendulum squat", "Pendulum squat", "قرفصاء البندول", "Quadriceps", "Machine", "", "", ["pendulum squat machine"]),
+  builtIn("horizontal-leg-press", "Horizontal leg press", "Presse à cuisses horizontale", "ضغط الأرجل الأفقي", "Quadriceps", "Machine", "", "", ["horizontal press", "horizontal leg press machine"]),
+  builtIn("lateral-lunge", "Lateral lunge", "Fente latérale", "اندفاع جانبي", "Quadriceps", "Dumbbells", "", "", ["side lunge"]),
+  // --- Hamstrings ---
+  builtIn("stiff-leg-deadlift", "Stiff-leg deadlift", "Soulevé de terre jambes tendues", "الرفعة الميتة بالأرجل الممدودة", "Hamstrings", "Barbell", "", "", ["stiff legged deadlift", "straight leg deadlift"]),
+  builtIn("standing-leg-curl", "Standing leg curl", "Leg curl debout", "ثني الأرجل وقوفًا", "Hamstrings", "Machine", "", "", ["standing hamstring curl"]),
+  builtIn("good-morning", "Good morning", "Good morning", "جود مورنينغ", "Hamstrings", "Barbell", "", "", ["good mornings"]),
+  builtIn("trap-bar-deadlift", "Trap bar deadlift", "Soulevé de terre à barre hexagonale", "الرفعة الميتة بالبار السداسي", "Hamstrings", "Barbell", "", "", ["hex bar deadlift", "trap bar dead lift"]),
+  // --- Glutes ---
+  builtIn("smith-machine-hip-thrust", "Smith machine hip thrust", "Hip thrust à la Smith machine", "رفع الورك على جهاز سميث", "Glutes", "Machine", "", "", ["smith hip thrust"]),
+  builtIn("glute-kickback-machine", "Glute kickback machine", "Extension de hanche machine", "ركل خلفي للألوية بالآلة", "Glutes", "Machine", "", "", ["machine glute kickback", "machine kickback"]),
+  // --- Calves ---
+  builtIn("smith-machine-calf-raise", "Smith machine calf raise", "Extension des mollets à la Smith machine", "رفع السمانة على جهاز سميث", "Calves", "Machine", "", "", ["smith calf raise"]),
+  builtIn("donkey-calf-raise", "Donkey calf raise", "Extension des mollets donkey", "رفع السمانة دونكي", "Calves", "Machine", "", "", ["donkey raise machine"]),
+  builtIn("single-leg-calf-raise", "Single-leg calf raise", "Extension des mollets sur une jambe", "رفع السمانة بساق واحدة", "Calves", "Bodyweight", "", "", ["single leg standing calf raise", "one leg calf raise"]),
+  // --- Adductors / Abductors ---
+  builtIn("cable-hip-adduction", "Cable hip adduction", "Adduction de hanche à la poulie", "تقريب الفخذ بالكابل", "Adductors", "Cable", "", "", ["cable adduction", "standing hip adduction"]),
+  builtIn("cable-hip-abduction", "Cable hip abduction", "Abduction de hanche à la poulie", "إبعاد الفخذ بالكابل", "Abductors", "Cable", "", "", ["cable abduction", "standing hip abduction"]),
+  // --- Core ---
+  builtIn("crunch", "Crunch", "Crunch au sol", "كرانش", "Core", "Bodyweight", "", "", ["floor crunch", "ab crunch"]),
+  builtIn("captains-chair-leg-raise", "Captain's chair leg raise", "Relevés de jambes à la chaise capitaine", "رفع الأرجل على كرسي الكابتن", "Core", "Bodyweight", "", "", ["captain chair knee raise", "captains chair"]),
+  builtIn("hanging-leg-raise", "Hanging leg raise", "Relevé de jambes suspendu", "رفع الأرجل معلقًا", "Core", "Bodyweight", "", "", ["hanging leg raises", "straight hanging leg raise"]),
+  builtIn("decline-sit-up", "Decline sit-up", "Relevé de buste sur banc décliné", "تمرين البطن على مقعد مائل للأسفل", "Core", "Bodyweight", "", "", ["decline sit ups"]),
+  builtIn("dumbbell-side-bend", "Dumbbell side bend", "Flexion latérale haltère", "ميل جانبي بالدمبل", "Core", "Dumbbells", "", "", ["side bend", "oblique side bend"]),
+  // --- Full body / carries ---
+  builtIn("suitcase-carry", "Suitcase carry", "Marche du fermier unilatérale", "حمل الفلاح بيد واحدة", "Full body", "Dumbbells", "", "", ["single arm farmer carry", "suitcase carry dumbbell"]),
+  builtIn("kettlebell-swing", "Kettlebell swing", "Swing kettlebell", "تأرجح الكيتل بيل", "Full body", "Kettlebell", "", "", ["kb swing", "kettle bell swing"]),
+];
+
+/** Complete catalogue: stable coach set first, then the Progress-lifter expansion. */
+export const builtInExercises: ExerciseDefinition[] = [...coachCatalogueExercises, ...progressLifterExercises];
+
+const progressLifterExerciseIds = new Set(progressLifterExercises.map((exercise) => exercise.id));
+
+/** True for the large Progress-lifter expansion entries (never coach-offered). */
+export function isProgressLifterExercise(exercise: Pick<ExerciseDefinition, "id">): boolean {
+  return progressLifterExerciseIds.has(exercise.id);
+}
 
 // --- Stable rehydration of saved programme exercises ---
 // Saved programme exercises are persisted as JSON. Older entries (or entries

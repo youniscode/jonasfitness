@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { getCoachId } from "../../clerk-auth";
-import { builtInExercises, type ExerciseDefinition } from "../../lib/exercise-catalogue";
+import { coachCatalogueExercises, type ExerciseDefinition } from "../../lib/exercise-catalogue";
 import { getDb } from "../../../db";
 import { exerciseLibrary } from "../../../db/schema";
 
@@ -35,7 +35,9 @@ export async function GET() {
   const custom = await getDb().select().from(exerciseLibrary)
     .where(eq(exerciseLibrary.ownerId, ownerId))
     .orderBy(asc(exerciseLibrary.name));
-  return Response.json({ exercises: [...custom.map(customExercise), ...builtInExercises] });
+  // The coach dashboard library intentionally shows the stable coach catalogue
+  // only; the Progress-lifter expansion never appears in coach surfaces.
+  return Response.json({ exercises: [...custom.map(customExercise), ...coachCatalogueExercises] });
 }
 
 export async function POST(request: Request) {

@@ -1,4 +1,4 @@
-import { builtInExercises } from "../../lib/exercise-catalogue";
+import { coachCatalogueExercises } from "../../lib/exercise-catalogue";
 import { representativeExercises } from "../../lib/onboarding-profile";
 
 // Client-facing, PII-free: serves the canonical library (id, name, translations,
@@ -13,9 +13,9 @@ export async function GET(request: Request) {
   const goal = searchParams.get("goal") ?? "";
   const equipment = searchParams.get("equipment")?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
   const representative = representativeExercises(
-    builtInExercises,
+    coachCatalogueExercises,
     { venue, equipment, experience, goal },
   ).map(({ id, name, nameFr, nameAr, imageUrl, equipment: exerciseEquipment }) => ({ id, name, nameFr, nameAr, imageUrl, equipment: exerciseEquipment }));
-  const library = builtInExercises.map(({ id, name, nameFr, nameAr, imageUrl }) => ({ id, name, nameFr, nameAr, imageUrl }));
+  const library = coachCatalogueExercises.map(({ id, name, nameFr, nameAr, imageUrl }) => ({ id, name, nameFr, nameAr, imageUrl }));
   return Response.json({ representative, library });
 }

@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import {
   BEGINNER_ALTERNATIVES,
   builtInExerciseFor,
-  builtInExercises,
+  coachCatalogueExercises,
   difficultyTierFor,
   movementPatternFor,
 } from "../app/lib/exercise-catalogue.ts";
@@ -93,10 +93,10 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
 // ---------- Catalogue invariants ----------
 
 test("catalogue count is 106 and all 8 batch-5 ids resolve with full metadata", () => {
-  assert.equal(builtInExercises.length, 106);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
+  assert.equal(coachCatalogueExercises.length, 106);
+  assert.equal(new Set(coachCatalogueExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
   for (const id of BATCH_5) {
-    const exercise = builtInExercises.find((item) => item.id === id);
+    const exercise = coachCatalogueExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);
     assert.ok(exercise.name && exercise.nameFr && exercise.nameAr, `${id} EN/FR/AR names`);
     assert.ok(exercise.muscleGroup && exercise.equipment && exercise.instructions, `${id} catalogue metadata`);
@@ -107,13 +107,13 @@ test("catalogue count is 106 and all 8 batch-5 ids resolve with full metadata", 
 });
 
 test("batch-5 names are unique and no .webp.png / non-canonical image paths exist anywhere", () => {
-  const normalized = builtInExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
+  const normalized = coachCatalogueExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate normalized EN name");
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const slug = exercise.id.slice("builtin-".length);
     assert.equal(exercise.imageUrl, `/exercises/${slug}.webp`, `${exercise.id} canonical image path`);
   }
-  const allPaths = builtInExercises.map((exercise) => exercise.imageUrl).join(" ");
+  const allPaths = coachCatalogueExercises.map((exercise) => exercise.imageUrl).join(" ");
   assert.ok(!allPaths.includes(".webp.png"), "no .webp.png reference in the catalogue");
 });
 
@@ -132,7 +132,7 @@ test("batch-5 images exist, are genuine WebP and exactly 1448×1086", () => {
 
 test("no duplicate image binary hashes across the whole 106-image library", () => {
   const hashes = new Map<string, string>();
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const slug = exercise.id.slice("builtin-".length);
     const hash = createHash("sha256").update(readFileSync(join(projectRoot, "public", "exercises", `${slug}.webp`))).digest("hex");
     assert.ok(!hashes.has(hash), `${slug} duplicates the binary content of ${hashes.get(hash)}`);
@@ -144,7 +144,7 @@ test("no duplicate image binary hashes across the whole 106-image library", () =
 
 test("batch-5 has full intelligence coverage and all alternatives/regressions/progressions resolve", () => {
   assert.equal(intelligenceCoversAllBuiltIns().length, 0, "every built-in needs an intelligence entry");
-  const ids = new Set(builtInExercises.map((exercise) => exercise.id));
+  const ids = new Set(coachCatalogueExercises.map((exercise) => exercise.id));
   for (const id of BATCH_5) {
     const intel = exerciseIntelligenceFor({ libraryId: id, name: id });
     assert.ok(intel, `${id} missing intelligence`);
@@ -235,7 +235,7 @@ test("incline-press pool gains the guided smith option", () => {
 test("Jonas Coach compact catalogue exposes all 8 batch-5 ids", () => {
   const catalogue = compactCatalogue("Full commercial gym").join("\n");
   for (const id of BATCH_5) {
-    const exercise = builtInExercises.find((item) => item.id === id)!;
+    const exercise = coachCatalogueExercises.find((item) => item.id === id)!;
     assert.ok(catalogue.includes(`${id} · ${exercise.name}`), `${id} must be exposed to Jonas Coach`);
   }
 });
@@ -411,7 +411,7 @@ test("beginner fallback stays conservative - the batch-5 Tier 1/2 machines are f
 });
 
 test("every BEGINNER_ALTERNATIVES entry only references real canonical ids", () => {
-  const ids = new Set(builtInExercises.map((exercise) => exercise.id));
+  const ids = new Set(coachCatalogueExercises.map((exercise) => exercise.id));
   for (const alternatives of Object.values(BEGINNER_ALTERNATIVES)) {
     for (const alternativeId of alternatives) assert.ok(ids.has(alternativeId), `alternative ${alternativeId} must be a real built-in`);
   }

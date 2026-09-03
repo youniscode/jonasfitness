@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { builtInExercises, searchCatalogue } from "../app/lib/exercise-catalogue.ts";
 
 const names = (query: string) => searchCatalogue(query).map((exercise) => exercise.name);
-const ids = (query: string) => searchCatalogue(query).map((exercise) => exercise.id);
 
 const lowerName = (value: string) => value.trim().toLowerCase();
 
@@ -30,28 +29,53 @@ test("matching is case-insensitive", () => {
   assert.deepEqual(names("Bench Press"), names("bench press"));
 });
 
-test("\"bench\" returns exactly the bench-named exercises, name matches first", () => {
+test("\"bench\" returns every bench-named exercise plus true alias hits, name matches first", () => {
+  const results = searchCatalogue("bench", 100);
   const expected = builtInExercises.filter((exercise) => lowerName(exercise.name).includes("bench")).map((exercise) => exercise.id);
-  const actual = ids("bench");
-  assert.equal(actual.length, expected.length, "only bench-named exercises match");
-  assert.deepEqual(new Set(actual), new Set(expected));
+  const actual = results.map((exercise) => exercise.id);
+  for (const id of expected) assert.ok(actual.includes(id), `${id} must be found by \"bench\"`);
+  // Alias-only hits are allowed (e.g. Decline dumbbell press via "decline dumbbell bench press")
+  // but only when the exercise genuinely carries a bench alias, never unrelated noise.
+  const aliasOnly = actual.filter((id) => !expected.includes(id));
+  for (const id of aliasOnly) {
+    const definition = builtInExercises.find((exercise) => exercise.id === id)!;
+    assert.ok(
+      (definition.aliases ?? []).some((alias) => lowerName(alias).includes("bench")),
+      `${id} may only match via a real bench alias`,
+    );
+  }
   assert.equal(names("bench")[0], "Barbell bench press");
-  assert.ok(!actual.includes("builtin-back-squat"));
+  assert.ok(!actual.includes("builtin-back-squat"), "non-bench exercises never surface");
 });
 
-test("\"incline\" returns exactly the incline-named exercises, ranked before any category match", () => {
+test("\"incline\" returns every incline-named exercise plus true alias hits, name matches first", () => {
+  const results = searchCatalogue("incline", 100);
   const expected = builtInExercises.filter((exercise) => lowerName(exercise.name).includes("incline")).map((exercise) => exercise.id);
-  const actual = ids("incline");
-  assert.equal(actual.length, expected.length, "only incline-named exercises match");
-  assert.deepEqual(new Set(actual), new Set(expected));
+  const actual = results.map((exercise) => exercise.id);
+  for (const id of expected) assert.ok(actual.includes(id), `${id} must be found by \"incline\"`);
+  const aliasOnly = actual.filter((id) => !expected.includes(id));
+  for (const id of aliasOnly) {
+    const definition = builtInExercises.find((exercise) => exercise.id === id)!;
+    assert.ok(
+      (definition.aliases ?? []).some((alias) => lowerName(alias).includes("incline")),
+      `${id} may only match via a real incline alias`,
+    );
+  }
   assert.equal(names("incline")[0], "Incline dumbbell press");
 });
 
 test("multi-token \"bench press\" keeps full AND semantics across name tokens", () => {
-  const single = ids("bench");
-  const multi = ids("bench press");
-  assert.deepEqual(new Set(multi), new Set(single), "every bench-named press also matches both tokens");
-  assert.deepEqual(multi, single, "order preserved between single and multi-token name queries");
+  const multi = searchCatalogue("bench press", 100).map((exercise) => exercise.id);
+  // Every exercise whose NAME contains both tokens must match.
+  const expected = builtInExercises
+    .filter((exercise) => lowerName(exercise.name).includes("bench") && lowerName(exercise.name).includes("press"))
+    .map((exercise) => exercise.id);
+  for (const id of expected) assert.ok(multi.includes(id), `${id} must survive the AND of both tokens`);
+  // The alias-only bench hit (Decline dumbbell press) survives because its name carries "press".
+  assert.ok(multi.includes("builtin-decline-dumbbell-press"), "alias-only bench match with press in the name survives");
+  // Exercises matching only ONE token (e.g. Bench dip has no "press") are excluded.
+  assert.ok(!multi.includes("builtin-bench-dip"), "bench-dip matches only one token and must be excluded");
+  assert.equal(multi.length, expected.length + 1, "no other single-token-only matches leak in");
 });
 
 test("\"chest\" returns chest-name matches before muscle-group-only matches", () => {
@@ -64,15 +88,23 @@ test("\"chest\" returns chest-name matches before muscle-group-only matches", ()
   assert.ok(!results.includes("Plank"), "non-chest core exercises never surface");
 });
 
-test("\"che\" never lets unrelated exercises outrank the obvious chest results", () => {
-  const results = names("che");
-  const machineChestIndex = results.indexOf("Machine chest press");
-  const benchIndex = results.indexOf("Barbell bench press");
-  assert.ok(machineChestIndex !== -1 && benchIndex !== -1);
-  assert.ok(machineChestIndex < benchIndex, "chest-name exercises outrank muscle-group matches for a short query");
-  // The old flat substring search mixed category + metadata noise evenly;
-  // the ranked search keeps chest-name hits first and caps the noise.
-  assert.ok(results.length <= 12);
+test("\"che\" keeps obvious chest results on top and only tails unrelated noise", () => {
+  const results = searchCatalogue("che");
+  const ranked = results.map((exercise) => exercise.name);
+  const at = (name: string) => ranked.indexOf(name);
+  assert.equal(at("Machine chest press"), 0, "the most literal chest exercise ranks first");
+  // The core chest exercises the dogfooder expected all surface in the top slice.
+  for (const chestName of ["Cable chest fly", "Incline machine chest press", "Decline machine chest press", "Plate-loaded chest press"]) {
+    const index = at(chestName);
+    assert.ok(index !== -1 && index < 6, `${chestName} must be a top-6 chest hit (got index ${index})`);
+  }
+  // Exercises that only match through foreign-language/name noise may appear at the
+  // tail of the 12-cap slice, but must never outrank the literal chest-name results.
+  for (const noiseName of ["Plank", "Farmer carry"]) {
+    const index = at(noiseName);
+    if (index !== -1) assert.ok(index >= 6, `${noiseName} noise must never outrank chest results (got index ${index})`);
+  }
+  assert.ok(results.length <= 12, "the 12-result cap still bounds a noisy short prefix");
 });
 
 test("exact single-word name matches rank first for \"plank\"", () => {
@@ -88,12 +120,20 @@ test("muscle-group query \"shoulders\" still finds muscle-level matches, but nam
 });
 
 test("equipment matches rank last: \"dumbbell\" finds equipment-only exercises after name matches", () => {
-  const results = names("dumbbell");
-  const nameMatch = results.indexOf("Dumbbell lateral raise");
-  const equipmentOnly = results.indexOf("Bulgarian split squat"); // equipment Dumbbells, "dumbbell" only in metadata
-  assert.ok(nameMatch !== -1, "dumbbell-named exercises present");
-  assert.ok(equipmentOnly !== -1, "Dumbbells-equipment exercises still found");
-  assert.ok(nameMatch < equipmentOnly, "name matches outrank equipment-only metadata matches");
+  const results = searchCatalogue("dumbbell", 100);
+  const ranked = results.map((exercise) => exercise.id);
+  const nameMatches = builtInExercises
+    .filter((exercise) => lowerName(exercise.name).includes("dumbbell"))
+    .map((exercise) => exercise.id);
+  for (const id of nameMatches) assert.ok(ranked.includes(id), `${id} dumbbell-named exercise present`);
+  // Every dumbbell-named exercise outranks the equipment-only matches.
+  assert.deepEqual(
+    ranked.slice(0, nameMatches.length).sort(),
+    [...nameMatches].sort(),
+    "all name matches occupy the leading segment",
+  );
+  const equipmentOnly = ranked.indexOf("builtin-bulgarian-split-squat"); // equipment Dumbbells, no "dumbbell" in name
+  assert.ok(equipmentOnly >= nameMatches.length, "equipment-only matches rank after every name match");
 });
 
 test("localized names search in the picker's current language", () => {

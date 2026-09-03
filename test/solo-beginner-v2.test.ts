@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  builtInExercises,
+  coachCatalogueExercises,
   soloBeginnerLevelFor,
   difficultyTierFor,
 } from "../app/lib/exercise-catalogue.ts";
@@ -46,7 +46,7 @@ function soloBeginnerProfile(overrides?: Partial<{ experience: string; confidenc
 describe("SoloBeginnerLevel - metadata coverage", () => {
   it("every built-in exercise has a soloBeginnerLevel", () => {
     const missing: string[] = [];
-    for (const exercise of builtInExercises) {
+    for (const exercise of coachCatalogueExercises) {
       const level = soloBeginnerLevelFor(exercise);
       if (level === null) missing.push(exercise.id);
     }
@@ -70,7 +70,7 @@ describe("SoloBeginnerLevel - metadata coverage", () => {
 
   it("distribution matches target (L1: 49, L2: 42, L3: 15)", () => {
     const counts = { 1: 0, 2: 0, 3: 0 };
-    for (const exercise of builtInExercises) {
+    for (const exercise of coachCatalogueExercises) {
       const level = soloBeginnerLevelFor(exercise);
       if (level) counts[level]++;
     }
@@ -80,7 +80,7 @@ describe("SoloBeginnerLevel - metadata coverage", () => {
   });
 
   it("all Tier 3 difficultyTier exercises are Solo Level 3", () => {
-    for (const exercise of builtInExercises) {
+    for (const exercise of coachCatalogueExercises) {
       const tier = difficultyTierFor(exercise);
       const soloLevel = soloBeginnerLevelFor(exercise);
       if (tier === 3) {

@@ -38,7 +38,7 @@ import {
 } from "../app/lib/exercise-intelligence.ts";
 import { analyseProgrammeQuality } from "../app/lib/programme-quality.ts";
 import { rehydrateDraft, validateDraft, type ProgrammeDraft } from "../app/lib/ai-programme.ts";
-import { builtInExercises } from "../app/lib/exercise-catalogue.ts";
+import { coachCatalogueExercises } from "../app/lib/exercise-catalogue.ts";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = "2026-08-18T00:00:00.000Z";
@@ -568,7 +568,7 @@ test("representative client: explicit + learned context re-ranks the top exercis
 test("scoring all built-ins with a preference context stays in-memory and deterministic", () => {
   const rows = [pref("builtin-lat-pulldown", { explicitState: "preferred" })];
   const context = { ...BASE_CONTEXT, preferenceContext: preferenceContextFrom(rows, []) };
-  const scores = builtInExercises.map((exercise) => scoreExerciseForClient(exercise, context).score);
+  const scores = coachCatalogueExercises.map((exercise) => scoreExerciseForClient(exercise, context).score);
   assert.equal(scores.length, 106);
   assert.ok(scores.every((value) => Number.isFinite(value) && value >= 0 && value <= 100));
 });

@@ -9,7 +9,7 @@
 import {
   aiGenerationExcludedExerciseIds,
   builtInExerciseFor,
-  builtInExercises,
+  coachCatalogueExercises,
   difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
@@ -76,7 +76,9 @@ const integer = (value: unknown, fallback: number, minimum: number, maximum: num
 // Time/distance-based exercises (plank, farmer carry, …) are excluded so the
 // AI and the deterministic fallback only ever prescribe rep-based movements.
 export function candidateExercisesFor(equipment: string | null | undefined): ExerciseDefinition[] {
-  const list = [...builtInExercises].filter((exercise) => !aiGenerationExcludedExerciseIds.has(exercise.id));
+  // Jonas Coach only ever sees the stable coach catalogue - the large
+  // Progress-lifter expansion is never offered to clients or the AI.
+  const list = [...coachCatalogueExercises].filter((exercise) => !aiGenerationExcludedExerciseIds.has(exercise.id));
   const known = (equipment ?? "").toLowerCase();
   if (!known) return list.filter((exercise) => exercise.equipment !== "Machine");
   if (known.includes("home") || known.includes("bodyweight") || known.includes("no equipment")) {

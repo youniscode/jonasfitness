@@ -24,7 +24,7 @@ import {
   BEGINNER_ALTERNATIVES,
   beginnerAlternativeFor,
   builtInExerciseFor,
-  builtInExercises,
+  coachCatalogueExercises,
   difficultyTierFor,
   movementPatternFor,
 } from "../app/lib/exercise-catalogue.ts";
@@ -168,26 +168,26 @@ function isGenuineWebP(buffer: Buffer): boolean {
 // ---------- Catalogue invariants ----------
 
 test("catalogue count is 106 (34 + 19 + 25 + 10 + 10 + 8 net-new, seated-leg-curl already existed)", () => {
-  assert.equal(builtInExercises.length, 106);
-  assert.equal(new Set(builtInExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
+  assert.equal(coachCatalogueExercises.length, 106);
+  assert.equal(new Set(coachCatalogueExercises.map((exercise) => exercise.id)).size, 106, "duplicate id");
 });
 
 test("all previous 34 canonical ids are present and unchanged", () => {
-  const ids = new Set(builtInExercises.map((exercise) => exercise.id));
+  const ids = new Set(coachCatalogueExercises.map((exercise) => exercise.id));
   for (const id of PRE_EXPANSION_IDS) {
     assert.ok(ids.has(id), `pre-expansion id ${id} must still exist`);
   }
   // seated-leg-curl stays the original existing built-in - never duplicated.
-  assert.equal(builtInExercises.filter((exercise) => exercise.id === "builtin-seated-leg-curl").length, 1);
+  assert.equal(coachCatalogueExercises.filter((exercise) => exercise.id === "builtin-seated-leg-curl").length, 1);
 });
 
 test("all 106 normalized English names are unique", () => {
-  const normalized = builtInExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
+  const normalized = coachCatalogueExercises.map((exercise) => exercise.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate normalized EN name");
 });
 
 test("every built-in has EN/FR/AR, movement classification and a beginner tier (106/106)", () => {
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     assert.ok(exercise.name.trim(), `missing EN name for ${exercise.id}`);
     assert.ok(exercise.nameFr.trim(), `missing FR name for ${exercise.name}`);
     assert.ok(exercise.nameAr.trim(), `missing AR name for ${exercise.name}`);
@@ -198,7 +198,7 @@ test("every built-in has EN/FR/AR, movement classification and a beginner tier (
 });
 
 test("image coverage invariant - every built-in resolves to an existing local genuine WebP (106/106)", () => {
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const slug = exercise.id.slice("builtin-".length);
     assert.ok(exercise.imageUrl.startsWith("/exercises/"), `${exercise.id} image path prefix`);
     assert.equal(exercise.imageUrl, `/exercises/${slug}.webp`, `${exercise.id} image path`);
@@ -210,7 +210,7 @@ test("image coverage invariant - every built-in resolves to an existing local ge
 
 test("all 72 new ids resolve with full metadata and rehydrate by libraryId", () => {
   for (const id of NEW_IDS) {
-    const exercise = builtInExercises.find((item) => item.id === id);
+    const exercise = coachCatalogueExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist`);
     assert.ok(exercise.name && exercise.nameFr && exercise.nameAr, `${id} translations`);
     assert.ok(exercise.imageUrl, `${id} image`);
@@ -243,7 +243,7 @@ test("all 72 new ids resolve with full metadata and rehydrate by libraryId", () 
 // ---------- Alternative maps ----------
 
 test("alternative map only references real canonical ids", () => {
-  const ids = new Set(builtInExercises.map((exercise) => exercise.id));
+  const ids = new Set(coachCatalogueExercises.map((exercise) => exercise.id));
   for (const alternatives of Object.values(BEGINNER_ALTERNATIVES)) {
     for (const alternativeId of alternatives) {
       assert.ok(ids.has(alternativeId), `alternative ${alternativeId} must be a real built-in`);
@@ -310,7 +310,7 @@ test("seated/lying leg curl are available beginner posterior-chain options", () 
 test("Jonas Coach catalogue exposes all new built-ins (compact, id · name)", () => {
   const catalogue = compactCatalogue("Full commercial gym").join("\n");
   for (const id of NEW_IDS) {
-    const exercise = builtInExercises.find((item) => item.id === id)!;
+    const exercise = coachCatalogueExercises.find((item) => item.id === id)!;
     assert.ok(catalogue.includes(`${id} · ${exercise.name}`), `${id} must be exposed to Jonas Coach`);
   }
   // Timed/distance exclusions are untouched.

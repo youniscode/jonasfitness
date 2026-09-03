@@ -13,7 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  builtInExercises,
+  coachCatalogueExercises,
   difficultyTierFor,
   movementPatternFor,
 } from "../app/lib/exercise-catalogue.ts";
@@ -47,9 +47,9 @@ function isGenuineWebP(buffer: Buffer): boolean {
 // ---------- Library intelligence coverage ----------
 
 test("catalogue is 106 and every built-in has structured intelligence metadata", () => {
-  assert.equal(builtInExercises.length, 106);
+  assert.equal(coachCatalogueExercises.length, 106);
   assert.equal(intelligenceCoversAllBuiltIns().length, 0, "every built-in must have an intelligence entry");
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const intel = exerciseIntelligenceFor(exercise);
     assert.ok(intel, `${exercise.id} missing intelligence`);
     assert.ok(intel.primaryMuscles.length > 0, `${exercise.id} missing primary muscles`);
@@ -66,7 +66,7 @@ test("catalogue is 106 and every built-in has structured intelligence metadata",
 });
 
 test("regression / progression / alternative ids all resolve to real built-ins", () => {
-  const ids = new Set(builtInExercises.map((exercise) => exercise.id));
+  const ids = new Set(coachCatalogueExercises.map((exercise) => exercise.id));
   for (const entry of Object.values(EXERCISE_INTELLIGENCE)) {
     for (const list of [entry.regressions, entry.progressions, entry.alternatives]) {
       for (const ref of list) assert.ok(ids.has(ref), `intelligence reference ${ref} must be a real built-in`);
@@ -75,7 +75,7 @@ test("regression / progression / alternative ids all resolve to real built-ins",
 });
 
 test("intelligence derived fields never drift from the canonical catalogue", () => {
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const intel = exerciseIntelligenceFor(exercise)!;
     assert.equal(intel.movementPattern, movementPatternFor(exercise), exercise.id);
     assert.equal(intel.beginnerTier, difficultyTierFor(exercise), exercise.id);
@@ -123,7 +123,7 @@ test("intermediate strength client: barbell squat is not penalised as if beginne
 // ---------- Secondary objectives (supporting context only) ----------
 
 test("secondary 'Get stronger' modestly boosts stable compounds with a strength tag", () => {
-  const compound = builtInExercises.find((exercise) => {
+  const compound = coachCatalogueExercises.find((exercise) => {
     const intel = exerciseIntelligenceFor(exercise);
     return intel?.exerciseType === "compound" && intel.goalTags.includes("strength");
   });
@@ -135,7 +135,7 @@ test("secondary 'Get stronger' modestly boosts stable compounds with a strength 
 });
 
 test("secondary 'Get stronger' does not boost non-compound movements", () => {
-  const isolation = builtInExercises.find((exercise) => exerciseIntelligenceFor(exercise)?.exerciseType !== "compound");
+  const isolation = coachCatalogueExercises.find((exercise) => exerciseIntelligenceFor(exercise)?.exerciseType !== "compound");
   assert.ok(isolation);
   const base = scoreExerciseForClient({ libraryId: isolation.id, name: isolation.name }, { goal: "Build muscle", experience: "Intermediate", equipment: "Full commercial gym" });
   const withSecondary = scoreExerciseForClient({ libraryId: isolation.id, name: isolation.name }, { goal: "Build muscle", experience: "Intermediate", equipment: "Full commercial gym", secondaryGoals: ["Get stronger"] });
@@ -143,8 +143,8 @@ test("secondary 'Get stronger' does not boost non-compound movements", () => {
 });
 
 test("secondary 'Improve fitness' modestly boosts low-fatigue exercises only", () => {
-  const low = builtInExercises.find((exercise) => (exerciseIntelligenceFor(exercise)?.fatigueCost ?? 0) <= 2);
-  const high = builtInExercises.find((exercise) => (exerciseIntelligenceFor(exercise)?.fatigueCost ?? 0) >= 3);
+  const low = coachCatalogueExercises.find((exercise) => (exerciseIntelligenceFor(exercise)?.fatigueCost ?? 0) <= 2);
+  const high = coachCatalogueExercises.find((exercise) => (exerciseIntelligenceFor(exercise)?.fatigueCost ?? 0) >= 3);
   assert.ok(low && high, "expected both low- and high-fatigue exercises in the catalogue");
   const lowBase = scoreExerciseForClient({ libraryId: low.id, name: low.name }, { goal: "Build muscle" });
   const lowFit = scoreExerciseForClient({ libraryId: low.id, name: low.name }, { goal: "Build muscle", secondaryGoals: ["Improve fitness"] });
@@ -155,7 +155,7 @@ test("secondary 'Improve fitness' modestly boosts low-fatigue exercises only", (
 });
 
 test("unrelated/lifestyle secondary goals have zero effect and never exclude", () => {
-  const compound = builtInExercises.find((exercise) => exerciseIntelligenceFor(exercise)?.exerciseType === "compound");
+  const compound = coachCatalogueExercises.find((exercise) => exerciseIntelligenceFor(exercise)?.exerciseType === "compound");
   assert.ok(compound);
   const base = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle" });
   const withLifestyle = scoreExerciseForClient({ libraryId: compound.id, name: compound.name }, { goal: "Build muscle", secondaryGoals: ["Energy", "Routine", "Confidence"] });
@@ -165,7 +165,7 @@ test("unrelated/lifestyle secondary goals have zero effect and never exclude", (
 });
 
 test("secondary goals never override coach explicit avoid or the primary goal", () => {
-  const compound = builtInExercises.find((exercise) => {
+  const compound = coachCatalogueExercises.find((exercise) => {
     const intel = exerciseIntelligenceFor(exercise);
     return intel?.exerciseType === "compound" && intel.goalTags.includes("strength");
   });
@@ -251,7 +251,7 @@ test("machine chest press beginner hypertrophy explanation covers stability, goa
 });
 
 test("why panel never exposes medical diagnosis", () => {
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const explanation = explainExerciseForClient(exercise, { ...beginnerHypertrophyFullGym, limitations: "knee and shoulder discomfort", limitationsReviewed: true });
     const text = [...explanation.why, ...explanation.watchFor].join(" ").toLowerCase();
     assert.ok(!/unsafe|contraindicated|dangerous|diagnos|medical condition|injury/i.test(text), `${exercise.id} exposed a medical claim: ${text}`);
@@ -429,7 +429,7 @@ test("good fit can remain READY FOR COACH REVIEW", () => {
 
 test("Jonas Coach catalogue exposes structured fields for the expansion exercises", () => {
   const catalogue = compactCatalogue("Full commercial gym");
-  const deadBug = builtInExercises.find((exercise) => exercise.id === "builtin-dead-bug")!;
+  const deadBug = coachCatalogueExercises.find((exercise) => exercise.id === "builtin-dead-bug")!;
   const line = catalogue.find((entry) => entry.startsWith(`${deadBug.id} ·`));
   assert.ok(line, "dead bug must be exposed");
   assert.match(line ?? "", /core/);

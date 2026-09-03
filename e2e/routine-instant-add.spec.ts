@@ -238,3 +238,59 @@ test("screenshot walkthrough of the instant-add flow", async ({ page }) => {
   await instantAdd(page, "fly", "Cable fly");
   await page.screenshot({ path: `${SCREEN_DIR}/06-mobile-390.png`, fullPage: true });
 });
+
+test("expanded catalogue: decline bench instant-adds the standard barbell movement the lifter was missing", async ({ page }) => {
+  await openPanel(page);
+  await instantAdd(page, "decline bench", "Decline barbell bench press");
+  await expect(card(page, "Decline barbell bench press")).toHaveText("Decline barbell bench press");
+  const declineCard = sectionBlock(page, "PUSH").locator(".progress-exercise-card").filter({ has: page.locator("strong", { hasText: "Decline barbell bench press" }) });
+  await expect(declineCard.locator(".progress-exercise-prescription")).toHaveText("3×8–12 · RIR 2 · kg");
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
+test("real-lifter terms (RDL, adductor, abductor, pressdown) each instant-add the canonical exercise", async ({ page }) => {
+  await openPanel(page);
+  await instantAdd(page, "RDL", "Romanian deadlift");
+  await instantAdd(page, "adductor", "Adductor machine");
+  await instantAdd(page, "abductor", "Abductor machine");
+  await instantAdd(page, "pressdown", "Triceps pressdown");
+  await expect(postCount(page)).toHaveText("POSTs: 4");
+  await expect(sectionBlock(page, "PUSH").locator(".progress-exercise-title strong")).toHaveText([
+    "Romanian deadlift",
+    "Adductor machine",
+    "Abductor machine",
+    "Triceps pressdown",
+  ]);
+});
+
+test("390px mobile: expanded catalogue results fit without overflow and instant add stays fast", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPanel(page);
+  const input = searchInput(page);
+  await input.fill("decline");
+  const row = resultRow(page, "Decline barbell bench press");
+  await expect(row).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflow).toBe(false);
+  const rowHeight = (await row.boundingBox())?.height ?? 0;
+  expect(rowHeight).toBeGreaterThanOrEqual(44);
+  await row.click();
+  await expect(card(page, "Decline barbell bench press")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
+test("Arabic catalogue: expanded entries render RTL and instant-add by Arabic result row", async ({ page }) => {
+  await page.getByRole("button", { name: "AR", exact: true }).click();
+  await page.getByRole("button", { name: /إضافة تمرين/ }).click();
+  const arabicSearch = page.getByPlaceholder("ابحث عن التمارين");
+  await arabicSearch.fill("الرفعة الميتة الرومانية");
+  // The result row renders the Arabic catalogue name (RTL picker).
+  const row = resultRow(page, "الرفعة الميتة الرومانية");
+  await expect(row).toBeVisible();
+  await row.click();
+  // The added card stores the canonical EN identity (stable history slug);
+  // the instant-add itself must succeed in the Arabic session.
+  await expect(card(page, "Romanian deadlift")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+  await expect(page.locator("main")).toHaveAttribute("dir", "rtl");
+});

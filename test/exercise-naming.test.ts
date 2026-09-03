@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  builtInExercises,
+  coachCatalogueExercises,
   exerciseDisplayName,
   exerciseSearchText,
   type ExerciseDefinition,
@@ -61,8 +61,8 @@ test("exerciseSearchText matches English, French and Arabic names", () => {
 });
 
 test("all 106 built-ins have English, French and Arabic names", () => {
-  assert.equal(builtInExercises.length, 106);
-  for (const item of builtInExercises) {
+  assert.equal(coachCatalogueExercises.length, 106);
+  for (const item of coachCatalogueExercises) {
     assert.ok(item.name.trim(), `missing English name for ${item.id}`);
     assert.ok(item.nameFr.trim(), `missing French name for ${item.name}`);
     assert.ok(item.nameAr.trim(), `missing Arabic name for ${item.name}`);
@@ -70,12 +70,12 @@ test("all 106 built-ins have English, French and Arabic names", () => {
 });
 
 test("all built-in exercise ids are unique", () => {
-  const ids = builtInExercises.map((item) => item.id);
+  const ids = coachCatalogueExercises.map((item) => item.id);
   assert.equal(new Set(ids).size, ids.length, "duplicate built-in id detected");
 });
 
 test("all built-in normalized English names are unique", () => {
-  const normalized = builtInExercises.map((item) => item.name.trim().toLowerCase().replace(/\s+/g, " "));
+  const normalized = coachCatalogueExercises.map((item) => item.name.trim().toLowerCase().replace(/\s+/g, " "));
   assert.equal(new Set(normalized).size, normalized.length, "duplicate built-in name detected");
 });
 
@@ -273,8 +273,8 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
 }
 
 test("all 106 built-ins have non-empty imageUrl under /exercises/", () => {
-  assert.equal(builtInExercises.length, 106);
-  for (const item of builtInExercises) {
+  assert.equal(coachCatalogueExercises.length, 106);
+  for (const item of coachCatalogueExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(item.imageUrl.startsWith("/exercises/"), `${item.name} should use the /exercises/ prefix`);
     assert.equal(item.imageUrl, `/exercises/${slug}.webp`, `${item.name} has the wrong image path`);
@@ -282,14 +282,14 @@ test("all 106 built-ins have non-empty imageUrl under /exercises/", () => {
 });
 
 test("all 106 referenced local assets exist", () => {
-  for (const item of builtInExercises) {
+  for (const item of coachCatalogueExercises) {
     const slug = item.id.slice("builtin-".length);
     assert.ok(existsSync(imageAssetPath(slug)), `missing asset for ${slug}`);
   }
 });
 
 test("all 106 referenced files are genuine WebP (RIFF…WEBP)", () => {
-  for (const item of builtInExercises) {
+  for (const item of coachCatalogueExercises) {
     const slug = item.id.slice("builtin-".length);
     const buffer = readFileSync(imageAssetPath(slug));
     assert.ok(isGenuineWebP(buffer), `${slug} is not a genuine WebP file`);
@@ -297,7 +297,7 @@ test("all 106 referenced files are genuine WebP (RIFF…WEBP)", () => {
 });
 
 test("all 106 referenced images are canonical 1448×1086 (4:3)", () => {
-  for (const item of builtInExercises) {
+  for (const item of coachCatalogueExercises) {
     const slug = item.id.slice("builtin-".length);
     const dimensions = webpDimensions(readFileSync(imageAssetPath(slug)));
     assert.ok(dimensions, `${slug} has an unrecognised WebP header`);
@@ -308,18 +308,18 @@ test("all 106 referenced images are canonical 1448×1086 (4:3)", () => {
 
 test("no two distinct built-ins share identical image content", () => {
   const byHash = new Map<string, string>();
-  for (const item of builtInExercises) {
+  for (const item of coachCatalogueExercises) {
     const slug = item.id.slice("builtin-".length);
     const hash = createHash("sha256").update(readFileSync(imageAssetPath(slug))).digest("hex");
     const other = byHash.get(hash);
     assert.equal(other, undefined, `${item.name} duplicates the image of ${other ?? "?"} (${hash})`);
     byHash.set(hash, item.name);
   }
-  assert.equal(byHash.size, builtInExercises.length, "expected one distinct image per built-in");
+  assert.equal(byHash.size, coachCatalogueExercises.length, "expected one distinct image per built-in");
 });
 
 test("imageUrl propagates through programme helpers for every built-in", () => {
-  for (const item of builtInExercises) {
+  for (const item of coachCatalogueExercises) {
     const prescription = exerciseFromDefinition(item);
     assert.equal(prescription.imageUrl, item.imageUrl, `${item.name} imageUrl dropped by exerciseFromDefinition`);
     const roundTripped = programmeExercise({ ...prescription });
@@ -328,7 +328,7 @@ test("imageUrl propagates through programme helpers for every built-in", () => {
 });
 
 test("imageUrl propagates through workout helpers for every built-in", () => {
-  for (const item of builtInExercises) {
+  for (const item of coachCatalogueExercises) {
     const prescription = exerciseFromDefinition(item);
     const content = JSON.stringify({
       sessions: [{

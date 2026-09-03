@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   BEGINNER_ALTERNATIVES,
   beginnerAlternativeFor,
-  builtInExercises,
+  coachCatalogueExercises,
   difficultyTierFor,
   movementPatternFor,
 } from "../app/lib/exercise-catalogue.ts";
@@ -174,7 +174,7 @@ const EXPECTED_TIERS: Array<[string, 1 | 2 | 3]> = [
 ];
 
 test("every built-in exercise is tier-classified (no gaps)", () => {
-  for (const exercise of builtInExercises) {
+  for (const exercise of coachCatalogueExercises) {
     const tier = difficultyTierFor(exercise);
     assert.ok(tier === 1 || tier === 2 || tier === 3, `${exercise.id} has no difficulty tier`);
   }
@@ -194,7 +194,7 @@ test("the 10 new built-ins resolve and are pattern/tier classified", () => {
     ["builtin-back-extension", "hinge", 2],
   ];
   for (const [id, pattern, tier] of expected) {
-    const exercise = builtInExercises.find((item) => item.id === id);
+    const exercise = coachCatalogueExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist in the catalogue`);
     assert.equal(movementPatternFor(exercise), pattern, id);
     assert.equal(difficultyTierFor(exercise), tier, id);
@@ -224,7 +224,7 @@ test("the 19 expansion built-ins resolve and are pattern/tier classified", () =>
     ["builtin-cable-lateral-raise", "isolation", 2],
   ];
   for (const [id, pattern, tier] of expected) {
-    const exercise = builtInExercises.find((item) => item.id === id);
+    const exercise = coachCatalogueExercises.find((item) => item.id === id);
     assert.ok(exercise, `${id} must exist in the catalogue`);
     assert.equal(movementPatternFor(exercise), pattern, id);
     assert.equal(difficultyTierFor(exercise), tier, id);
@@ -238,7 +238,7 @@ test("tier classification matches the intended coaching tiers", () => {
   // The catalogue must have exactly 106 built-ins - the audit table above is the
   // complete classification, so a drift here means a new exercise was added
   // without a tier.
-  assert.equal(builtInExercises.length, 106);
+  assert.equal(coachCatalogueExercises.length, 106);
 });
 
 test("difficultyTierFor is exact - unknown ids and missing ids return null", () => {
@@ -277,7 +277,7 @@ test("fallback alternatives resolve in order - first available canonical option 
 });
 
 test("every alternative id exists in the catalogue (nothing invented)", () => {
-  const ids = new Set(builtInExercises.map((exercise) => exercise.id));
+  const ids = new Set(coachCatalogueExercises.map((exercise) => exercise.id));
   for (const alternatives of Object.values(BEGINNER_ALTERNATIVES)) {
     for (const alternativeId of alternatives) {
       assert.ok(ids.has(alternativeId), `alternative ${alternativeId} must be a real built-in`);
@@ -470,7 +470,7 @@ test("beginner 30-min fallback keeps movement balance, duration and validity", (
   const estimated = estimateProgrammeDurationMinutes(draft);
   assert.ok(estimated >= 25.5 && estimated <= 34.5, `~25.5–34.5 min, got ${estimated}`);
   assert.equal(validateDraft(draft, 3).ok, true);
-  const all = fallbackIds(draft).map((id) => builtInExercises.find((exercise) => exercise.id === id)?.name ?? id).join(" ");
+  const all = fallbackIds(draft).map((id) => coachCatalogueExercises.find((exercise) => exercise.id === id)?.name ?? id).join(" ");
   assert.match(all, /leg press|squat/i);
   assert.match(all, /glute bridge|hip thrust|back extension|deadlift|leg curl/i);
   assert.match(all, /press|bench/i);

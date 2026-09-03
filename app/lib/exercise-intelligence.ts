@@ -18,7 +18,7 @@
 
 import {
   builtInExerciseFor,
-  builtInExercises,
+  coachCatalogueExercises,
   difficultyTierFor,
   MAJOR_PATTERNS,
   movementPatternFor,
@@ -1116,10 +1116,11 @@ export function intelligenceForExerciseDefinition(definition: { id: string }): E
   return exerciseIntelligenceFor({ id: definition.id });
 }
 
-// All intelligence ids must reference real canonical built-ins - a test-time
-// invariant, also useful for tooling.
+// All intelligence ids must reference the real coach-catalogue built-ins - a
+// test-time invariant, also useful for tooling. The large Progress-lifter
+// expansion is intentionally NOT part of the coaching knowledge layer.
 export function intelligenceCoversAllBuiltIns(): string[] {
-  return builtInExercises.map((exercise) => exercise.id).filter((id) => !EXERCISE_INTELLIGENCE[id]);
+  return coachCatalogueExercises.map((exercise) => exercise.id).filter((id) => !EXERCISE_INTELLIGENCE[id]);
 }
 
 // ---------- Client-fit matching engine (deterministic, coaching-only) ----------
