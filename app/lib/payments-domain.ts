@@ -68,9 +68,40 @@ export function decideRefund(amountPaidMinor: number | null, amountRefundedMinor
   return amountRefundedMinor >= amountPaidMinor;
 }
 
+/**
+ * Minimal reporting view of a progress_founding entitlement row. `status` is
+ * included so the paid predicate never trusts a caller's label: only an ACTIVE
+ * row with a COMMERCIAL source counts as a paid customer.
+ */
+export interface EntitlementRow {
+  ownerId: string;
+  source: string;
+  status: string;
+}
+
+/**
+ * Commercial entitlement provenance: sources that represent a real paid
+ * purchase. `stripe_checkout` is the only commercial source today. `manual_test`
+ * and `grant` grant access but are NOT commercial revenue - they must never
+ * count as paid customers in First-50 reporting (the manual_test rows are
+ * preserved and remain visible via the internal diagnostic count).
+ */
+const COMMERCIAL_ENTITLEMENT_SOURCES = new Set(["stripe_checkout"]);
+
+/**
+ * An active progress_founding entitlement counts as a PAID customer only when
+ * its source represents a real commercial purchase. Active status alone is
+ * never sufficient - a manual_test/test entitlement grants access without
+ * being a paying customer.
+ */
+export function isPaidProgressEntitlement(entitlement: EntitlementRow): boolean {
+  return entitlement.status === "active" && COMMERCIAL_ENTITLEMENT_SOURCES.has(entitlement.source);
+}
+
 /** Deterministic metrics from a seeded/store shape - pure, testable. */
 export interface MetricsInput {
-  entitledOwners: Set<string>;
+  /** ACTIVE progress_founding entitlement rows (ownerId + provenance source). */
+  entitlements: EntitlementRow[];
   ownedRoutines: Map<string, number>;
   ownedWorkouts: Map<string, number>; // started per owner
   completedWorkouts: Map<string, number>; // completed per owner
@@ -97,8 +128,8 @@ export const TARGETED_PROSPECTS = 50;
 export interface First50Input {
   /** Raw validation_events rows (ownerId + eventName). */
   validationRows: { ownerId: string; eventName: string }[];
-  /** ACTIVE progress_founding entitlement owners only. */
-  activeEntitledOwners: Set<string>;
+  /** ACTIVE progress_founding entitlement rows (ownerId + provenance source). */
+  activeEntitlements: EntitlementRow[];
   /** Raw commerce order rows for the Progress product. */
   orderRows: { ownerId: string; amountMinor: number; status: string; source: string | null }[];
   ownedRoutines: Map<string, number>;
@@ -120,6 +151,12 @@ export interface First50Report {
   checkoutStarts: number;
   purchases: number;
   activePaidCustomers: number;
+  /**
+   * INTERNAL diagnostic - active entitlements with source manual_test. Purely
+   * for coach/admin transparency (test/founder entitlements are preserved, not
+   * deleted). NEVER presented as commercial success.
+   */
+  manualTestEntitlements: number;
   fullRefunds: number;
   netPaidRevenueEur: number;
   buyClickToCheckoutPct: number | null;
@@ -185,10 +222,15 @@ export function computeFirst50Report(input: First50Input): First50Report {
     .map((row) => ({ ...row, revenueEur: Math.round(row.revenueEur / 100) }))
     .toSorted((a, b) => b.revenueEur - a.revenueEur || b.purchases - a.purchases || a.source.localeCompare(b.source));
 
-  const activePaidCustomers = input.activeEntitledOwners.size;
-  const createdFirstRoutine = [...input.activeEntitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
-  const startedFirstWorkout = [...input.activeEntitledOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
-  const completedFirstWorkout = [...input.activeEntitledOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
+  // Paid customers = owners with an ACTIVE entitlement whose source is a real
+  // commercial purchase. manual_test/grant entitlements grant access but are
+  // never commercial revenue - they must not inflate paid counts or activation.
+  const paidEntitledOwners = new Set(input.activeEntitlements.filter(isPaidProgressEntitlement).map((e) => e.ownerId));
+  const manualTestEntitlements = input.activeEntitlements.filter((e) => e.source === "manual_test").length;
+  const activePaidCustomers = paidEntitledOwners.size;
+  const createdFirstRoutine = [...paidEntitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
+  const startedFirstWorkout = [...paidEntitledOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
+  const completedFirstWorkout = [...paidEntitledOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
 
   return {
     targetedProspects: TARGETED_PROSPECTS,
@@ -197,6 +239,7 @@ export function computeFirst50Report(input: First50Input): First50Report {
     checkoutStarts: checkoutStarters.size,
     purchases: purchasers.size,
     activePaidCustomers,
+    manualTestEntitlements,
     fullRefunds: fullRefunds.length,
     netPaidRevenueEur: Math.round(netPaidRevenueMinor / 100),
     buyClickToCheckoutPct: pct(checkoutStarters.size, buyClickers.size),
@@ -211,10 +254,13 @@ export function computeFirst50Report(input: First50Input): First50Report {
 }
 
 export function computeValidationMetrics(input: MetricsInput): ValidationMetrics {
-  const paidCustomers = input.entitledOwners.size;
-  const createdFirstRoutine = [...input.entitledOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
-  const startedFirstWorkout = [...input.entitledOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
-  const completedFirstWorkout = [...input.entitledOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
+  // Same commercial paid-customer definition as the First-50 report: only
+  // ACTIVE entitlements with a real commercial source count.
+  const paidOwners = new Set(input.entitlements.filter(isPaidProgressEntitlement).map((e) => e.ownerId));
+  const paidCustomers = paidOwners.size;
+  const createdFirstRoutine = [...paidOwners].filter((o) => (input.ownedRoutines.get(o) ?? 0) >= 1).length;
+  const startedFirstWorkout = [...paidOwners].filter((o) => (input.ownedWorkouts.get(o) ?? 0) >= 1).length;
+  const completedFirstWorkout = [...paidOwners].filter((o) => (input.completedWorkouts.get(o) ?? 0) >= 1).length;
   const ratio = (a: number) => (paidCustomers === 0 ? null : Math.round((a / paidCustomers) * 1000) / 10);
   return {
     paidCustomers,

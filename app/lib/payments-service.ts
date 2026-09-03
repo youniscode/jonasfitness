@@ -236,7 +236,7 @@ export async function getValidationMetrics() {
   const [entitledRows, routineRows, workoutRows, completedRows, paidDollarsRows] = await Promise.all([
     // ACTIVE entitlements only: a refunded/revoked buyer stays visible
     // historically (order/refund records) but is NOT an active paid customer.
-    db.select({ ownerId: productEntitlements.ownerId }).from(productEntitlements)
+    db.select({ ownerId: productEntitlements.ownerId, source: productEntitlements.source, status: productEntitlements.status }).from(productEntitlements)
       .where(and(
         eq(productEntitlements.productKey, FOUNDING_KEY),
         eq(productEntitlements.status, "active"),
@@ -247,7 +247,6 @@ export async function getValidationMetrics() {
     db.select({ total: sql<number>`sum(${commerceOrders.amountMinor})` }).from(commerceOrders).where(eq(commerceOrders.status, "paid")),
   ]);
 
-  const entitledOwners = new Set(entitledRows.map((r) => r.ownerId));
   const ownedRoutines = new Map<string, number>();
   const ownedWorkouts = new Map<string, number>();
   const completedWorkouts = new Map<string, number>();
@@ -256,7 +255,7 @@ export async function getValidationMetrics() {
   for (const r of completedRows) completedWorkouts.set(r.ownerId, (completedWorkouts.get(r.ownerId) ?? 0) + 1);
 
   const grossRevenueMinor = Number(paidDollarsRows?.[0]?.total) || 0;
-  const metrics = computeValidationMetrics({ entitledOwners, ownedRoutines, ownedWorkouts, completedWorkouts });
+  const metrics = computeValidationMetrics({ entitlements: entitledRows, ownedRoutines, ownedWorkouts, completedWorkouts });
   return { ...metrics, grossRevenueMinor };
 }
 
@@ -271,7 +270,7 @@ export async function getFirst50Report() {
   const db = getDb();
   const [validationRows, entitledRows, orderRows, routineRows, workoutRows, completedRows] = await Promise.all([
     db.select({ ownerId: validationEvents.ownerId, eventName: validationEvents.eventName }).from(validationEvents),
-    db.select({ ownerId: productEntitlements.ownerId }).from(productEntitlements)
+    db.select({ ownerId: productEntitlements.ownerId, source: productEntitlements.source, status: productEntitlements.status }).from(productEntitlements)
       .where(and(
         eq(productEntitlements.productKey, FOUNDING_KEY),
         eq(productEntitlements.status, "active"),
@@ -296,7 +295,7 @@ export async function getFirst50Report() {
 
   return computeFirst50Report({
     validationRows,
-    activeEntitledOwners: new Set(entitledRows.map((r) => r.ownerId)),
+    activeEntitlements: entitledRows,
     orderRows,
     ownedRoutines,
     ownedWorkouts,

@@ -68,9 +68,9 @@ test("a PARTIAL refund leaves the entitlement intact", () => {
 
 // ---------- computeValidationMetrics ----------
 test("metrics: a paid customer who only created a routine and started/completed a workout maps to all ratios", () => {
-  const entitledOwners = new Set(["u1"]);
+  const entitlements = [{ ownerId: "u1", source: "stripe_checkout", status: "active" }];
   const metrics = computeValidationMetrics({
-    entitledOwners,
+    entitlements,
     ownedRoutines: new Map([["u1", 1]]),
     ownedWorkouts: new Map([["u1", 1]]),
     completedWorkouts: new Map([["u1", 1]]),
@@ -86,7 +86,10 @@ test("metrics: a paid customer who only created a routine and started/completed 
 
 test("metrics: nobody activated -> ratios null, paid count still accurate, strangers excluded", () => {
   const metrics = computeValidationMetrics({
-    entitledOwners: new Set(["u1", "u2"]),
+    entitlements: [
+      { ownerId: "u1", source: "stripe_checkout", status: "active" },
+      { ownerId: "u2", source: "stripe_checkout", status: "active" },
+    ],
     ownedRoutines: new Map([["u3", 2]]), // u3 is NOT entitled - excluded from paid-denominator activations
     ownedWorkouts: new Map(),
     completedWorkouts: new Map(),
@@ -99,6 +102,25 @@ test("metrics: nobody activated -> ratios null, paid count still accurate, stran
   assert.equal(metrics.purchaseToRoutine, 0);
   assert.equal(metrics.purchaseToWorkoutStart, 0);
   assert.equal(metrics.purchaseToWorkoutComplete, 0);
+});
+
+test("metrics: manual_test entitlements are not paid customers and never lift paid activation", () => {
+  const metrics = computeValidationMetrics({
+    entitlements: [
+      { ownerId: "founder", source: "manual_test", status: "active" },
+      { ownerId: "buyer", source: "stripe_checkout", status: "active" },
+    ],
+    ownedRoutines: new Map([["founder", 1], ["buyer", 1]]),
+    ownedWorkouts: new Map([["founder", 1], ["buyer", 1]]),
+    completedWorkouts: new Map([["founder", 1], ["buyer", 1]]),
+  });
+  assert.equal(metrics.paidCustomers, 1, "manual_test founder is not a paid customer");
+  assert.equal(metrics.createdFirstRoutine, 1, "founder's routine must not count");
+  assert.equal(metrics.startedFirstWorkout, 1, "founder's workout start must not count");
+  assert.equal(metrics.completedFirstWorkout, 1, "founder's completion must not count");
+  assert.equal(metrics.purchaseToRoutine, 100);
+  assert.equal(metrics.purchaseToWorkoutStart, 100);
+  assert.equal(metrics.purchaseToWorkoutComplete, 100);
 });
 
 // ---------- decideProgressAccess (paywall guard) ----------

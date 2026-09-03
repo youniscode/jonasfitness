@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { sanitizeAttribution } from "../app/lib/attribution.ts";
 import {
   computeFirst50Report,
+  isPaidProgressEntitlement,
   validationSignal,
   TARGETED_PROSPECTS,
   type First50Input,
@@ -25,7 +26,7 @@ const read = (...parts: string[]) => readFileSync(join(process.cwd(), ...parts),
 function input(overrides: Partial<First50Input> = {}): First50Input {
   return {
     validationRows: [],
-    activeEntitledOwners: new Set(),
+    activeEntitlements: [],
     orderRows: [],
     ownedRoutines: new Map(),
     ownedWorkouts: new Map(),
@@ -140,7 +141,7 @@ test("revoked/refunded buyers stay historical but never count as active paid cus
       { ownerId: "u2", eventName: "founding_purchase_completed" },
     ],
     // u2 was refunded and revoked - only u1 has an ACTIVE entitlement.
-    activeEntitledOwners: new Set(["u1"]),
+    activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
     orderRows: [
       { ownerId: "u1", amountMinor: 1900, status: "paid", source: "Direct" },
       { ownerId: "u2", amountMinor: 1900, status: "refunded", source: "Direct" },
@@ -169,7 +170,7 @@ test("full funnel computes distinct owners, conversions and source breakdown", (
       // u2 offers/duplicate view must not inflate distinct counts.
       { ownerId: "u2", eventName: "founding_offer_viewed" },
     ],
-    activeEntitledOwners: new Set(["u1"]),
+    activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
     orderRows: [
       { ownerId: "u1", amountMinor: 1900, status: "paid", source: "Instagram" },
       { ownerId: "u2", amountMinor: 1900, status: "created", source: "Instagram" },
@@ -192,7 +193,7 @@ test("orders without attribution group under '(not set)'", () => {
   const report = computeFirst50Report(input({
     orderRows: [{ ownerId: "u1", amountMinor: 1900, status: "paid", source: null }],
     validationRows: [{ ownerId: "u1", eventName: "founding_purchase_completed" }],
-    activeEntitledOwners: new Set(["u1"]),
+    activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
   }));
   assert.equal(report.sources.length, 1);
   assert.equal(report.sources[0].source, "(not set)");
@@ -208,7 +209,7 @@ test("conversion percentages are null (not zero) when the denominator is empty",
 
 test("post-purchase activation counts only ACTIVE paid customers (strangers and revoked excluded)", () => {
   const report = computeFirst50Report(input({
-    activeEntitledOwners: new Set(["u1"]),
+    activeEntitlements: [{ ownerId: "u1", source: "stripe_checkout", status: "active" }],
     ownedRoutines: new Map([["u1", 1], ["stranger", 3]]),
     ownedWorkouts: new Map([["u1", 1], ["stranger", 1]]),
     completedWorkouts: new Map([["u1", 1]]),
@@ -216,6 +217,103 @@ test("post-purchase activation counts only ACTIVE paid customers (strangers and 
   assert.equal(report.createdFirstRoutine, 1);
   assert.equal(report.startedFirstWorkout, 1);
   assert.equal(report.completedFirstWorkout, 1);
+});
+
+// ---------- 5b. Commercial paid-customer semantics (manual_test excluded) ----------
+//
+// First-50 commercial reporting: a PAID CUSTOMER is an owner with an ACTIVE
+// entitlement whose source is a real commercial purchase (stripe_checkout).
+// manual_test entitlements grant access but are NEVER paid customers - they
+// must not inflate paid counts or paid activation metrics. The manual_test
+// rows themselves are preserved and visible via the internal diagnostic.
+
+test("fixture: 2 manual_test + 1 commercial entitlement => 1 paid customer (NOT 3), paid activation from the buyer only", () => {
+  const report = computeFirst50Report(input({
+    validationRows: [
+      { ownerId: "buyer", eventName: "founding_offer_viewed" },
+      { ownerId: "buyer", eventName: "founding_purchase_completed" },
+    ],
+    // Founder (real production founder account, dogfooding) + historical test
+    // account both hold ACTIVE manual_test entitlements; only the buyer has a
+    // real commercial (stripe_checkout) entitlement.
+    activeEntitlements: [
+      { ownerId: "founder", source: "manual_test", status: "active" },
+      { ownerId: "hist-test", source: "manual_test", status: "active" },
+      { ownerId: "buyer", source: "stripe_checkout", status: "active" },
+    ],
+    orderRows: [
+      { ownerId: "buyer", amountMinor: 1900, status: "paid", source: "Instagram" },
+    ],
+    // Founder/test activity must NOT lift paid activation metrics.
+    ownedRoutines: new Map([["founder", 1], ["hist-test", 1], ["buyer", 1]]),
+    ownedWorkouts: new Map([["founder", 1], ["hist-test", 1], ["buyer", 1]]),
+    completedWorkouts: new Map([["founder", 1], ["buyer", 1]]),
+  }));
+  assert.equal(report.activePaidCustomers, 1, "only the commercial buyer counts - NOT 3");
+  assert.equal(report.createdFirstRoutine, 1, "manual founder routines must not lift paid activation");
+  assert.equal(report.startedFirstWorkout, 1, "manual founder workout starts must not lift paid activation");
+  assert.equal(report.completedFirstWorkout, 1, "manual founder completions must not lift paid activation");
+  assert.equal(report.manualTestEntitlements, 2, "internal diagnostic still sees both manual_test rows");
+  assert.equal(report.purchases, 1, "purchase counting stays event/order based and unchanged");
+  assert.equal(report.netPaidRevenueEur, 19, "revenue stays order based and unchanged");
+});
+
+test("only manual_test entitlements => zero paid customers and zero paid activation", () => {
+  const report = computeFirst50Report(input({
+    activeEntitlements: [
+      { ownerId: "founder", source: "manual_test", status: "active" },
+      { ownerId: "hist-test", source: "manual_test", status: "active" },
+    ],
+    ownedRoutines: new Map([["founder", 2]]),
+    ownedWorkouts: new Map([["hist-test", 1]]),
+    completedWorkouts: new Map([["founder", 1]]),
+  }));
+  assert.equal(report.activePaidCustomers, 0);
+  assert.equal(report.createdFirstRoutine, 0);
+  assert.equal(report.startedFirstWorkout, 0);
+  assert.equal(report.completedFirstWorkout, 0);
+  assert.equal(report.manualTestEntitlements, 2);
+});
+
+test("a revoked (non-active) commercial entitlement is not an active paid customer", () => {
+  const report = computeFirst50Report(input({
+    // The query layer already filters status='active'; the domain predicate
+    // independently refuses a revoked commercial row (defense in depth).
+    activeEntitlements: [
+      { ownerId: "refunded", source: "stripe_checkout", status: "revoked" },
+      { ownerId: "buyer", source: "stripe_checkout", status: "active" },
+    ],
+    ownedRoutines: new Map([["refunded", 1]]),
+    ownedWorkouts: new Map([["refunded", 1]]),
+    completedWorkouts: new Map([["refunded", 1]]),
+  }));
+  assert.equal(report.activePaidCustomers, 1);
+  assert.equal(report.createdFirstRoutine, 0, "refunded owner's routine does not count");
+  assert.equal(report.startedFirstWorkout, 0);
+  assert.equal(report.completedFirstWorkout, 0);
+});
+
+test("duplicate entitlement rows cannot inflate the paid-customer count", () => {
+  const report = computeFirst50Report(input({
+    activeEntitlements: [
+      { ownerId: "buyer", source: "stripe_checkout", status: "active" },
+      // A stray duplicate historical row for the same owner must not
+      // double-count (the DB partial unique index already forbids it - this
+      // proves the Set-based dedupe is defense in depth).
+      { ownerId: "buyer", source: "stripe_checkout", status: "active" },
+      { ownerId: "founder", source: "manual_test", status: "active" },
+    ],
+  }));
+  assert.equal(report.activePaidCustomers, 1, "duplicate rows collapse to one paid customer");
+  assert.equal(report.manualTestEntitlements, 1);
+});
+
+test("isPaidProgressEntitlement is the single commercial paid-customer predicate", () => {
+  const row = (source: string, status: string): { ownerId: string; source: string; status: string } => ({ ownerId: "u1", source, status });
+  assert.equal(isPaidProgressEntitlement(row("stripe_checkout", "active")), true);
+  assert.equal(isPaidProgressEntitlement(row("manual_test", "active")), false);
+  assert.equal(isPaidProgressEntitlement(row("grant", "active")), false);
+  assert.equal(isPaidProgressEntitlement(row("stripe_checkout", "revoked")), false);
 });
 
 // ---------- 6. Validation signal ----------

@@ -17,6 +17,9 @@ export default async function ProgressValidationPage() {
     ["Checkout starts", report.checkoutStarts],
     ["Purchases", report.purchases],
     ["Active paid customers", report.activePaidCustomers],
+    // INTERNAL diagnostic only - test/founder manual_test entitlements are
+    // preserved (never deleted) but are NOT commercial success.
+    ["Manual/test entitlements (internal - never commercial)", report.manualTestEntitlements],
     ["Full refunds", report.fullRefunds],
     ["Net paid revenue", `€${report.netPaidRevenueEur}`],
     ["Buy click → checkout", pct(report.buyClickToCheckoutPct)],
