@@ -369,6 +369,21 @@ test("every legacy Coach exercise now surfaces its real thumbnail (rows previous
   await expect(postCount(page)).toHaveText("POSTs: 1");
 });
 
+test("trap bar deadlift (Progress-only optional illustration) shows its thumbnail and instant-adds", async ({ page }) => {
+  await openPanel(page);
+  await searchInput(page).fill("trap bar");
+  const row = resultRow(page, "Trap bar deadlift");
+  await expect(row).toBeVisible();
+  const img = tile(row).locator("img");
+  await expect(img).toHaveAttribute("src", "/exercises/thumbs/trap-bar-deadlift.webp");
+  await expect(img).toHaveAttribute("alt", "");
+  await expect(img).toHaveJSProperty("complete", true);
+  expect(await img.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await row.click();
+  await expect(card(page, "Trap bar deadlift")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
 test("a missing/broken optional image falls back safely and the row stays tappable", async ({ page }) => {
   await page.route("**/exercises/thumbs/barbell-bench-press.webp", (route) => route.abort());
   await openPanel(page);

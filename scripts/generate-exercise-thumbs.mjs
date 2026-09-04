@@ -49,6 +49,7 @@ const ILLUSTRATION_SLUGS = [
   "dumbbell-fly",
   "front-squat",
   "ez-bar-curl",
+  "trap-bar-deadlift",
 ];
 
 // ---------------------------------------------------------------------------
@@ -114,6 +115,19 @@ const art = {
       <path d="M104 90 V128 M152 90 V128"/>
       <path d="M104 128 V106 M152 128 V106"/>
       <path d="M82 106 H174"/>
+    </g>`,
+  // Front view standing at lockout inside a hexagonal trap bar: the lifter
+  // grips the two side handles while the frame opens out to the loading
+  // sleeves above and meets in a low base between the feet below.
+  "trap-bar-deadlift": `
+    <rect width="256" height="256" fill="${BG}"/>
+    <g fill="none" stroke="${INK}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="128" cy="40" r="11"/>
+      <path d="M128 52 L128 120"/>
+      <path d="M128 120 110 194 M128 120 146 194"/>
+      <path d="M96 194 h24 M136 194 h24"/>
+      <path d="M118 66 L88 150 M138 66 L168 150"/>
+      <path d="M64 88 L88 132 L88 200 L128 216 L168 200 L168 132 L192 88"/>
     </g>`,
 };
 

@@ -8,7 +8,7 @@
  *     "/exercises/thumbs/<slug>.webp") - no hand-maintained per-row manifest,
  *     so the mapping can never drift from the catalogue
  *   - Progress-only exercises (66) resolve ONLY through their explicit optional
- *     illustration set (4 in-house rows); the other 62 keep the fallback and
+ *     illustration set (5 in-house rows); the other 61 keep the fallback and
  *     are never treated as fully-imaged legacy exercises
  *   - resolved paths are local static assets that must exist on disk and be
  *     small (no remote URLs, no duplicate mapping, filename == exercise slug)
@@ -76,12 +76,13 @@ const OPTIONAL_PROGRESS_ONLY_IDS = [
   "builtin-dumbbell-fly",
   "builtin-front-squat",
   "builtin-ez-bar-curl",
+  "builtin-trap-bar-deadlift",
 ];
 
-test("Progress-only exercises resolve only their explicit optional illustrations (62 keep the fallback)", () => {
+test("Progress-only exercises resolve only their explicit optional illustrations (61 keep the fallback)", () => {
   assert.equal(progressLifterExercises.length, 66);
   const resolved = progressLifterExercises.filter((exercise) => getExerciseThumbnail(exercise) !== null);
-  assert.equal(resolved.length, OPTIONAL_PROGRESS_ONLY_IDS.length, "exactly the 4 optional rows resolve");
+  assert.equal(resolved.length, OPTIONAL_PROGRESS_ONLY_IDS.length, "exactly the 5 optional rows resolve");
   assert.deepEqual(
     resolved.map((e) => e.id).sort(),
     [...OPTIONAL_PROGRESS_ONLY_IDS].sort(),
@@ -116,9 +117,9 @@ test("rows without an eligible path resolve to null (fallback), never a broken o
   assert.equal(getExerciseThumbnail(byId.get("builtin-kettlebell-swing") as ExerciseDefinition), null);
 });
 
-test("every file in the thumbs directory maps to a catalogue exercise (no orphans) and all 110 are accounted for", () => {
+test("every file in the thumbs directory maps to a catalogue exercise (no orphans) and all 111 are accounted for", () => {
   const onDisk = readdirSync(THUMB_DIR).filter((f) => f.endsWith(".webp"));
-  assert.equal(onDisk.length, 110, "106 coach derivatives + 4 optional illustrations");
+  assert.equal(onDisk.length, 111, "106 coach derivatives + 5 optional illustrations");
   for (const fileName of onDisk) {
     const slug = fileName.replace(/\.webp$/, "");
     const exercise = byId.get(`builtin-${slug}`);

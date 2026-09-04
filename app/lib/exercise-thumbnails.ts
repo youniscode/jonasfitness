@@ -31,6 +31,7 @@ const OPTIONAL_THUMBNAILS: Record<string, string> = {
   "builtin-dumbbell-fly": "/exercises/thumbs/dumbbell-fly.webp",
   "builtin-front-squat": "/exercises/thumbs/front-squat.webp",
   "builtin-ez-bar-curl": "/exercises/thumbs/ez-bar-curl.webp",
+  "builtin-trap-bar-deadlift": "/exercises/thumbs/trap-bar-deadlift.webp",
 };
 
 /** Canonical legacy Coach image path: /exercises/<slug>.webp. Only rows that
