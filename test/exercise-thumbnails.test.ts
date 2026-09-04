@@ -1,14 +1,20 @@
 /**
- * Exercise thumbnails (Add-Exercise picker pilot).
+ * Exercise thumbnails (Add-Exercise picker, full legacy Coach coverage).
  *
- * Locks the v0.1 contract:
+ * Locks the contract:
  *   - getExerciseThumbnail is the ONLY interface the picker consumes
- *   - a small static pilot map resolves ~18 exercises to local webp files
- *   - every other exercise resolves to null and the UI renders its fallback
- *   - the legacy 106 Coach exercises keep their imageUrl/instructions payload
- *     untouched and the 66 Progress-only rows stay free of Coach metadata
- *   - pilot paths are local static assets that must exist on disk (no remote
- *     URLs, no duplicate keys, thumbnail filename == exercise slug)
+ *   - EVERY legacy Coach exercise (106) resolves a real thumbnail DERIVED from
+ *     its own canonical imageUrl ("/exercises/<slug>.webp" ->
+ *     "/exercises/thumbs/<slug>.webp") - no hand-maintained per-row manifest,
+ *     so the mapping can never drift from the catalogue
+ *   - Progress-only exercises (66) resolve ONLY through their explicit optional
+ *     illustration set (4 in-house rows); the other 62 keep the fallback and
+ *     are never treated as fully-imaged legacy exercises
+ *   - resolved paths are local static assets that must exist on disk and be
+ *     small (no remote URLs, no duplicate mapping, filename == exercise slug)
+ *   - the legacy 106 Coach imageUrl/instructions payload stays untouched
+ *   - graceful fallback: anything without an eligible path resolves to null
+ *     and the UI renders its deterministic fallback tile
  *   - the result row keeps instant-add from the whole row and the tile is
  *     decorative, fixed-size and broken-image-safe
  */
@@ -22,11 +28,7 @@ import {
   progressLifterExercises,
   type ExerciseDefinition,
 } from "../app/lib/exercise-catalogue.ts";
-import {
-  EXERCISE_THUMBNAILS,
-  EXERCISE_THUMBNAIL_IDS,
-  getExerciseThumbnail,
-} from "../app/lib/exercise-thumbnails.ts";
+import { getExerciseThumbnail } from "../app/lib/exercise-thumbnails.ts";
 
 const ROOT = process.cwd();
 const THUMB_DIR = join(ROOT, "public", "exercises", "thumbs");
@@ -35,74 +37,97 @@ const byId = new Map<string, ExerciseDefinition>(builtInExercises.map((exercise)
 const slugOf = (id: string) => id.replace(/^builtin-/, "");
 const THUMB_RE = /^\/exercises\/thumbs\/[a-z0-9]+(-[a-z0-9]+)*\.webp$/;
 
-// ---------- Pilot map hygiene ----------
+// ---------- Full legacy Coach coverage (derivation, not a manifest) ----------
 
-test("thumbnail pilot: every key is a real catalogue exercise, keys are unique", () => {
-  assert.ok(EXERCISE_THUMBNAIL_IDS.length >= 10 && EXERCISE_THUMBNAIL_IDS.length <= 20, `pilot band 10-20 (got ${EXERCISE_THUMBNAIL_IDS.length})`);
-  assert.equal(new Set(EXERCISE_THUMBNAIL_IDS).size, EXERCISE_THUMBNAIL_IDS.length, "no duplicate thumbnail mapping keys");
-  for (const id of EXERCISE_THUMBNAIL_IDS) {
-    assert.ok(byId.has(id), `pilot key ${id} must exist in the built-in catalogue`);
-  }
+test("all 106 legacy Coach exercises resolve a real thumbnail derived from their own canonical imageUrl", () => {
+  const coachThumbs = coachCatalogueExercises.map((exercise) => {
+    const thumb = getExerciseThumbnail(exercise);
+    assert.ok(thumb, `${exercise.id} must resolve a thumbnail (coach photo exists)`);
+    assert.equal(thumb, `/exercises/thumbs/${slugOf(exercise.id)}.webp`, `${exercise.id} thumbnail derives from its canonical slug`);
+    assert.match(thumb, THUMB_RE, `${exercise.id} thumbnail path format`);
+    assert.doesNotMatch(thumb, /^https?:\/\//, `${exercise.id} must never use a remote image URL`);
+    return thumb;
+  });
+  assert.equal(coachThumbs.length, 106, "every legacy coach row is covered");
+  assert.equal(new Set(coachThumbs).size, 106, "derivation can never produce duplicate paths");
+  // No legacy Coach row is left on the fallback: 0 unresolved coach exercises.
+  const unresolved = coachCatalogueExercises.filter((exercise) => getExerciseThumbnail(exercise) === null);
+  assert.deepEqual(unresolved, [], "every legacy coach exercise has a real thumbnail");
 });
 
-test("thumbnail pilot: values are local static webp paths under /exercises/thumbs/ (never remote)", () => {
-  for (const [id, path] of Object.entries(EXERCISE_THUMBNAILS)) {
-    assert.match(path, THUMB_RE, `${id} thumbnail path format`);
-    assert.doesNotMatch(path, /^https?:\/\//, `${id} must never use a remote image URL`);
-    assert.equal(path, `/exercises/thumbs/${slugOf(id)}.webp`, `${id} thumbnail filename must match its stable slug`);
-  }
-});
-
-test("every pilot thumbnail file exists on disk and is a small webp", () => {
-  const onDisk = new Set(readdirSync(THUMB_DIR));
-  for (const id of EXERCISE_THUMBNAIL_IDS) {
-    const fileName = `${slugOf(id)}.webp`;
-    assert.ok(onDisk.has(fileName), `missing pilot asset ${fileName}`);
+test("every resolved thumbnail file exists on disk and is a small webp", () => {
+  const onDisk = new Set(readdirSync(THUMB_DIR).filter((f) => f.endsWith(".webp")));
+  for (const exercise of [...coachCatalogueExercises, ...progressLifterExercises]) {
+    const thumb = getExerciseThumbnail(exercise);
+    if (!thumb) continue;
+    const fileName = `${slugOf(exercise.id)}.webp`;
+    assert.ok(onDisk.has(fileName), `missing thumbnail asset ${fileName} for ${exercise.id}`);
     const size = statSync(join(THUMB_DIR, fileName)).size;
     assert.ok(size > 0 && size < 60_000, `${fileName} must be a small thumbnail (< 60KB, got ${size})`);
   }
 });
 
-// ---------- Unified interface semantics ----------
+// ---------- Progress-only boundary (optional illustrations, else fallback) ----------
 
-test("getExerciseThumbnail resolves the pilot path for Coach and Progress-only exercises alike", () => {
-  // Coach-integrated exercise with an existing photo (downscaled derivative).
-  assert.equal(getExerciseThumbnail({ id: "builtin-barbell-bench-press" }), "/exercises/thumbs/barbell-bench-press.webp");
-  // Progress-only exercise: pilot thumbnail carried WITHOUT any Coach payload
-  // (its imageUrl stays empty - no coach image/instructions required).
-  const decline = byId.get("builtin-decline-barbell-bench-press");
-  assert.equal(decline?.imageUrl, "", "progress-only pilot rows carry no coach imageUrl");
-  assert.equal(getExerciseThumbnail({ id: "builtin-decline-barbell-bench-press" }), "/exercises/thumbs/decline-barbell-bench-press.webp");
+/** The explicit optional set: Progress-only rows WITHOUT a source photo that
+ *  still carry an in-house illustration thumbnail. */
+const OPTIONAL_PROGRESS_ONLY_IDS = [
+  "builtin-decline-barbell-bench-press",
+  "builtin-dumbbell-fly",
+  "builtin-front-squat",
+  "builtin-ez-bar-curl",
+];
+
+test("Progress-only exercises resolve only their explicit optional illustrations (62 keep the fallback)", () => {
+  assert.equal(progressLifterExercises.length, 66);
+  const resolved = progressLifterExercises.filter((exercise) => getExerciseThumbnail(exercise) !== null);
+  assert.equal(resolved.length, OPTIONAL_PROGRESS_ONLY_IDS.length, "exactly the 4 optional rows resolve");
+  assert.deepEqual(
+    resolved.map((e) => e.id).sort(),
+    [...OPTIONAL_PROGRESS_ONLY_IDS].sort(),
+    "no other Progress-only row is treated as fully imaged",
+  );
+  for (const id of OPTIONAL_PROGRESS_ONLY_IDS) {
+    const exercise = byId.get(id);
+    assert.ok(exercise, `${id} exists`);
+    assert.equal(getExerciseThumbnail(exercise), `/exercises/thumbs/${slugOf(id)}.webp`);
+    // Optional thumbnails must never smuggle Coach payload onto Progress rows.
+    assert.equal(exercise.imageUrl, "", `${id} optional thumbnail needs no coach imageUrl`);
+    assert.equal(exercise.instructions, "", `${id} must not gain coach instruction copy`);
+  }
 });
 
-test("getExerciseThumbnail returns null (fallback) when no pilot entry exists", () => {
-  // Coach exercise outside the pilot and Progress-only exercise outside the
-  // pilot both resolve to the polished fallback.
-  assert.equal(getExerciseThumbnail({ id: "builtin-cable-fly" }), null);
-  assert.equal(getExerciseThumbnail({ id: "builtin-pendlay-row" }), null);
-  // Custom/user exercises never resolve to a pilot asset.
-  assert.equal(getExerciseThumbnail({ id: "custom-landmine-row" }), null);
+// ---------- Graceful fallback semantics ----------
+
+test("rows without an eligible path resolve to null (fallback), never a broken or remote path", () => {
+  // A legacy Coach row that (hypothetically) lost its imageUrl must fall back
+  // instead of pointing at a stale asset - the same for rehydrated snapshots.
+  assert.equal(getExerciseThumbnail({ id: "builtin-pull-up", imageUrl: "" }), null);
+  assert.equal(getExerciseThumbnail({ id: "builtin-pull-up" }), null);
+  // Custom / unknown / Progress-only rows never resolve a derived asset.
+  assert.equal(getExerciseThumbnail({ id: "custom-landmine-row", imageUrl: "" }), null);
+  assert.equal(getExerciseThumbnail({ id: "builtin-pendlay-row", imageUrl: "" }), null);
   assert.equal(getExerciseThumbnail({ id: "unknown" }), null);
+  // Remote URLs and thumb-to-thumb paths are never eligible sources.
+  assert.equal(getExerciseThumbnail({ id: "x", imageUrl: "https://evil.example/a.webp" }), null);
+  assert.equal(getExerciseThumbnail({ id: "x", imageUrl: "/exercises/thumbs/pull-up.webp" }), null);
+  // A progress-only exercise outside the optional set falls back.
+  assert.equal(getExerciseThumbnail(byId.get("builtin-pendlay-row") as ExerciseDefinition), null);
+  assert.equal(getExerciseThumbnail(byId.get("builtin-kettlebell-swing") as ExerciseDefinition), null);
 });
 
-test("the pilot mixes Coach reuse and Progress-only rows without Coach metadata", () => {
-  let coachCount = 0;
-  let progressCount = 0;
-  for (const id of EXERCISE_THUMBNAIL_IDS) {
-    const exercise = byId.get(id);
-    assert.ok(exercise, `pilot id ${id} not found`);
-    if (exercise && exercise.imageUrl.startsWith("/exercises/")) coachCount += 1;
-    else progressCount += 1;
+test("every file in the thumbs directory maps to a catalogue exercise (no orphans) and all 110 are accounted for", () => {
+  const onDisk = readdirSync(THUMB_DIR).filter((f) => f.endsWith(".webp"));
+  assert.equal(onDisk.length, 110, "106 coach derivatives + 4 optional illustrations");
+  for (const fileName of onDisk) {
+    const slug = fileName.replace(/\.webp$/, "");
+    const exercise = byId.get(`builtin-${slug}`);
+    assert.ok(exercise, `orphan thumbnail file ${fileName} has no catalogue exercise`);
+    assert.ok(getExerciseThumbnail(exercise) !== null, `${fileName} resolves through getExerciseThumbnail`);
   }
-  assert.equal(coachCount, 14, "coach pilot entries reuse existing coach image metadata");
-  assert.equal(progressCount, 4, "progress-only pilot entries need no coach imageUrl to carry a thumbnail");
-  // The Progress-only pilot rows themselves carry no coach payload.
-  for (const id of EXERCISE_THUMBNAIL_IDS) {
-    const exercise = byId.get(id);
-    if (exercise && !exercise.imageUrl) {
-      assert.equal(exercise.instructions, "", `${id} must not gain coach instruction copy`);
-    }
-  }
+  // No duplicate mapping keys possible: the derived map is keyed by unique ids,
+  // and the optional set is the only explicit source.
+  assert.equal(new Set(OPTIONAL_PROGRESS_ONLY_IDS).size, OPTIONAL_PROGRESS_ONLY_IDS.length);
 });
 
 // ---------- Legacy Coach invariants stay untouched ----------
@@ -111,17 +136,14 @@ test("the 106 Coach exercises keep their imageUrl + instructions payload exactly
   assert.equal(coachCatalogueExercises.length, 106, "legacy coach catalogue never grows or shrinks");
   for (const exercise of coachCatalogueExercises) {
     assert.ok(exercise.imageUrl.startsWith("/exercises/"), `${exercise.id} coach image path`);
+    assert.equal(exercise.imageUrl, `/exercises/${slugOf(exercise.id)}.webp`, `${exercise.id} canonical image path unchanged`);
     assert.ok(exercise.instructions.trim().length > 0, `${exercise.id} coach instructions`);
   }
-  // No slug was renamed or removed, and no coach row was given a thumbs path.
   assert.ok(byId.has("builtin-machine-chest-press"));
   assert.ok(byId.has("builtin-decline-machine-chest-press"));
-  for (const exercise of coachCatalogueExercises) {
-    assert.equal(exercise.imageUrl, `/exercises/${slugOf(exercise.id)}.webp`, `${exercise.id} canonical image path unchanged`);
-  }
 });
 
-test("Progress-only rows stay Progress-only (no image/instructions), optional thumbnails come from the pilot map", () => {
+test("Progress-only rows stay Progress-only (no image/instructions); composed catalogue is stable", () => {
   assert.equal(progressLifterExercises.length, 66);
   for (const exercise of progressLifterExercises) {
     assert.equal(exercise.imageUrl, "", `${exercise.id} must not require a coach image asset`);
@@ -137,25 +159,26 @@ const thumb = readFileSync(join(ROOT, "app", "progress", "(product)", "routines"
 const css = readFileSync(join(ROOT, "app", "progress", "progress.css"), "utf8");
 
 test("the whole result row remains the one tap-to-add action (no second click, no thumbnail button)", () => {
-  assert.match(panel, /onClick=\{\(\) => quickAdd\(exercise\)\}/, "tapping the row still instant-adds");
+  assert.ok(panel.includes("onClick={() => quickAdd(exercise)}"), "tapping the row still instant-adds");
   assert.doesNotMatch(thumb, /<button|role="button"|onClick/, "the thumbnail tile is never interactive");
   assert.doesNotMatch(thumb, /href=/, "the thumbnail is not a link");
 });
 
 test("thumbnail tile renders the image with alt=\"\" and reserves 48x48 before load", () => {
-  assert.match(panel, /<ExerciseThumb exercise=\{exercise\} \/>/, "every catalogue row renders the shared tile");
-  assert.match(thumb, /getExerciseThumbnail\(exercise\)/, "the row consumes only the thumbnail interface");
-  assert.match(thumb, /alt=""/, "decorative image is silent for screen readers");
-  assert.match(thumb, /width=\{48\} height=\{48\}/, "intrinsic size reserved - no layout shift");
-  assert.match(thumb, /loading="lazy"/, "image lazy-loads");
-  assert.match(thumb, /onError=\{\(\) => setFailed\(true\)\}/, "broken/missing optional path swaps to the fallback");
+  assert.ok(panel.includes("<ExerciseThumb exercise={exercise} />"), "every catalogue row renders the shared tile");
+  assert.ok(thumb.includes("getExerciseThumbnail(exercise)"), "the row consumes only the thumbnail interface");
+  assert.ok(thumb.includes("exercise: ExerciseDefinition"), "the tile receives the full catalogue row (id, name, imageUrl)");
+  assert.ok(thumb.includes('alt=""'), "decorative image is silent for screen readers");
+  assert.ok(thumb.includes("width={48} height={48}"), "intrinsic size reserved - no layout shift");
+  assert.ok(thumb.includes('loading="lazy"'), "image lazy-loads");
+  assert.ok(thumb.includes("onError={() => setFailed(true)}"), "broken/missing optional path swaps to the fallback");
   assert.match(css, /\.progress-exercise-thumb\{[^}]*width:48px[^}]*height:48px/, "CSS reserves the fixed tile box");
 });
 
 test("fallback tile is deterministic movement line-art, never an empty or broken box", () => {
-  assert.match(thumb, /movementVariantFor\(exercise\.name\)/, "fallback figure derives from the movement family");
-  assert.match(thumb, /aria-hidden="true"/, "fallback tile is decorative only");
-  assert.match(thumb, /return \(\s*<span className="progress-exercise-thumb progress-exercise-thumb-fallback"/, "no-image rows render the fallback tile");
+  assert.ok(thumb.includes("movementVariantFor(exercise.name)"), "fallback figure derives from the movement family");
+  assert.ok(thumb.includes('aria-hidden="true"'), "fallback tile is decorative only");
+  assert.ok(thumb.includes('className="progress-exercise-thumb progress-exercise-thumb-fallback"'), "no-image rows render the fallback tile");
   assert.doesNotMatch(thumb, />image unavailable<|>no image</i, "no noisy unavailable text is rendered in rows");
   assert.match(css, /\.progress-exercise-thumb-fallback/, "fallback tile has its own visual treatment");
 });
@@ -163,5 +186,8 @@ test("fallback tile is deterministic movement line-art, never an empty or broken
 test("no U+2014 and no hardcoded left/right in the new tile code", () => {
   assert.doesNotMatch(panel + thumb, /\u2014/, "no em dash in the picker code");
   assert.doesNotMatch(thumb, /left:|right:|margin-left|margin-right/, "tile layout is logical (RTL-safe by flexbox)");
+});
+
+test("thumbnail generation is reproducible and committed (asset provenance script)", () => {
   assert.ok(existsSync(join(ROOT, "scripts", "generate-exercise-thumbs.mjs")), "asset generator is committed for provenance");
 });

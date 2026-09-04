@@ -208,7 +208,7 @@ export default function AddExercisePanel({ t, lang, sections, defaultSectionId, 
                 onPointerDown={(e) => e.preventDefault()}
                 onClick={() => quickAdd(exercise)}
               >
-                {/* Decorative 48px thumbnail (image for the pilot set, deterministic movement fallback otherwise).
+                {/* Decorative 48px thumbnail (real image for exercises that own one, deterministic movement fallback otherwise).
                     It is aria-hidden and carries no handlers: the row button remains the one tap-to-add action. */}
                 <ExerciseThumb exercise={exercise} />
                 <span className="progress-catalogue-copy"><strong>{exerciseDisplayName(exercise, lang)}</strong><small>{exercise.muscleGroup} · {exercise.equipment}</small></span>

@@ -8,17 +8,21 @@
 // action and there is no thumbnail button / preview.
 //
 // Resolution contract (shared with the unit tests):
-//   - exercise with a pilot thumbnail   -> renders the local webp
-//   - exercise without / with a broken  -> renders the deterministic fallback
-//     or missing optional path            (movement line-art on the ink tile)
+//   - legacy Coach exercise          -> real thumbnail derived from its own
+//     (has a source photo)             canonical imageUrl (/exercises/thumbs/)
+//   - Progress-only exercise with    -> its optional in-house illustration
+//     an explicit optional path
+//   - every other exercise / broken  -> renders the deterministic fallback
+//     or missing optional path         (movement line-art on the ink tile)
 // The image tile reserves its 48x48 box before load (no CLS) and lazy-loads.
 
 import { useState } from "react";
 import { ExerciseFigure, movementVariantFor } from "../../../../components/exercise-figure";
 import { getExerciseThumbnail } from "../../../../lib/exercise-thumbnails";
+import type { ExerciseDefinition } from "../../../../lib/exercise-catalogue";
 
 type Props = {
-  exercise: { id: string; name: string };
+  exercise: ExerciseDefinition;
 };
 
 export default function ExerciseThumb({ exercise }: Props) {

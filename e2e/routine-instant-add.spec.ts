@@ -296,12 +296,12 @@ test("Arabic catalogue: expanded entries render RTL and instant-add by Arabic re
 });
 
 // ---------------------------------------------------------------------------
-// Exercise thumbnails (v0.1 pilot, Add Exercise picker only)
+// Exercise thumbnails (full legacy Coach coverage, Add Exercise picker only)
 // ---------------------------------------------------------------------------
 
 const tile = (row: Locator): Locator => row.locator(".progress-exercise-thumb").first();
 
-test("coach pilot row reuses the downscaled coach image inside the row tile", async ({ page }) => {
+test("legacy Coach row derives its thumbnail from the coach source photo inside the row tile", async ({ page }) => {
   await openPanel(page);
   await searchInput(page).fill("bench");
   const row = resultRow(page, "Barbell bench press");
@@ -317,7 +317,7 @@ test("coach pilot row reuses the downscaled coach image inside the row tile", as
   await expect(postCount(page)).toHaveText("POSTs: 1");
 });
 
-test("decline bench pilot row (Progress-only exercise) shows its own thumbnail and instant-adds", async ({ page }) => {
+test("decline bench row (Progress-only exercise with an optional illustration) shows its thumbnail and instant-adds", async ({ page }) => {
   await openPanel(page);
   await searchInput(page).fill("decline bench");
   const row = resultRow(page, "Decline barbell bench press");
@@ -331,9 +331,9 @@ test("decline bench pilot row (Progress-only exercise) shows its own thumbnail a
   await expect(postCount(page)).toHaveText("POSTs: 1");
 });
 
-test("rows without a pilot thumbnail render the polished fallback tile, never an empty box", async ({ page }) => {
+test("Progress-only rows outside the optional set render the polished fallback tile, never an empty box", async ({ page }) => {
   await openPanel(page);
-  // Progress-only exercise outside the pilot (Pendlay row).
+  // Progress-only exercise without an optional illustration (Pendlay row).
   await searchInput(page).fill("pendlay");
   const pendlay = resultRow(page, "Pendlay row");
   await expect(pendlay).toBeVisible();
@@ -344,13 +344,29 @@ test("rows without a pilot thumbnail render the polished fallback tile, never an
   await expect(card(page, "Pendlay row")).toBeVisible();
   await expect(postCount(page)).toHaveText("POSTs: 1");
 
-  // Coach exercise outside the pilot (its photo stays on coach surfaces only).
+  // Another Progress-only row outside the optional set (kettlebell swing).
+  await searchInput(page).fill("kettlebell");
+  const swing = resultRow(page, "Kettlebell swing");
+  await expect(swing).toBeVisible();
+  await expect(tile(swing)).toHaveClass(/progress-exercise-thumb-fallback/);
+  await expect(tile(swing).locator("img")).toHaveCount(0);
+});
+
+test("every legacy Coach exercise now surfaces its real thumbnail (rows previously on fallback included)", async ({ page }) => {
+  await openPanel(page);
+  // Cable fly was a legacy Coach row outside the v0.1 pilot set - with full
+  // legacy coverage it must now show its derived thumbnail, not the fallback.
   await searchInput(page).fill("fly");
   const cableFly = resultRow(page, "Cable fly");
   await expect(cableFly).toBeVisible();
-  await expect(tile(cableFly)).toHaveClass(/progress-exercise-thumb-fallback/);
+  const img = tile(cableFly).locator("img");
+  await expect(img).toHaveAttribute("src", "/exercises/thumbs/cable-fly.webp");
+  await expect(img).toHaveAttribute("alt", "");
+  await expect(img).toHaveJSProperty("complete", true);
+  expect(await img.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   await cableFly.click();
   await expect(card(page, "Cable fly")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
 });
 
 test("a missing/broken optional image falls back safely and the row stays tappable", async ({ page }) => {
@@ -408,7 +424,7 @@ test("thumbnail rows keep mobile ergonomics at 375/390/430: 44px rows, 48px tile
   }
 });
 
-test("thumbnail screenshot coverage: coach image, Progress-only pilot image, fallback, 390px and RTL", async ({ page }) => {
+test("thumbnail screenshot coverage: coach image, Progress-only illustration, fallback, 390px and RTL", async ({ page }) => {
   const dir = `${SCREEN_DIR}/thumbs`;
   mkdirSync(dir, { recursive: true });
 

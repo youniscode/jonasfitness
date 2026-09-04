@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Jonas Progress exercise thumbnail generator (pilot set)
+// Jonas Progress exercise thumbnail generator (full legacy Coach coverage)
 //
 // Produces the small webp files under public/exercises/thumbs/ that the
 // Add-Exercise picker renders. Deterministic and idempotent - safe to rerun.
@@ -13,6 +13,11 @@
 //     artwork). They use the same dark-tile + lime line-art grammar as the
 //     app's exercise fallback figures so rows stay visually coherent.
 //
+// Coach slugs are NOT hardcoded: they are derived from each legacy Coach
+// exercise's own canonical imageUrl in app/lib/exercise-catalogue.ts, so the
+// asset set can never drift from the catalogue - rerun after any catalogue
+// change. The script fails loudly if a coach row's source photo is missing.
+//
 // Run:  node scripts/generate-exercise-thumbs.mjs
 // ---------------------------------------------------------------------------
 
@@ -20,6 +25,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { coachCatalogueExercises } from "../app/lib/exercise-catalogue.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC_DIR = join(ROOT, "public", "exercises");
@@ -28,25 +34,16 @@ const OUT_DIR = join(SRC_DIR, "thumbs");
 const WEBP = { quality: 74, effort: 5 };
 const THUMB_WIDTH = 288; // ~6x the 48px tile; object-fit: cover crops to square
 
-/** Coach slugs: thumbnail = downscaled derivative of the owned coach photo. */
-const COACH_SLUGS = [
-  "barbell-bench-press",
-  "incline-dumbbell-press",
-  "lat-pulldown",
-  "seated-cable-row",
-  "lateral-raise",
-  "triceps-pressdown",
-  "back-squat",
-  "leg-press",
-  "leg-extension",
-  "seated-leg-curl",
-  "romanian-deadlift",
-  "hip-thrust",
-  "adductor-machine",
-  "abductor-machine",
-];
+/** Coach slugs: every legacy Coach exercise that owns a canonical source
+ *  photo (/exercises/<slug>.webp) gets a downscaled derivative thumbnail. */
+const COACH_SLUGS = coachCatalogueExercises.map((exercise) => {
+  const match = /^\/exercises\/([a-z0-9]+(?:-[a-z0-9]+)*)\.webp$/.exec(exercise.imageUrl);
+  if (!match) throw new Error(`non-canonical coach imageUrl on ${exercise.id}: ${JSON.stringify(exercise.imageUrl)}`);
+  return match[1];
+});
 
-/** Illustration slugs: thumbnail = in-house pose SVG rendered below. */
+/** Illustration slugs: thumbnail = in-house pose SVG rendered below. These are
+ *  Progress-only exercises (no source photo) with an OPTIONAL thumbnail. */
 const ILLUSTRATION_SLUGS = [
   "decline-barbell-bench-press",
   "dumbbell-fly",
@@ -127,23 +124,29 @@ function svg(slug) {
 
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
-  const report = [];
+  let coachCount = 0;
+  let illustrationCount = 0;
 
   for (const slug of COACH_SLUGS) {
     const source = join(SRC_DIR, `${slug}.webp`);
-    if (!existsSync(source)) throw new Error(`missing coach source asset: ${source}`);
+    if (!existsSync(source)) throw new Error(`missing coach source asset for slug "${slug}": ${source}`);
     const out = join(OUT_DIR, `${slug}.webp`);
     await sharp(source).rotate().resize({ width: THUMB_WIDTH, withoutEnlargement: true }).webp(WEBP).toFile(out);
-    report.push(`derived   ${slug}.webp  <- coach photo`);
+    coachCount += 1;
   }
 
   for (const slug of ILLUSTRATION_SLUGS) {
     const out = join(OUT_DIR, `${slug}.webp`);
     await sharp(Buffer.from(svg(slug))).resize({ width: 256, height: 256 }).webp({ ...WEBP, quality: 82 }).toFile(out);
-    report.push(`authored  ${slug}.webp  <- in-house SVG pose`);
+    illustrationCount += 1;
   }
 
-  console.log(report.join("\n"));
+  console.log(`derived   ${coachCount} coach thumbnails (from catalogue imageUrls)`);
+  console.log(`authored  ${illustrationCount} in-house illustration thumbnails`);
+  console.log(`total     ${coachCount + illustrationCount} files under public/exercises/thumbs/`);
+  if (coachCount !== 106) {
+    console.warn(`note: coach catalogue count is ${coachCount}, not the usual 106 - catalogue may have changed`);
+  }
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });
