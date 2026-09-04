@@ -294,3 +294,148 @@ test("Arabic catalogue: expanded entries render RTL and instant-add by Arabic re
   await expect(postCount(page)).toHaveText("POSTs: 1");
   await expect(page.locator("main")).toHaveAttribute("dir", "rtl");
 });
+
+// ---------------------------------------------------------------------------
+// Exercise thumbnails (v0.1 pilot, Add Exercise picker only)
+// ---------------------------------------------------------------------------
+
+const tile = (row: Locator): Locator => row.locator(".progress-exercise-thumb").first();
+
+test("coach pilot row reuses the downscaled coach image inside the row tile", async ({ page }) => {
+  await openPanel(page);
+  await searchInput(page).fill("bench");
+  const row = resultRow(page, "Barbell bench press");
+  await expect(row).toBeVisible();
+  const img = tile(row).locator("img");
+  await expect(img).toHaveAttribute("src", "/exercises/thumbs/barbell-bench-press.webp");
+  await expect(img).toHaveAttribute("alt", "");
+  await expect(img).toHaveJSProperty("complete", true);
+  expect(await img.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  // The image never becomes a second control: tapping the row still adds.
+  await row.click();
+  await expect(card(page, "Barbell bench press")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
+test("decline bench pilot row (Progress-only exercise) shows its own thumbnail and instant-adds", async ({ page }) => {
+  await openPanel(page);
+  await searchInput(page).fill("decline bench");
+  const row = resultRow(page, "Decline barbell bench press");
+  await expect(row).toBeVisible();
+  const img = tile(row).locator("img");
+  await expect(img).toHaveAttribute("src", "/exercises/thumbs/decline-barbell-bench-press.webp");
+  await expect(img).toHaveJSProperty("complete", true);
+  expect(await img.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await row.click();
+  await expect(card(page, "Decline barbell bench press")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
+test("rows without a pilot thumbnail render the polished fallback tile, never an empty box", async ({ page }) => {
+  await openPanel(page);
+  // Progress-only exercise outside the pilot (Pendlay row).
+  await searchInput(page).fill("pendlay");
+  const pendlay = resultRow(page, "Pendlay row");
+  await expect(pendlay).toBeVisible();
+  await expect(tile(pendlay)).toHaveClass(/progress-exercise-thumb-fallback/);
+  await expect(tile(pendlay).locator("svg")).toBeVisible();
+  await expect(tile(pendlay).locator("img")).toHaveCount(0);
+  await pendlay.click();
+  await expect(card(page, "Pendlay row")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+
+  // Coach exercise outside the pilot (its photo stays on coach surfaces only).
+  await searchInput(page).fill("fly");
+  const cableFly = resultRow(page, "Cable fly");
+  await expect(cableFly).toBeVisible();
+  await expect(tile(cableFly)).toHaveClass(/progress-exercise-thumb-fallback/);
+  await cableFly.click();
+  await expect(card(page, "Cable fly")).toBeVisible();
+});
+
+test("a missing/broken optional image falls back safely and the row stays tappable", async ({ page }) => {
+  await page.route("**/exercises/thumbs/barbell-bench-press.webp", (route) => route.abort());
+  await openPanel(page);
+  await searchInput(page).fill("bench");
+  const row = resultRow(page, "Barbell bench press");
+  await expect(row).toBeVisible();
+  // onError swaps the broken image for the same fallback tile as no-image rows.
+  await expect(tile(row)).toHaveClass(/progress-exercise-thumb-fallback/, { timeout: 8000 });
+  await row.click();
+  await expect(card(page, "Barbell bench press")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
+test("Arabic RTL picker: thumbnail rows render RTL, no overflow, row tap still adds", async ({ page }) => {
+  await page.getByRole("button", { name: "AR", exact: true }).click();
+  await page.getByRole("button", { name: /إضافة تمرين/ }).click();
+  const arabicSearch = page.getByPlaceholder("ابحث عن التمارين");
+  await arabicSearch.fill("ضغط الصدر المائل للأسفل");
+  const row = resultRow(page, "ضغط الصدر المائل للأسفل بالبار");
+  await expect(row).toBeVisible();
+  await expect(tile(row).locator("img")).toHaveAttribute("src", "/exercises/thumbs/decline-barbell-bench-press.webp");
+  await expect(page.locator("main")).toHaveAttribute("dir", "rtl");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflow).toBe(false);
+  await row.click();
+  await expect(card(page, "Decline barbell bench press")).toBeVisible();
+  await expect(postCount(page)).toHaveText("POSTs: 1");
+});
+
+test("thumbnail rows keep mobile ergonomics at 375/390/430: 44px rows, 48px tiles, no overflow, input keeps focus", async ({ page }) => {
+  for (const width of [375, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Add exercise/ })).toBeVisible();
+    await openPanel(page);
+    const input = searchInput(page);
+    await input.fill("bench");
+    const row = resultRow(page, "Barbell bench press");
+    await expect(row).toBeVisible();
+    const rowHeight = (await row.boundingBox())?.height ?? 0;
+    expect(rowHeight).toBeGreaterThanOrEqual(44);
+    const tileBox = await tile(row).boundingBox();
+    expect(tileBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(tileBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+    const fontSize = await input.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(16);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow).toBe(false);
+    await row.click();
+    await expect(card(page, "Barbell bench press")).toBeVisible();
+    await expect(searchInput(page)).toBeFocused();
+    await expect(postCount(page)).toHaveText("POSTs: 1");
+  }
+});
+
+test("thumbnail screenshot coverage: coach image, Progress-only pilot image, fallback, 390px and RTL", async ({ page }) => {
+  const dir = `${SCREEN_DIR}/thumbs`;
+  mkdirSync(dir, { recursive: true });
+
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("/dev/routine-add");
+  await openPanel(page);
+  await searchInput(page).fill("bench");
+  await expect(resultRow(page, "Barbell bench press")).toBeVisible();
+  await page.screenshot({ path: `${dir}/coach-reused-image-desktop.png` });
+
+  await searchInput(page).fill("decline bench");
+  await expect(resultRow(page, "Decline barbell bench press")).toBeVisible();
+  await expect(tile(resultRow(page, "Decline barbell bench press")).locator("img")).toBeVisible();
+  await page.screenshot({ path: `${dir}/progress-only-pilot-image.png` });
+
+  await searchInput(page).fill("pendlay");
+  await expect(resultRow(page, "Pendlay row")).toBeVisible();
+  await page.screenshot({ path: `${dir}/progress-only-fallback.png` });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await searchInput(page).fill("bench");
+  await expect(resultRow(page, "Barbell bench press")).toBeVisible();
+  await page.screenshot({ path: `${dir}/mobile-390-picker.png`, fullPage: true });
+
+  await page.getByRole("button", { name: "AR", exact: true }).click();
+  const arabicSearch = page.getByPlaceholder("ابحث عن التمارين");
+  await arabicSearch.fill("ضغط الصدر المائل للأسفل");
+  await expect(resultRow(page, "ضغط الصدر المائل للأسفل بالبار")).toBeVisible();
+  await page.screenshot({ path: `${dir}/arabic-rtl-picker.png`, fullPage: true });
+});

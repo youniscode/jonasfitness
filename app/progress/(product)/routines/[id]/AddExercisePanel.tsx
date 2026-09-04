@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { exerciseDisplayName, searchCatalogue, type ExerciseDefinition } from "../../../../lib/exercise-catalogue";
 import type { ProgressText } from "../../progress-text";
+import ExerciseThumb from "./ExerciseThumb";
 import type { Section } from "./RoutineSortable";
 
 /** Product defaults applied automatically to every catalogue instant add. */
@@ -207,7 +208,10 @@ export default function AddExercisePanel({ t, lang, sections, defaultSectionId, 
                 onPointerDown={(e) => e.preventDefault()}
                 onClick={() => quickAdd(exercise)}
               >
-                <span><strong>{exerciseDisplayName(exercise, lang)}</strong><small>{exercise.muscleGroup} · {exercise.equipment}</small></span>
+                {/* Decorative 48px thumbnail (image for the pilot set, deterministic movement fallback otherwise).
+                    It is aria-hidden and carries no handlers: the row button remains the one tap-to-add action. */}
+                <ExerciseThumb exercise={exercise} />
+                <span className="progress-catalogue-copy"><strong>{exerciseDisplayName(exercise, lang)}</strong><small>{exercise.muscleGroup} · {exercise.equipment}</small></span>
                 {pending && pendingExerciseId === exercise.id && <em>{t.saving}</em>}
               </button>
             );

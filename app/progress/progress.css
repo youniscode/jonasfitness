@@ -162,15 +162,22 @@
 .progress-add-exercise label{font-size:9px;color:#71756b;display:grid;gap:5px}
 .progress-add-exercise input:focus-visible,.progress-add-exercise select:focus-visible,.progress-catalogue-results button:focus-visible,.progress-custom-toggle:focus-visible{outline:2px solid #9cc94f;outline-offset:1px}
 .progress-catalogue-results{max-height:240px;overflow:auto;border:1px solid #e5e5dd}
-.progress-catalogue-results button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;border-bottom:1px solid #efefe9;background:#fff;padding:11px;text-align:start;cursor:pointer;min-width:0}
-.progress-catalogue-results button>span{display:grid;gap:2px;min-width:0;text-align:start}
+.progress-catalogue-results button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;border-bottom:1px solid #efefe9;background:#fff;padding:10px;text-align:start;cursor:pointer;min-width:0}
+.progress-catalogue-results button>.progress-catalogue-copy{display:grid;gap:2px;min-width:0;flex:1 1 auto;text-align:start}
 .progress-catalogue-results button:hover:not(:disabled){background:#f1fbc9}
 .progress-catalogue-results button.active{background:#eef7d2;box-shadow:inset 3px 0 0 var(--lime)}
 .progress-catalogue-results button:disabled{opacity:.5;cursor:default}
 .progress-catalogue-results button.adding:disabled{opacity:1}
 .progress-catalogue-results strong{font-size:12px;overflow-wrap:anywhere}
 .progress-catalogue-results small{font-size:8px;color:#85887f}
-.progress-catalogue-results em{font-style:normal;font-size:9px;font-weight:800;color:#546126;white-space:nowrap}
+.progress-catalogue-results em{font-style:normal;font-size:9px;font-weight:800;color:#546126;white-space:nowrap;flex:none}
+/* 48px decorative tile for catalogue rows. The box is reserved before load
+   (no CLS) and the fallback tile is drawn, never a broken/empty box. The
+   figure inherits the ink + lime line-art grammar used across Jonas visuals. */
+.progress-exercise-thumb{flex:none;width:48px;height:48px;border-radius:6px;overflow:hidden;background:#171a15;border:1px solid #d8d9d0;display:grid;place-items:center}
+.progress-exercise-thumb img{width:48px;height:48px;object-fit:cover;display:block;background:#171a15}
+.progress-exercise-thumb-fallback svg{width:40px;height:29px;color:#dfffb0}
+.progress-catalogue-copy+em{margin-inline-start:auto}
 .progress-results-busy{background:#fbfaf3}
 .progress-add-feedback{font-size:10px;color:#3d5220;font-weight:800;display:flex;align-items:center;gap:6px;margin:0}
 .progress-add-feedback i{font-style:normal;color:var(--lime);background:#10120e;width:18px;height:18px;display:inline-grid;place-items:center;font-size:11px;flex:none}
